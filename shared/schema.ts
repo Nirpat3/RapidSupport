@@ -21,6 +21,8 @@ export const customers = pgTable("customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  company: text("company"), // Optional company name
+  tags: text("tags").array(), // Array of tags for categorization
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -88,6 +90,8 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const insertCustomerSchema = createInsertSchema(customers).pick({
   name: true,
   email: true,
+  company: true,
+  tags: true,
 });
 
 export const insertConversationSchema = createInsertSchema(conversations).pick({
