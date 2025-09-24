@@ -24,6 +24,11 @@ export const customers = pgTable("customers", {
   company: text("company"), // Optional company name
   tags: text("tags").array(), // Array of tags for categorization
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
+  // External sync fields
+  externalId: text("external_id"), // ID from external system
+  externalSystem: text("external_system"), // Name of external system (e.g., "zendesk", "jira")
+  syncStatus: text("sync_status").default("not_synced"), // 'synced' | 'pending' | 'failed' | 'not_synced'
+  lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -51,6 +56,27 @@ export const messages = pgTable("messages", {
   status: text("status").notNull().default("sent"), // 'sent' | 'delivered' | 'read'
 });
 
+// Tickets table - separate from conversations for better ticket management
+export const tickets = pgTable("tickets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull().default("open"), // 'open' | 'in-progress' | 'closed'
+  priority: text("priority").notNull().default("medium"), // 'low' | 'medium' | 'high' | 'urgent'
+  category: text("category").notNull().default("General"),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  assignedAgentId: varchar("assigned_agent_id").references(() => users.id),
+  conversationId: varchar("conversation_id").references(() => conversations.id), // Link to conversation if escalated
+  // External sync fields
+  externalId: text("external_id"), // ID from external system
+  externalSystem: text("external_system"), // Name of external system
+  syncStatus: text("sync_status").default("not_synced"), // 'synced' | 'pending' | 'failed' | 'not_synced'
+  lastSyncAt: timestamp("last_sync_at"),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   assignedConversations: many(conversations),
@@ -70,6 +96,22 @@ export const conversationsRelations = relations(conversations, ({ one, many }) =
     references: [users.id],
   }),
   messages: many(messages),
+  tickets: many(tickets),
+}));
+
+export const ticketsRelations = relations(tickets, ({ one }) => ({
+  customer: one(customers, {
+    fields: [tickets.customerId],
+    references: [customers.id],
+  }),
+  assignedAgent: one(users, {
+    fields: [tickets.assignedAgentId],
+    references: [users.id],
+  }),
+  conversation: one(conversations, {
+    fields: [tickets.conversationId],
+    references: [conversations.id],
+  }),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({
@@ -92,6 +134,28 @@ export const insertCustomerSchema = createInsertSchema(customers).pick({
   email: true,
   company: true,
   tags: true,
+});
+
+export const insertTicketSchema = createInsertSchema(tickets).pick({
+  title: true,
+  description: true,
+  status: true,
+  priority: true,
+  category: true,
+  customerId: true,
+  assignedAgentId: true,
+  conversationId: true,
+});
+
+// External sync schemas
+export const externalCustomerSyncSchema = insertCustomerSchema.extend({
+  externalId: z.string().optional(),
+  externalSystem: z.string().optional(),
+});
+
+export const externalTicketSyncSchema = insertTicketSchema.extend({
+  externalId: z.string().optional(),
+  externalSystem: z.string().optional(),
 });
 
 export const insertConversationSchema = createInsertSchema(conversations).pick({
@@ -118,3 +182,7 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+export type InsertTicket = z.infer<typeof insertTicketSchema>;
+export type Ticket = typeof tickets.$inferSelect;
+export type ExternalCustomerSync = z.infer<typeof externalCustomerSyncSchema>;
+export type ExternalTicketSync = z.infer<typeof externalTicketSyncSchema>;

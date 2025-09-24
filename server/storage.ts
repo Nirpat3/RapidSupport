@@ -3,6 +3,7 @@ import {
   customers,
   conversations,
   messages,
+  tickets,
   type User,
   type InsertUser,
   type Customer,
@@ -11,6 +12,10 @@ import {
   type InsertConversation,
   type Message,
   type InsertMessage,
+  type Ticket,
+  type InsertTicket,
+  type ExternalCustomerSync,
+  type ExternalTicketSync,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or } from "drizzle-orm";
@@ -45,6 +50,23 @@ export interface IStorage {
   getMessagesByConversation(conversationId: string): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
   updateMessageStatus(id: string, status: string): Promise<void>;
+
+  // Ticket operations
+  getTicket(id: string): Promise<Ticket | undefined>;
+  getTicketsByCustomer(customerId: string): Promise<Ticket[]>;
+  getTicketsByAgent(agentId: string): Promise<Ticket[]>;
+  getAllTickets(): Promise<Ticket[]>;
+  createTicket(ticket: InsertTicket): Promise<Ticket>;
+  updateTicketStatus(id: string, status: string): Promise<void>;
+  assignTicket(id: string, agentId: string): Promise<void>;
+
+  // External sync operations
+  syncCustomerFromExternal(data: ExternalCustomerSync): Promise<Customer>;
+  syncTicketFromExternal(data: ExternalTicketSync): Promise<Ticket>;
+  updateCustomerSyncStatus(id: string, status: string, externalId?: string): Promise<void>;
+  updateTicketSyncStatus(id: string, status: string, externalId?: string): Promise<void>;
+  getCustomerByExternalId(externalId: string, externalSystem: string): Promise<Customer | undefined>;
+  getTicketByExternalId(externalId: string, externalSystem: string): Promise<Ticket | undefined>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -199,6 +221,185 @@ export class DatabaseStorage implements IStorage {
       .update(messages)
       .set({ status })
       .where(eq(messages.id, id));
+  }
+
+  // Ticket operations
+  async getTicket(id: string): Promise<Ticket | undefined> {
+    const [ticket] = await db.select().from(tickets).where(eq(tickets.id, id));
+    return ticket || undefined;
+  }
+
+  async getTicketsByCustomer(customerId: string): Promise<Ticket[]> {
+    return await db
+      .select()
+      .from(tickets)
+      .where(eq(tickets.customerId, customerId))
+      .orderBy(desc(tickets.createdAt));
+  }
+
+  async getTicketsByAgent(agentId: string): Promise<Ticket[]> {
+    return await db
+      .select()
+      .from(tickets)
+      .where(eq(tickets.assignedAgentId, agentId))
+      .orderBy(desc(tickets.createdAt));
+  }
+
+  async getAllTickets(): Promise<Ticket[]> {
+    return await db
+      .select()
+      .from(tickets)
+      .orderBy(desc(tickets.createdAt));
+  }
+
+  async createTicket(insertTicket: InsertTicket): Promise<Ticket> {
+    const [ticket] = await db
+      .insert(tickets)
+      .values({
+        ...insertTicket,
+        updatedAt: new Date(),
+      })
+      .returning();
+    return ticket;
+  }
+
+  async updateTicketStatus(id: string, status: string): Promise<void> {
+    const updateData: any = { status, updatedAt: new Date() };
+    if (status === 'closed') {
+      updateData.resolvedAt = new Date();
+    }
+    
+    await db
+      .update(tickets)
+      .set(updateData)
+      .where(eq(tickets.id, id));
+  }
+
+  async assignTicket(id: string, agentId: string): Promise<void> {
+    await db
+      .update(tickets)
+      .set({ assignedAgentId: agentId, updatedAt: new Date() })
+      .where(eq(tickets.id, id));
+  }
+
+  // External sync operations
+  async syncCustomerFromExternal(data: ExternalCustomerSync): Promise<Customer> {
+    // Check if customer already exists by external ID
+    if (data.externalId && data.externalSystem) {
+      const existing = await this.getCustomerByExternalId(data.externalId, data.externalSystem);
+      if (existing) {
+        // Update existing customer
+        const [updated] = await db
+          .update(customers)
+          .set({
+            name: data.name,
+            email: data.email,
+            company: data.company,
+            tags: data.tags,
+            syncStatus: 'synced',
+            lastSyncAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(customers.id, existing.id))
+          .returning();
+        return updated;
+      }
+    }
+
+    // Create new customer
+    const [customer] = await db
+      .insert(customers)
+      .values({
+        ...data,
+        syncStatus: 'synced',
+        lastSyncAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return customer;
+  }
+
+  async syncTicketFromExternal(data: ExternalTicketSync): Promise<Ticket> {
+    // Check if ticket already exists by external ID
+    if (data.externalId && data.externalSystem) {
+      const existing = await this.getTicketByExternalId(data.externalId, data.externalSystem);
+      if (existing) {
+        // Update existing ticket
+        const [updated] = await db
+          .update(tickets)
+          .set({
+            title: data.title,
+            description: data.description,
+            status: data.status,
+            priority: data.priority,
+            category: data.category,
+            syncStatus: 'synced',
+            lastSyncAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(tickets.id, existing.id))
+          .returning();
+        return updated;
+      }
+    }
+
+    // Create new ticket
+    const [ticket] = await db
+      .insert(tickets)
+      .values({
+        ...data,
+        syncStatus: 'synced',
+        lastSyncAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return ticket;
+  }
+
+  async updateCustomerSyncStatus(id: string, status: string, externalId?: string): Promise<void> {
+    const updateData: any = { syncStatus: status, lastSyncAt: new Date(), updatedAt: new Date() };
+    if (externalId) {
+      updateData.externalId = externalId;
+    }
+    
+    await db
+      .update(customers)
+      .set(updateData)
+      .where(eq(customers.id, id));
+  }
+
+  async updateTicketSyncStatus(id: string, status: string, externalId?: string): Promise<void> {
+    const updateData: any = { syncStatus: status, lastSyncAt: new Date(), updatedAt: new Date() };
+    if (externalId) {
+      updateData.externalId = externalId;
+    }
+    
+    await db
+      .update(tickets)
+      .set(updateData)
+      .where(eq(tickets.id, id));
+  }
+
+  async getCustomerByExternalId(externalId: string, externalSystem: string): Promise<Customer | undefined> {
+    const [customer] = await db
+      .select()
+      .from(customers)
+      .where(and(
+        eq(customers.externalId, externalId),
+        eq(customers.externalSystem, externalSystem)
+      ));
+    return customer || undefined;
+  }
+
+  async getTicketByExternalId(externalId: string, externalSystem: string): Promise<Ticket | undefined> {
+    const [ticket] = await db
+      .select()
+      .from(tickets)
+      .where(and(
+        eq(tickets.externalId, externalId),
+        eq(tickets.externalSystem, externalSystem)
+      ));
+    return ticket || undefined;
   }
 
 }

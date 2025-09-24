@@ -9,7 +9,10 @@ import { storage } from "./storage";
 import ChatWebSocketServer from './websocket';
 import { 
   insertCustomerSchema, 
-  insertConversationSchema 
+  insertConversationSchema,
+  insertTicketSchema,
+  externalCustomerSyncSchema,
+  externalTicketSyncSchema
 } from '@shared/schema';
 
 // Route-specific validation schemas
@@ -39,6 +42,19 @@ const messageStatusSchema = z.object({
 
 const customerStatusSchema = z.object({
   status: z.enum(['online', 'offline', 'away'])
+});
+
+// External API validation schemas
+const apiKeySchema = z.object({
+  apiKey: z.string().min(1, 'API key is required')
+});
+
+const ticketStatusUpdateSchema = z.object({
+  status: z.enum(['open', 'in-progress', 'closed'])
+});
+
+const ticketAssignmentSchema = z.object({
+  agentId: z.string().uuid('Invalid agent ID')
 });
 
 export async function registerRoutes(app: Express): Promise<{ server: Server, wsServer?: any }> {
@@ -473,6 +489,250 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         });
       }
       res.status(500).json({ error: 'Failed to create conversation' });
+    }
+  });
+
+  // API Key authentication middleware for external APIs
+  const requireApiKey = (req: any, res: any, next: any) => {
+    const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+    
+    // Simple API key validation (in production, use proper key management)
+    if (!apiKey || apiKey !== process.env.EXTERNAL_API_KEY) {
+      return res.status(401).json({ error: 'Invalid or missing API key' });
+    }
+    
+    next();
+  };
+
+  // External API rate limiting
+  const externalApiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: { error: 'Too many API requests, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // ============================================
+  // EXTERNAL SYNC API ENDPOINTS FOR 3RD PARTY SYSTEMS
+  // ============================================
+
+  // External Customer Sync API
+  app.get('/api/external/customers', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const customers = await storage.getAllCustomers();
+      res.json({
+        success: true,
+        data: customers,
+        total: customers.length
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch customers', success: false });
+    }
+  });
+
+  app.get('/api/external/customers/:id', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const customer = await storage.getCustomer(id);
+      
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found', success: false });
+      }
+      
+      res.json({
+        success: true,
+        data: customer
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch customer', success: false });
+    }
+  });
+
+  app.post('/api/external/customers/sync', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const customerData = externalCustomerSyncSchema.parse(req.body);
+      const customer = await storage.syncCustomerFromExternal(customerData);
+      
+      res.status(201).json({
+        success: true,
+        data: customer,
+        message: 'Customer synced successfully'
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid customer data', 
+          details: fromZodError(error).toString(),
+          success: false
+        });
+      }
+      res.status(500).json({ error: 'Failed to sync customer', success: false });
+    }
+  });
+
+  app.put('/api/external/customers/:id/sync-status', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, externalId } = req.body;
+      
+      await storage.updateCustomerSyncStatus(id, status, externalId);
+      
+      res.json({
+        success: true,
+        message: 'Customer sync status updated'
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update customer sync status', success: false });
+    }
+  });
+
+  // External Ticket Sync API
+  app.get('/api/external/tickets', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const tickets = await storage.getAllTickets();
+      res.json({
+        success: true,
+        data: tickets,
+        total: tickets.length
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch tickets', success: false });
+    }
+  });
+
+  app.get('/api/external/tickets/:id', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const ticket = await storage.getTicket(id);
+      
+      if (!ticket) {
+        return res.status(404).json({ error: 'Ticket not found', success: false });
+      }
+      
+      res.json({
+        success: true,
+        data: ticket
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch ticket', success: false });
+    }
+  });
+
+  app.post('/api/external/tickets/sync', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const ticketData = externalTicketSyncSchema.parse(req.body);
+      const ticket = await storage.syncTicketFromExternal(ticketData);
+      
+      res.status(201).json({
+        success: true,
+        data: ticket,
+        message: 'Ticket synced successfully'
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid ticket data', 
+          details: fromZodError(error).toString(),
+          success: false
+        });
+      }
+      res.status(500).json({ error: 'Failed to sync ticket', success: false });
+    }
+  });
+
+  app.put('/api/external/tickets/:id/status', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = ticketStatusUpdateSchema.parse(req.body);
+      
+      await storage.updateTicketStatus(id, status);
+      
+      res.json({
+        success: true,
+        message: 'Ticket status updated'
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid status', 
+          details: fromZodError(error).toString(),
+          success: false
+        });
+      }
+      res.status(500).json({ error: 'Failed to update ticket status', success: false });
+    }
+  });
+
+  app.put('/api/external/tickets/:id/assign', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { agentId } = ticketAssignmentSchema.parse(req.body);
+      
+      await storage.assignTicket(id, agentId);
+      
+      res.json({
+        success: true,
+        message: 'Ticket assigned successfully'
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid agent ID', 
+          details: fromZodError(error).toString(),
+          success: false
+        });
+      }
+      res.status(500).json({ error: 'Failed to assign ticket', success: false });
+    }
+  });
+
+  app.put('/api/external/tickets/:id/sync-status', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, externalId } = req.body;
+      
+      await storage.updateTicketSyncStatus(id, status, externalId);
+      
+      res.json({
+        success: true,
+        message: 'Ticket sync status updated'
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update ticket sync status', success: false });
+    }
+  });
+
+  // Webhook endpoint for external systems to notify of changes
+  app.post('/api/external/webhook', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      const { event, type, id, data } = req.body;
+      
+      // Log webhook for debugging (in production, process according to event type)
+      console.log('Webhook received:', { event, type, id, timestamp: new Date() });
+      
+      // Process webhook based on event type
+      switch (event) {
+        case 'ticket.created':
+        case 'ticket.updated':
+          if (data && type === 'ticket') {
+            await storage.syncTicketFromExternal(data);
+          }
+          break;
+        case 'customer.created':
+        case 'customer.updated':
+          if (data && type === 'customer') {
+            await storage.syncCustomerFromExternal(data);
+          }
+          break;
+      }
+      
+      res.json({
+        success: true,
+        message: 'Webhook processed successfully'
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to process webhook', success: false });
     }
   });
 
