@@ -6,12 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Users, MessageSquare, Clock, MoreVertical, Plus, Building2 } from "lucide-react";
+import { Search, Users, MessageSquare, Clock, MoreVertical, Plus, Building2, Eye } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customersApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "wouter";
 
 // Mock data for demonstration - will be replaced with real data from API
 
@@ -389,9 +390,17 @@ export default function CustomersPage() {
                     </p>
                   </div>
                   
-                  <Button variant="ghost" size="icon" className="ml-auto" data-testid={`customer-menu-${customer.id}`}>
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <Button variant="outline" size="sm" asChild data-testid={`button-view-profile-${customer.id}`}>
+                      <Link href={`/customers/${customer.id}`}>
+                        <Eye className="w-4 h-4 mr-2" />
+                        Profile
+                      </Link>
+                    </Button>
+                    <Button variant="ghost" size="icon" data-testid={`customer-menu-${customer.id}`}>
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}

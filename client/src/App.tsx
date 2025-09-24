@@ -11,6 +11,7 @@ import LoginForm from "@/components/LoginForm";
 import ConversationsPage from "@/pages/ConversationsPage";
 import DashboardPage from "@/pages/DashboardPage";
 import CustomersPage from "@/pages/CustomersPage";
+import CustomerProfilePage from "@/pages/CustomerProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import NotFound from "@/pages/not-found";
 
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/" component={ConversationsPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/customers" component={CustomersPage} />
+      <Route path="/customers/:id" component={CustomerProfilePage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

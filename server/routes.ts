@@ -158,6 +158,29 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
     }
   });
 
+  app.get('/api/customers/:id', requireAuth, async (req, res) => {
+    try {
+      // Validate customer ID
+      const customerId = z.string().uuid().parse(req.params.id);
+      
+      // Get customer
+      const customer = await storage.getCustomer(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+      
+      res.json(customer);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid customer ID', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to fetch customer' });
+    }
+  });
+
   // Conversation management routes
   app.get('/api/conversations', requireAuth, async (req, res) => {
     try {

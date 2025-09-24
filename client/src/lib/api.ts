@@ -100,6 +100,16 @@ export const customersApi = {
     return response.json();
   },
 
+  getById: async (id: string): Promise<Customer> => {
+    const response = await fetch(`/api/customers/${id}`, {
+      credentials: 'include'
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch customer');
+    }
+    return response.json();
+  },
+
   updateStatus: async (id: string, status: string): Promise<{ message: string }> => {
     const response = await fetch(`/api/customers/${id}/status`, {
       method: 'PATCH',
