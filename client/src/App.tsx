@@ -39,26 +39,30 @@ function AuthenticatedApp() {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <div className="flex flex-col flex-1">
-          <header className="flex items-center justify-between p-4 border-b border-border bg-card">
-            <div className="flex items-center gap-4">
+          <header className="flex items-center justify-between p-2 sm:p-4 border-b border-border bg-card">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
-              <div className="h-6 w-px bg-border" />
-              <h2 className="font-semibold text-lg" data-testid="page-header">
+              <div className="h-6 w-px bg-border hidden sm:block" />
+              <h2 className="font-semibold text-base sm:text-lg truncate" data-testid="page-header">
                 Support Board
               </h2>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground" data-testid="text-user-name">
+            <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+              <span className="text-xs sm:text-sm text-muted-foreground truncate hidden md:block" data-testid="text-user-name">
                 {user?.name} ({user?.role})
               </span>
+              <span className="text-xs sm:text-sm text-muted-foreground truncate md:hidden" data-testid="text-user-name-short">
+                {user?.name}
+              </span>
               <ThemeToggle />
-              <div className="h-6 w-px bg-border" />
+              <div className="h-6 w-px bg-border hidden sm:block" />
               <button 
                 onClick={logout}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors px-1 sm:px-0"
                 data-testid="button-logout"
               >
-                Logout
+                <span className="hidden sm:inline">Logout</span>
+                <span className="sm:hidden">Exit</span>
               </button>
             </div>
           </header>

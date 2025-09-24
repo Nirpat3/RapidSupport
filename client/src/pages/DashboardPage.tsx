@@ -84,14 +84,14 @@ const activityIcons = {
 
 export default function DashboardPage() {
   return (
-    <div className="p-6 space-y-6" data-testid="dashboard-page">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6" data-testid="dashboard-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="dashboard-title">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's what's happening today.</p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="dashboard-title">Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Welcome back! Here's what's happening today.</p>
         </div>
-        <Button data-testid="button-refresh">
+        <Button className="w-full sm:w-auto" data-testid="button-refresh">
           Refresh Data
         </Button>
       </div>
@@ -100,9 +100,9 @@ export default function DashboardPage() {
       <DashboardMetrics />
       
       {/* Content Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
         {/* Recent Activity */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 order-2 lg:order-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5" />
@@ -113,7 +113,7 @@ export default function DashboardPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-80">
+            <ScrollArea className="h-60 sm:h-80">
               <div className="space-y-4">
                 {recentActivity.map((activity) => (
                   <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover-elevate" data-testid={`activity-${activity.id}`}>
@@ -149,7 +149,7 @@ export default function DashboardPage() {
         </Card>
         
         {/* Top Agents */}
-        <Card>
+        <Card className="order-1 lg:order-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5" />

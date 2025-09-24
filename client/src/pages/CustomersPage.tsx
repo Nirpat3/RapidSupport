@@ -4,52 +4,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Users, MessageSquare, Clock, MoreVertical } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Search, Users, MessageSquare, Clock, MoreVertical, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { customersApi } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
-// TODO: remove mock functionality
-const customers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john.doe@email.com',
-    status: 'online',
-    totalConversations: 5,
-    lastActivity: new Date(Date.now() - 1000 * 60 * 5),
-    satisfaction: 4.8,
-    tags: ['premium', 'vip']
-  },
-  {
-    id: '2',
-    name: 'Sarah Wilson',
-    email: 'sarah.wilson@email.com',
-    status: 'away',
-    totalConversations: 12,
-    lastActivity: new Date(Date.now() - 1000 * 60 * 15),
-    satisfaction: 4.9,
-    tags: ['enterprise']
-  },
-  {
-    id: '3',
-    name: 'Mike Johnson',
-    email: 'mike.johnson@email.com',
-    status: 'offline',
-    totalConversations: 3,
-    lastActivity: new Date(Date.now() - 1000 * 60 * 120),
-    satisfaction: 4.2,
-    tags: ['new']
-  },
-  {
-    id: '4',
-    name: 'Emma Davis',
-    email: 'emma.davis@email.com',
-    status: 'busy',
-    totalConversations: 8,
-    lastActivity: new Date(Date.now() - 1000 * 60 * 30),
-    satisfaction: 4.6,
-    tags: ['premium']
-  }
-];
+// Mock data for demonstration - will be replaced with real data from API
 
 const statusColors = {
   online: 'bg-green-500',
@@ -67,6 +31,40 @@ const tagColors = {
 
 export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    email: ""
+  });
+  
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Fetch real customers from backend
+  const { data: customers = [], isLoading, error } = useQuery({
+    queryKey: ['/api/customers'],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const createCustomerMutation = useMutation({
+    mutationFn: customersApi.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      setIsAddDialogOpen(false);
+      setNewCustomer({ name: "", email: "" });
+      toast({
+        title: "Success",
+        description: "Customer created successfully!",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to create customer. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
   
   const filteredCustomers = customers.filter(customer =>
     customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -74,20 +72,72 @@ export default function CustomersPage() {
   );
 
   return (
-    <div className="p-6 space-y-6" data-testid="customers-page">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6" data-testid="customers-page">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="customers-title">Customers</h1>
-          <p className="text-muted-foreground">Manage and view customer information</p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="customers-title">Customers</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Manage and view customer information</p>
         </div>
-        <Button data-testid="button-add-customer">
-          Add Customer
-        </Button>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="w-full sm:w-auto" data-testid="button-add-customer">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Customer
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Add Customer</DialogTitle>
+              <DialogDescription>
+                Create a new customer profile. All fields are required.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Customer Name</Label>
+                <Input
+                  id="name"
+                  placeholder="Enter customer name"
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer({...newCustomer, name: e.target.value})}
+                  data-testid="input-customer-name"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter email address"
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
+                  data-testid="input-customer-email"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} data-testid="button-cancel-customer">
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (newCustomer.name && newCustomer.email) {
+                    createCustomerMutation.mutate(newCustomer);
+                  }
+                }} 
+                disabled={createCustomerMutation.isPending || !newCustomer.name || !newCustomer.email}
+                data-testid="button-save-customer"
+              >
+                {createCustomerMutation.isPending ? "Creating..." : "Create Customer"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
       
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
@@ -136,13 +186,13 @@ export default function CustomersPage() {
       {/* Search and Filters */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="min-w-0">
               <CardTitle>Customer Directory</CardTitle>
               <CardDescription>Search and manage customer profiles</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative w-64">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search customers..."
@@ -156,9 +206,38 @@ export default function CustomersPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {filteredCustomers.map((customer) => (
-              <div key={customer.id} className="flex items-center gap-4 p-4 rounded-lg border hover-elevate" data-testid={`customer-${customer.id}`}>
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border">
+                  <Skeleton className="w-12 h-12 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                  <div className="flex gap-4">
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-8 w-16" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : error ? (
+            <div className="text-center py-8">
+              <p className="text-red-500 mb-2">Failed to load customers</p>
+              <p className="text-muted-foreground text-sm">Please try refreshing the page</p>
+            </div>
+          ) : filteredCustomers.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">
+                {searchQuery ? 'No customers found matching your search' : 'No customers found'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredCustomers.map((customer) => (
+              <div key={customer.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border hover-elevate" data-testid={`customer-${customer.id}`}>
                 <div className="relative">
                   <Avatar className="w-12 h-12">
                     <AvatarFallback>{customer.name.slice(0, 2).toUpperCase()}</AvatarFallback>
@@ -171,30 +250,21 @@ export default function CustomersPage() {
                     <h3 className="font-medium truncate" data-testid={`customer-name-${customer.id}`}>
                       {customer.name}
                     </h3>
-                    <div className="flex gap-1">
-                      {customer.tags.map((tag) => (
-                        <Badge 
-                          key={tag} 
-                          variant="secondary" 
-                          className={`text-xs ${tagColors[tag as keyof typeof tagColors]}`}
-                          data-testid={`customer-tag-${customer.id}-${tag}`}
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
+                    <Badge variant="secondary" className="text-xs">
+                      {customer.status}
+                    </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground" data-testid={`customer-email-${customer.id}`}>
                     {customer.email}
                   </p>
                 </div>
                 
-                <div className="flex items-center gap-6">
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-6 w-full sm:w-auto">
                   <div className="text-center">
                     <div className="flex items-center gap-1 text-sm font-medium">
                       <MessageSquare className="w-4 h-4" />
                       <span data-testid={`customer-conversations-${customer.id}`}>
-                        {customer.totalConversations}
+                        0
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">Conversations</p>
@@ -204,7 +274,7 @@ export default function CustomersPage() {
                     <div className="flex items-center gap-1 text-sm font-medium">
                       <span>★</span>
                       <span data-testid={`customer-satisfaction-${customer.id}`}>
-                        {customer.satisfaction}
+                        --
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground">Satisfaction</p>
@@ -215,17 +285,18 @@ export default function CustomersPage() {
                       <Clock className="w-4 h-4" />
                     </div>
                     <p className="text-xs text-muted-foreground" data-testid={`customer-activity-${customer.id}`}>
-                      {formatDistanceToNow(customer.lastActivity, { addSuffix: true })}
+                      {formatDistanceToNow(new Date(customer.createdAt), { addSuffix: true })}
                     </p>
                   </div>
                   
-                  <Button variant="ghost" size="icon" data-testid={`customer-menu-${customer.id}`}>
+                  <Button variant="ghost" size="icon" className="ml-auto" data-testid={`customer-menu-${customer.id}`}>
                     <MoreVertical className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
             ))}
           </div>
+          )}
         </CardContent>
       </Card>
     </div>
