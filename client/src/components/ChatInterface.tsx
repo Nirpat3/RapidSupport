@@ -8,8 +8,10 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import { Send, Paperclip, MoreVertical, Phone, Video, Ticket } from "lucide-react";
 import ChatMessage, { type Message } from "./ChatMessage";
+import { ticketApi } from "@/lib/ticketStore";
 
 interface ChatInterfaceProps {
   conversationId?: string;
@@ -46,6 +48,7 @@ export default function ChatInterface({
   });
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -143,14 +146,40 @@ export default function ChatInterface({
                   </Button>
                   <Button 
                     onClick={() => {
-                      // TODO: Implement ticket creation API call
-                      console.log('Creating ticket from conversation:', {
-                        conversationId,
-                        customerId: customer.id,
-                        ...newTicket
-                      });
-                      setIsCreateTicketOpen(false);
-                      setNewTicket({ title: "", description: "", priority: "medium" });
+                      if (!newTicket.title.trim() || !newTicket.description.trim()) {
+                        toast({
+                          title: "Error",
+                          description: "Please fill in all required fields.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+
+                      try {
+                        const createdTicket = ticketApi.createTicket({
+                          title: newTicket.title,
+                          description: newTicket.description,
+                          status: 'open',
+                          priority: newTicket.priority as 'low' | 'medium' | 'high' | 'urgent',
+                          category: 'Conversation Escalation',
+                          customerId: customer.id,
+                          conversationId: conversationId
+                        });
+
+                        toast({
+                          title: "Success",
+                          description: `Ticket ${createdTicket.id} created from conversation successfully!`,
+                        });
+
+                        setIsCreateTicketOpen(false);
+                        setNewTicket({ title: "", description: "", priority: "medium" });
+                      } catch (error) {
+                        toast({
+                          title: "Error",
+                          description: "Failed to create ticket. Please try again.",
+                          variant: "destructive",
+                        });
+                      }
                     }}
                     data-testid="button-submit-chat-ticket"
                   >

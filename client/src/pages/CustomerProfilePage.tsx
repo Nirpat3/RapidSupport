@@ -35,6 +35,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customersApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ticketApi } from "@/lib/ticketStore";
 
 const statusColors = {
   online: 'bg-green-500',
@@ -84,27 +85,7 @@ const mockConversations = [
   }
 ];
 
-const mockTickets = [
-  {
-    id: 'T-001',
-    title: 'Login Issues',
-    description: 'Cannot access account after password reset',
-    status: 'closed',
-    priority: 'high',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5),
-    resolvedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3),
-    category: 'Authentication'
-  },
-  {
-    id: 'T-002',
-    title: 'Feature Request',
-    description: 'Request for dark mode in mobile app',
-    status: 'open',
-    priority: 'low',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24),
-    category: 'Enhancement'
-  }
-];
+// Using shared ticket store instead of local mock data
 
 const mockFAQs = [
   {
@@ -146,17 +127,19 @@ export default function CustomerProfilePage() {
   const { toast } = useToast();
   
   const handleTicketStatusChange = (ticketId: string, newStatus: 'open' | 'in-progress' | 'closed') => {
-    const ticketIndex = mockTickets.findIndex(t => t.id === ticketId);
-    if (ticketIndex !== -1) {
-      mockTickets[ticketIndex] = {
-        ...mockTickets[ticketIndex],
-        status: newStatus,
-        ...(newStatus === 'closed' && { resolvedAt: new Date() })
-      };
-      
+    const success = ticketApi.updateTicketStatus(ticketId, newStatus);
+    if (success) {
       toast({
         title: "Status Updated",
         description: `Ticket ${ticketId} status changed to ${newStatus}`,
+      });
+      // Force re-render by updating component state
+      setActiveTab(activeTab); // Trigger refresh
+    } else {
+      toast({
+        title: "Error",
+        description: "Failed to update ticket status",
+        variant: "destructive",
       });
     }
   };
@@ -292,12 +275,19 @@ export default function CustomerProfilePage() {
                       customerId: customer.id
                     };
                     
-                    // Add to mock data (in real app, this would be an API call)
-                    mockTickets.push(ticket);
+                    // Add to shared ticket store
+                    ticketApi.createTicket({
+                      title: newTicket.title,
+                      description: newTicket.description,
+                      status: 'open',
+                      priority: newTicket.priority as 'low' | 'medium' | 'high' | 'urgent',
+                      category: newTicket.category,
+                      customerId: customer.id
+                    });
                     
                     toast({
                       title: "Success",
-                      description: `Ticket ${ticket.id} created successfully!`,
+                      description: `Ticket created successfully!`,
                     });
                     setIsAddTicketOpen(false);
                     setNewTicket({ title: "", description: "", priority: "medium", category: "General" });
@@ -547,7 +537,7 @@ export default function CustomerProfilePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockTickets.map((ticket) => (
+                {ticketApi.getTicketsByCustomer(customer.id).map((ticket) => (
                   <div key={ticket.id} className="border rounded-lg p-4 hover-elevate" data-testid={`ticket-${ticket.id}`}>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
