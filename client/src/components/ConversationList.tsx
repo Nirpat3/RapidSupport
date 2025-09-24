@@ -58,12 +58,12 @@ export default function ConversationList({
   );
 
   return (
-    <div className="flex flex-col h-full bg-card border-r border-card-border">
+    <div className="flex flex-col h-full lg:h-screen bg-card border-r border-card-border">
       {/* Header */}
-      <div className="p-4 border-b border-card-border">
+      <div className="p-3 sm:p-4 border-b border-card-border">
         <div className="flex items-center gap-2 mb-3">
-          <MessageSquare className="w-5 h-5 text-primary" />
-          <h2 className="font-semibold text-lg" data-testid="conversations-title">Conversations</h2>
+          <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+          <h2 className="font-semibold text-base sm:text-lg" data-testid="conversations-title">Conversations</h2>
         </div>
         
         {/* Search */}
@@ -73,7 +73,7 @@ export default function ConversationList({
             placeholder="Search conversations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-10 text-sm"
             data-testid="input-search-conversations"
           />
         </div>
@@ -81,61 +81,61 @@ export default function ConversationList({
 
       {/* Conversation List */}
       <ScrollArea className="flex-1">
-        <div className="p-2">
+        <div className="p-1 sm:p-2">
           {filteredConversations.length === 0 ? (
             <div className="p-4 text-center text-muted-foreground" data-testid="no-conversations">
               <MessageSquare className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>No conversations found</p>
+              <p className="text-sm">No conversations found</p>
             </div>
           ) : (
             filteredConversations.map((conversation) => (
               <Button
                 key={conversation.id}
                 variant={activeConversationId === conversation.id ? "secondary" : "ghost"}
-                className="w-full p-3 h-auto justify-start hover-elevate mb-1"
+                className="w-full p-2 sm:p-3 h-auto justify-start hover-elevate mb-1"
                 onClick={() => onSelectConversation?.(conversation.id)}
                 data-testid={`conversation-${conversation.id}`}
               >
-                <div className="flex items-start gap-3 w-full">
-                  <div className="relative">
-                    <Avatar className="w-10 h-10">
+                <div className="flex items-start gap-2 sm:gap-3 w-full min-w-0">
+                  <div className="relative flex-shrink-0">
+                    <Avatar className="w-8 h-8 sm:w-10 sm:h-10">
                       <AvatarImage src={conversation.customer.avatar} />
-                      <AvatarFallback>{conversation.customer.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      <AvatarFallback className="text-xs">{conversation.customer.name.slice(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${statusColors[conversation.customer.status]}`} />
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-background ${statusColors[conversation.customer.status]}`} />
                   </div>
                   
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-medium truncate" data-testid={`customer-name-${conversation.id}`}>
+                    <div className="flex items-start justify-between mb-1 gap-2">
+                      <h3 className="font-medium text-sm sm:text-base leading-tight break-words" data-testid={`customer-name-${conversation.id}`}>
                         {conversation.customer.name}
                       </h3>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         {conversation.priority !== 'low' && (
-                          <div className={`w-2 h-2 rounded-full ${priorityColors[conversation.priority]}`} />
+                          <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${priorityColors[conversation.priority]}`} />
                         )}
                         {conversation.unreadCount > 0 && (
-                          <Badge variant="destructive" className="text-xs h-5 px-1.5" data-testid={`unread-count-${conversation.id}`}>
+                          <Badge variant="destructive" className="text-xs h-4 sm:h-5 px-1 sm:px-1.5" data-testid={`unread-count-${conversation.id}`}>
                             {conversation.unreadCount}
                           </Badge>
                         )}
                       </div>
                     </div>
                     
-                    <p className="text-sm text-muted-foreground truncate" data-testid={`last-message-${conversation.id}`}>
+                    <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 leading-tight mb-1" data-testid={`last-message-${conversation.id}`}>
                       {conversation.lastMessage.content}
                     </p>
                     
-                    <div className="flex items-center justify-between mt-1">
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" />
-                        <span data-testid={`timestamp-${conversation.id}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-0">
+                        <Clock className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate" data-testid={`timestamp-${conversation.id}`}>
                           {formatDistanceToNow(conversation.lastMessage.timestamp, { addSuffix: true })}
                         </span>
                       </div>
                       <Badge 
                         variant={conversation.status === 'open' ? 'default' : 'secondary'} 
-                        className="text-xs"
+                        className="text-xs flex-shrink-0"
                         data-testid={`status-${conversation.id}`}
                       >
                         {conversation.status}

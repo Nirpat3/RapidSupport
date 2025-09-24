@@ -162,8 +162,9 @@ export default function ConversationsPage() {
   };
   
   return (
-    <div className="flex h-full" data-testid="conversations-page">
-      <div className="w-80 flex-shrink-0">
+    <div className="flex flex-col lg:flex-row h-full" data-testid="conversations-page">
+      {/* Mobile: Full width conversation list, Desktop: Fixed sidebar */}
+      <div className="w-full lg:w-80 lg:flex-shrink-0 flex-shrink-0 h-auto lg:h-full">
         <ConversationList
           conversations={sampleConversations}
           activeConversationId={activeConversationId}
@@ -171,12 +172,15 @@ export default function ConversationsPage() {
         />
       </div>
       
-      <ChatInterface
-        conversationId={activeConversationId}
-        customer={activeConversation?.customer}
-        messages={activeMessages}
-        onSendMessage={handleSendMessage}
-      />
+      {/* Chat interface takes remaining space */}
+      <div className="flex-1 min-w-0 h-full">
+        <ChatInterface
+          conversationId={activeConversationId}
+          customer={activeConversation?.customer}
+          messages={activeMessages}
+          onSendMessage={handleSendMessage}
+        />
+      </div>
     </div>
   );
 }
