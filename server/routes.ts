@@ -6,13 +6,42 @@ import { fromZodError } from 'zod-validation-error';
 import passport from './auth';
 import { requireAuth, requireRole } from './auth';
 import { storage } from "./storage";
+import ChatWebSocketServer from './websocket';
 import { 
-  insertMessageSchema, 
   insertCustomerSchema, 
   insertConversationSchema 
 } from '@shared/schema';
 
-export async function registerRoutes(app: Express): Promise<Server> {
+// Route-specific validation schemas
+const messageCreateSchema = z.object({
+  conversationId: z.string().uuid('Invalid conversation ID'),
+  content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
+});
+
+const conversationCreateSchema = z.object({
+  customerId: z.string().uuid('Invalid customer ID'),
+  title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+  status: z.enum(['open', 'pending', 'resolved', 'closed']).default('open')
+});
+
+const conversationStatusSchema = z.object({
+  status: z.enum(['open', 'pending', 'resolved', 'closed'])
+});
+
+const conversationAssignSchema = z.object({
+  agentId: z.string().uuid('Invalid agent ID')
+});
+
+const messageStatusSchema = z.object({
+  status: z.enum(['sent', 'delivered', 'read'])
+});
+
+const customerStatusSchema = z.object({
+  status: z.enum(['online', 'offline', 'away'])
+});
+
+export async function registerRoutes(app: Express): Promise<{ server: Server, wsServer?: any }> {
   // Rate limiting for authentication
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -150,20 +179,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/conversations/:id/assign', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      const { agentId } = req.body;
-      await storage.assignConversation(req.params.id, agentId);
+      // Validate conversation ID
+      const conversationId = z.string().uuid().parse(req.params.id);
+      
+      // Validate request body
+      const { agentId } = conversationAssignSchema.parse(req.body);
+      
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      // Check if agent exists
+      const agent = await storage.getUser(agentId);
+      if (!agent || (agent.role !== 'agent' && agent.role !== 'admin')) {
+        return res.status(400).json({ error: 'Invalid agent ID' });
+      }
+      
+      await storage.assignConversation(conversationId, agentId);
       res.json({ message: 'Conversation assigned successfully' });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
       res.status(500).json({ error: 'Failed to assign conversation' });
     }
   });
 
   app.patch('/api/conversations/:id/status', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      const { status } = req.body;
-      await storage.updateConversationStatus(req.params.id, status);
+      // Validate conversation ID
+      const conversationId = z.string().uuid().parse(req.params.id);
+      
+      // Validate request body
+      const { status } = conversationStatusSchema.parse(req.body);
+      
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      await storage.updateConversationStatus(conversationId, status);
       res.json({ message: 'Conversation status updated successfully' });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
       res.status(500).json({ error: 'Failed to update conversation status' });
     }
   });
@@ -171,12 +240,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Message management routes
   app.post('/api/messages', requireAuth, async (req, res) => {
     try {
-      const { conversationId, content } = req.body;
+      // Validate request body
+      const { conversationId, content } = messageCreateSchema.parse(req.body);
       const user = req.user as any;
       
-      // Validate required fields
-      if (!conversationId || !content) {
-        return res.status(400).json({ error: 'conversationId and content are required' });
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      // Check access permissions - agents can only message assigned conversations, admins can message any
+      if (user.role === 'agent' && conversation.assignedAgentId !== user.id) {
+        return res.status(403).json({ error: 'You can only send messages to conversations assigned to you' });
       }
       
       // Determine sender type from user role
@@ -189,6 +265,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content,
         timestamp: new Date()
       });
+      
+      // Broadcast the new message to WebSocket clients
+      const wsServer = (req.app as any).wsServer;
+      if (wsServer) {
+        wsServer.broadcastNewMessage(conversationId, {
+          messageId: message.id,
+          conversationId: message.conversationId,
+          content: message.content,
+          userId: message.senderId,
+          userName: user.name,
+          userRole: user.role,
+          senderType: message.senderType,
+          timestamp: message.timestamp,
+          status: message.status
+        });
+      }
       
       res.status(201).json(message);
     } catch (error) {
@@ -203,12 +295,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/messages/:id/status', requireAuth, async (req, res) => {
+  app.patch('/api/messages/:id/status', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      const { status } = req.body;
-      await storage.updateMessageStatus(req.params.id, status);
+      // Validate message ID
+      const messageId = z.string().uuid().parse(req.params.id);
+      
+      // Validate request body
+      const { status } = messageStatusSchema.parse(req.body);
+      
+      await storage.updateMessageStatus(messageId, status);
       res.json({ message: 'Message status updated successfully' });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
       res.status(500).json({ error: 'Failed to update message status' });
     }
   });
@@ -297,37 +400,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch('/api/customers/:id/status', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      const { status } = req.body;
-      await storage.updateCustomerStatus(req.params.id, status);
+      // Validate customer ID
+      const customerId = z.string().uuid().parse(req.params.id);
+      
+      // Validate request body
+      const { status } = customerStatusSchema.parse(req.body);
+      
+      // Check if customer exists
+      const customer = await storage.getCustomer(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+      
+      await storage.updateCustomerStatus(customerId, status);
       res.json({ message: 'Customer status updated successfully' });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
       res.status(500).json({ error: 'Failed to update customer status' });
     }
   });
 
   // Conversation creation route
-  app.post('/api/conversations', requireAuth, async (req, res) => {
+  app.post('/api/conversations', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      const { customerId, title, priority } = req.body;
-      
-      if (!customerId) {
-        return res.status(400).json({ error: 'Customer ID is required' });
-      }
-      
-      const conversation = await storage.createConversation({
-        customerId,
-        title: title || 'New Conversation',
-        priority: priority || 'medium',
-        status: 'open'
+      // Validate request body
+      const conversationData = conversationCreateSchema.parse({
+        ...req.body,
+        title: req.body.title || 'New Conversation'
       });
       
+      // Check if customer exists
+      const customer = await storage.getCustomer(conversationData.customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+      
+      const conversation = await storage.createConversation(conversationData);
       res.status(201).json(conversation);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
       res.status(500).json({ error: 'Failed to create conversation' });
     }
   });
 
   const httpServer = createServer(app);
+  
+  // Initialize WebSocket server for real-time chat
+  // Note: We need to pass the session store for authentication
+  const wsServer = new ChatWebSocketServer(httpServer, null);
+  
+  // Store WebSocket server reference for use in message broadcasting
+  (app as any).wsServer = wsServer;
 
-  return httpServer;
+  return { server: httpServer, wsServer };
 }
