@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Users, MessageSquare, Clock, MoreVertical, Plus } from "lucide-react";
+import { Search, Users, MessageSquare, Clock, MoreVertical, Plus, Building2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { customersApi } from "@/lib/api";
@@ -34,8 +34,11 @@ export default function CustomersPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: "",
-    email: ""
+    email: "",
+    company: "",
+    tags: [] as string[]
   });
+  const [currentTag, setCurrentTag] = useState("");
   
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -51,7 +54,8 @@ export default function CustomersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
       setIsAddDialogOpen(false);
-      setNewCustomer({ name: "", email: "" });
+      setNewCustomer({ name: "", email: "", company: "", tags: [] });
+      setCurrentTag("");
       toast({
         title: "Success",
         description: "Customer created successfully!",
@@ -90,7 +94,7 @@ export default function CustomersPage() {
             <DialogHeader>
               <DialogTitle>Add Customer</DialogTitle>
               <DialogDescription>
-                Create a new customer profile. All fields are required.
+                Create a new customer profile. Name and email are required, other fields are optional.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -114,6 +118,81 @@ export default function CustomersPage() {
                   onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
                   data-testid="input-customer-email"
                 />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="company">Company (Optional)</Label>
+                <Input
+                  id="company"
+                  placeholder="Enter company name"
+                  value={newCustomer.company}
+                  onChange={(e) => setNewCustomer({...newCustomer, company: e.target.value})}
+                  data-testid="input-customer-company"
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label>Tags (Optional)</Label>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add a tag"
+                      value={currentTag}
+                      onChange={(e) => setCurrentTag(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && currentTag.trim()) {
+                          e.preventDefault();
+                          if (!newCustomer.tags.includes(currentTag.trim())) {
+                            setNewCustomer({
+                              ...newCustomer, 
+                              tags: [...newCustomer.tags, currentTag.trim()]
+                            });
+                          }
+                          setCurrentTag("");
+                        }
+                      }}
+                      data-testid="input-customer-tag"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (currentTag.trim() && !newCustomer.tags.includes(currentTag.trim())) {
+                          setNewCustomer({
+                            ...newCustomer, 
+                            tags: [...newCustomer.tags, currentTag.trim()]
+                          });
+                          setCurrentTag("");
+                        }
+                      }}
+                      data-testid="button-add-tag"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  
+                  {newCustomer.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {newCustomer.tags.map((tag, index) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="text-xs cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
+                          onClick={() => {
+                            setNewCustomer({
+                              ...newCustomer,
+                              tags: newCustomer.tags.filter((_, i) => i !== index)
+                            });
+                          }}
+                          data-testid={`tag-${index}`}
+                        >
+                          {tag} ×
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2">
@@ -254,9 +333,30 @@ export default function CustomersPage() {
                       {customer.status}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground" data-testid={`customer-email-${customer.id}`}>
-                    {customer.email}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground" data-testid={`customer-email-${customer.id}`}>
+                      {customer.email}
+                    </p>
+                    {customer.company && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1" data-testid={`customer-company-${customer.id}`}>
+                        <Building2 className="w-3 h-3" />
+                        {customer.company}
+                      </p>
+                    )}
+                    {customer.tags && customer.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1" data-testid={`customer-tags-${customer.id}`}>
+                        {customer.tags.map((tag, index) => (
+                          <Badge
+                            key={index}
+                            variant="outline"
+                            className="text-xs h-5 px-1.5"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 sm:gap-6 w-full sm:w-auto">

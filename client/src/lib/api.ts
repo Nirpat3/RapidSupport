@@ -3,6 +3,7 @@ import { apiRequest } from './queryClient';
 import type { 
   User, 
   Customer, 
+  InsertCustomer,
   Conversation, 
   Message 
 } from '@shared/schema';
@@ -86,7 +87,7 @@ export const customersApi = {
     return response.json();
   },
 
-  create: async (customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>): Promise<Customer> => {
+  create: async (customer: InsertCustomer): Promise<Customer> => {
     const response = await fetch('/api/customers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
