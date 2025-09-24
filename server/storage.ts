@@ -23,6 +23,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserStatus(id: string, status: string): Promise<void>;
   getAllAgents(): Promise<User[]>;
+  getAllUsers(): Promise<User[]>;
 
   // Customer operations
   getCustomer(id: string): Promise<Customer | undefined>;
@@ -79,6 +80,10 @@ export class DatabaseStorage implements IStorage {
 
   async getAllAgents(): Promise<User[]> {
     return await db.select().from(users).where(eq(users.role, 'agent'));
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).orderBy(desc(users.updatedAt));
   }
 
   // Customer operations
@@ -195,6 +200,7 @@ export class DatabaseStorage implements IStorage {
       .set({ status })
       .where(eq(messages.id, id));
   }
+
 }
 
 export const storage = new DatabaseStorage();

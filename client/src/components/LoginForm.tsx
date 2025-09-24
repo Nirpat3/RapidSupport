@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Eye, EyeOff, LogIn } from "lucide-react";
 
 interface LoginFormProps {
-  onLogin?: (email: string, password: string) => void;
+  onLogin?: (email: string, password: string) => Promise<boolean>;
 }
 
 export default function LoginForm({ onLogin }: LoginFormProps) {
@@ -19,12 +19,8 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
     e.preventDefault();
     setIsLoading(true);
     
-    // Simulate login
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log('Login attempted with:', { email, password });
-    
     if (onLogin) {
-      onLogin(email, password);
+      await onLogin(email, password);
     }
     
     setIsLoading(false);
