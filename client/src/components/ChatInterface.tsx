@@ -5,7 +5,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Send, Paperclip, MoreVertical, Phone, Video } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket } from "lucide-react";
 import ChatMessage, { type Message } from "./ChatMessage";
 
 interface ChatInterfaceProps {
@@ -35,6 +38,12 @@ export default function ChatInterface({
 }: ChatInterfaceProps) {
   const [newMessage, setNewMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
+  const [newTicket, setNewTicket] = useState({
+    title: "",
+    description: "",
+    priority: "medium" as const
+  });
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +101,64 @@ export default function ChatInterface({
           </div>
           
           <div className="flex items-center gap-2">
+            <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" data-testid="button-create-ticket-from-chat">
+                  <Ticket className="w-4 h-4 mr-2" />
+                  Create Ticket
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Create Ticket from Conversation</DialogTitle>
+                  <DialogDescription>
+                    Escalate this conversation with {customer.name} to a support ticket
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="ticket-title">Title</Label>
+                    <Input
+                      id="ticket-title"
+                      placeholder="Brief description of the issue"
+                      value={newTicket.title}
+                      onChange={(e) => setNewTicket({...newTicket, title: e.target.value})}
+                      data-testid="input-chat-ticket-title"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="ticket-description">Description</Label>
+                    <Textarea
+                      id="ticket-description"
+                      placeholder="Detailed description based on conversation"
+                      value={newTicket.description}
+                      onChange={(e) => setNewTicket({...newTicket, description: e.target.value})}
+                      data-testid="textarea-chat-ticket-description"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsCreateTicketOpen(false)} data-testid="button-cancel-chat-ticket">
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      // TODO: Implement ticket creation API call
+                      console.log('Creating ticket from conversation:', {
+                        conversationId,
+                        customerId: customer.id,
+                        ...newTicket
+                      });
+                      setIsCreateTicketOpen(false);
+                      setNewTicket({ title: "", description: "", priority: "medium" });
+                    }}
+                    data-testid="button-submit-chat-ticket"
+                  >
+                    Create Ticket
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
             <Button variant="ghost" size="icon" data-testid="button-call">
               <Phone className="w-4 h-4" />
             </Button>

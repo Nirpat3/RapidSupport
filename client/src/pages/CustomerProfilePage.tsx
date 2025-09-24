@@ -26,7 +26,9 @@ import {
   Star,
   HelpCircle,
   Ticket,
-  User
+  User,
+  Play,
+  X
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -142,6 +144,22 @@ export default function CustomerProfilePage() {
   
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  
+  const handleTicketStatusChange = (ticketId: string, newStatus: 'open' | 'in-progress' | 'closed') => {
+    const ticketIndex = mockTickets.findIndex(t => t.id === ticketId);
+    if (ticketIndex !== -1) {
+      mockTickets[ticketIndex] = {
+        ...mockTickets[ticketIndex],
+        status: newStatus,
+        ...(newStatus === 'closed' && { resolvedAt: new Date() })
+      };
+      
+      toast({
+        title: "Status Updated",
+        description: `Ticket ${ticketId} status changed to ${newStatus}`,
+      });
+    }
+  };
 
   // Fetch customer details
   const { data: customer, isLoading, error } = useQuery({
@@ -253,10 +271,33 @@ export default function CustomerProfilePage() {
                 </Button>
                 <Button 
                   onClick={() => {
-                    // TODO: Implement ticket creation
+                    if (!newTicket.title.trim() || !newTicket.description.trim()) {
+                      toast({
+                        title: "Error",
+                        description: "Please fill in all required fields.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    
+                    // Create new ticket with proper ID and timestamps
+                    const ticket = {
+                      id: `T-${Date.now().toString().slice(-6)}`,
+                      title: newTicket.title,
+                      description: newTicket.description,
+                      status: 'open' as const,
+                      priority: newTicket.priority as 'low' | 'medium' | 'high' | 'urgent',
+                      createdAt: new Date(),
+                      category: newTicket.category,
+                      customerId: customer.id
+                    };
+                    
+                    // Add to mock data (in real app, this would be an API call)
+                    mockTickets.push(ticket);
+                    
                     toast({
                       title: "Success",
-                      description: "Ticket created successfully!",
+                      description: `Ticket ${ticket.id} created successfully!`,
                     });
                     setIsAddTicketOpen(false);
                     setNewTicket({ title: "", description: "", priority: "medium", category: "General" });
@@ -467,8 +508,15 @@ export default function CustomerProfilePage() {
                           )}
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" data-testid={`button-view-conversation-${conversation.id}`}>
-                        View
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        asChild
+                        data-testid={`button-view-conversation-${conversation.id}`}
+                      >
+                        <Link href={`/?conversation=${conversation.id}`}>
+                          View
+                        </Link>
                       </Button>
                     </div>
                   </div>
@@ -534,9 +582,44 @@ export default function CustomerProfilePage() {
                           )}
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" data-testid={`button-view-ticket-${ticket.id}`}>
-                        View
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {ticket.status === 'open' && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleTicketStatusChange(ticket.id, 'in-progress')}
+                            data-testid={`button-start-ticket-${ticket.id}`}
+                          >
+                            <Play className="w-3 h-3 mr-1" />
+                            Start
+                          </Button>
+                        )}
+                        {ticket.status === 'in-progress' && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleTicketStatusChange(ticket.id, 'closed')}
+                            data-testid={`button-close-ticket-${ticket.id}`}
+                          >
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Close
+                          </Button>
+                        )}
+                        {ticket.status === 'closed' && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleTicketStatusChange(ticket.id, 'open')}
+                            data-testid={`button-reopen-ticket-${ticket.id}`}
+                          >
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Reopen
+                          </Button>
+                        )}
+                        <Button variant="outline" size="sm" data-testid={`button-view-ticket-${ticket.id}`}>
+                          View
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
