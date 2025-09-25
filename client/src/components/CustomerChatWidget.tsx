@@ -54,16 +54,10 @@ export function CustomerChatWidget() {
   const [messageInput, setMessageInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Function to get client IP address
+  // IP address will be determined server-side for security
   const getClientIP = async (): Promise<string> => {
-    try {
-      const response = await fetch('https://api.ipify.org?format=json');
-      const data = await response.json();
-      return data.ip;
-    } catch (error) {
-      console.warn('Failed to get IP address:', error);
-      return 'unknown';
-    }
+    // Server will determine IP address from request
+    return '';
   };
 
   // Check for existing conversation based on session/IP
@@ -83,12 +77,13 @@ export function CustomerChatWidget() {
   const createCustomerMutation = useMutation<CreateCustomerResponse, Error, AnonymousCustomer>({
     mutationFn: async (customerData: AnonymousCustomer) => {
       const ipAddress = await getClientIP();
-      const response = await apiRequest('POST', '/api/customer-chat/create-customer', {
+      const requestData = {
         ...customerData,
         ipAddress,
         sessionId: chatState.sessionId,
-      });
-      return response as unknown as CreateCustomerResponse;
+      };
+      const response = await apiRequest('POST', '/api/customer-chat/create-customer', requestData);
+      return response;
     },
     onSuccess: (response) => {
       setChatState(prev => ({

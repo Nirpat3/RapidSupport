@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { randomUUID } from "crypto";
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
@@ -67,7 +68,7 @@ const ticketAssignmentSchema = z.object({
 
 // Customer chat validation schemas
 const createAnonymousCustomerSchema = anonymousCustomerSchema.extend({
-  sessionId: z.string().uuid('Invalid session ID')
+  sessionId: z.string().optional()
 });
 
 const sendCustomerMessageSchema = z.object({
@@ -709,11 +710,22 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
   // Create anonymous customer and conversation
   app.post('/api/customer-chat/create-customer', async (req, res) => {
     try {
+      // If no sessionId provided, generate one
+      if (!req.body.sessionId) {
+        req.body.sessionId = randomUUID();
+      }
+      
+      // Get client IP from request instead of client-provided value
+      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+      req.body.ipAddress = clientIP;
+      
       const customerData = createAnonymousCustomerSchema.parse(req.body);
       const result = await storage.createAnonymousCustomer(customerData);
       
+      console.log('Customer created successfully - ID:', result.customerId);
       res.status(201).json(result);
     } catch (error) {
+      console.error('Customer creation failed:', error instanceof z.ZodError ? 'Validation error' : 'Server error');
       if (error instanceof z.ZodError) {
         return res.status(400).json({ 
           error: 'Invalid customer data', 

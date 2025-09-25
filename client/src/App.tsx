@@ -13,6 +13,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import CustomersPage from "@/pages/CustomersPage";
 import CustomerProfilePage from "@/pages/CustomerProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
+import CustomerChatPage from "@/pages/CustomerChatPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -79,6 +80,21 @@ function AuthenticatedApp() {
 
 function AppContent() {
   const { user, login, isLoading } = useAuth();
+  
+  // Check if we're on the customer chat page (public route)
+  const isCustomerChatPage = window.location.pathname === '/customer-chat';
+  
+  // For customer chat page, render without authentication but with necessary providers
+  if (isCustomerChatPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <CustomerChatPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
   
   // Show loading screen while checking authentication
   if (isLoading) {
