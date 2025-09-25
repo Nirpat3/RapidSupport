@@ -280,7 +280,10 @@ export function CustomerChatWidget() {
                             {message.senderType}
                           </Badge>
                         </div>
-                        <p>{message.content}</p>
+                        <div className="space-y-2">
+                          <p className="whitespace-pre-wrap">{message.content}</p>
+                          {/* TODO: Add attachment display when message attachments are loaded */}
+                        </div>
                         <p className="text-xs opacity-70 mt-1">
                           {new Date(message.timestamp).toLocaleTimeString()}
                         </p>
