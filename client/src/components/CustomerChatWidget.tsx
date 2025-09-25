@@ -18,6 +18,18 @@ interface ChatMessage {
   timestamp: string;
 }
 
+interface ExistingConversationResponse {
+  conversationId: string;
+  customerId: string;
+  customerInfo: AnonymousCustomer;
+}
+
+interface CreateCustomerResponse {
+  customerId: string;
+  conversationId: string;
+  customerInfo: AnonymousCustomer;
+}
+
 interface ChatState {
   isOpen: boolean;
   isMinimized: boolean;
@@ -55,27 +67,28 @@ export function CustomerChatWidget() {
   };
 
   // Check for existing conversation based on session/IP
-  const { data: existingConversation, refetch: checkExistingConversation } = useQuery({
+  const { data: existingConversation, refetch: checkExistingConversation } = useQuery<ExistingConversationResponse | null>({
     queryKey: ['/api/customer-chat/check-session', chatState.sessionId],
     enabled: chatState.isOpen && !chatState.conversationId,
   });
 
   // Fetch messages for active conversation
-  const { data: messages = [], refetch: refetchMessages } = useQuery({
+  const { data: messages = [], refetch: refetchMessages } = useQuery<ChatMessage[]>({
     queryKey: ['/api/customer-chat/messages', chatState.conversationId],
     enabled: !!chatState.conversationId,
     refetchInterval: 2000, // Poll for new messages every 2 seconds
   });
 
   // Create customer and conversation
-  const createCustomerMutation = useMutation({
+  const createCustomerMutation = useMutation<CreateCustomerResponse, Error, AnonymousCustomer>({
     mutationFn: async (customerData: AnonymousCustomer) => {
       const ipAddress = await getClientIP();
-      return await apiRequest('POST', '/api/customer-chat/create-customer', {
+      const response = await apiRequest('POST', '/api/customer-chat/create-customer', {
         ...customerData,
         ipAddress,
         sessionId: chatState.sessionId,
       });
+      return response as unknown as CreateCustomerResponse;
     },
     onSuccess: (response) => {
       setChatState(prev => ({
@@ -247,7 +260,7 @@ export function CustomerChatWidget() {
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto space-y-3 mb-4" data-testid="messages-container">
-                  {messages.map((message: ChatMessage) => (
+                  {messages.map((message) => (
                     <div
                       key={message.id}
                       className={cn(

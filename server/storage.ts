@@ -16,6 +16,7 @@ import {
   type InsertTicket,
   type ExternalCustomerSync,
   type ExternalTicketSync,
+  type AnonymousCustomer,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or } from "drizzle-orm";
@@ -69,6 +70,13 @@ export interface IStorage {
   updateTicketSyncStatus(id: string, status: string, externalId?: string): Promise<void>;
   getCustomerByExternalId(externalId: string, externalSystem: string): Promise<Customer | undefined>;
   getTicketByExternalId(externalId: string, externalSystem: string): Promise<Ticket | undefined>;
+
+  // Customer chat operations for anonymous customers
+  getConversationBySession(sessionId: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null>;
+  createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }>;
+  getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string }>>;
+  createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message>;
+  findExistingCustomer(email: string, phone: string, company: string): Promise<Customer | undefined>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -473,6 +481,168 @@ export class DatabaseStorage implements IStorage {
         eq(tickets.externalSystem, externalSystem)
       ));
     return ticket || undefined;
+  }
+
+  // Customer chat operations for anonymous customers
+  async getConversationBySession(sessionId: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null> {
+    const [conversation] = await db
+      .select({
+        id: conversations.id,
+        customerId: conversations.customerId,
+        customer: customers,
+      })
+      .from(conversations)
+      .innerJoin(customers, eq(conversations.customerId, customers.id))
+      .where(eq(conversations.sessionId, sessionId));
+
+    if (!conversation) {
+      return null;
+    }
+
+    return {
+      conversationId: conversation.id,
+      customerId: conversation.customerId,
+      customerInfo: {
+        name: conversation.customer.name,
+        email: conversation.customer.email,
+        phone: conversation.customer.phone || '',
+        company: conversation.customer.company || '',
+        ipAddress: conversation.customer.ipAddress || '',
+      },
+    };
+  }
+
+  async findExistingCustomer(email: string, phone: string, company: string): Promise<Customer | undefined> {
+    // Try to find existing customer by email and company, or email and phone
+    const [customer] = await db
+      .select()
+      .from(customers)
+      .where(
+        and(
+          eq(customers.email, email),
+          or(
+            eq(customers.company, company),
+            eq(customers.phone, phone)
+          )
+        )
+      );
+    return customer || undefined;
+  }
+
+  async createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }> {
+    // First check if customer already exists
+    const existingCustomer = await this.findExistingCustomer(
+      customerData.email,
+      customerData.phone,
+      customerData.company
+    );
+
+    let customer: Customer;
+    
+    if (existingCustomer) {
+      // Update existing customer with new IP address if provided
+      const updateData: any = { updatedAt: new Date() };
+      if (customerData.ipAddress) {
+        updateData.ipAddress = customerData.ipAddress;
+      }
+      
+      await db
+        .update(customers)
+        .set(updateData)
+        .where(eq(customers.id, existingCustomer.id));
+      
+      customer = { ...existingCustomer, ...updateData };
+    } else {
+      // Create new customer
+      [customer] = await db
+        .insert(customers)
+        .values({
+          name: customerData.name,
+          email: customerData.email,
+          phone: customerData.phone,
+          company: customerData.company,
+          ipAddress: customerData.ipAddress,
+          status: 'online',
+        })
+        .returning();
+    }
+
+    // Create new conversation
+    const [conversation] = await db
+      .insert(conversations)
+      .values({
+        customerId: customer.id,
+        title: `Chat with ${customerData.name}`,
+        isAnonymous: true,
+        sessionId: customerData.sessionId,
+        status: 'open',
+        priority: 'medium',
+      })
+      .returning();
+
+    return {
+      customerId: customer.id,
+      conversationId: conversation.id,
+      customerInfo: {
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone || '',
+        company: customer.company || '',
+        ipAddress: customer.ipAddress || '',
+      },
+    };
+  }
+
+  async getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string }>> {
+    const messageResults = await db
+      .select({
+        message: messages,
+        customer: customers,
+        agent: users,
+      })
+      .from(messages)
+      .leftJoin(customers, eq(messages.senderId, customers.id))
+      .leftJoin(users, eq(messages.senderId, users.id))
+      .where(and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.scope, 'public') // Only public messages for customer chat
+      ))
+      .orderBy(messages.timestamp);
+
+    return messageResults.map((result) => {
+      const message = result.message;
+      let senderName = 'Unknown';
+      
+      if (message.senderType === 'customer' && result.customer) {
+        senderName = result.customer.name;
+      } else if ((message.senderType === 'agent' || message.senderType === 'admin') && result.agent) {
+        senderName = result.agent.name;
+      }
+
+      return {
+        id: message.id,
+        content: message.content,
+        senderType: message.senderType as 'customer' | 'agent',
+        senderName,
+        timestamp: message.timestamp.toISOString(),
+      };
+    });
+  }
+
+  async createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message> {
+    const [message] = await db
+      .insert(messages)
+      .values({
+        conversationId: messageData.conversationId,
+        senderId: messageData.customerId,
+        senderType: 'customer',
+        content: messageData.content,
+        scope: 'public',
+        status: 'sent',
+      })
+      .returning();
+
+    return message;
   }
 
 }

@@ -13,7 +13,9 @@ import {
   insertTicketSchema,
   insertInternalMessageSchema,
   externalCustomerSyncSchema,
-  externalTicketSyncSchema
+  externalTicketSyncSchema,
+  anonymousCustomerSchema,
+  anonymousConversationSchema
 } from '@shared/schema';
 
 // Route-specific validation schemas
@@ -61,6 +63,17 @@ const ticketStatusUpdateSchema = z.object({
 
 const ticketAssignmentSchema = z.object({
   agentId: z.string().uuid('Invalid agent ID')
+});
+
+// Customer chat validation schemas
+const createAnonymousCustomerSchema = anonymousCustomerSchema.extend({
+  sessionId: z.string().uuid('Invalid session ID')
+});
+
+const sendCustomerMessageSchema = z.object({
+  conversationId: z.string().uuid('Invalid conversation ID'),
+  customerId: z.string().uuid('Invalid customer ID'),
+  content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
 });
 
 export async function registerRoutes(app: Express): Promise<{ server: Server, wsServer?: any }> {
@@ -670,6 +683,74 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         });
       }
       res.status(500).json({ error: 'Failed to create conversation' });
+    }
+  });
+
+  // ============================================
+  // CUSTOMER CHAT WIDGET API ENDPOINTS
+  // ============================================
+
+  // Check for existing conversation by session/IP
+  app.get('/api/customer-chat/check-session/:sessionId', async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const conversation = await storage.getConversationBySession(sessionId);
+      
+      if (conversation) {
+        res.json(conversation);
+      } else {
+        res.json(null);
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to check session' });
+    }
+  });
+
+  // Create anonymous customer and conversation
+  app.post('/api/customer-chat/create-customer', async (req, res) => {
+    try {
+      const customerData = createAnonymousCustomerSchema.parse(req.body);
+      const result = await storage.createAnonymousCustomer(customerData);
+      
+      res.status(201).json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid customer data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to create customer' });
+    }
+  });
+
+  // Get messages for customer conversation
+  app.get('/api/customer-chat/messages/:conversationId', async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      const messages = await storage.getCustomerChatMessages(conversationId);
+      
+      res.json(messages);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+  });
+
+  // Send message from customer
+  app.post('/api/customer-chat/send-message', async (req, res) => {
+    try {
+      const messageData = sendCustomerMessageSchema.parse(req.body);
+      const message = await storage.createCustomerMessage(messageData);
+      
+      res.status(201).json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid message data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to send message' });
     }
   });
 
