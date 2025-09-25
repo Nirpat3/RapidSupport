@@ -2,7 +2,7 @@
 
 ## Overview
 
-Support Board is a modern, full-stack customer support platform built with React and Node.js. It provides real-time chat capabilities, conversation management, and an admin dashboard for seamless customer service operations. The platform supports multiple user roles (admin, agent, customer) with features like conversation assignment, status tracking, priority management, and comprehensive dashboard analytics.
+Support Board is a modern, full-stack customer support platform built with React and Node.js. It provides real-time chat capabilities, conversation management, and an admin dashboard for seamless customer service operations. The platform supports multiple user roles (admin, agent, customer) with features like conversation assignment, status tracking, priority management, comprehensive dashboard analytics, internal staff chat for agent-to-agent communication, and an anonymous customer chat widget for public customer support.
 
 ## User Preferences
 
@@ -30,21 +30,23 @@ Preferred communication style: Simple, everyday language.
 
 ### Database Architecture
 - **Database**: PostgreSQL with Drizzle ORM for type-safe database operations
-- **Schema Design**: Relational schema with users, customers, conversations, and messages tables
+- **Schema Design**: Relational schema with users, customers, conversations, and messages tables supporting both authenticated and anonymous interactions
+- **Anonymous Support**: Customer matching logic based on business name and contact details, IP address tracking, and session management
 - **Migration System**: Drizzle Kit for database schema migrations
 - **Connection**: Neon serverless PostgreSQL with connection pooling
 
 ### Authentication & Authorization
-- **Strategy**: Session-based authentication with role-based access control
-- **Roles**: Admin, agent, and customer roles with different permission levels
-- **Security**: Password hashing with bcrypt, secure session configuration, and CSRF protection
-- **Session Storage**: PostgreSQL-backed session store for scalability
+- **Strategy**: Session-based authentication with role-based access control plus anonymous customer support
+- **Roles**: Admin, agent, and customer roles with different permission levels, plus anonymous customer sessions
+- **Security**: Password hashing with bcrypt, secure session configuration, CSRF protection, and PII-safe logging
+- **Session Storage**: PostgreSQL-backed session store for scalability with sessionId tracking for anonymous customers
 
 ### Real-time Features
-- **WebSocket Implementation**: Custom WebSocket server for real-time chat
-- **Connection Management**: User presence tracking and conversation-based message routing
-- **Message Delivery**: Real-time message broadcasting with delivery status tracking
+- **WebSocket Implementation**: Custom WebSocket server for real-time chat supporting both staff and customer communications
+- **Connection Management**: User presence tracking and conversation-based message routing for authenticated and anonymous users
+- **Message Delivery**: Real-time message broadcasting with delivery status tracking across all user types
 - **Typing Indicators**: Live typing status updates between participants
+- **Anonymous Customer Widget**: Public chat widget with information collection and session persistence
 
 ## External Dependencies
 
