@@ -61,6 +61,18 @@ export const messages = pgTable("messages", {
   status: text("status").notNull().default("sent"), // 'sent' | 'delivered' | 'read'
 });
 
+// Attachments table - for file uploads in messages
+export const attachments = pgTable("attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull().references(() => messages.id),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(), // File size in bytes
+  filePath: text("file_path").notNull(), // Path to stored file
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Tickets table - separate from conversations for better ticket management
 export const tickets = pgTable("tickets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -119,10 +131,18 @@ export const ticketsRelations = relations(tickets, ({ one }) => ({
   }),
 }));
 
-export const messagesRelations = relations(messages, ({ one }) => ({
+export const messagesRelations = relations(messages, ({ one, many }) => ({
   conversation: one(conversations, {
     fields: [messages.conversationId],
     references: [conversations.id],
+  }),
+  attachments: many(attachments),
+}));
+
+export const attachmentsRelations = relations(attachments, ({ one }) => ({
+  message: one(messages, {
+    fields: [attachments.messageId],
+    references: [messages.id],
   }),
 }));
 
@@ -208,6 +228,16 @@ export const insertInternalMessageSchema = insertMessageSchema.extend({
   senderType: z.enum(['agent', 'admin']), // Only staff can send internal messages
 });
 
+// Attachment schemas
+export const insertAttachmentSchema = createInsertSchema(attachments).pick({
+  messageId: true,
+  filename: true,
+  originalName: true,
+  mimeType: true,
+  size: true,
+  filePath: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -223,3 +253,5 @@ export type ExternalCustomerSync = z.infer<typeof externalCustomerSyncSchema>;
 export type ExternalTicketSync = z.infer<typeof externalTicketSyncSchema>;
 export type AnonymousCustomer = z.infer<typeof anonymousCustomerSchema>;
 export type AnonymousConversation = z.infer<typeof anonymousConversationSchema>;
+export type InsertAttachment = z.infer<typeof insertAttachmentSchema>;
+export type Attachment = typeof attachments.$inferSelect;
