@@ -21,7 +21,9 @@ export const customers = pgTable("customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
-  company: text("company"), // Optional company name
+  phone: text("phone"), // Customer phone number
+  company: text("company"), // Optional company name / business name
+  ipAddress: text("ip_address"), // Track IP for session management
   tags: text("tags").array(), // Array of tags for categorization
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
   // External sync fields
@@ -41,6 +43,8 @@ export const conversations = pgTable("conversations", {
   status: text("status").notNull().default("open"), // 'open' | 'pending' | 'resolved' | 'closed'
   priority: text("priority").notNull().default("medium"), // 'low' | 'medium' | 'high' | 'urgent'
   title: text("title"),
+  isAnonymous: boolean("is_anonymous").notNull().default(false), // Track anonymous customer conversations
+  sessionId: text("session_id"), // Track anonymous sessions before customer info collected
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -133,8 +137,19 @@ export const insertUserSchema = createInsertSchema(users).pick({
 export const insertCustomerSchema = createInsertSchema(customers).pick({
   name: true,
   email: true,
+  phone: true,
   company: true,
+  ipAddress: true,
   tags: true,
+});
+
+// Anonymous customer schema for chat widget
+export const anonymousCustomerSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Valid email is required"),
+  phone: z.string().min(1, "Phone is required"),
+  company: z.string().min(1, "Business name is required"),
+  ipAddress: z.string().optional(),
 });
 
 export const insertTicketSchema = createInsertSchema(tickets).pick({
@@ -165,6 +180,15 @@ export const insertConversationSchema = createInsertSchema(conversations).pick({
   status: true,
   priority: true,
   title: true,
+  isAnonymous: true,
+  sessionId: true,
+});
+
+// Anonymous conversation creation schema
+export const anonymousConversationSchema = z.object({
+  title: z.string().optional(),
+  sessionId: z.string().optional(),
+  isAnonymous: z.boolean().default(true),
 });
 
 // Message scope enum for validation
@@ -197,3 +221,5 @@ export type InsertTicket = z.infer<typeof insertTicketSchema>;
 export type Ticket = typeof tickets.$inferSelect;
 export type ExternalCustomerSync = z.infer<typeof externalCustomerSyncSchema>;
 export type ExternalTicketSync = z.infer<typeof externalTicketSyncSchema>;
+export type AnonymousCustomer = z.infer<typeof anonymousCustomerSchema>;
+export type AnonymousConversation = z.infer<typeof anonymousConversationSchema>;
