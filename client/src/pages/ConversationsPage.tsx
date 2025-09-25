@@ -2,7 +2,8 @@ import { useState } from "react";
 import ConversationList, { type Conversation } from "@/components/ConversationList";
 import ChatInterface from "@/components/ChatInterface";
 import { type Message } from "@/components/ChatMessage";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 // TODO: remove mock functionality
 const sampleConversations: Conversation[] = [
@@ -171,12 +172,28 @@ export default function ConversationsPage() {
 
   const activeConversation = formattedConversations.find(conv => conv.id === activeConversationId);
   
+  // Send message mutation
+  const sendMessage = useMutation({
+    mutationFn: async ({ conversationId, content }: { conversationId: string; content: string }) => {
+      return await apiRequest('POST', '/api/messages', { conversationId, content });
+    },
+    onSuccess: () => {
+      // Invalidate and refetch messages after sending
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', activeConversationId, 'messages'] });
+    },
+    onError: (error) => {
+      console.error('Failed to send message:', error);
+      // Could add toast notification here
+    }
+  });
+
   const handleSendMessage = (content: string) => {
     if (!activeConversationId) return;
     
-    // TODO: Implement API call to send message
-    // For now, just log the message - the ChatInterface will handle sending via API
-    console.log('Message to send:', { content, conversationId: activeConversationId });
+    sendMessage.mutate({ 
+      conversationId: activeConversationId, 
+      content 
+    });
   };
   
   return (

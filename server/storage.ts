@@ -159,14 +159,49 @@ export class DatabaseStorage implements IStorage {
 
   async getConversationsByAgent(agentId: string): Promise<Conversation[]> {
     return await db
-      .select()
+      .select({
+        id: conversations.id,
+        customerId: conversations.customerId,
+        assignedAgentId: conversations.assignedAgentId,
+        title: conversations.title,
+        status: conversations.status,
+        priority: conversations.priority,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        customer: {
+          id: customers.id,
+          name: customers.name,
+          email: customers.email,
+          status: customers.status
+        }
+      })
       .from(conversations)
+      .leftJoin(customers, eq(conversations.customerId, customers.id))
       .where(eq(conversations.assignedAgentId, agentId))
       .orderBy(desc(conversations.updatedAt));
   }
 
   async getAllConversations(): Promise<Conversation[]> {
-    return await db.select().from(conversations).orderBy(desc(conversations.updatedAt));
+    return await db
+      .select({
+        id: conversations.id,
+        customerId: conversations.customerId,
+        assignedAgentId: conversations.assignedAgentId,
+        title: conversations.title,
+        status: conversations.status,
+        priority: conversations.priority,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        customer: {
+          id: customers.id,
+          name: customers.name,
+          email: customers.email,
+          status: customers.status
+        }
+      })
+      .from(conversations)
+      .leftJoin(customers, eq(conversations.customerId, customers.id))
+      .orderBy(desc(conversations.updatedAt));
   }
 
   async createConversation(insertConversation: InsertConversation): Promise<Conversation> {

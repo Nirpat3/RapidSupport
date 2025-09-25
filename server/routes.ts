@@ -206,9 +206,23 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
   // Conversation management routes
   app.get('/api/conversations', requireAuth, async (req, res) => {
     try {
-      const conversations = await storage.getAllConversations();
+      const user = req.user as any;
+      let conversations: any[];
+      
+      if (user.role === 'admin') {
+        // Admins can see all conversations
+        conversations = await storage.getAllConversations();
+      } else if (user.role === 'agent') {
+        // Agents can only see conversations assigned to them
+        conversations = await storage.getConversationsByAgent(user.id);
+      } else {
+        // Customers or other roles - return empty for now
+        conversations = [];
+      }
+      
       res.json(conversations);
     } catch (error) {
+      console.error('Failed to fetch conversations:', error);
       res.status(500).json({ error: 'Failed to fetch conversations' });
     }
   });
@@ -216,8 +230,48 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
   app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
     try {
       const messages = await storage.getMessagesByConversation(req.params.id);
-      res.json(messages);
+      
+      // Enrich messages with sender information
+      const enrichedMessages = await Promise.all(
+        messages.map(async (message) => {
+          let sender;
+          
+          if (message.senderType === 'customer') {
+            // Get customer data
+            const customer = await storage.getCustomer(message.senderId);
+            sender = {
+              id: customer?.id || message.senderId,
+              name: customer?.name || 'Unknown Customer',
+              role: 'customer',
+              avatar: customer?.avatar
+            };
+          } else {
+            // Get user data (agent/admin)
+            const user = await storage.getUser(message.senderId);
+            sender = {
+              id: user?.id || message.senderId,
+              name: user?.name || 'Unknown User',
+              role: user?.role || message.senderType,
+              avatar: user?.avatar
+            };
+          }
+          
+          return {
+            id: message.id,
+            content: message.content,
+            senderId: message.senderId,
+            senderType: message.senderType,
+            scope: message.scope,
+            timestamp: message.timestamp,
+            status: message.status,
+            sender
+          };
+        })
+      );
+      
+      res.json(enrichedMessages);
     } catch (error) {
+      console.error('Failed to fetch messages:', error);
       res.status(500).json({ error: 'Failed to fetch messages' });
     }
   });
@@ -401,7 +455,7 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
               id: sender?.id || message.senderId,
               name: sender?.name || 'Unknown User',
               role: sender?.role || message.senderType,
-              avatar: sender?.avatar
+              avatar: sender?.avatar || undefined
             }
           };
         })
