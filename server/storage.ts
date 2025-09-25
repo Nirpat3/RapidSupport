@@ -617,6 +617,14 @@ export class DatabaseStorage implements IStorage {
       console.log(`Auto-assigned conversation ${conversation.id} to agent ${assignedAgent.name} (${assignedAgent.id})`);
     } else {
       console.log(`No available agents for conversation ${conversation.id}. Added to unassigned queue.`);
+      
+      // Log system event for unassigned queue
+      await this.createActivityLog({
+        conversationId: conversation.id,
+        action: 'queued',
+        details: 'Added to unassigned queue - no available agents'
+        // agentId is null for system events
+      });
     }
 
     return {

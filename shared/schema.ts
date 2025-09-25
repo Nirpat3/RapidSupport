@@ -76,9 +76,9 @@ export const attachments = pgTable("attachments", {
 // Activity logs table - track agent assignments and activities
 export const activityLogs = pgTable("activity_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  agentId: varchar("agent_id").notNull().references(() => users.id),
+  agentId: varchar("agent_id").references(() => users.id), // Made nullable for system events
   conversationId: varchar("conversation_id").references(() => conversations.id),
-  action: text("action").notNull(), // 'assigned' | 'unassigned' | 'responded' | 'status_changed' | 'took_over'
+  action: text("action").notNull(), // 'assigned' | 'unassigned' | 'responded' | 'status_changed' | 'took_over' | 'queued'
   details: text("details"), // Additional context like previous agent, status change, etc.
   timestamp: timestamp("timestamp").notNull().defaultNow(),
 });
@@ -282,6 +282,8 @@ export const insertActivityLogSchema = createInsertSchema(activityLogs).pick({
   conversationId: true,
   action: true,
   details: true,
+}).extend({
+  agentId: z.string().uuid().optional(), // Made optional for system events
 });
 
 // Agent workload schemas
