@@ -8,6 +8,9 @@ import passport from './auth';
 import { requireAuth, requireRole } from './auth';
 import { storage } from "./storage";
 import ChatWebSocketServer from './websocket';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { 
   insertCustomerSchema, 
   insertConversationSchema,
@@ -51,6 +54,49 @@ const internalMessageCreateSchema = z.object({
 
 const customerStatusSchema = z.object({
   status: z.enum(['online', 'offline', 'away'])
+});
+
+// File upload configuration
+const uploadDir = './uploads';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const uploadStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 5 // Max 5 files per request
+  },
+  fileFilter: function (req, file, cb) {
+    // Allow common file types
+    const allowedMimes = [
+      'image/jpeg',
+      'image/png', 
+      'image/gif',
+      'image/webp',
+      'application/pdf',
+      'text/plain',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('File type not allowed'));
+    }
+  }
 });
 
 // External API validation schemas
@@ -763,6 +809,69 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         });
       }
       res.status(500).json({ error: 'Failed to send message' });
+    }
+  });
+
+  // File upload endpoint for chat attachments
+  app.post('/api/upload-attachment', upload.array('files', 5), async (req, res) => {
+    try {
+      const { messageId } = req.body;
+      
+      if (!messageId) {
+        return res.status(400).json({ error: 'Message ID is required' });
+      }
+
+      const files = req.files as Express.Multer.File[];
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
+
+      const attachments = [];
+      
+      for (const file of files) {
+        const attachment = await storage.createAttachment({
+          messageId,
+          filename: file.filename,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          filePath: file.path,
+        });
+        attachments.push(attachment);
+      }
+
+      res.status(201).json({ 
+        success: true, 
+        attachments,
+        message: `${attachments.length} file(s) uploaded successfully` 
+      });
+    } catch (error) {
+      console.error('File upload error:', error);
+      res.status(500).json({ error: 'Failed to upload files' });
+    }
+  });
+
+  // Serve uploaded files
+  app.get('/api/attachments/:filename', (req, res) => {
+    try {
+      const { filename } = req.params;
+      const filePath = path.join(uploadDir, filename);
+      
+      // Security check to prevent path traversal
+      const normalizedPath = path.normalize(filePath);
+      if (!normalizedPath.startsWith(path.normalize(uploadDir))) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      
+      res.sendFile(path.resolve(filePath));
+    } catch (error) {
+      console.error('File serving error:', error);
+      res.status(500).json({ error: 'Failed to serve file' });
     }
   });
 

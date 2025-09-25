@@ -4,6 +4,7 @@ import {
   conversations,
   messages,
   tickets,
+  attachments,
   type User,
   type InsertUser,
   type Customer,
@@ -17,6 +18,8 @@ import {
   type ExternalCustomerSync,
   type ExternalTicketSync,
   type AnonymousCustomer,
+  type Attachment,
+  type InsertAttachment,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or } from "drizzle-orm";
@@ -77,6 +80,11 @@ export interface IStorage {
   getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string }>>;
   createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message>;
   findExistingCustomer(email: string, phone: string, company: string): Promise<Customer | undefined>;
+
+  // Attachment operations
+  createAttachment(attachment: InsertAttachment): Promise<Attachment>;
+  getAttachmentsByMessage(messageId: string): Promise<Attachment[]>;
+  deleteAttachment(id: string): Promise<void>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -159,7 +167,18 @@ export class DatabaseStorage implements IStorage {
 
   async getConversationsByCustomer(customerId: string): Promise<Conversation[]> {
     return await db
-      .select()
+      .select({
+        id: conversations.id,
+        customerId: conversations.customerId,
+        assignedAgentId: conversations.assignedAgentId,
+        status: conversations.status,
+        priority: conversations.priority,
+        title: conversations.title,
+        isAnonymous: conversations.isAnonymous,
+        sessionId: conversations.sessionId,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+      })
       .from(conversations)
       .where(eq(conversations.customerId, customerId))
       .orderBy(desc(conversations.updatedAt));
@@ -174,17 +193,12 @@ export class DatabaseStorage implements IStorage {
         title: conversations.title,
         status: conversations.status,
         priority: conversations.priority,
+        isAnonymous: conversations.isAnonymous,
+        sessionId: conversations.sessionId,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
-        customer: {
-          id: customers.id,
-          name: customers.name,
-          email: customers.email,
-          status: customers.status
-        }
       })
       .from(conversations)
-      .leftJoin(customers, eq(conversations.customerId, customers.id))
       .where(eq(conversations.assignedAgentId, agentId))
       .orderBy(desc(conversations.updatedAt));
   }
@@ -198,17 +212,12 @@ export class DatabaseStorage implements IStorage {
         title: conversations.title,
         status: conversations.status,
         priority: conversations.priority,
+        isAnonymous: conversations.isAnonymous,
+        sessionId: conversations.sessionId,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
-        customer: {
-          id: customers.id,
-          name: customers.name,
-          email: customers.email,
-          status: customers.status
-        }
       })
       .from(conversations)
-      .leftJoin(customers, eq(conversations.customerId, customers.id))
       .orderBy(desc(conversations.updatedAt));
   }
 
@@ -643,6 +652,27 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return message;
+  }
+
+  // Attachment operations
+  async createAttachment(attachment: InsertAttachment): Promise<Attachment> {
+    const [newAttachment] = await db
+      .insert(attachments)
+      .values(attachment)
+      .returning();
+    return newAttachment;
+  }
+
+  async getAttachmentsByMessage(messageId: string): Promise<Attachment[]> {
+    return await db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.messageId, messageId))
+      .orderBy(attachments.createdAt);
+  }
+
+  async deleteAttachment(id: string): Promise<void> {
+    await db.delete(attachments).where(eq(attachments.id, id));
   }
 
 }
