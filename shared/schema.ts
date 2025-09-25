@@ -73,6 +73,26 @@ export const attachments = pgTable("attachments", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Activity logs table - track agent assignments and activities
+export const activityLogs = pgTable("activity_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => users.id),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  action: text("action").notNull(), // 'assigned' | 'unassigned' | 'responded' | 'status_changed' | 'took_over'
+  details: text("details"), // Additional context like previous agent, status change, etc.
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+});
+
+// Agent workload tracking - to help with auto-assignment
+export const agentWorkload = pgTable("agent_workload", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => users.id),
+  activeConversations: integer("active_conversations").notNull().default(0),
+  maxCapacity: integer("max_capacity").notNull().default(5), // Configurable per agent
+  lastActivity: timestamp("last_activity").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Tickets table - separate from conversations for better ticket management
 export const tickets = pgTable("tickets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -143,6 +163,24 @@ export const attachmentsRelations = relations(attachments, ({ one }) => ({
   message: one(messages, {
     fields: [attachments.messageId],
     references: [messages.id],
+  }),
+}));
+
+export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
+  agent: one(users, {
+    fields: [activityLogs.agentId],
+    references: [users.id],
+  }),
+  conversation: one(conversations, {
+    fields: [activityLogs.conversationId],
+    references: [conversations.id],
+  }),
+}));
+
+export const agentWorkloadRelations = relations(agentWorkload, ({ one }) => ({
+  agent: one(users, {
+    fields: [agentWorkload.agentId],
+    references: [users.id],
   }),
 }));
 
@@ -238,6 +276,26 @@ export const insertAttachmentSchema = createInsertSchema(attachments).pick({
   filePath: true,
 });
 
+// Activity log schemas
+export const insertActivityLogSchema = createInsertSchema(activityLogs).pick({
+  agentId: true,
+  conversationId: true,
+  action: true,
+  details: true,
+});
+
+// Agent workload schemas
+export const insertAgentWorkloadSchema = createInsertSchema(agentWorkload).pick({
+  agentId: true,
+  activeConversations: true,
+  maxCapacity: true,
+});
+
+// Agent status update schema
+export const updateAgentStatusSchema = z.object({
+  status: z.enum(['online', 'away', 'busy', 'offline']),
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -255,3 +313,7 @@ export type AnonymousCustomer = z.infer<typeof anonymousCustomerSchema>;
 export type AnonymousConversation = z.infer<typeof anonymousConversationSchema>;
 export type InsertAttachment = z.infer<typeof insertAttachmentSchema>;
 export type Attachment = typeof attachments.$inferSelect;
+export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
+export type ActivityLog = typeof activityLogs.$inferSelect;
+export type InsertAgentWorkload = z.infer<typeof insertAgentWorkloadSchema>;
+export type AgentWorkload = typeof agentWorkload.$inferSelect;
