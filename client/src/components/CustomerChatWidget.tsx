@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Send, X, Minimize2, Maximize2 } from "lucide-react";
+import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip } from "lucide-react";
 import { CustomerInfoForm } from "./CustomerInfoForm";
+import { EmojiPicker } from "./EmojiPicker";
+import { MessageAttachments, type MessageAttachment } from "./MessageAttachments";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { AnonymousCustomer } from "@shared/schema";
@@ -52,6 +54,8 @@ export function CustomerChatWidget() {
   });
 
   const [messageInput, setMessageInput] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // IP address will be determined server-side for security
@@ -109,6 +113,7 @@ export function CustomerChatWidget() {
     },
     onSuccess: () => {
       setMessageInput("");
+      setSelectedFiles([]);
       refetchMessages();
     },
   });
@@ -171,6 +176,23 @@ export function CustomerChatWidget() {
       e.preventDefault();
       handleSendMessage();
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles(prev => [...prev, ...files]);
+    // Clear the input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    setMessageInput(prev => prev + emoji);
   };
 
   // Chat widget button when closed
@@ -313,23 +335,85 @@ export function CustomerChatWidget() {
           {/* Footer - Message Input */}
           {chatState.conversationId && (
             <CardFooter className="p-4 pt-0">
-              <div className="flex w-full gap-2">
-                <Input
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Type your message..."
-                  disabled={sendMessageMutation.isPending}
-                  data-testid="input-customer-message"
+              <div className="space-y-3">
+                {/* Selected Files Display */}
+                {selectedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded border">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Paperclip className="h-4 w-4" />
+                          <span className="truncate">{file.name}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {(file.size / 1024).toFixed(1)}KB
+                          </Badge>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFile(index)}
+                          className="h-6 w-6 p-0"
+                          data-testid={`button-remove-file-${index}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Message Input */}
+                <div className="flex w-full gap-2">
+                  <div className="flex gap-1">
+                    {/* File Upload Button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={sendMessageMutation.isPending}
+                      className="h-9 w-9"
+                      data-testid="button-file-upload"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
+
+                    {/* Emoji Picker */}
+                    <EmojiPicker
+                      onEmojiSelect={handleEmojiSelect}
+                      disabled={sendMessageMutation.isPending}
+                    />
+                  </div>
+
+                  <Input
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Type your message..."
+                    disabled={sendMessageMutation.isPending}
+                    data-testid="input-customer-message"
+                    className="flex-1"
+                  />
+                  
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!messageInput.trim() || sendMessageMutation.isPending}
+                    size="icon"
+                    data-testid="button-send-customer-message"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.txt"
+                  onChange={handleFileSelect}
+                  ref={fileInputRef}
+                  className="hidden"
+                  data-testid="input-file-upload"
                 />
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={!messageInput.trim() || sendMessageMutation.isPending}
-                  size="icon"
-                  data-testid="button-send-customer-message"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
               </div>
             </CardFooter>
           )}
