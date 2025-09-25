@@ -48,7 +48,9 @@ export interface IStorage {
 
   // Message operations
   getMessagesByConversation(conversationId: string): Promise<Message[]>;
+  getMessagesByConversationAndScope(conversationId: string, scope: 'public' | 'internal'): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+  createInternalMessage(message: InsertMessage & { scope: 'internal' }): Promise<Message>;
   updateMessageStatus(id: string, status: string): Promise<void>;
 
   // Ticket operations
@@ -194,25 +196,61 @@ export class DatabaseStorage implements IStorage {
 
   // Message operations
   async getMessagesByConversation(conversationId: string): Promise<Message[]> {
+    // Default to public messages for backward compatibility
     return await db
       .select()
       .from(messages)
-      .where(eq(messages.conversationId, conversationId))
+      .where(and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.scope, 'public')
+      ))
+      .orderBy(messages.timestamp);
+  }
+
+  async getMessagesByConversationAndScope(conversationId: string, scope: 'public' | 'internal'): Promise<Message[]> {
+    return await db
+      .select()
+      .from(messages)
+      .where(and(
+        eq(messages.conversationId, conversationId),
+        eq(messages.scope, scope)
+      ))
       .orderBy(messages.timestamp);
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
+    // Ensure scope defaults to 'public' if not provided
+    const messageData = {
+      ...insertMessage,
+      scope: insertMessage.scope || 'public'
+    };
+
     const [message] = await db
       .insert(messages)
-      .values(insertMessage)
+      .values(messageData)
       .returning();
     
-    // Update conversation timestamp for proper ordering
-    await db
-      .update(conversations)
-      .set({ updatedAt: new Date() })
-      .where(eq(conversations.id, insertMessage.conversationId));
+    // Only update conversation timestamp for public messages (customer-facing activity)
+    if (messageData.scope === 'public') {
+      await db
+        .update(conversations)
+        .set({ updatedAt: new Date() })
+        .where(eq(conversations.id, insertMessage.conversationId));
+    }
     
+    return message;
+  }
+
+  async createInternalMessage(insertMessage: InsertMessage & { scope: 'internal' }): Promise<Message> {
+    const [message] = await db
+      .insert(messages)
+      .values({
+        ...insertMessage,
+        scope: 'internal'
+      })
+      .returning();
+    
+    // Internal messages don't update conversation timestamp (hidden from customer view)
     return message;
   }
 

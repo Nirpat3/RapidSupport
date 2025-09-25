@@ -52,6 +52,7 @@ export const messages = pgTable("messages", {
   senderId: varchar("sender_id").notNull(),
   senderType: text("sender_type").notNull(), // 'customer' | 'agent' | 'admin'
   content: text("content").notNull(),
+  scope: text("scope").notNull().default("public"), // 'public' | 'internal' - internal messages are staff-only
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   status: text("status").notNull().default("sent"), // 'sent' | 'delivered' | 'read'
 });
@@ -166,11 +167,21 @@ export const insertConversationSchema = createInsertSchema(conversations).pick({
   title: true,
 });
 
+// Message scope enum for validation
+export const messageScope = z.enum(['public', 'internal']);
+
 export const insertMessageSchema = createInsertSchema(messages).pick({
   conversationId: true,
   senderId: true,
   senderType: true,
   content: true,
+  scope: true,
+});
+
+// Separate schema for internal messages with stricter validation
+export const insertInternalMessageSchema = insertMessageSchema.extend({
+  scope: z.literal('internal'),
+  senderType: z.enum(['agent', 'admin']), // Only staff can send internal messages
 });
 
 // Types

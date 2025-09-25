@@ -10,13 +10,14 @@ interface AuthenticatedWebSocket extends WebSocket {
 }
 
 interface WebSocketMessage {
-  type: 'join_conversation' | 'leave_conversation' | 'new_message' | 'typing' | 'stop_typing' | 'user_online' | 'user_offline';
+  type: 'join_conversation' | 'leave_conversation' | 'new_message' | 'internal_message' | 'typing' | 'stop_typing' | 'user_online' | 'user_offline';
   conversationId?: string;
   messageId?: string;
   content?: string;
   userId?: string;
   userName?: string;
   userRole?: string;
+  scope?: 'public' | 'internal';
   timestamp?: string;
 }
 
@@ -302,6 +303,35 @@ class ChatWebSocketServer {
     });
   }
 
+  // Public method to broadcast internal messages only to staff members
+  public broadcastInternalMessage(conversationId: string, messageData: any) {
+    this.broadcastToStaffInConversation(conversationId, {
+      type: 'internal_message',
+      scope: 'internal',
+      ...messageData
+    });
+  }
+
+  // Private method to broadcast messages only to staff members (agents/admins) in a conversation
+  private broadcastToStaffInConversation(conversationId: string, message: any, excludeUsers: string[] = []) {
+    const conversationUsers = this.conversationConnections.get(conversationId);
+    if (!conversationUsers) return;
+
+    conversationUsers.forEach(userId => {
+      if (excludeUsers.includes(userId)) return;
+      
+      const userConnectionSet = this.connections.get(userId);
+      if (userConnectionSet) {
+        userConnectionSet.forEach(ws => {
+          // Only send to staff members (agents and admins)
+          if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(message));
+          }
+        });
+      }
+    });
+  }
+
   // Public method to get online users count
   public getOnlineUsersCount(): number {
     return this.connections.size;
@@ -311,6 +341,25 @@ class ChatWebSocketServer {
   public getUsersInConversation(conversationId: string): string[] {
     const users = this.conversationConnections.get(conversationId);
     return users ? Array.from(users) : [];
+  }
+
+  // Public method to get staff members in a conversation
+  public getStaffInConversation(conversationId: string): string[] {
+    const users = this.conversationConnections.get(conversationId);
+    if (!users) return [];
+
+    const staffUsers: string[] = [];
+    users.forEach(userId => {
+      const userConnectionSet = this.connections.get(userId);
+      if (userConnectionSet) {
+        const sampleConnection = Array.from(userConnectionSet)[0];
+        if (sampleConnection && (sampleConnection.userRole === 'agent' || sampleConnection.userRole === 'admin')) {
+          staffUsers.push(userId);
+        }
+      }
+    });
+
+    return staffUsers;
   }
 }
 

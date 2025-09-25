@@ -11,6 +11,7 @@ import {
   insertCustomerSchema, 
   insertConversationSchema,
   insertTicketSchema,
+  insertInternalMessageSchema,
   externalCustomerSyncSchema,
   externalTicketSyncSchema
 } from '@shared/schema';
@@ -38,6 +39,11 @@ const conversationAssignSchema = z.object({
 
 const messageStatusSchema = z.object({
   status: z.enum(['sent', 'delivered', 'read'])
+});
+
+// Internal message validation schema
+const internalMessageCreateSchema = z.object({
+  content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
 });
 
 const customerStatusSchema = z.object({
@@ -302,7 +308,7 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         senderId: user.id,
         senderType,
         content,
-        timestamp: new Date()
+        scope: 'public'
       });
       
       // Broadcast the new message to WebSocket clients
@@ -352,6 +358,104 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         });
       }
       res.status(500).json({ error: 'Failed to update message status' });
+    }
+  });
+
+  // ============================================
+  // INTERNAL STAFF MESSAGE ENDPOINTS
+  // ============================================
+
+  // Get internal messages for a conversation (staff only)
+  app.get('/api/conversations/:id/internal-messages', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      // Validate conversation ID
+      const conversationId = z.string().uuid().parse(req.params.id);
+      const user = req.user as any;
+      
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      // Check access permissions - agents can only view internal messages for assigned conversations
+      if (user.role === 'agent' && conversation.assignedAgentId !== user.id) {
+        return res.status(403).json({ error: 'You can only view internal messages for conversations assigned to you' });
+      }
+      
+      const messages = await storage.getMessagesByConversationAndScope(conversationId, 'internal');
+      res.json(messages);
+    } catch (error) {
+      console.error('Internal messages fetch error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid conversation ID', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to fetch internal messages' });
+    }
+  });
+
+  // Create internal message (staff only)
+  app.post('/api/conversations/:id/internal-messages', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      // Validate conversation ID
+      const conversationId = z.string().uuid().parse(req.params.id);
+      
+      // Validate request body
+      const { content } = internalMessageCreateSchema.parse(req.body);
+      const user = req.user as any;
+      
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      // Check access permissions - agents can only send internal messages for assigned conversations
+      if (user.role === 'agent' && conversation.assignedAgentId !== user.id) {
+        return res.status(403).json({ error: 'You can only send internal messages for conversations assigned to you' });
+      }
+      
+      // Determine sender type from user role
+      const senderType = user.role === 'admin' ? 'admin' : 'agent';
+      
+      const message = await storage.createInternalMessage({
+        conversationId,
+        senderId: user.id,
+        senderType,
+        content,
+        scope: 'internal'
+      });
+      
+      // Broadcast internal message only to staff members via WebSocket
+      const wsServer = (req.app as any).wsServer;
+      if (wsServer) {
+        wsServer.broadcastInternalMessage(conversationId, {
+          messageId: message.id,
+          conversationId: message.conversationId,
+          content: message.content,
+          userId: message.senderId,
+          userName: user.name,
+          userRole: user.role,
+          senderType: message.senderType,
+          scope: message.scope,
+          timestamp: message.timestamp,
+          status: message.status
+        });
+      }
+      
+      res.status(201).json(message);
+    } catch (error) {
+      console.error('Internal message creation error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to create internal message' });
     }
   });
 

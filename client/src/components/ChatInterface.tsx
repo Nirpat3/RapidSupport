@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText } from "lucide-react";
 import ChatMessage, { type Message } from "./ChatMessage";
 import { ticketApi } from "@/lib/ticketStore";
+import InternalChatPanel from "./InternalChatPanel";
 
 interface ChatInterfaceProps {
   conversationId?: string;
@@ -41,6 +42,7 @@ export default function ChatInterface({
   const [newMessage, setNewMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
+  const [isInternalChatOpen, setIsInternalChatOpen] = useState(false);
   const [newTicket, setNewTicket] = useState({
     title: "",
     description: "",
@@ -104,6 +106,15 @@ export default function ChatInterface({
           </div>
           
           <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsInternalChatOpen(true)}
+              data-testid="button-open-internal-chat"
+            >
+              <MessageSquareText className="w-4 h-4 mr-2" />
+              Team Chat
+            </Button>
             <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" data-testid="button-create-ticket-from-chat">
@@ -259,6 +270,14 @@ export default function ChatInterface({
           </Button>
         </form>
       </div>
+
+      {/* Internal Chat Panel */}
+      <InternalChatPanel
+        conversationId={conversationId}
+        customer={customer}
+        isOpen={isInternalChatOpen}
+        onClose={() => setIsInternalChatOpen(false)}
+      />
     </div>
   );
 }
