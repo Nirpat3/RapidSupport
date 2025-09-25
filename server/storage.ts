@@ -763,13 +763,42 @@ export class DatabaseStorage implements IStorage {
         eq(users.status, 'online')
       ));
 
-    return results
-      .filter(result => result.workload !== null)
-      .map(result => ({
-        user: result.user,
-        workload: result.workload!
-      }))
-      .filter(({ workload }) => workload.activeConversations < workload.maxCapacity);
+    // Initialize workload records for agents that don't have them and filter by capacity
+    const agentsWithWorkload = [];
+    for (const result of results) {
+      let workload = result.workload;
+      
+      // If agent doesn't have a workload record, create one with defaults
+      if (!workload) {
+        await db.insert(agentWorkload).values({
+          agentId: result.user.id,
+          activeConversations: 0,
+          maxCapacity: 5, // Default capacity
+          lastActivity: new Date(),
+          updatedAt: new Date()
+        }).onConflictDoNothing();
+        
+        // Create the workload object for immediate use
+        workload = {
+          id: 0, // Will be set by database
+          agentId: result.user.id,
+          activeConversations: 0,
+          maxCapacity: 5,
+          lastActivity: new Date(),
+          updatedAt: new Date()
+        };
+      }
+      
+      // Only include agents with capacity
+      if (workload.activeConversations < workload.maxCapacity) {
+        agentsWithWorkload.push({
+          user: result.user,
+          workload: workload as AgentWorkload
+        });
+      }
+    }
+
+    return agentsWithWorkload;
   }
 
   async findBestAvailableAgent(): Promise<User | null> {
