@@ -332,6 +332,11 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
 
       const previousAgentId = conversation.assignedAgentId;
 
+      // Check if this is a no-op (same agent)
+      if (previousAgentId === agentId) {
+        return res.json({ message: 'Conversation is already assigned to this agent' });
+      }
+
       // Assign conversation
       await storage.assignConversation(conversationId, agentId);
 
@@ -352,9 +357,15 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
 
       // Log the assignment
       const actionType = previousAgentId ? 'reassigned' : 'assigned';
-      const details = previousAgentId 
-        ? `Reassigned from ${previousAgentId} to ${agentId} by ${user.name}`
-        : `Manually assigned by ${user.name}`;
+      let details;
+      
+      if (previousAgentId) {
+        // Get previous agent name for better details
+        const previousAgent = await storage.getUser(previousAgentId);
+        details = `Reassigned from ${previousAgent?.name || previousAgentId} to ${agent.name} by ${user.name}`;
+      } else {
+        details = `Manually assigned to ${agent.name} by ${user.name}`;
+      }
 
       await storage.createActivityLog({
         agentId,
@@ -405,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         agentId: user.id,
         conversationId,
         action: 'took_over',
-        details: `Agent took over unassigned conversation`
+        details: `Taken over by ${user.name}`
       });
 
       res.json({ message: 'Conversation taken over successfully' });
@@ -469,6 +480,7 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
       
       // Validate request body
       const { agentId } = conversationAssignSchema.parse(req.body);
+      const user = req.user as any;
       
       // Check if conversation exists
       const conversation = await storage.getConversation(conversationId);
@@ -482,7 +494,52 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         return res.status(400).json({ error: 'Invalid agent ID' });
       }
       
+      const previousAgentId = conversation.assignedAgentId;
+      
+      // Check if this is a no-op (same agent)
+      if (previousAgentId === agentId) {
+        return res.json({ message: 'Conversation is already assigned to this agent' });
+      }
+      
+      // Assign conversation
       await storage.assignConversation(conversationId, agentId);
+      
+      // Update workload tracking
+      if (previousAgentId && previousAgentId !== agentId) {
+        // Decrease previous agent's workload
+        const previousWorkload = await storage.getAgentWorkload(previousAgentId);
+        if (previousWorkload) {
+          await storage.updateAgentWorkload(previousAgentId, Math.max(0, previousWorkload.activeConversations - 1));
+        }
+      }
+      
+      // Increase new agent's workload (only if not reassigning to same agent)
+      if (!previousAgentId || previousAgentId !== agentId) {
+        const newWorkload = await storage.getAgentWorkload(agentId);
+        if (newWorkload) {
+          await storage.updateAgentWorkload(agentId, newWorkload.activeConversations + 1);
+        }
+      }
+      
+      // Log the assignment/reassignment
+      const actionType = previousAgentId ? 'reassigned' : 'assigned';
+      let details;
+      
+      if (previousAgentId) {
+        // Get previous agent name for better details
+        const previousAgent = await storage.getUser(previousAgentId);
+        details = `Reassigned from ${previousAgent?.name || previousAgentId} to ${agent.name} by ${user.name}`;
+      } else {
+        details = `Manually assigned to ${agent.name} by ${user.name}`;
+      }
+
+      await storage.createActivityLog({
+        agentId,
+        conversationId,
+        action: actionType,
+        details
+      });
+      
       res.json({ message: 'Conversation assigned successfully' });
     } catch (error) {
       if (error instanceof z.ZodError) {

@@ -826,6 +826,13 @@ export class DatabaseStorage implements IStorage {
     const bestAgent = await this.findBestAvailableAgent();
     
     if (!bestAgent) {
+      // Log that conversation was added to unassigned queue
+      await this.createActivityLog({
+        agentId: null,
+        conversationId,
+        action: 'queued',
+        details: 'No available agents; added to unassigned queue'
+      });
       return null;
     }
 
@@ -843,7 +850,7 @@ export class DatabaseStorage implements IStorage {
       agentId: bestAgent.id,
       conversationId,
       action: 'assigned',
-      details: 'Automatically assigned by system'
+      details: `Auto-assigned to ${bestAgent.name} by system`
     });
 
     return bestAgent;
