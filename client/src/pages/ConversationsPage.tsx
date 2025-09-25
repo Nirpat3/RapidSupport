@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ConversationList, { type Conversation } from "@/components/ConversationList";
 import ChatInterface from "@/components/ChatInterface";
 import { type Message } from "@/components/ChatMessage";
@@ -169,7 +169,7 @@ export default function ConversationsPage() {
     unreadCount: 0,
     status: conv.status || 'open',
     priority: conv.priority || 'medium',
-    isAssigned: conv.isAssigned !== false, // Default to assigned unless explicitly marked as unassigned
+    isAssigned: Boolean(conv.assignedAgentId), // True only if there's an assigned agent
     assignedAgentId: conv.assignedAgentId
   }));
 
@@ -198,10 +198,12 @@ export default function ConversationsPage() {
     }
   });
 
-  // Set first conversation as active if none selected
-  if (!activeConversationId && formattedConversations.length > 0) {
-    setActiveConversationId(formattedConversations[0].id);
-  }
+  // Set first conversation as active if none selected (use effect to avoid setState during render)
+  useEffect(() => {
+    if (!activeConversationId && formattedConversations.length > 0) {
+      setActiveConversationId(formattedConversations[0].id);
+    }
+  }, [activeConversationId, formattedConversations]);
 
   const activeConversation = formattedConversations.find(conv => conv.id === activeConversationId);
   
