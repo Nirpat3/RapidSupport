@@ -19,7 +19,8 @@ import {
   externalCustomerSyncSchema,
   externalTicketSyncSchema,
   anonymousCustomerSchema,
-  anonymousConversationSchema
+  anonymousConversationSchema,
+  updateAgentStatusSchema
 } from '@shared/schema';
 
 // Route-specific validation schemas
@@ -550,6 +551,14 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         scope: 'public'
       });
       
+      // Log the response activity
+      await storage.createActivityLog({
+        agentId: user.id,
+        conversationId,
+        action: 'responded',
+        details: `Sent ${senderType} message: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`
+      });
+
       // Broadcast the new message to WebSocket clients
       const wsServer = (req.app as any).wsServer;
       if (wsServer) {
@@ -936,6 +945,69 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         });
       }
       res.status(500).json({ error: 'Failed to send message' });
+    }
+  });
+
+  // Get activity logs for agent or conversation
+  app.get('/api/activity-logs', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { agentId, conversationId } = req.query;
+
+      let logs;
+      if (conversationId && typeof conversationId === 'string') {
+        logs = await storage.getActivityLogsByConversation(conversationId);
+      } else if (agentId && typeof agentId === 'string') {
+        // Only admins can view other agents' logs
+        if (user.role !== 'admin' && agentId !== user.id) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+        logs = await storage.getActivityLogsByAgent(agentId);
+      } else if (user.role === 'agent') {
+        // Default to current agent's logs
+        logs = await storage.getActivityLogsByAgent(user.id);
+      } else {
+        return res.status(400).json({ error: 'Agent ID or Conversation ID required' });
+      }
+
+      res.json(logs);
+    } catch (error) {
+      console.error('Failed to fetch activity logs:', error);
+      res.status(500).json({ error: 'Failed to fetch activity logs' });
+    }
+  });
+
+  // Update agent status (online, offline, away, busy)
+  app.put('/api/agents/:id/status', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id: agentId } = req.params;
+      const { status } = updateAgentStatusSchema.parse(req.body);
+      const user = req.user as any;
+
+      // Agents can only update their own status, admins can update anyone's
+      if (user.role === 'agent' && agentId !== user.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      await storage.updateUserStatus(agentId, status);
+
+      // Log status change
+      await storage.createActivityLog({
+        agentId,
+        action: 'status_changed',
+        details: `Status changed to ${status}`
+      });
+
+      res.json({ message: 'Status updated successfully' });
+    } catch (error) {
+      console.error('Failed to update agent status:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid status data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to update status' });
     }
   });
 
