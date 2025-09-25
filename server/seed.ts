@@ -1,12 +1,13 @@
 import { db } from "./db";
-import { users, customers, conversations, messages } from "@shared/schema";
+import { users, customers, conversations, messages, tickets } from "@shared/schema";
 import { hash } from "bcryptjs";
 
 async function seed() {
   console.log("🌱 Seeding database...");
 
-  // Clear existing data
+  // Clear existing data (delete in reverse dependency order)
   await db.delete(messages);
+  await db.delete(tickets);  // Delete tickets before customers/users they reference
   await db.delete(conversations);
   await db.delete(customers);
   await db.delete(users);

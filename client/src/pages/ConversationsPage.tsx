@@ -2,6 +2,7 @@ import { useState } from "react";
 import ConversationList, { type Conversation } from "@/components/ConversationList";
 import ChatInterface from "@/components/ChatInterface";
 import { type Message } from "@/components/ChatMessage";
+import { useQuery } from "@tanstack/react-query";
 
 // TODO: remove mock functionality
 const sampleConversations: Conversation[] = [
@@ -132,33 +133,50 @@ const sampleMessages: { [key: string]: Message[] } = {
 };
 
 export default function ConversationsPage() {
-  const [activeConversationId, setActiveConversationId] = useState<string>('1');
-  const [messages, setMessages] = useState<{ [key: string]: Message[] }>(sampleMessages);
+  const [activeConversationId, setActiveConversationId] = useState<string>('');
   
-  const activeConversation = sampleConversations.find(conv => conv.id === activeConversationId);
-  const activeMessages = messages[activeConversationId] || [];
+  // Fetch real conversations from API instead of using sample data
+  const { data: conversations = [], isLoading: conversationsLoading } = useQuery<any[]>({
+    queryKey: ['/api/conversations'],
+  });
+
+  // Fetch messages for active conversation
+  const { data: activeMessages = [], isLoading: messagesLoading } = useQuery<Message[]>({
+    queryKey: ['/api/conversations', activeConversationId, 'messages'],
+    enabled: !!activeConversationId,
+  });
+
+  // Convert API conversation data to match ConversationList format
+  const formattedConversations: Conversation[] = conversations.map(conv => ({
+    id: conv.id,
+    customer: {
+      id: conv.customer?.id || conv.customerId,
+      name: conv.customer?.name || 'Unknown Customer',
+      status: conv.customer?.status || 'offline'
+    },
+    lastMessage: {
+      content: 'Loading...',
+      timestamp: new Date(conv.updatedAt || conv.createdAt),
+      sender: 'customer'
+    },
+    unreadCount: 0,
+    status: conv.status || 'open',
+    priority: conv.priority || 'medium'
+  }));
+
+  // Set first conversation as active if none selected
+  if (!activeConversationId && formattedConversations.length > 0) {
+    setActiveConversationId(formattedConversations[0].id);
+  }
+
+  const activeConversation = formattedConversations.find(conv => conv.id === activeConversationId);
   
   const handleSendMessage = (content: string) => {
     if (!activeConversationId) return;
     
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content,
-      sender: {
-        id: 'agent1',
-        name: 'Sarah Smith',
-        role: 'agent'
-      },
-      timestamp: new Date(),
-      status: 'sent'
-    };
-    
-    setMessages(prev => ({
-      ...prev,
-      [activeConversationId]: [...(prev[activeConversationId] || []), newMessage]
-    }));
-    
-    console.log('New message sent:', newMessage);
+    // TODO: Implement API call to send message
+    // For now, just log the message - the ChatInterface will handle sending via API
+    console.log('Message to send:', { content, conversationId: activeConversationId });
   };
   
   return (
@@ -166,7 +184,7 @@ export default function ConversationsPage() {
       {/* Mobile: Full width conversation list, Desktop: Fixed sidebar */}
       <div className="w-full lg:w-80 lg:flex-shrink-0 flex-shrink-0 h-auto lg:h-full">
         <ConversationList
-          conversations={sampleConversations}
+          conversations={formattedConversations}
           activeConversationId={activeConversationId}
           onSelectConversation={setActiveConversationId}
         />

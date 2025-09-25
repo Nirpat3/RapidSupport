@@ -384,7 +384,30 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
       }
       
       const messages = await storage.getMessagesByConversationAndScope(conversationId, 'internal');
-      res.json(messages);
+      
+      // Enrich messages with sender information
+      const enrichedMessages = await Promise.all(
+        messages.map(async (message) => {
+          const sender = await storage.getUser(message.senderId);
+          return {
+            id: message.id,
+            content: message.content,
+            senderId: message.senderId,
+            senderType: message.senderType,
+            scope: message.scope,
+            timestamp: message.timestamp,
+            status: message.status,
+            sender: {
+              id: sender?.id || message.senderId,
+              name: sender?.name || 'Unknown User',
+              role: sender?.role || message.senderType,
+              avatar: sender?.avatar
+            }
+          };
+        })
+      );
+      
+      res.json(enrichedMessages);
     } catch (error) {
       console.error('Internal messages fetch error:', error);
       if (error instanceof z.ZodError) {
