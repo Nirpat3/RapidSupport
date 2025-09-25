@@ -5,6 +5,8 @@ import {
   messages,
   tickets,
   attachments,
+  activityLogs,
+  agentWorkload,
   type User,
   type InsertUser,
   type Customer,
@@ -20,6 +22,10 @@ import {
   type AnonymousCustomer,
   type Attachment,
   type InsertAttachment,
+  type ActivityLog,
+  type InsertActivityLog,
+  type AgentWorkload,
+  type InsertAgentWorkload,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or } from "drizzle-orm";
@@ -85,6 +91,21 @@ export interface IStorage {
   createAttachment(attachment: InsertAttachment): Promise<Attachment>;
   getAttachmentsByMessage(messageId: string): Promise<Attachment[]>;
   deleteAttachment(id: string): Promise<void>;
+
+  // Activity log operations
+  createActivityLog(activityLog: InsertActivityLog): Promise<ActivityLog>;
+  getActivityLogsByAgent(agentId: string): Promise<ActivityLog[]>;
+  getActivityLogsByConversation(conversationId: string): Promise<ActivityLog[]>;
+
+  // Agent workload operations
+  getAgentWorkload(agentId: string): Promise<AgentWorkload | undefined>;
+  updateAgentWorkload(agentId: string, activeConversations: number): Promise<void>;
+  getAvailableAgents(): Promise<Array<{ user: User; workload: AgentWorkload }>>;
+  findBestAvailableAgent(): Promise<User | null>;
+
+  // Assignment operations
+  autoAssignConversation(conversationId: string): Promise<User | null>;
+  getUnassignedConversations(): Promise<Conversation[]>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -589,6 +610,15 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
 
+    // Try to auto-assign conversation to an available agent
+    const assignedAgent = await this.autoAssignConversation(conversation.id);
+    
+    if (assignedAgent) {
+      console.log(`Auto-assigned conversation ${conversation.id} to agent ${assignedAgent.name} (${assignedAgent.id})`);
+    } else {
+      console.log(`No available agents for conversation ${conversation.id}. Added to unassigned queue.`);
+    }
+
     return {
       customerId: customer.id,
       conversationId: conversation.id,
@@ -673,6 +703,124 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAttachment(id: string): Promise<void> {
     await db.delete(attachments).where(eq(attachments.id, id));
+  }
+
+  // Activity log operations
+  async createActivityLog(activityLog: InsertActivityLog): Promise<ActivityLog> {
+    const [log] = await db
+      .insert(activityLogs)
+      .values(activityLog)
+      .returning();
+    return log;
+  }
+
+  async getActivityLogsByAgent(agentId: string): Promise<ActivityLog[]> {
+    return await db
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.agentId, agentId))
+      .orderBy(desc(activityLogs.timestamp));
+  }
+
+  async getActivityLogsByConversation(conversationId: string): Promise<ActivityLog[]> {
+    return await db
+      .select()
+      .from(activityLogs)
+      .where(eq(activityLogs.conversationId, conversationId!))
+      .orderBy(desc(activityLogs.timestamp));
+  }
+
+  // Agent workload operations
+  async getAgentWorkload(agentId: string): Promise<AgentWorkload | undefined> {
+    const [workload] = await db
+      .select()
+      .from(agentWorkload)
+      .where(eq(agentWorkload.agentId, agentId));
+    return workload || undefined;
+  }
+
+  async updateAgentWorkload(agentId: string, activeConversations: number): Promise<void> {
+    await db
+      .update(agentWorkload)
+      .set({ 
+        activeConversations, 
+        lastActivity: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(agentWorkload.agentId, agentId));
+  }
+
+  async getAvailableAgents(): Promise<Array<{ user: User; workload: AgentWorkload }>> {
+    const results = await db
+      .select({
+        user: users,
+        workload: agentWorkload,
+      })
+      .from(users)
+      .leftJoin(agentWorkload, eq(users.id, agentWorkload.agentId))
+      .where(and(
+        or(eq(users.role, 'agent'), eq(users.role, 'admin')),
+        eq(users.status, 'online')
+      ));
+
+    return results
+      .filter(result => result.workload !== null)
+      .map(result => ({
+        user: result.user,
+        workload: result.workload!
+      }))
+      .filter(({ workload }) => workload.activeConversations < workload.maxCapacity);
+  }
+
+  async findBestAvailableAgent(): Promise<User | null> {
+    const availableAgents = await this.getAvailableAgents();
+    
+    if (availableAgents.length === 0) {
+      return null;
+    }
+
+    // Sort by current workload (ascending) to find agent with least conversations
+    availableAgents.sort((a, b) => a.workload.activeConversations - b.workload.activeConversations);
+    
+    return availableAgents[0].user;
+  }
+
+  async autoAssignConversation(conversationId: string): Promise<User | null> {
+    const bestAgent = await this.findBestAvailableAgent();
+    
+    if (!bestAgent) {
+      return null;
+    }
+
+    // Assign conversation to agent
+    await this.assignConversation(conversationId, bestAgent.id);
+    
+    // Update agent workload
+    const currentWorkload = await this.getAgentWorkload(bestAgent.id);
+    if (currentWorkload) {
+      await this.updateAgentWorkload(bestAgent.id, currentWorkload.activeConversations + 1);
+    }
+    
+    // Log the assignment
+    await this.createActivityLog({
+      agentId: bestAgent.id,
+      conversationId,
+      action: 'assigned',
+      details: 'Automatically assigned by system'
+    });
+
+    return bestAgent;
+  }
+
+  async getUnassignedConversations(): Promise<Conversation[]> {
+    return await db
+      .select()
+      .from(conversations)
+      .where(and(
+        eq(conversations.assignedAgentId, null as any),
+        eq(conversations.status, 'open')
+      ))
+      .orderBy(desc(conversations.createdAt));
   }
 
 }
