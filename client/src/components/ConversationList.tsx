@@ -23,6 +23,8 @@ export interface Conversation {
   unreadCount: number;
   status: 'open' | 'pending' | 'resolved' | 'closed';
   priority: 'low' | 'medium' | 'high' | 'urgent';
+  isAssigned?: boolean;
+  assignedAgentId?: string;
 }
 
 interface ConversationListProps {

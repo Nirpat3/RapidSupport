@@ -273,8 +273,15 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
         // Admins can see all conversations
         conversations = await storage.getAllConversations();
       } else if (user.role === 'agent') {
-        // Agents can only see conversations assigned to them
-        conversations = await storage.getConversationsByAgent(user.id);
+        // Agents can see conversations assigned to them AND unassigned conversations
+        const assignedConversations = await storage.getConversationsByAgent(user.id);
+        const unassignedConversations = await storage.getUnassignedConversations();
+        
+        // Combine and mark which are assigned vs unassigned
+        conversations = [
+          ...assignedConversations.map(conv => ({ ...conv, isAssigned: true })),
+          ...unassignedConversations.map(conv => ({ ...conv, isAssigned: false }))
+        ];
       } else {
         // Customers or other roles - return empty for now
         conversations = [];
@@ -284,6 +291,126 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
       res.status(500).json({ error: 'Failed to fetch conversations' });
+    }
+  });
+
+  // Get only unassigned conversations for agents to claim
+  app.get('/api/conversations/unassigned', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const unassignedConversations = await storage.getUnassignedConversations();
+      res.json(unassignedConversations);
+    } catch (error) {
+      console.error('Failed to fetch unassigned conversations:', error);
+      res.status(500).json({ error: 'Failed to fetch unassigned conversations' });
+    }
+  });
+
+  // Manually assign or reassign a conversation
+  app.put('/api/conversations/:id/assign', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id: conversationId } = req.params;
+      const { agentId } = req.body;
+      const user = req.user as any;
+
+      // Validate agent ID
+      if (!agentId || typeof agentId !== 'string') {
+        return res.status(400).json({ error: 'Agent ID is required' });
+      }
+
+      // Verify agent exists and is valid
+      const agent = await storage.getUser(agentId);
+      if (!agent || !['agent', 'admin'].includes(agent.role)) {
+        return res.status(400).json({ error: 'Invalid agent ID' });
+      }
+
+      // Get current conversation to check previous assignment
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      const previousAgentId = conversation.assignedAgentId;
+
+      // Assign conversation
+      await storage.assignConversation(conversationId, agentId);
+
+      // Update workload tracking
+      if (previousAgentId && previousAgentId !== agentId) {
+        // Decrease previous agent's workload
+        const previousWorkload = await storage.getAgentWorkload(previousAgentId);
+        if (previousWorkload) {
+          await storage.updateAgentWorkload(previousAgentId, Math.max(0, previousWorkload.activeConversations - 1));
+        }
+      }
+
+      // Increase new agent's workload
+      const newWorkload = await storage.getAgentWorkload(agentId);
+      if (newWorkload) {
+        await storage.updateAgentWorkload(agentId, newWorkload.activeConversations + 1);
+      }
+
+      // Log the assignment
+      const actionType = previousAgentId ? 'reassigned' : 'assigned';
+      const details = previousAgentId 
+        ? `Reassigned from ${previousAgentId} to ${agentId} by ${user.name}`
+        : `Manually assigned by ${user.name}`;
+
+      await storage.createActivityLog({
+        agentId,
+        conversationId,
+        action: actionType,
+        details
+      });
+
+      res.json({ message: 'Conversation assigned successfully' });
+    } catch (error) {
+      console.error('Failed to assign conversation:', error);
+      res.status(500).json({ error: 'Failed to assign conversation' });
+    }
+  });
+
+  // Agent takes over an unassigned conversation
+  app.put('/api/conversations/:id/take-over', requireAuth, requireRole(['agent', 'admin']), async (req, res) => {
+    try {
+      const { id: conversationId } = req.params;
+      const user = req.user as any;
+
+      // Get conversation to verify it's unassigned
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      if (conversation.assignedAgentId) {
+        return res.status(400).json({ error: 'Conversation is already assigned' });
+      }
+
+      // Check if agent has capacity
+      const agentWorkload = await storage.getAgentWorkload(user.id);
+      if (agentWorkload && agentWorkload.activeConversations >= agentWorkload.maxCapacity) {
+        return res.status(400).json({ error: 'Agent has reached maximum capacity' });
+      }
+
+      // Assign to current user
+      await storage.assignConversation(conversationId, user.id);
+
+      // Update workload
+      if (agentWorkload) {
+        await storage.updateAgentWorkload(user.id, agentWorkload.activeConversations + 1);
+      }
+
+      // Log the takeover
+      await storage.createActivityLog({
+        agentId: user.id,
+        conversationId,
+        action: 'took_over',
+        details: `Agent took over unassigned conversation`
+      });
+
+      res.json({ message: 'Conversation taken over successfully' });
+    } catch (error) {
+      console.error('Failed to take over conversation:', error);
+      res.status(500).json({ error: 'Failed to take over conversation' });
     }
   });
 
@@ -302,8 +429,7 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
             sender = {
               id: customer?.id || message.senderId,
               name: customer?.name || 'Unknown Customer',
-              role: 'customer',
-              avatar: customer?.avatar
+              role: 'customer'
             };
           } else {
             // Get user data (agent/admin)
@@ -311,8 +437,7 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
             sender = {
               id: user?.id || message.senderId,
               name: user?.name || 'Unknown User',
-              role: user?.role || message.senderType,
-              avatar: user?.avatar
+              role: user?.role || message.senderType
             };
           }
           
@@ -514,8 +639,7 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
             sender: {
               id: sender?.id || message.senderId,
               name: sender?.name || 'Unknown User',
-              role: sender?.role || message.senderType,
-              avatar: sender?.avatar || undefined
+              role: sender?.role || message.senderType
             }
           };
         })
@@ -766,7 +890,10 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
       req.body.ipAddress = clientIP;
       
       const customerData = createAnonymousCustomerSchema.parse(req.body);
-      const result = await storage.createAnonymousCustomer(customerData);
+      const result = await storage.createAnonymousCustomer({
+        ...customerData,
+        sessionId: req.body.sessionId
+      });
       
       console.log('Customer created successfully - ID:', result.customerId);
       res.status(201).json(result);

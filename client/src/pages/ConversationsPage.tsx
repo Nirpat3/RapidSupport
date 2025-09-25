@@ -4,6 +4,10 @@ import ChatInterface from "@/components/ChatInterface";
 import { type Message } from "@/components/ChatMessage";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { UserPlus, Users } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 // TODO: remove mock functionality
 const sampleConversations: Conversation[] = [
@@ -147,6 +151,8 @@ export default function ConversationsPage() {
     enabled: !!activeConversationId,
   });
 
+  const { toast } = useToast();
+
   // Convert API conversation data to match ConversationList format
   const formattedConversations: Conversation[] = conversations.map(conv => ({
     id: conv.id,
@@ -162,8 +168,35 @@ export default function ConversationsPage() {
     },
     unreadCount: 0,
     status: conv.status || 'open',
-    priority: conv.priority || 'medium'
+    priority: conv.priority || 'medium',
+    isAssigned: conv.isAssigned !== false, // Default to assigned unless explicitly marked as unassigned
+    assignedAgentId: conv.assignedAgentId
   }));
+
+  // Separate assigned vs unassigned conversations
+  const assignedConversations = formattedConversations.filter(conv => conv.isAssigned);
+  const unassignedConversations = formattedConversations.filter(conv => !conv.isAssigned);
+
+  // Take over mutation for unassigned conversations
+  const takeOverMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      return await apiRequest('PUT', `/api/conversations/${conversationId}/take-over`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      toast({
+        title: "Success",
+        description: "Conversation assigned to you successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to take over conversation",
+        variant: "destructive",
+      });
+    }
+  });
 
   // Set first conversation as active if none selected
   if (!activeConversationId && formattedConversations.length > 0) {
@@ -196,15 +229,90 @@ export default function ConversationsPage() {
     });
   };
   
+  const handleTakeOver = (conversationId: string) => {
+    takeOverMutation.mutate(conversationId);
+  };
+
   return (
     <div className="flex flex-col lg:flex-row h-full" data-testid="conversations-page">
       {/* Mobile: Full width conversation list, Desktop: Fixed sidebar */}
       <div className="w-full lg:w-80 lg:flex-shrink-0 flex-shrink-0 h-auto lg:h-full">
-        <ConversationList
-          conversations={formattedConversations}
-          activeConversationId={activeConversationId}
-          onSelectConversation={setActiveConversationId}
-        />
+        {/* Unassigned Conversations Section */}
+        {unassignedConversations.length > 0 && (
+          <div className="border-b bg-muted/30">
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                <h3 className="font-semibold text-sm">Unassigned Queue</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {unassignedConversations.length}
+                </Badge>
+              </div>
+              
+              <div className="space-y-2">
+                {unassignedConversations.map(conv => (
+                  <div 
+                    key={conv.id} 
+                    className="p-3 rounded border bg-card hover-elevate cursor-pointer"
+                    onClick={() => setActiveConversationId(conv.id)}
+                    data-testid={`unassigned-conversation-${conv.id}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{conv.customer.name}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {conv.priority}
+                        </Badge>
+                      </div>
+                      <Badge variant="destructive" className="text-xs">
+                        Unassigned
+                      </Badge>
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground mb-2 truncate">
+                      {conv.lastMessage.content}
+                    </p>
+                    
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="w-full"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTakeOver(conv.id);
+                      }}
+                      disabled={takeOverMutation.isPending}
+                      data-testid={`button-take-over-${conv.id}`}
+                    >
+                      <UserPlus className="h-3 w-3 mr-1" />
+                      Take Over
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Assigned Conversations */}
+        <div className="flex-1">
+          {assignedConversations.length > 0 && (
+            <div className="p-4 border-b">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-sm">Your Conversations</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {assignedConversations.length}
+                </Badge>
+              </div>
+            </div>
+          )}
+          
+          <ConversationList
+            conversations={assignedConversations}
+            activeConversationId={activeConversationId}
+            onSelectConversation={setActiveConversationId}
+          />
+        </div>
       </div>
       
       {/* Chat interface takes remaining space */}
