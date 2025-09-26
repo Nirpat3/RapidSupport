@@ -1297,6 +1297,75 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Generate smart AI agent response for customer chat
+  app.post('/api/ai/smart-response', async (req, res) => {
+    try {
+      const { conversationId, customerMessage, agentId } = req.body;
+      
+      if (!conversationId || !customerMessage) {
+        return res.status(400).json({ error: 'Conversation ID and customer message are required' });
+      }
+
+      const response = await AIService.generateSmartAgentResponse(
+        conversationId,
+        customerMessage,
+        agentId
+      );
+
+      res.json({
+        success: true,
+        data: response
+      });
+    } catch (error) {
+      console.error('Smart AI response generation failed:', error);
+      res.status(500).json({ error: 'Failed to generate smart AI response' });
+    }
+  });
+
+  // Hand over conversation from AI to human agent
+  app.post('/api/ai/handover/:conversationId', requireAuth, async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      const { reason } = req.body;
+      const user = req.user as any;
+
+      if (!reason) {
+        return res.status(400).json({ error: 'Handover reason is required' });
+      }
+
+      await AIService.handoverToHuman(conversationId, user.id, reason);
+
+      res.json({
+        success: true,
+        message: 'Conversation handed over to human agent'
+      });
+    } catch (error) {
+      console.error('AI handover failed:', error);
+      res.status(500).json({ error: 'Failed to handover conversation' });
+    }
+  });
+
+  // Record customer feedback for AI learning
+  app.post('/api/ai/feedback', async (req, res) => {
+    try {
+      const { conversationId, isHelpful, feedbackText } = req.body;
+      
+      if (!conversationId || typeof isHelpful !== 'boolean') {
+        return res.status(400).json({ error: 'Conversation ID and feedback rating are required' });
+      }
+
+      await AIService.recordCustomerFeedback(conversationId, isHelpful, feedbackText || '');
+
+      res.json({
+        success: true,
+        message: 'Feedback recorded successfully'
+      });
+    } catch (error) {
+      console.error('AI feedback recording failed:', error);
+      res.status(500).json({ error: 'Failed to record feedback' });
+    }
+  });
+
   // Check AI service health
   app.get('/api/ai/health', requireAuth, requireRole(['admin']), async (req, res) => {
     try {

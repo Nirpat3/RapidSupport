@@ -7,6 +7,10 @@ import {
   attachments,
   activityLogs,
   agentWorkload,
+  aiAgents,
+  knowledgeBase,
+  aiAgentLearning,
+  aiAgentSessions,
   type User,
   type InsertUser,
   type Customer,
@@ -26,6 +30,14 @@ import {
   type InsertActivityLog,
   type AgentWorkload,
   type InsertAgentWorkload,
+  type AiAgent,
+  type InsertAiAgent,
+  type KnowledgeBase,
+  type InsertKnowledgeBase,
+  type AiAgentLearning,
+  type InsertAiAgentLearning,
+  type AiAgentSession,
+  type InsertAiAgentSession,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
@@ -107,6 +119,41 @@ export interface IStorage {
   // Assignment operations
   autoAssignConversation(conversationId: string): Promise<User | null>;
   getUnassignedConversations(): Promise<Conversation[]>;
+
+  // AI Agent operations
+  getAiAgent(id: string): Promise<AiAgent | undefined>;
+  getActiveAiAgents(): Promise<AiAgent[]>;
+  getAllAiAgents(): Promise<AiAgent[]>;
+  createAiAgent(agent: InsertAiAgent): Promise<AiAgent>;
+  updateAiAgent(id: string, updates: Partial<InsertAiAgent>): Promise<void>;
+  deleteAiAgent(id: string): Promise<void>;
+
+  // Knowledge Base operations
+  getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined>;
+  getKnowledgeBaseArticles(ids: string[]): Promise<KnowledgeBase[]>;
+  getAllKnowledgeBase(): Promise<KnowledgeBase[]>;
+  createKnowledgeBase(knowledge: InsertKnowledgeBase): Promise<KnowledgeBase>;
+  updateKnowledgeBase(id: string, updates: Partial<InsertKnowledgeBase>): Promise<void>;
+  deleteKnowledgeBase(id: string): Promise<void>;
+  updateKnowledgeBaseUsage(id: string): Promise<void>;
+  updateKnowledgeBaseEffectiveness(id: string, adjustment: number): Promise<void>;
+
+  // AI Agent Learning operations
+  getAiAgentLearning(id: string): Promise<AiAgentLearning | undefined>;
+  getAiAgentLearningByConversation(conversationId: string): Promise<AiAgentLearning[]>;
+  getAiAgentLearningByAgent(agentId: string): Promise<AiAgentLearning[]>;
+  createAiAgentLearning(learning: InsertAiAgentLearning): Promise<AiAgentLearning>;
+  updateAiAgentLearning(id: string, updates: Partial<InsertAiAgentLearning>): Promise<void>;
+
+  // AI Agent Session operations
+  getAiAgentSession(id: string): Promise<AiAgentSession | undefined>;
+  getAiAgentSessionByConversation(conversationId: string): Promise<AiAgentSession | undefined>;
+  getAiAgentSessionsByAgent(agentId: string): Promise<AiAgentSession[]>;
+  createAiAgentSession(session: InsertAiAgentSession): Promise<AiAgentSession>;
+  updateAiAgentSession(id: string, updates: Partial<InsertAiAgentSession>): Promise<void>;
+
+  // Additional conversation operations
+  updateConversation(id: string, updates: Partial<InsertConversation>): Promise<void>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -907,7 +954,7 @@ export class DatabaseStorage implements IStorage {
         
         // Create the workload object for immediate use
         workload = {
-          id: 0, // Will be set by database
+          id: '', // Will be set by database
           agentId: result.user.id,
           activeConversations: 0,
           maxCapacity: 5,
@@ -917,7 +964,7 @@ export class DatabaseStorage implements IStorage {
       }
       
       // Only include agents with capacity
-      if (workload.activeConversations < workload.maxCapacity) {
+      if (workload && workload.activeConversations < workload.maxCapacity) {
         agentsWithWorkload.push({
           user: result.user,
           workload: workload as AgentWorkload
@@ -947,7 +994,6 @@ export class DatabaseStorage implements IStorage {
     if (!bestAgent) {
       // Log that conversation was added to unassigned queue
       await this.createActivityLog({
-        agentId: null,
         conversationId,
         action: 'queued',
         details: 'No available agents; added to unassigned queue'
@@ -975,7 +1021,7 @@ export class DatabaseStorage implements IStorage {
     return bestAgent;
   }
 
-  async getUnassignedConversations(): Promise<any[]> {
+  async getUnassignedConversations(): Promise<Conversation[]> {
     return await db
       .select({
         id: conversations.id,
@@ -1003,6 +1049,251 @@ export class DatabaseStorage implements IStorage {
         eq(conversations.status, 'open')
       ))
       .orderBy(desc(conversations.createdAt));
+  }
+
+  // AI Agent operations
+  async getAiAgent(id: string): Promise<AiAgent | undefined> {
+    try {
+      const [agent] = await db.select().from(aiAgents).where(eq(aiAgents.id, id));
+      return agent || undefined;
+    } catch (error) {
+      console.error('Error fetching AI agent:', error);
+      return undefined;
+    }
+  }
+
+  async getActiveAiAgents(): Promise<AiAgent[]> {
+    try {
+      return await db.select().from(aiAgents).where(eq(aiAgents.isActive, true));
+    } catch (error) {
+      console.error('Error fetching active AI agents:', error);
+      return [];
+    }
+  }
+
+  async getAllAiAgents(): Promise<AiAgent[]> {
+    try {
+      return await db.select().from(aiAgents).orderBy(desc(aiAgents.createdAt));
+    } catch (error) {
+      console.error('Error fetching all AI agents:', error);
+      return [];
+    }
+  }
+
+  async createAiAgent(agent: InsertAiAgent): Promise<AiAgent> {
+    try {
+      const [result] = await db.insert(aiAgents).values(agent).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating AI agent:', error);
+      throw error;
+    }
+  }
+
+  async updateAiAgent(id: string, updates: Partial<InsertAiAgent>): Promise<void> {
+    try {
+      await db.update(aiAgents).set({ ...updates, updatedAt: new Date() }).where(eq(aiAgents.id, id));
+    } catch (error) {
+      console.error('Error updating AI agent:', error);
+      throw error;
+    }
+  }
+
+  async deleteAiAgent(id: string): Promise<void> {
+    try {
+      await db.delete(aiAgents).where(eq(aiAgents.id, id));
+    } catch (error) {
+      console.error('Error deleting AI agent:', error);
+      throw error;
+    }
+  }
+
+  // Knowledge Base operations
+  async getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined> {
+    try {
+      const [article] = await db.select().from(knowledgeBase).where(eq(knowledgeBase.id, id));
+      return article || undefined;
+    } catch (error) {
+      console.error('Error fetching knowledge base article:', error);
+      return undefined;
+    }
+  }
+
+  async getKnowledgeBaseArticles(ids: string[]): Promise<KnowledgeBase[]> {
+    try {
+      if (ids.length === 0) return [];
+      return await db.select().from(knowledgeBase).where(sql`${knowledgeBase.id} = ANY(${ids})`);
+    } catch (error) {
+      console.error('Error fetching knowledge base articles:', error);
+      return [];
+    }
+  }
+
+  async getAllKnowledgeBase(): Promise<KnowledgeBase[]> {
+    try {
+      return await db.select().from(knowledgeBase).orderBy(desc(knowledgeBase.priority), desc(knowledgeBase.createdAt));
+    } catch (error) {
+      console.error('Error fetching all knowledge base articles:', error);
+      return [];
+    }
+  }
+
+  async createKnowledgeBase(knowledge: InsertKnowledgeBase): Promise<KnowledgeBase> {
+    try {
+      const [result] = await db.insert(knowledgeBase).values(knowledge).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating knowledge base article:', error);
+      throw error;
+    }
+  }
+
+  async updateKnowledgeBase(id: string, updates: Partial<InsertKnowledgeBase>): Promise<void> {
+    try {
+      await db.update(knowledgeBase).set({ ...updates, updatedAt: new Date() }).where(eq(knowledgeBase.id, id));
+    } catch (error) {
+      console.error('Error updating knowledge base article:', error);
+      throw error;
+    }
+  }
+
+  async deleteKnowledgeBase(id: string): Promise<void> {
+    try {
+      await db.delete(knowledgeBase).where(eq(knowledgeBase.id, id));
+    } catch (error) {
+      console.error('Error deleting knowledge base article:', error);
+      throw error;
+    }
+  }
+
+  async updateKnowledgeBaseUsage(id: string): Promise<void> {
+    try {
+      await db.update(knowledgeBase).set({ 
+        usageCount: sql`${knowledgeBase.usageCount} + 1`,
+        lastUsedAt: new Date(),
+        updatedAt: new Date()
+      }).where(eq(knowledgeBase.id, id));
+    } catch (error) {
+      console.error('Error updating knowledge base usage:', error);
+    }
+  }
+
+  async updateKnowledgeBaseEffectiveness(id: string, adjustment: number): Promise<void> {
+    try {
+      await db.update(knowledgeBase).set({ 
+        effectiveness: sql`LEAST(GREATEST(${knowledgeBase.effectiveness} + ${adjustment}, 0), 100)`,
+        updatedAt: new Date()
+      }).where(eq(knowledgeBase.id, id));
+    } catch (error) {
+      console.error('Error updating knowledge base effectiveness:', error);
+    }
+  }
+
+  // AI Agent Learning operations
+  async getAiAgentLearning(id: string): Promise<AiAgentLearning | undefined> {
+    try {
+      const [learning] = await db.select().from(aiAgentLearning).where(eq(aiAgentLearning.id, id));
+      return learning || undefined;
+    } catch (error) {
+      console.error('Error fetching AI agent learning:', error);
+      return undefined;
+    }
+  }
+
+  async getAiAgentLearningByConversation(conversationId: string): Promise<AiAgentLearning[]> {
+    try {
+      return await db.select().from(aiAgentLearning).where(eq(aiAgentLearning.conversationId, conversationId)).orderBy(desc(aiAgentLearning.createdAt));
+    } catch (error) {
+      console.error('Error fetching AI agent learning by conversation:', error);
+      return [];
+    }
+  }
+
+  async getAiAgentLearningByAgent(agentId: string): Promise<AiAgentLearning[]> {
+    try {
+      return await db.select().from(aiAgentLearning).where(eq(aiAgentLearning.agentId, agentId)).orderBy(desc(aiAgentLearning.createdAt));
+    } catch (error) {
+      console.error('Error fetching AI agent learning by agent:', error);
+      return [];
+    }
+  }
+
+  async createAiAgentLearning(learning: InsertAiAgentLearning): Promise<AiAgentLearning> {
+    try {
+      const [result] = await db.insert(aiAgentLearning).values(learning).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating AI agent learning:', error);
+      throw error;
+    }
+  }
+
+  async updateAiAgentLearning(id: string, updates: Partial<InsertAiAgentLearning>): Promise<void> {
+    try {
+      await db.update(aiAgentLearning).set(updates).where(eq(aiAgentLearning.id, id));
+    } catch (error) {
+      console.error('Error updating AI agent learning:', error);
+      throw error;
+    }
+  }
+
+  // AI Agent Session operations
+  async getAiAgentSession(id: string): Promise<AiAgentSession | undefined> {
+    try {
+      const [session] = await db.select().from(aiAgentSessions).where(eq(aiAgentSessions.id, id));
+      return session || undefined;
+    } catch (error) {
+      console.error('Error fetching AI agent session:', error);
+      return undefined;
+    }
+  }
+
+  async getAiAgentSessionByConversation(conversationId: string): Promise<AiAgentSession | undefined> {
+    try {
+      const [session] = await db.select().from(aiAgentSessions).where(eq(aiAgentSessions.conversationId, conversationId));
+      return session || undefined;
+    } catch (error) {
+      console.error('Error fetching AI agent session by conversation:', error);
+      return undefined;
+    }
+  }
+
+  async getAiAgentSessionsByAgent(agentId: string): Promise<AiAgentSession[]> {
+    try {
+      return await db.select().from(aiAgentSessions).where(eq(aiAgentSessions.agentId, agentId)).orderBy(desc(aiAgentSessions.startedAt));
+    } catch (error) {
+      console.error('Error fetching AI agent sessions by agent:', error);
+      return [];
+    }
+  }
+
+  async createAiAgentSession(session: InsertAiAgentSession): Promise<AiAgentSession> {
+    try {
+      const [result] = await db.insert(aiAgentSessions).values(session).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating AI agent session:', error);
+      throw error;
+    }
+  }
+
+  async updateAiAgentSession(id: string, updates: Partial<InsertAiAgentSession>): Promise<void> {
+    try {
+      await db.update(aiAgentSessions).set(updates).where(eq(aiAgentSessions.id, id));
+    } catch (error) {
+      console.error('Error updating AI agent session:', error);
+      throw error;
+    }
+  }
+
+  // Additional conversation operations
+  async updateConversation(id: string, updates: Partial<InsertConversation>): Promise<void> {
+    try {
+      await db.update(conversations).set({ ...updates, updatedAt: new Date() }).where(eq(conversations.id, id));
+    } catch (error) {
+      console.error('Error updating conversation:', error);
+      throw error;
+    }
   }
 
 }

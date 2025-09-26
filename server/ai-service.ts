@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { Message, Conversation, AiTicketGeneration } from '@shared/schema';
+import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning } from '@shared/schema';
 import { storage } from './storage';
 
 // Initialize OpenAI client
@@ -30,6 +30,15 @@ export interface AIAgentResponse {
   confidence: number;
   requiresHumanTakeover: boolean;
   suggestedActions: string[];
+  knowledgeUsed?: string[];
+  agentId?: string;
+}
+
+export interface SmartAgentResponse extends AIAgentResponse {
+  sessionId: string;
+  messageCount: number;
+  avgConfidence: number;
+  shouldLearn: boolean;
 }
 
 export class AIService {
@@ -366,6 +375,341 @@ If confidence is below 70 or the query requires sensitive information access, se
     } catch (error) {
       console.error('OpenAI service health check failed:', error);
       return false;
+    }
+  }
+
+  /**
+   * Generate smart AI agent response with learning and knowledge base integration
+   */
+  static async generateSmartAgentResponse(
+    customerMessage: string,
+    conversationId: string,
+    agentId?: string
+  ): Promise<SmartAgentResponse> {
+    try {
+      // Get or create AI agent session
+      let session = await storage.getAiAgentSessionByConversation(conversationId);
+      let agent: AiAgent | null = null;
+
+      if (!session) {
+        // Find the best agent for this conversation or use default
+        agent = agentId ? (await storage.getAiAgent(agentId)) || null : await this.findBestAgent(customerMessage);
+        
+        if (agent) {
+          session = await storage.createAiAgentSession({
+            conversationId,
+            agentId: agent.id,
+            status: 'active',
+            messageCount: 0,
+            avgConfidence: 0,
+          });
+        }
+      } else {
+        agent = (await storage.getAiAgent(session.agentId)) || null;
+      }
+
+      if (!agent || !session) {
+        // Fallback to basic response
+        const fallbackResponse = await this.generateAgentResponse(customerMessage, []);
+        return {
+          ...fallbackResponse,
+          sessionId: 'fallback',
+          messageCount: 1,
+          avgConfidence: fallbackResponse.confidence,
+          shouldLearn: false,
+        };
+      }
+
+      // Get conversation history
+      const messages = await storage.getMessagesByConversation(conversationId);
+      const conversationHistory = messages
+        .filter(msg => msg.scope !== 'internal')
+        .slice(-10)
+        .map(msg => `${msg.senderType}: ${msg.content}`);
+
+      // Get relevant knowledge base articles
+      const knowledgeArticles = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || []);
+
+      // Generate response using agent's configuration
+      const response = await this.generateAgentResponseWithConfig(
+        customerMessage,
+        conversationHistory,
+        knowledgeArticles,
+        agent
+      );
+
+      // Update session statistics
+      const newMessageCount = session.messageCount + 1;
+      const newAvgConfidence = Math.round(
+        (session.avgConfidence * session.messageCount + response.confidence) / newMessageCount
+      );
+
+      await storage.updateAiAgentSession(session.id, {
+        messageCount: newMessageCount,
+        avgConfidence: newAvgConfidence,
+      });
+
+      // Determine if human takeover is needed
+      const shouldTakeOver = response.confidence < agent.autoTakeoverThreshold || response.requiresHumanTakeover;
+
+      if (shouldTakeOver) {
+        await storage.updateAiAgentSession(session.id, {
+          status: 'handed_over',
+          handoverReason: `Low confidence (${response.confidence}%) or complex query requiring human assistance`,
+        });
+      }
+
+      // Record learning data
+      const shouldLearn = newMessageCount <= 100; // Limit learning data collection
+      if (shouldLearn) {
+        await storage.createAiAgentLearning({
+          agentId: agent.id,
+          conversationId,
+          customerQuery: customerMessage,
+          aiResponse: response.response,
+          confidence: response.confidence,
+          humanTookOver: shouldTakeOver,
+          knowledgeUsed: response.knowledgeUsed || [],
+        });
+      }
+
+      return {
+        ...response,
+        sessionId: session.id,
+        messageCount: newMessageCount,
+        avgConfidence: newAvgConfidence,
+        shouldLearn,
+        agentId: agent.id,
+      };
+
+    } catch (error) {
+      console.error('Error generating smart agent response:', error);
+      
+      // Fallback response
+      return {
+        response: 'I apologize, but I need to connect you with a human agent for assistance.',
+        confidence: 0,
+        requiresHumanTakeover: true,
+        suggestedActions: ['Connect with human agent'],
+        sessionId: 'error',
+        messageCount: 1,
+        avgConfidence: 0,
+        shouldLearn: false,
+      };
+    }
+  }
+
+  /**
+   * Generate response using specific AI agent configuration
+   */
+  private static async generateAgentResponseWithConfig(
+    customerMessage: string,
+    conversationHistory: string[],
+    knowledgeArticles: KnowledgeBase[],
+    agent: AiAgent
+  ): Promise<AIAgentResponse> {
+    try {
+      const knowledgeContext = knowledgeArticles.length 
+        ? `\nKnowledge Base:\n${knowledgeArticles.map(kb => `${kb.title}: ${kb.content}`).join('\n')}\n`
+        : '';
+
+      const conversationContext = conversationHistory.length 
+        ? `\nConversation History:\n${conversationHistory.join('\n')}\n`
+        : '';
+
+      const userPrompt = `${knowledgeContext}${conversationContext}
+Customer Message: "${customerMessage}"
+
+Respond according to your role and training. Provide a JSON response with:
+- response: Your helpful response to the customer
+- confidence: Number from 0-100 indicating confidence in your response
+- requiresHumanTakeover: Boolean if human agent should take over
+- suggestedActions: Array of recommended next steps
+
+Guidelines for confidence scoring:
+- 90-100: Completely confident, standard information
+- 70-89: Good confidence, using knowledge base or similar queries
+- 50-69: Moderate confidence, general guidance
+- 30-49: Low confidence, might need human help
+- 0-29: Very low confidence, definitely needs human assistance`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: agent.systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: (agent.temperature || 30) / 100,
+        max_tokens: agent.maxTokens || 1000,
+      });
+
+      const result = JSON.parse(completion.choices[0].message.content || '{}');
+      
+      // Update knowledge base usage statistics (if storage methods exist)
+      if (knowledgeArticles.length > 0) {
+        for (const kb of knowledgeArticles) {
+          try {
+            await storage.updateKnowledgeBaseUsage?.(kb.id);
+          } catch (e) {
+            // Method may not exist yet, ignore
+          }
+        }
+      }
+
+      return {
+        response: result.response || 'I apologize, but I need to connect you with a human agent for assistance.',
+        confidence: result.confidence || 50,
+        requiresHumanTakeover: result.requiresHumanTakeover || false,
+        suggestedActions: result.suggestedActions || [],
+        knowledgeUsed: knowledgeArticles.map(kb => kb.id),
+        agentId: agent.id,
+      };
+    } catch (error) {
+      console.error('Error generating agent response with config:', error);
+      return {
+        response: 'I apologize, but I need to connect you with a human agent for assistance.',
+        confidence: 0,
+        requiresHumanTakeover: true,
+        suggestedActions: ['Connect with human agent'],
+        agentId: agent.id,
+      };
+    }
+  }
+
+  /**
+   * Find the best AI agent for a customer query
+   */
+  private static async findBestAgent(customerMessage: string): Promise<AiAgent | null> {
+    try {
+      const agents = await storage.getActiveAiAgents?.() || [];
+      
+      if (agents.length === 0) {
+        return null;
+      }
+
+      // Simple keyword matching for specializations
+      const message = customerMessage.toLowerCase();
+      
+      for (const agent of agents) {
+        if (agent.specializations && agent.specializations.length > 0) {
+          for (const specialization of agent.specializations) {
+            if (message.includes(specialization.toLowerCase())) {
+              return agent;
+            }
+          }
+        }
+      }
+
+      // Return first active agent as fallback
+      return agents[0];
+    } catch (error) {
+      console.error('Error finding best agent:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get relevant knowledge base articles
+   */
+  private static async getRelevantKnowledge(query: string, knowledgeBaseIds: string[]): Promise<KnowledgeBase[]> {
+    try {
+      if (knowledgeBaseIds.length === 0) {
+        return [];
+      }
+
+      const allArticles = await storage.getKnowledgeBaseArticles?.(knowledgeBaseIds) || [];
+      
+      // Simple relevance matching based on keywords
+      const queryLower = query.toLowerCase();
+      const relevantArticles = allArticles.filter((article: KnowledgeBase) => {
+        const titleMatch = article.title.toLowerCase().includes(queryLower);
+        const contentMatch = article.content.toLowerCase().includes(queryLower);
+        const tagMatch = article.tags?.some((tag: string) => queryLower.includes(tag.toLowerCase()));
+        
+        return titleMatch || contentMatch || tagMatch;
+      });
+
+      // Sort by priority and return top 3
+      return relevantArticles
+        .sort((a: KnowledgeBase, b: KnowledgeBase) => (b.priority || 50) - (a.priority || 50))
+        .slice(0, 3);
+    } catch (error) {
+      console.error('Error getting relevant knowledge:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Hand over conversation from AI to human agent
+   */
+  static async handoverToHuman(
+    conversationId: string,
+    humanAgentId: string,
+    reason: string
+  ): Promise<boolean> {
+    try {
+      const session = await storage.getAiAgentSessionByConversation?.(conversationId);
+      
+      if (session && session.status === 'active') {
+        await storage.updateAiAgentSession?.(session.id, {
+          status: 'handed_over',
+          humanAgentId,
+          handoverReason: reason,
+        });
+
+        // Update conversation assignment
+        await storage.updateConversation(conversationId, {
+          assignedAgentId: humanAgentId,
+        });
+
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error handing over to human:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Record customer feedback for learning
+   */
+  static async recordCustomerFeedback(
+    conversationId: string,
+    messageId: string,
+    wasHelpful: boolean,
+    customerSatisfaction?: number,
+    improvementSuggestion?: string
+  ): Promise<void> {
+    try {
+      // Find the learning entry for this message
+      const learningEntries = await storage.getAiAgentLearningByConversation?.(conversationId) || [];
+      const latestEntry = learningEntries[learningEntries.length - 1];
+
+      if (latestEntry) {
+        await storage.updateAiAgentLearning?.(latestEntry.id, {
+          wasHelpful,
+          customerSatisfaction,
+          improvementSuggestion,
+        });
+
+        // Update knowledge base effectiveness if knowledge was used
+        if (latestEntry.knowledgeUsed && latestEntry.knowledgeUsed.length > 0) {
+          for (const kbId of latestEntry.knowledgeUsed) {
+            try {
+              await storage.updateKnowledgeBaseEffectiveness?.(
+                kbId,
+                wasHelpful ? 5 : -5 // Adjust effectiveness based on feedback
+              );
+            } catch (e) {
+              // Method may not exist yet, ignore
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error recording customer feedback:', error);
     }
   }
 }

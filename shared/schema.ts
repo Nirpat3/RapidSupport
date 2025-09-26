@@ -93,6 +93,71 @@ export const agentWorkload = pgTable("agent_workload", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// AI Agents table - for configuring different AI assistant personalities and capabilities
+export const aiAgents = pgTable("ai_agents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // e.g., "Technical Support Bot", "Billing Assistant"
+  description: text("description"), // What this agent specializes in
+  systemPrompt: text("system_prompt").notNull(), // AI personality and behavior instructions
+  isActive: boolean("is_active").notNull().default(true),
+  autoTakeoverThreshold: integer("auto_takeover_threshold").notNull().default(70), // Confidence threshold for automatic handoff to humans
+  specializations: text("specializations").array(), // Categories this agent handles well
+  knowledgeBaseIds: text("knowledge_base_ids").array(), // Which knowledge base articles this agent can access
+  maxTokens: integer("max_tokens").notNull().default(1000),
+  temperature: integer("temperature").notNull().default(30), // Stored as integer (0-100), divided by 100 for API
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Knowledge Base table - stores reusable knowledge articles for AI agents
+export const knowledgeBase = pgTable("knowledge_base", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  content: text("content").notNull(), // The actual knowledge content
+  category: text("category").notNull(), // e.g., "Technical", "Billing", "Product Info"
+  tags: text("tags").array(), // Searchable tags
+  isActive: boolean("is_active").notNull().default(true),
+  priority: integer("priority").notNull().default(50), // Higher priority = more likely to be used
+  usageCount: integer("usage_count").notNull().default(0), // Track how often this knowledge is referenced
+  effectiveness: integer("effectiveness").notNull().default(50), // Track how effective this knowledge is (0-100)
+  createdBy: varchar("created_by").references(() => users.id),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// AI Agent Learning table - tracks AI interactions to improve responses over time
+export const aiAgentLearning = pgTable("ai_agent_learning", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => aiAgents.id),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
+  customerQuery: text("customer_query").notNull(), // What the customer asked
+  aiResponse: text("ai_response").notNull(), // What the AI responded
+  confidence: integer("confidence").notNull(), // AI confidence in response (0-100)
+  humanTookOver: boolean("human_took_over").notNull().default(false), // Did a human need to take over?
+  customerSatisfaction: integer("customer_satisfaction"), // Customer feedback (1-5 stars)
+  knowledgeUsed: text("knowledge_used").array(), // Which knowledge base articles were referenced
+  improvementSuggestion: text("improvement_suggestion"), // Human feedback for improvement
+  wasHelpful: boolean("was_helpful"), // Simple yes/no feedback
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// AI Agent Sessions table - tracks which conversations are being handled by AI vs humans
+export const aiAgentSessions = pgTable("ai_agent_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
+  agentId: varchar("agent_id").notNull().references(() => aiAgents.id),
+  status: text("status").notNull().default("active"), // 'active' | 'handed_over' | 'completed'
+  handoverReason: text("handover_reason"), // Why was conversation handed over to human
+  humanAgentId: varchar("human_agent_id").references(() => users.id), // Which human took over
+  messageCount: integer("message_count").notNull().default(0),
+  avgConfidence: integer("avg_confidence").notNull().default(0), // Average confidence across all messages
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  handedOverAt: timestamp("handed_over_at"),
+  completedAt: timestamp("completed_at"),
+});
+
 // Tickets table - separate from conversations for better ticket management
 export const tickets = pgTable("tickets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -187,6 +252,48 @@ export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
 export const agentWorkloadRelations = relations(agentWorkload, ({ one }) => ({
   agent: one(users, {
     fields: [agentWorkload.agentId],
+    references: [users.id],
+  }),
+}));
+
+export const aiAgentsRelations = relations(aiAgents, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [aiAgents.createdBy],
+    references: [users.id],
+  }),
+  sessions: many(aiAgentSessions),
+  learningEntries: many(aiAgentLearning),
+}));
+
+export const knowledgeBaseRelations = relations(knowledgeBase, ({ one }) => ({
+  createdBy: one(users, {
+    fields: [knowledgeBase.createdBy],
+    references: [users.id],
+  }),
+}));
+
+export const aiAgentLearningRelations = relations(aiAgentLearning, ({ one }) => ({
+  agent: one(aiAgents, {
+    fields: [aiAgentLearning.agentId],
+    references: [aiAgents.id],
+  }),
+  conversation: one(conversations, {
+    fields: [aiAgentLearning.conversationId],
+    references: [conversations.id],
+  }),
+}));
+
+export const aiAgentSessionsRelations = relations(aiAgentSessions, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [aiAgentSessions.conversationId],
+    references: [conversations.id],
+  }),
+  agent: one(aiAgents, {
+    fields: [aiAgentSessions.agentId],
+    references: [aiAgents.id],
+  }),
+  humanAgent: one(users, {
+    fields: [aiAgentSessions.humanAgentId],
     references: [users.id],
   }),
 }));
@@ -321,6 +428,60 @@ export const updateAgentStatusSchema = z.object({
   status: z.enum(['online', 'away', 'busy', 'offline']),
 });
 
+// AI Agent schemas
+export const insertAiAgentSchema = createInsertSchema(aiAgents).pick({
+  name: true,
+  description: true,
+  systemPrompt: true,
+  isActive: true,
+  autoTakeoverThreshold: true,
+  specializations: true,
+  knowledgeBaseIds: true,
+  maxTokens: true,
+  temperature: true,
+  createdBy: true,
+});
+
+export const updateAiAgentSchema = insertAiAgentSchema.partial();
+
+// Knowledge Base schemas
+export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick({
+  title: true,
+  content: true,
+  category: true,
+  tags: true,
+  isActive: true,
+  priority: true,
+  createdBy: true,
+});
+
+export const updateKnowledgeBaseSchema = insertKnowledgeBaseSchema.partial();
+
+// AI Agent Learning schemas
+export const insertAiAgentLearningSchema = createInsertSchema(aiAgentLearning).pick({
+  agentId: true,
+  conversationId: true,
+  customerQuery: true,
+  aiResponse: true,
+  confidence: true,
+  humanTookOver: true,
+  customerSatisfaction: true,
+  knowledgeUsed: true,
+  improvementSuggestion: true,
+  wasHelpful: true,
+});
+
+// AI Agent Session schemas
+export const insertAiAgentSessionSchema = createInsertSchema(aiAgentSessions).pick({
+  conversationId: true,
+  agentId: true,
+  status: true,
+  handoverReason: true,
+  humanAgentId: true,
+  messageCount: true,
+  avgConfidence: true,
+});
+
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -343,3 +504,11 @@ export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertAgentWorkload = z.infer<typeof insertAgentWorkloadSchema>;
 export type AgentWorkload = typeof agentWorkload.$inferSelect;
+export type InsertAiAgent = z.infer<typeof insertAiAgentSchema>;
+export type AiAgent = typeof aiAgents.$inferSelect;
+export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
+export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
+export type InsertAiAgentLearning = z.infer<typeof insertAiAgentLearningSchema>;
+export type AiAgentLearning = typeof aiAgentLearning.$inferSelect;
+export type InsertAiAgentSession = z.infer<typeof insertAiAgentSessionSchema>;
+export type AiAgentSession = typeof aiAgentSessions.$inferSelect;
