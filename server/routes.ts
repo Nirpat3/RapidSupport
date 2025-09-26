@@ -894,8 +894,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const pendingConversations = conversations.filter(c => c.status === 'pending').length;
       const resolvedConversations = conversations.filter(c => c.status === 'resolved').length;
       
-      const totalCustomers = customers.length;
-      const onlineCustomers = customers.filter(c => c.status === 'online').length;
+      const totalCustomers = customers.customers.length;
+      const onlineCustomers = customers.customers.filter((c: any) => c.status === 'online').length;
       const totalAgents = users.filter(u => u.role === 'agent').length;
       const onlineAgents = users.filter(u => u.role === 'agent' && u.status === 'online').length;
 
@@ -1286,8 +1286,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const customers = await storage.getAllCustomers();
       res.json({
         success: true,
-        data: customers,
-        total: customers.length
+        data: customers.customers,
+        total: customers.total
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch customers', success: false });
