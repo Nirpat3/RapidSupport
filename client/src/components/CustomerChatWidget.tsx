@@ -104,7 +104,12 @@ export function CustomerChatWidget() {
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
-      if (!chatState.conversationId) throw new Error("No active conversation");
+      console.log('Attempting to send message. Chat state:', chatState);
+      if (!chatState.conversationId) {
+        console.error('No active conversation! Chat state:', chatState);
+        throw new Error("No active conversation");
+      }
+      console.log('Sending message:', { conversationId: chatState.conversationId, content, customerId: chatState.customerId });
       return await apiRequest('POST', '/api/customer-chat/send-message', {
         conversationId: chatState.conversationId,
         content,
@@ -112,9 +117,13 @@ export function CustomerChatWidget() {
       });
     },
     onSuccess: () => {
+      console.log('Message sent successfully');
       setMessageInput("");
       setSelectedFiles([]);
       refetchMessages();
+    },
+    onError: (error) => {
+      console.error('Failed to send message:', error);
     },
   });
 
@@ -161,13 +170,21 @@ export function CustomerChatWidget() {
   };
 
   const handleSendMessage = async () => {
-    if (!messageInput.trim()) return;
+    console.log('handleSendMessage called with messageInput:', messageInput);
+    console.log('Current chat state:', chatState);
+    
+    if (!messageInput.trim()) {
+      console.log('Empty message, returning');
+      return;
+    }
     
     if (!chatState.conversationId) {
+      console.log('No conversation ID, starting chat');
       handleStartChat();
       return;
     }
 
+    console.log('Calling sendMessageMutation with:', messageInput);
     await sendMessageMutation.mutateAsync(messageInput);
   };
 

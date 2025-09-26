@@ -148,10 +148,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       return;
     }
 
-    setUnreadConversations(prev => new Set([...prev, conversationId]));
+    setUnreadConversations(prev => new Set([...Array.from(prev), conversationId]));
     
     // Track this toast to prevent duplicates for 10 seconds
-    setRecentToastIds(prev => new Set([...prev, conversationId]));
+    setRecentToastIds(prev => new Set([...Array.from(prev), conversationId]));
     setTimeout(() => {
       setRecentToastIds(prev => {
         const newSet = new Set(prev);
