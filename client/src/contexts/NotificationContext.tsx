@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 
 interface NotificationContextType {
   unreadConversations: Set<string>;
@@ -27,7 +28,9 @@ interface NotificationProviderProps {
 export function NotificationProvider({ children }: NotificationProviderProps) {
   const [unreadConversations, setUnreadConversations] = useState<Set<string>>(new Set());
   const [lastSeenConversations, setLastSeenConversations] = useState<Set<string>>(new Set());
+  const [recentToastIds, setRecentToastIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   // Fetch conversations to detect new ones
   const { data: conversationsResponse } = useQuery<any[]>({
@@ -138,7 +141,23 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   }, []);
 
   const addUnreadConversation = (conversationId: string, customerName: string, preview: string) => {
+    // Prevent duplicate toasts for the same conversation
+    const toastId = `${conversationId}-${Date.now()}`;
+    if (recentToastIds.has(conversationId)) {
+      return;
+    }
+
     setUnreadConversations(prev => new Set([...prev, conversationId]));
+    
+    // Track this toast to prevent duplicates for 10 seconds
+    setRecentToastIds(prev => new Set([...prev, conversationId]));
+    setTimeout(() => {
+      setRecentToastIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(conversationId);
+        return newSet;
+      });
+    }, 10000);
     
     // Show toast notification
     toast({
@@ -148,10 +167,12 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       action: (
         <button
           onClick={() => {
-            // Navigate to conversation
-            window.location.href = `/conversations?id=${conversationId}`;
+            // Mark as read and navigate
+            markAsRead(conversationId);
+            setLocation(`/?conversation=${conversationId}`);
           }}
           className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium transition-colors hover:bg-secondary focus:outline-none focus:ring-1 focus:ring-ring"
+          data-testid={`button-view-conversation-${conversationId}`}
         >
           View
         </button>

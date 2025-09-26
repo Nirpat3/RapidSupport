@@ -1013,6 +1013,36 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
       const messageData = sendCustomerMessageSchema.parse(req.body);
       const message = await storage.createCustomerMessage(messageData);
       
+      // Get conversation and customer details for notifications
+      const conversation = await storage.getConversationWithCustomer(messageData.conversationId);
+      if (conversation && conversation.customer) {
+        // Broadcast message notification to staff if conversation is unassigned
+        const wsServer = (app as any).wsServer;
+        if (wsServer && wsServer.broadcastNewMessageToStaff) {
+          wsServer.broadcastNewMessageToStaff(conversation, conversation.customer, {
+            id: message.id,
+            content: message.content,
+            senderType: message.senderType,
+            timestamp: message.timestamp
+          });
+        }
+        
+        // Also broadcast to conversation participants via standard WebSocket
+        if (wsServer && wsServer.broadcastNewMessage) {
+          wsServer.broadcastNewMessage(messageData.conversationId, {
+            messageId: message.id,
+            conversationId: message.conversationId,
+            content: message.content,
+            userId: message.senderId,
+            userName: conversation.customer.name,
+            userRole: 'customer',
+            senderType: message.senderType,
+            timestamp: message.timestamp,
+            status: message.status
+          });
+        }
+      }
+      
       res.status(201).json(message);
     } catch (error) {
       if (error instanceof z.ZodError) {

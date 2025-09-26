@@ -49,6 +49,7 @@ export interface IStorage {
 
   // Conversation operations
   getConversation(id: string): Promise<Conversation | undefined>;
+  getConversationWithCustomer(id: string): Promise<any | null>;
   getConversationsByCustomer(customerId: string): Promise<Conversation[]>;
   getConversationsByAgent(agentId: string): Promise<Conversation[]>;
   getAllConversations(): Promise<Conversation[]>;
@@ -252,6 +253,34 @@ export class DatabaseStorage implements IStorage {
   async getConversation(id: string): Promise<Conversation | undefined> {
     const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
     return conversation || undefined;
+  }
+
+  async getConversationWithCustomer(id: string): Promise<any | null> {
+    const [result] = await db
+      .select({
+        id: conversations.id,
+        customerId: conversations.customerId,
+        assignedAgentId: conversations.assignedAgentId,
+        title: conversations.title,
+        status: conversations.status,
+        priority: conversations.priority,
+        isAnonymous: conversations.isAnonymous,
+        sessionId: conversations.sessionId,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        customer: {
+          id: customers.id,
+          name: customers.name,
+          email: customers.email,
+          company: customers.company,
+          status: customers.status,
+        }
+      })
+      .from(conversations)
+      .leftJoin(customers, eq(conversations.customerId, customers.id))
+      .where(eq(conversations.id, id));
+
+    return result || null;
   }
 
   async getConversationsByCustomer(customerId: string): Promise<Conversation[]> {

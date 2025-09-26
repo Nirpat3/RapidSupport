@@ -384,8 +384,8 @@ class ChatWebSocketServer {
     console.log(`Broadcasted new conversation ${conversation.id} from ${customer.name} to all staff`);
   }
 
-  // Public method to broadcast new message in unassigned conversations
-  public broadcastNewMessage(conversation: any, customer: any, message: any) {
+  // Public method to broadcast new message notifications to staff for unassigned conversations
+  public broadcastNewMessageToStaff(conversation: any, customer: any, message: any) {
     // Only notify about messages in unassigned conversations
     if (conversation.assignedAgentId) return;
 

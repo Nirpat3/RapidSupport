@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { UserPlus, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useNotifications } from "@/contexts/NotificationContext";
 
 // TODO: remove mock functionality
 const sampleConversations: Conversation[] = [
@@ -139,6 +140,7 @@ const sampleMessages: { [key: string]: Message[] } = {
 
 export default function ConversationsPage() {
   const [activeConversationId, setActiveConversationId] = useState<string>('');
+  const { markAsRead } = useNotifications();
   
   // Fetch real conversations from API instead of using sample data
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<any[]>({
@@ -204,6 +206,13 @@ export default function ConversationsPage() {
       setActiveConversationId(formattedConversations[0].id);
     }
   }, [activeConversationId, formattedConversations]);
+
+  // Mark conversation as read when it becomes active
+  useEffect(() => {
+    if (activeConversationId) {
+      markAsRead(activeConversationId);
+    }
+  }, [activeConversationId, markAsRead]);
 
   const activeConversation = formattedConversations.find(conv => conv.id === activeConversationId);
   
