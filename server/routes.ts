@@ -1665,6 +1665,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // AI TRAINING & CORRECTION ENDPOINTS
   // ============================================
 
+  // Get all AI agents
+  app.get('/api/ai/agents', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const agents = await storage.getAllAiAgents();
+      res.json(agents);
+    } catch (error) {
+      console.error('Failed to fetch AI agents:', error);
+      res.status(500).json({ error: 'Failed to fetch AI agents' });
+    }
+  });
+
   // Get AI learning data for training/correction interface
   app.get('/api/ai/learning', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
