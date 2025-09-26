@@ -27,6 +27,7 @@ import {
   updateKnowledgeBaseSchema
 } from '@shared/schema';
 import { DocumentProcessor } from './document-processor';
+import { WebScraper } from './web-scraper';
 
 // Route-specific validation schemas
 const messageCreateSchema = z.object({
@@ -2708,34 +2709,79 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(400).json({ error: 'URL and category are required' });
       }
 
-      // Basic URL validation
-      try {
-        new URL(url);
-      } catch {
-        return res.status(400).json({ error: 'Invalid URL format' });
+      console.log(`Starting URL import for: ${url}`);
+
+      // Scrape content from URL
+      const scrapedContent = await WebScraper.scrapeUrl(url);
+      
+      // Format content for knowledge base
+      const formattedContent = WebScraper.formatForKnowledgeBase(scrapedContent);
+
+      // Handle assignedAgentIds - can be array or string
+      let parsedAgentIds: string[] = [];
+      if (assignedAgentIds) {
+        if (Array.isArray(assignedAgentIds)) {
+          parsedAgentIds = assignedAgentIds;
+        } else if (typeof assignedAgentIds === 'string') {
+          try {
+            parsedAgentIds = JSON.parse(assignedAgentIds);
+          } catch {
+            // If parsing fails, treat as empty array
+            parsedAgentIds = [];
+          }
+        }
       }
 
-      // For now, create a placeholder article - could add web scraping later
       const articleData = {
-        title: `Content from ${url}`,
-        content: `This content was imported from: ${url}\n\nURL import functionality is set up. Web scraping can be implemented to automatically extract content from this URL.`,
+        title: scrapedContent.title,
+        content: formattedContent,
         category,
         tags: tags ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [],
         priority: priority ? parseInt(priority) : 50,
         isActive: true,
         sourceType: 'url' as const,
         sourceUrl: url,
-        urlTitle: `Content from ${url}`,
-        urlDescription: 'Imported from URL',
-        assignedAgentIds: assignedAgentIds || [],
+        urlTitle: scrapedContent.title,
+        urlDescription: scrapedContent.description,
+        assignedAgentIds: parsedAgentIds,
         createdBy: user.id,
       };
 
       const article = await storage.createKnowledgeBase(articleData);
+      
+      console.log(`Successfully created knowledge base article from URL: ${url}, Article ID: ${article.id}`);
+      
+      // Return article directly for frontend compatibility
       res.status(201).json(article);
     } catch (error) {
       console.error('Failed to create knowledge base article from URL:', error);
-      res.status(500).json({ error: 'Failed to create knowledge base article from URL' });
+      
+      // Return specific error messages for common scraping failures
+      if (error instanceof Error) {
+        if (error.message.includes('timeout')) {
+          return res.status(408).json({ error: 'URL request timeout - the website took too long to respond' });
+        }
+        if (error.message.includes('Content too large') || error.message.includes('too large')) {
+          return res.status(413).json({ error: 'Content too large - the webpage exceeds the size limit' });
+        }
+        if (error.message.includes('content type')) {
+          return res.status(400).json({ error: 'Unsupported content type - only HTML pages are supported' });
+        }
+        if (error.message.includes('No meaningful content')) {
+          return res.status(400).json({ error: 'No meaningful content found on the page' });
+        }
+        if (error.message.includes('Invalid URL') || error.message.includes('not allowed') || error.message.includes('private/reserved')) {
+          return res.status(400).json({ error: error.message });
+        }
+        if (error.message.includes('HTTP 4') || error.message.includes('HTTP 5')) {
+          return res.status(400).json({ error: `Website error: ${error.message}` });
+        }
+        if (error.message.includes('DNS resolution') || error.message.includes('Unable to resolve')) {
+          return res.status(400).json({ error: 'Unable to resolve hostname - please check the URL' });
+        }
+      }
+      
+      res.status(500).json({ error: 'Failed to scrape content from URL' });
     }
   });
 
