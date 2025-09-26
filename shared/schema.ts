@@ -121,6 +121,18 @@ export const knowledgeBase = pgTable("knowledge_base", {
   priority: integer("priority").notNull().default(50), // Higher priority = more likely to be used
   usageCount: integer("usage_count").notNull().default(0), // Track how often this knowledge is referenced
   effectiveness: integer("effectiveness").notNull().default(50), // Track how effective this knowledge is (0-100)
+  // File upload support
+  sourceType: text("source_type").notNull().default("manual"), // 'manual' | 'file' | 'url'
+  fileName: text("file_name"), // Original filename for file uploads
+  fileType: text("file_type"), // MIME type for file uploads
+  fileSize: integer("file_size"), // File size in bytes
+  filePath: text("file_path"), // Storage path for uploaded files
+  // Website URL support
+  sourceUrl: text("source_url"), // URL if content was scraped from a website
+  urlTitle: text("url_title"), // Title extracted from URL
+  urlDescription: text("url_description"), // Meta description from URL
+  // Agent assignment
+  assignedAgentIds: text("assigned_agent_ids").array(), // Which specific agents can access this knowledge
   createdBy: varchar("created_by").references(() => users.id),
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
