@@ -7,7 +7,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { UserPlus, Users, Search, MessageSquare } from "lucide-react";
+import { UserPlus, Users, Search, MessageSquare, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/contexts/NotificationContext";
 
@@ -140,7 +140,7 @@ const sampleMessages: { [key: string]: Message[] } = {
 };
 
 export default function ConversationsPage() {
-  const [activeConversationId, setActiveConversationId] = useState<string>('');
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const { markAsRead } = useNotifications();
   
   // Fetch real conversations from API instead of using sample data
@@ -251,19 +251,19 @@ export default function ConversationsPage() {
 
   return (
     <div className="flex flex-col lg:flex-row h-full" data-testid="conversations-page">
-      {/* Mobile: Full width conversation list, Desktop: Fixed sidebar */}
-      <div className="w-full lg:w-96 lg:flex-shrink-0 flex-shrink-0 h-auto lg:h-full bg-card border-r">
+      {/* Mobile: Show conversation list OR chat interface, Desktop: Side by side */}
+      <div className={`${activeConversationId ? 'hidden lg:flex' : 'flex'} flex-col lg:w-96 lg:flex-shrink-0 w-full h-full lg:h-full bg-card lg:border-r`}>
         {/* Search Bar at Top */}
-        <div className="p-4 border-b bg-background/50">
+        <div className="p-3 lg:p-4 border-b bg-background/50">
           <div className="flex items-center gap-2 mb-3">
             <MessageSquare className="w-5 h-5 text-primary" />
-            <h2 className="font-semibold text-lg">Conversations</h2>
+            <h2 className="font-semibold text-base lg:text-lg">Conversations</h2>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search conversations..."
-              className="pl-10"
+              className="pl-10 text-sm"
               data-testid="input-search-conversations-main"
             />
           </div>
@@ -350,8 +350,24 @@ export default function ConversationsPage() {
         </div>
       </div>
       
-      {/* Chat interface takes remaining space */}
-      <div className="flex-1 min-w-0 h-full">
+      {/* Chat interface - Mobile: Full screen when active, Desktop: Side panel */}
+      <div className={`${activeConversationId ? 'flex' : 'hidden lg:flex'} flex-col flex-1 min-w-0 h-full`}>
+        {/* Mobile Back Button */}
+        {activeConversationId && (
+          <div className="lg:hidden flex items-center gap-2 p-3 border-b bg-background/50">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveConversationId(null)}
+              className="flex items-center gap-2"
+              data-testid="button-back-to-conversations"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Conversations
+            </Button>
+          </div>
+        )}
+        
         <ChatInterface
           conversationId={activeConversationId}
           customer={activeConversation?.customer}
