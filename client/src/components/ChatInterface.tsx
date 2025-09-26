@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building } from "lucide-react";
 import ChatMessage, { type Message } from "./ChatMessage";
 import { ticketApi } from "@/lib/ticketStore";
 import InternalChatPanel from "./InternalChatPanel";
@@ -21,6 +21,9 @@ interface ChatInterfaceProps {
     name: string;
     avatar?: string;
     status: 'online' | 'away' | 'busy' | 'offline';
+    email?: string;
+    company?: string;
+    phone?: string;
   };
   messages?: Message[];
   onSendMessage?: (content: string) => void;
@@ -95,35 +98,51 @@ export default function ChatInterface({
 
   return (
     <div className="flex-1 flex flex-col bg-background">
-      {/* Chat Header */}
-      <div className="p-4 border-b border-border bg-card">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative">
+      {/* Enhanced Chat Header */}
+      <div className="border-b border-border bg-card">
+        {/* Main Header Info */}
+        <div className="p-4 pb-3">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
               <Avatar className="w-10 h-10">
-                <AvatarImage src={customer.avatar} />
-                <AvatarFallback>{customer.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                <AvatarImage src={customer?.avatar} />
+                <AvatarFallback className="text-sm font-medium">
+                  {customer?.name?.split(' ').map(n => n[0]).join('') || 'U'}
+                </AvatarFallback>
               </Avatar>
-              <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${statusColors[customer.status]}`} />
-            </div>
-            <div>
-              <h2 className="font-semibold" data-testid={`chat-customer-name`}>{customer.name}</h2>
-              <p className="text-sm text-muted-foreground capitalize" data-testid={`chat-customer-status`}>
-                {customer.status}
-              </p>
+              <div>
+                <h3 className="font-semibold text-lg" data-testid="chat-customer-name">
+                  {customer?.name || 'Unknown Customer'}
+                </h3>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Building className="w-3 h-3" />
+                  <span>{customer?.company || 'No company provided'}</span>
+                </div>
+                <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <span className={`w-2 h-2 rounded-full ${
+                      customer?.status === 'online' ? 'bg-green-500' :
+                      customer?.status === 'away' ? 'bg-yellow-500' :
+                      customer?.status === 'busy' ? 'bg-red-500' :
+                      'bg-gray-400'
+                    }`} />
+                    <span className="capitalize">{customer?.status || 'offline'}</span>
+                  </div>
+                  {customer?.email && (
+                    <div className="flex items-center gap-1">
+                      <Mail className="w-3 h-3" />
+                      <span>{customer.email}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setIsInternalChatOpen(true)}
-              data-testid="button-open-internal-chat"
-            >
-              <MessageSquareText className="w-4 h-4 mr-2" />
-              Team Chat
-            </Button>
+        </div>
+
+        {/* Action Buttons Row */}
+        <div className="px-4 pb-3">
+          <div className="flex items-center gap-2 flex-wrap">
             <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline" size="sm" data-testid="button-create-ticket-from-chat">
@@ -208,12 +227,53 @@ export default function ChatInterface({
                 </div>
               </DialogContent>
             </Dialog>
-            <Button variant="ghost" size="icon" data-testid="button-call">
-              <Phone className="w-4 h-4" />
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsInternalChatOpen(true)}
+              data-testid="button-open-internal-chat"
+            >
+              <MessageSquareText className="w-4 h-4 mr-2" />
+              Team Chat
             </Button>
-            <Button variant="ghost" size="icon" data-testid="button-video">
-              <Video className="w-4 h-4" />
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              data-testid="button-assign-agent"
+            >
+              <UserCheck className="w-4 h-4 mr-2" />
+              Assign Agent
             </Button>
+
+            <Button 
+              variant="outline" 
+              size="sm"
+              data-testid="button-close-conversation"
+            >
+              <X className="w-4 h-4 mr-2" />
+              Close
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              data-testid="button-call-customer"
+            >
+              <Phone className="w-4 h-4 mr-2" />
+              Call
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              data-testid="button-video-call"
+            >
+              <Video className="w-4 h-4 mr-2" />
+              Video
+            </Button>
+
             <Button variant="ghost" size="icon" data-testid="button-more">
               <MoreVertical className="w-4 h-4" />
             </Button>
@@ -235,7 +295,7 @@ export default function ChatInterface({
             );
           })}
           
-          {isTyping && (
+          {isTyping && customer && (
             <div className="flex items-center gap-3" data-testid="typing-indicator">
               <Avatar className="w-8 h-8 flex-shrink-0">
                 <AvatarImage src={customer.avatar} />

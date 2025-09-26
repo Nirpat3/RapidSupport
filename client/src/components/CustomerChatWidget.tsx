@@ -43,15 +43,46 @@ interface ChatState {
 }
 
 export function CustomerChatWidget() {
-  const [chatState, setChatState] = useState<ChatState>({
-    isOpen: false,
-    isMinimized: false,
-    showInfoForm: false,
-    conversationId: null,
-    customerId: null,
-    sessionId: crypto.randomUUID(),
-    customerInfo: null,
+  // Initialize chat state with localStorage persistence
+  const [chatState, setChatState] = useState<ChatState>(() => {
+    const savedState = localStorage.getItem('customer-chat-state');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        return {
+          isOpen: false,
+          isMinimized: false,
+          showInfoForm: false,
+          conversationId: parsed.conversationId || null,
+          customerId: parsed.customerId || null,
+          sessionId: parsed.sessionId || crypto.randomUUID(),
+          customerInfo: parsed.customerInfo || null,
+        };
+      } catch (e) {
+        console.error('Failed to parse saved chat state:', e);
+      }
+    }
+    return {
+      isOpen: false,
+      isMinimized: false,
+      showInfoForm: false,
+      conversationId: null,
+      customerId: null,
+      sessionId: crypto.randomUUID(),
+      customerInfo: null,
+    };
   });
+
+  // Save chat state to localStorage whenever it changes
+  useEffect(() => {
+    const stateToSave = {
+      conversationId: chatState.conversationId,
+      customerId: chatState.customerId,
+      sessionId: chatState.sessionId,
+      customerInfo: chatState.customerInfo,
+    };
+    localStorage.setItem('customer-chat-state', JSON.stringify(stateToSave));
+  }, [chatState.conversationId, chatState.customerId, chatState.sessionId, chatState.customerInfo]);
 
   const [messageInput, setMessageInput] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
