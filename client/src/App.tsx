@@ -17,6 +17,7 @@ import SettingsPage from "@/pages/SettingsPage";
 import CustomerChatPage from "@/pages/CustomerChatPage";
 import AIAgentsPage from "@/pages/AIAgentsPage";
 import StaffAIDashboard from "@/pages/StaffAIDashboard";
+import AITrainingPage from "@/pages/AITrainingPage";
 import StaffTakeoverPage from "@/pages/StaffTakeoverPage";
 import KnowledgeManagementPage from "@/pages/KnowledgeManagementPage";
 import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/customers/:id" component={CustomerProfilePage} />
       <Route path="/ai-agents" component={AIAgentsPage} />
       <Route path="/ai-dashboard" component={StaffAIDashboard} />
+      <Route path="/ai-training" component={AITrainingPage} />
       <Route path="/ai-takeover" component={StaffTakeoverPage} />
       <Route path="/knowledge" component={KnowledgeManagementPage} />
       <Route path="/analytics" component={AgentAnalyticsPage} />

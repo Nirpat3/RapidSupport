@@ -26,12 +26,97 @@ import {
   insertKnowledgeBaseSchema,
   updateKnowledgeBaseSchema
 } from '@shared/schema';
+import { DocumentProcessor } from './document-processor';
 
 // Route-specific validation schemas
 const messageCreateSchema = z.object({
   conversationId: z.string().uuid('Invalid conversation ID'),
   content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
 });
+
+// Helper function to generate mock AI learning data for demonstration
+async function generateMockLearningData() {
+  const agents = await storage.getAllAiAgents();
+  if (agents.length === 0) {
+    // Return empty array if no agents exist
+    return [];
+  }
+
+  const sampleQueries = [
+    "How do I cancel my subscription?",
+    "What are your refund policies?", 
+    "I can't log into my account",
+    "How do I upgrade my plan?",
+    "Why was I charged twice?",
+    "Can I get a discount for students?",
+    "How do I export my data?",
+    "What payment methods do you accept?",
+    "Is there a mobile app available?",
+    "How do I contact support?",
+    "Where can I find my invoice?",
+    "How do I reset my password?",
+    "What features are included in premium?",
+    "Can I share my account with others?",
+    "How do I delete my account?",
+    "When will my subscription renew?",
+    "Can I pause my subscription?",
+    "How do I update my payment method?",
+    "What's your privacy policy?",
+    "How do I report a bug?"
+  ];
+
+  const sampleResponses = [
+    "To cancel your subscription, go to your account settings and click 'Cancel Subscription'. You can also contact our support team for assistance.",
+    "Our refund policy allows for full refunds within 30 days of purchase. Please see our terms of service for complete details.",
+    "If you're having trouble logging in, try resetting your password using the 'Forgot Password' link on the login page.",
+    "You can upgrade your plan anytime from your billing settings. Simply select the plan you want and confirm the upgrade.",
+    "Double charges can occur due to payment processing issues. Please contact our billing team to resolve this immediately.",
+    "Yes! We offer a 50% student discount. Please verify your student status through our education portal.",
+    "You can export your data from the Settings > Data Export section. We support JSON, CSV, and XML formats.",
+    "We accept all major credit cards, PayPal, and bank transfers for annual plans.",
+    "Yes, our mobile app is available on both iOS and Android. Search for 'SupportBoard' in your app store.",
+    "You can reach our support team through live chat, email at support@supportboard.com, or this help portal.",
+    "Your invoices are available in your account dashboard under the 'Billing' section.",
+    "Click the 'Forgot Password' link on the login page and follow the instructions sent to your email.",
+    "Premium includes unlimited conversations, priority support, advanced analytics, and API access.",
+    "Account sharing isn't permitted under our terms. Consider our team plans for multiple users.",
+    "To delete your account, go to Settings > Account > Delete Account. This action is permanent.",
+    "Your subscription renews automatically on the same date each month. Check your billing settings for details.",
+    "You can pause your subscription for up to 6 months from your account settings.",
+    "Update your payment method in Settings > Billing > Payment Methods.",
+    "Our privacy policy is available at supportboard.com/privacy and explains how we handle your data.",
+    "Please report bugs through our contact form or email support@supportboard.com with details."
+  ];
+
+  const mockEntries = [];
+  const numEntries = Math.min(25, sampleQueries.length);
+
+  for (let i = 0; i < numEntries; i++) {
+    const agent = agents[i % agents.length];
+    const confidence = 30 + (i * 3) + (Math.random() * 40); // Mix of low and high confidence
+    const humanTookOver = confidence < 60 || Math.random() < 0.3;
+    const wasHelpful = confidence > 70 ? (Math.random() > 0.2) : (Math.random() > 0.6);
+    
+    mockEntries.push({
+      id: `mock-learning-${i}`,
+      agentId: agent.id,
+      agentName: agent.name,
+      conversationId: `mock-conv-${i}`,
+      customerQuery: sampleQueries[i],
+      aiResponse: sampleResponses[i],
+      confidence: Math.round(confidence),
+      humanTookOver,
+      customerSatisfaction: wasHelpful ? (4 + Math.round(Math.random())) : (Math.random() < 0.5 ? null : (1 + Math.round(Math.random() * 2))),
+      knowledgeUsed: [`kb-${(i % 5) + 1}`, `kb-${(i % 3) + 3}`],
+      improvementSuggestion: !wasHelpful && Math.random() > 0.5 ? 
+        ["Response was too generic", "Needs more specific steps", "Outdated information", "Missing context"][i % 4] : null,
+      wasHelpful,
+      createdAt: new Date(Date.now() - (i * 86400000 / 5)).toISOString() // Spread over last 5 days
+    });
+  }
+
+  return mockEntries;
+}
 
 const conversationCreateSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
@@ -123,22 +208,19 @@ const upload = multer({
     files: 5 // Max 5 files per request
   },
   fileFilter: function (req, file, cb) {
-    // Allow common file types
+    // For knowledge base documents, only allow supported document types
     const allowedMimes = [
-      'image/jpeg',
-      'image/png', 
-      'image/gif',
-      'image/webp',
       'application/pdf',
       'text/plain',
-      'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     ];
     
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('File type not allowed'));
+      const error = new Error(`Unsupported file type: ${file.mimetype}. Only PDF, TXT, and DOCX files are supported.`);
+      (error as any).code = 'UNSUPPORTED_FILE_TYPE';
+      cb(error);
     }
   }
 });
@@ -1578,6 +1660,100 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================
+  // AI TRAINING & CORRECTION ENDPOINTS
+  // ============================================
+
+  // Get AI learning data for training/correction interface
+  app.get('/api/ai/learning', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { agentId, limit = 50, offset = 0 } = req.query;
+      
+      const learningEntries = await storage.getAiLearningEntries({
+        agentId: agentId as string,
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string)
+      });
+
+      // If no real data exists, return mock data for demonstration
+      if (learningEntries.length === 0) {
+        const mockData = await generateMockLearningData();
+        res.json({
+          success: true,
+          data: mockData
+        });
+      } else {
+        res.json({
+          success: true,
+          data: learningEntries
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch AI learning data:', error);
+      res.status(500).json({ error: 'Failed to fetch AI learning data' });
+    }
+  });
+
+  // Submit feedback on AI responses for training
+  app.post('/api/ai/learning/feedback', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { entryId, wasHelpful, improvementSuggestion, customerSatisfaction } = req.body;
+      
+      if (!entryId || typeof wasHelpful !== 'boolean') {
+        return res.status(400).json({ error: 'Entry ID and feedback rating are required' });
+      }
+
+      await storage.updateAiLearningFeedback(entryId, {
+        wasHelpful,
+        improvementSuggestion: improvementSuggestion || null,
+        customerSatisfaction: customerSatisfaction || null
+      });
+
+      res.json({
+        success: true,
+        message: 'Feedback submitted successfully'
+      });
+    } catch (error) {
+      console.error('Failed to submit AI learning feedback:', error);
+      res.status(500).json({ error: 'Failed to submit feedback' });
+    }
+  });
+
+  // Submit response corrections for AI training
+  app.post('/api/ai/learning/correction', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { entryId, improvedResponse, reasoning, knowledgeToAdd } = req.body;
+      const user = req.user as any;
+      
+      if (!entryId || !improvedResponse || !reasoning) {
+        return res.status(400).json({ error: 'Entry ID, improved response, and reasoning are required' });
+      }
+
+      // Store the correction
+      await storage.createAiResponseCorrection({
+        learningEntryId: entryId,
+        improvedResponse,
+        reasoning,
+        knowledgeToAdd: knowledgeToAdd || null,
+        submittedBy: user.id
+      });
+
+      // Update the learning entry to mark it as having a correction
+      await storage.updateAiLearningFeedback(entryId, {
+        wasHelpful: false, // Mark as not helpful since it needed correction
+        improvementSuggestion: `Correction provided: ${reasoning}`
+      });
+
+      res.json({
+        success: true,
+        message: 'Correction submitted successfully'
+      });
+    } catch (error) {
+      console.error('Failed to submit AI response correction:', error);
+      res.status(500).json({ error: 'Failed to submit correction' });
+    }
+  });
+
   // File upload endpoint for chat attachments
   app.post('/api/upload-attachment', upload.array('files', 5), async (req, res) => {
     try {
@@ -2453,22 +2629,25 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
 
       const articles = [];
+      const errors = [];
       const fs = require('fs');
       
       for (const file of files) {
         try {
-          let content = '';
+          // Validate document before processing
+          DocumentProcessor.validateDocument(file.path, file.mimetype);
           
-          // Extract content based on file type
-          if (file.mimetype === 'text/plain') {
-            content = fs.readFileSync(file.path, 'utf-8');
-          } else if (file.mimetype === 'application/pdf') {
-            // For now, just store file info - could add PDF text extraction later
-            content = `PDF file: ${file.originalname}\n\nThis PDF has been uploaded to the knowledge base. File size: ${(file.size / 1024).toFixed(1)} KB`;
-          } else {
-            // For other document types, store basic info
-            content = `Document: ${file.originalname}\n\nFile type: ${file.mimetype}\nFile size: ${(file.size / 1024).toFixed(1)} KB\n\nThis document has been uploaded to the knowledge base.`;
-          }
+          // Extract text content
+          const documentContent = await DocumentProcessor.extractText(
+            file.path, 
+            file.originalname, 
+            file.mimetype
+          );
+          
+          // Format content for knowledge base
+          const content = DocumentProcessor.formatForKnowledgeBase(documentContent);
+          
+          console.log(`Successfully extracted text from ${file.originalname}: ${documentContent.metadata?.wordCount || 0} words`);
 
           const articleData = {
             title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
@@ -2490,8 +2669,21 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           articles.push(article);
         } catch (fileError) {
           console.error(`Error processing file ${file.originalname}:`, fileError);
-          // Continue with other files, don't fail entire request
+          errors.push({
+            filename: file.originalname,
+            error: fileError instanceof Error ? fileError.message : 'Unknown error'
+          });
         }
+      }
+      
+      // If any files failed, return error response
+      if (errors.length > 0) {
+        return res.status(422).json({ 
+          error: 'Document processing failed',
+          details: errors,
+          processed: articles.length,
+          failed: errors.length
+        });
       }
 
       res.status(201).json({ 

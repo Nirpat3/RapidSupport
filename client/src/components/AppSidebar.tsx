@@ -20,6 +20,7 @@ import {
   Users, 
   Bot,
   Activity,
+  Brain,
   UserCheck,
   BookOpen,
   Settings, 
@@ -66,6 +67,11 @@ const getNavigationItems = (unreadCount: number) => [
     title: "Staff AI Dashboard",
     url: "/ai-dashboard", 
     icon: Activity
+  },
+  {
+    title: "AI Training",
+    url: "/ai-training", 
+    icon: Brain
   },
   {
     title: "AI Takeover",

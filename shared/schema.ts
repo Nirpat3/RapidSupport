@@ -487,6 +487,7 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick(
   isActive: true,
   priority: true,
   createdBy: true,
+  assignedAgentIds: true,
 });
 
 export const updateKnowledgeBaseSchema = insertKnowledgeBaseSchema.partial();

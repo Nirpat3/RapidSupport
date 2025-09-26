@@ -153,6 +153,11 @@ export interface IStorage {
   getAiAgentLearningByAgent(agentId: string): Promise<AiAgentLearning[]>;
   createAiAgentLearning(learning: InsertAiAgentLearning): Promise<AiAgentLearning>;
   updateAiAgentLearning(id: string, updates: Partial<InsertAiAgentLearning>): Promise<void>;
+  
+  // AI Training & Correction operations
+  getAiLearningEntries(filters: { agentId?: string; limit?: number; offset?: number }): Promise<any[]>;
+  updateAiLearningFeedback(id: string, feedback: { wasHelpful?: boolean; improvementSuggestion?: string | null; customerSatisfaction?: number | null }): Promise<void>;
+  createAiResponseCorrection(correction: { learningEntryId: string; improvedResponse: string; reasoning: string; knowledgeToAdd?: string | null; submittedBy: string }): Promise<void>;
 
   // AI Agent Session operations
   getAiAgentSession(id: string): Promise<AiAgentSession | undefined>;
@@ -1283,6 +1288,78 @@ export class DatabaseStorage implements IStorage {
       await db.update(aiAgentLearning).set(updates).where(eq(aiAgentLearning.id, id));
     } catch (error) {
       console.error('Error updating AI agent learning:', error);
+      throw error;
+    }
+  }
+
+  // AI Training & Correction operations
+  async getAiLearningEntries(filters: { agentId?: string; limit?: number; offset?: number }): Promise<any[]> {
+    try {
+      let query = db
+        .select({
+          id: aiAgentLearning.id,
+          agentId: aiAgentLearning.agentId,
+          agentName: aiAgents.name,
+          conversationId: aiAgentLearning.conversationId,
+          customerQuery: aiAgentLearning.customerQuery,
+          aiResponse: aiAgentLearning.aiResponse,
+          confidence: aiAgentLearning.confidence,
+          humanTookOver: aiAgentLearning.humanTookOver,
+          customerSatisfaction: aiAgentLearning.customerSatisfaction,
+          knowledgeUsed: aiAgentLearning.knowledgeUsed,
+          improvementSuggestion: aiAgentLearning.improvementSuggestion,
+          wasHelpful: aiAgentLearning.wasHelpful,
+          createdAt: aiAgentLearning.createdAt,
+        })
+        .from(aiAgentLearning)
+        .leftJoin(aiAgents, eq(aiAgentLearning.agentId, aiAgents.id))
+        .orderBy(desc(aiAgentLearning.createdAt));
+
+      if (filters.agentId) {
+        query = query.where(eq(aiAgentLearning.agentId, filters.agentId));
+      }
+
+      if (filters.limit) {
+        query = query.limit(filters.limit);
+      }
+
+      if (filters.offset) {
+        query = query.offset(filters.offset);
+      }
+
+      return await query;
+    } catch (error) {
+      console.error('Error fetching AI learning entries:', error);
+      return [];
+    }
+  }
+
+  async updateAiLearningFeedback(id: string, feedback: { wasHelpful?: boolean; improvementSuggestion?: string | null; customerSatisfaction?: number | null }): Promise<void> {
+    try {
+      await db.update(aiAgentLearning).set(feedback).where(eq(aiAgentLearning.id, id));
+    } catch (error) {
+      console.error('Error updating AI learning feedback:', error);
+      throw error;
+    }
+  }
+
+  async createAiResponseCorrection(correction: { learningEntryId: string; improvedResponse: string; reasoning: string; knowledgeToAdd?: string | null; submittedBy: string }): Promise<void> {
+    try {
+      // For now, we'll store corrections in the improvementSuggestion field
+      // In a full implementation, you might want a separate corrections table
+      const correctionText = `CORRECTION: ${correction.reasoning}\n\nImproved Response: ${correction.improvedResponse}${correction.knowledgeToAdd ? `\n\nSuggested Knowledge: ${correction.knowledgeToAdd}` : ''}`;
+      
+      await db.update(aiAgentLearning)
+        .set({ 
+          improvementSuggestion: correctionText,
+          wasHelpful: false // Mark as not helpful since it needed correction
+        })
+        .where(eq(aiAgentLearning.id, correction.learningEntryId));
+      
+      // Log the correction activity for audit trail
+      console.log(`AI response correction submitted by ${correction.submittedBy} for learning entry ${correction.learningEntryId}`);
+    } catch (error) {
+      console.error('Error creating AI response correction:', error);
       throw error;
     }
   }
