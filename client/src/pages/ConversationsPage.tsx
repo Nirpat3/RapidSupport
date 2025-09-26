@@ -344,7 +344,7 @@ export default function ConversationsPage() {
           
           <ConversationList
             conversations={assignedConversations}
-            activeConversationId={activeConversationId}
+            activeConversationId={activeConversationId || undefined}
             onSelectConversation={setActiveConversationId}
           />
         </div>
@@ -369,7 +369,7 @@ export default function ConversationsPage() {
         )}
         
         <ChatInterface
-          conversationId={activeConversationId}
+          conversationId={activeConversationId || undefined}
           customer={activeConversation?.customer}
           messages={activeMessages}
           onSendMessage={handleSendMessage}
