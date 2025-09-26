@@ -1327,7 +1327,8 @@ export class DatabaseStorage implements IStorage {
         query = query.offset(filters.offset);
       }
 
-      return await query;
+      const results = await query;
+      return results;
     } catch (error) {
       console.error('Error fetching AI learning entries:', error);
       return [];
