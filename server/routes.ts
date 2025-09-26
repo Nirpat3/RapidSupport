@@ -1348,13 +1348,19 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Record customer feedback for AI learning
   app.post('/api/ai/feedback', async (req, res) => {
     try {
-      const { conversationId, isHelpful, feedbackText } = req.body;
+      const { conversationId, messageId, isHelpful, customerSatisfaction, feedbackText } = req.body;
       
-      if (!conversationId || typeof isHelpful !== 'boolean') {
-        return res.status(400).json({ error: 'Conversation ID and feedback rating are required' });
+      if (!conversationId || !messageId || typeof isHelpful !== 'boolean') {
+        return res.status(400).json({ error: 'Conversation ID, message ID, and feedback rating are required' });
       }
 
-      await AIService.recordCustomerFeedback(conversationId, isHelpful, feedbackText || '');
+      await AIService.recordCustomerFeedback(
+        conversationId, 
+        messageId, 
+        isHelpful, 
+        customerSatisfaction, 
+        feedbackText
+      );
 
       res.json({
         success: true,

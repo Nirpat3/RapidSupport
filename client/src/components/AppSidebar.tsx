@@ -18,6 +18,7 @@ import {
   MessageSquare, 
   BarChart3, 
   Users, 
+  Bot,
   Settings, 
   HelpCircle, 
   LogOut,
@@ -51,6 +52,11 @@ const getNavigationItems = (unreadCount: number) => [
     title: "Customers",
     url: "/customers", 
     icon: Users
+  },
+  {
+    title: "AI Agents",
+    url: "/ai-agents", 
+    icon: Bot
   },
   {
     title: "Settings",
