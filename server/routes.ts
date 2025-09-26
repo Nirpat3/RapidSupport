@@ -22,7 +22,9 @@ import {
   anonymousCustomerSchema,
   anonymousConversationSchema,
   updateAgentStatusSchema,
-  aiTicketGenerationSchema
+  aiTicketGenerationSchema,
+  insertKnowledgeBaseSchema,
+  updateKnowledgeBaseSchema
 } from '@shared/schema';
 
 // Route-specific validation schemas
@@ -2028,6 +2030,116 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to process webhook', success: false });
+    }
+  });
+
+  // Knowledge Base Management API routes
+  // Get all knowledge base articles
+  app.get('/api/knowledge-base', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const articles = await storage.getAllKnowledgeBase();
+      res.json(articles);
+    } catch (error) {
+      console.error('Failed to fetch knowledge base articles:', error);
+      res.status(500).json({ error: 'Failed to fetch knowledge base articles' });
+    }
+  });
+
+  // Get specific knowledge base article
+  app.get('/api/knowledge-base/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const article = await storage.getKnowledgeBase(id);
+      
+      if (!article) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+      
+      res.json(article);
+    } catch (error) {
+      console.error('Failed to fetch knowledge base article:', error);
+      res.status(500).json({ error: 'Failed to fetch knowledge base article' });
+    }
+  });
+
+  // Create new knowledge base article
+  app.post('/api/knowledge-base', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      // Validate using Drizzle-Zod schema
+      const validationResult = insertKnowledgeBaseSchema.extend({
+        priority: z.coerce.number().int().min(1).max(100).default(50),
+      }).safeParse({
+        ...req.body,
+        createdBy: user.id,
+      });
+
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid knowledge base data', 
+          details: fromZodError(validationResult.error).toString() 
+        });
+      }
+
+      const newArticle = await storage.createKnowledgeBase(validationResult.data);
+      res.status(201).json(newArticle);
+    } catch (error) {
+      console.error('Failed to create knowledge base article:', error);
+      res.status(500).json({ error: 'Failed to create knowledge base article' });
+    }
+  });
+
+  // Update knowledge base article
+  app.put('/api/knowledge-base/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(id);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      // Validate using Drizzle-Zod schema
+      const validationResult = updateKnowledgeBaseSchema.extend({
+        priority: z.coerce.number().int().min(1).max(100).optional(),
+      }).safeParse(req.body);
+
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          error: 'Invalid knowledge base data', 
+          details: fromZodError(validationResult.error).toString() 
+        });
+      }
+
+      await storage.updateKnowledgeBase(id, validationResult.data);
+      
+      // Return updated article
+      const updatedArticle = await storage.getKnowledgeBase(id);
+      res.json(updatedArticle);
+    } catch (error) {
+      console.error('Failed to update knowledge base article:', error);
+      res.status(500).json({ error: 'Failed to update knowledge base article' });
+    }
+  });
+
+  // Delete knowledge base article
+  app.delete('/api/knowledge-base/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(id);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      await storage.deleteKnowledgeBase(id);
+      res.json({ success: true, message: 'Knowledge base article deleted successfully' });
+    } catch (error) {
+      console.error('Failed to delete knowledge base article:', error);
+      res.status(500).json({ error: 'Failed to delete knowledge base article' });
     }
   });
 

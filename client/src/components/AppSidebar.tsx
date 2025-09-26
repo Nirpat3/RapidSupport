@@ -20,6 +20,7 @@ import {
   Users, 
   Bot,
   UserCheck,
+  BookOpen,
   Settings, 
   HelpCircle, 
   LogOut,
@@ -63,6 +64,11 @@ const getNavigationItems = (unreadCount: number) => [
     title: "AI Takeover",
     url: "/ai-takeover", 
     icon: UserCheck
+  },
+  {
+    title: "Knowledge Base",
+    url: "/knowledge", 
+    icon: BookOpen
   },
   {
     title: "Settings",
