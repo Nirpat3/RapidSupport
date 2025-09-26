@@ -149,6 +149,7 @@ export default function KnowledgeManagementPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<KnowledgeArticle | null>(null);
   const [activeTab, setActiveTab] = useState("manual");
+  const [managementView, setManagementView] = useState<"articles" | "agents">("articles");
 
   // Fetch all knowledge base articles
   const { data: articles = [], isLoading, refetch } = useQuery<KnowledgeArticle[]>({
@@ -353,7 +354,31 @@ export default function KnowledgeManagementPage() {
           <h1 className="text-3xl font-bold" data-testid="page-title">Knowledge Management</h1>
           <p className="text-muted-foreground">Manage AI knowledge base articles and track effectiveness</p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        
+        {/* View Toggle */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-md">
+            <Button
+              variant={managementView === "articles" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setManagementView("articles")}
+              data-testid="button-view-articles"
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              Articles
+            </Button>
+            <Button
+              variant={managementView === "agents" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setManagementView("agents")}
+              data-testid="button-view-agents"
+            >
+              <User className="w-4 h-4 mr-2" />
+              Agents
+            </Button>
+          </div>
+          
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-create-article">
               <Plus className="w-4 h-4 mr-2" />
@@ -469,8 +494,11 @@ export default function KnowledgeManagementPage() {
         </Card>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex gap-4 flex-wrap">
+      {/* Conditional Content Based on View */}
+      {managementView === "articles" ? (
+        <>
+          {/* Search and Filters */}
+          <div className="flex gap-4 flex-wrap">
         <div className="relative flex-1 min-w-[300px]">
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
@@ -693,6 +721,154 @@ export default function KnowledgeManagementPage() {
           ))}
         </div>
       )}
+        </>
+      ) : (
+        /* Agent-Centric Management View */
+        <div className="space-y-6">
+          {/* Agent Management Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Agent Knowledge Assignment</h2>
+              <p className="text-muted-foreground">Manage knowledge base assignments for each AI agent</p>
+            </div>
+          </div>
+
+          {/* Agents Grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardContent className="p-6">
+                    <div className="h-6 bg-gray-200 rounded w-2/3 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-full mb-4"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : agents.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No agents found</h3>
+                <p className="text-muted-foreground">
+                  Create AI agents first to manage their knowledge assignments.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {agents.map((agent) => {
+                const assignedArticles = articles.filter(article => 
+                  article.assignedAgentIds?.includes(agent.id)
+                );
+                const activeAssignedArticles = assignedArticles.filter(article => article.isActive);
+                
+                return (
+                  <Card key={agent.id} className="hover-elevate">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <User className="w-5 h-5" />
+                            {agent.name}
+                          </CardTitle>
+                          {agent.description && (
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                              {agent.description}
+                            </p>
+                          )}
+                        </div>
+                        <Badge 
+                          variant={agent.isActive ? "default" : "secondary"}
+                          className="text-xs"
+                        >
+                          {agent.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Agent Statistics */}
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="text-center p-2 bg-muted/50 rounded-md">
+                          <div className="font-semibold text-lg" data-testid={`agent-${agent.id}-total-articles`}>
+                            {assignedArticles.length}
+                          </div>
+                          <div className="text-muted-foreground text-xs">Total Articles</div>
+                        </div>
+                        <div className="text-center p-2 bg-muted/50 rounded-md">
+                          <div className="font-semibold text-lg" data-testid={`agent-${agent.id}-active-articles`}>
+                            {activeAssignedArticles.length}
+                          </div>
+                          <div className="text-muted-foreground text-xs">Active Articles</div>
+                        </div>
+                      </div>
+
+                      {/* Assigned Articles Preview */}
+                      {assignedArticles.length > 0 ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Assigned Articles</span>
+                            <Badge variant="outline" className="text-xs">
+                              {assignedArticles.length}
+                            </Badge>
+                          </div>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {assignedArticles.slice(0, 5).map((article) => (
+                              <div 
+                                key={article.id} 
+                                className="text-xs p-2 bg-muted/30 rounded flex items-center justify-between"
+                              >
+                                <span className="truncate flex-1" title={article.title}>
+                                  {article.title}
+                                </span>
+                                <div className="flex items-center gap-1 ml-2">
+                                  {!article.isActive && (
+                                    <Badge variant="secondary" className="text-xs">Inactive</Badge>
+                                  )}
+                                  <Badge variant="outline" className="text-xs">
+                                    {article.sourceType === 'manual' && <FileText className="w-2 h-2" />}
+                                    {article.sourceType === 'file' && <File className="w-2 h-2" />}
+                                    {article.sourceType === 'url' && <Globe className="w-2 h-2" />}
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
+                            {assignedArticles.length > 5 && (
+                              <div className="text-xs text-muted-foreground text-center py-1">
+                                +{assignedArticles.length - 5} more articles
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-muted-foreground">
+                          <BookOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No articles assigned</p>
+                        </div>
+                      )}
+
+                      {/* Quick Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setSelectedAgent(agent.id)}
+                          data-testid={`button-filter-agent-${agent.id}`}
+                        >
+                          <Filter className="w-3 h-3 mr-1" />
+                          View Articles
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Edit Dialog */}
       {editingArticle && (
@@ -892,38 +1068,95 @@ function KnowledgeArticleForm({
           />
         </div>
 
-        {/* Agent Assignment */}
+        {/* Enhanced Agent Assignment */}
         {agents.length > 0 && (
           <FormField
             control={form.control}
             name="assignedAgentIds"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Assign to AI Agents</FormLabel>
+                <FormLabel className="flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Assign to AI Agents
+                </FormLabel>
                 <FormDescription>
-                  Select which AI agents can access this knowledge article
+                  Select which AI agents can access this knowledge article. Selected agents can use this content to answer customer queries.
                 </FormDescription>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {agents.map((agent) => (
-                    <div key={agent.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`agent-${agent.id}`}
-                        checked={(field.value as string[])?.includes(agent.id) || false}
-                        onCheckedChange={(checked) => {
-                          const currentIds = field.value || [];
-                          if (checked) {
-                            field.onChange([...currentIds, agent.id]);
-                          } else {
-                            field.onChange(currentIds.filter(id => id !== agent.id));
-                          }
-                        }}
-                        data-testid={`checkbox-agent-${agent.id}`}
-                      />
-                      <Label htmlFor={`agent-${agent.id}`} className="text-sm">
-                        {agent.name}
-                      </Label>
-                    </div>
-                  ))}
+                
+                {/* Quick Actions */}
+                <div className="flex gap-2 mt-2 mb-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => field.onChange(agents.map(a => a.id))}
+                    data-testid="button-select-all-agents"
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => field.onChange([])}
+                    data-testid="button-clear-agents"
+                  >
+                    Clear All
+                  </Button>
+                  <Badge variant="secondary" className="ml-auto">
+                    {(field.value as string[])?.length || 0} of {agents.length} selected
+                  </Badge>
+                </div>
+                
+                {/* Enhanced Agent Selection */}
+                <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
+                  {agents.map((agent) => {
+                    const isSelected = (field.value as string[])?.includes(agent.id) || false;
+                    return (
+                      <div 
+                        key={agent.id} 
+                        className={`flex items-start space-x-3 p-2 rounded-md hover-elevate transition-colors ${
+                          isSelected ? 'bg-primary/5 border border-primary/20' : 'hover:bg-muted/50'
+                        }`}
+                      >
+                        <Checkbox
+                          id={`agent-${agent.id}`}
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            const currentIds = field.value || [];
+                            if (checked) {
+                              field.onChange([...currentIds, agent.id]);
+                            } else {
+                              field.onChange(currentIds.filter(id => id !== agent.id));
+                            }
+                          }}
+                          data-testid={`checkbox-agent-${agent.id}`}
+                          className="mt-1"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <Label 
+                            htmlFor={`agent-${agent.id}`} 
+                            className="text-sm font-medium cursor-pointer block"
+                          >
+                            {agent.name}
+                          </Label>
+                          {agent.description && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              {agent.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge 
+                              variant={agent.isActive ? "default" : "secondary"} 
+                              className="text-xs"
+                            >
+                              {agent.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <FormMessage />
               </FormItem>
