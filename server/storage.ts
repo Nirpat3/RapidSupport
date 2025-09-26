@@ -151,6 +151,7 @@ export interface IStorage {
   getAiAgentSessionsByAgent(agentId: string): Promise<AiAgentSession[]>;
   createAiAgentSession(session: InsertAiAgentSession): Promise<AiAgentSession>;
   updateAiAgentSession(id: string, updates: Partial<InsertAiAgentSession>): Promise<void>;
+  getActiveAiConversations(): Promise<any[]>;
 
   // Additional conversation operations
   updateConversation(id: string, updates: Partial<InsertConversation>): Promise<void>;
@@ -1234,6 +1235,50 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error updating AI agent learning:', error);
       throw error;
+    }
+  }
+
+  // Get active AI conversations with full details for staff takeover dashboard
+  async getActiveAiConversations(): Promise<any[]> {
+    try {
+      return await db
+        .select({
+          sessionId: aiAgentSessions.id,
+          conversationId: aiAgentSessions.conversationId,
+          agentId: aiAgentSessions.agentId,
+          status: aiAgentSessions.status,
+          messageCount: aiAgentSessions.messageCount,
+          avgConfidence: aiAgentSessions.avgConfidence,
+          startedAt: aiAgentSessions.startedAt,
+          conversation: {
+            id: conversations.id,
+            title: conversations.title,
+            status: conversations.status,
+            priority: conversations.priority,
+            isAnonymous: conversations.isAnonymous,
+            updatedAt: conversations.updatedAt,
+          },
+          customer: {
+            id: customers.id,
+            name: customers.name,
+            email: customers.email,
+            company: customers.company,
+          },
+          aiAgent: {
+            id: aiAgents.id,
+            name: aiAgents.name,
+            autoTakeoverThreshold: aiAgents.autoTakeoverThreshold,
+          }
+        })
+        .from(aiAgentSessions)
+        .leftJoin(conversations, eq(aiAgentSessions.conversationId, conversations.id))
+        .leftJoin(customers, eq(conversations.customerId, customers.id))
+        .leftJoin(aiAgents, eq(aiAgentSessions.agentId, aiAgents.id))
+        .where(eq(aiAgentSessions.status, 'active'))
+        .orderBy(desc(aiAgentSessions.startedAt));
+    } catch (error) {
+      console.error('Error fetching active AI conversations:', error);
+      return [];
     }
   }
 

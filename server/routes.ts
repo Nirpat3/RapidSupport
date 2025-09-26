@@ -1381,23 +1381,123 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Hand over conversation from AI to human agent
-  app.post('/api/ai/handover/:conversationId', requireAuth, async (req, res) => {
+  // Get active AI conversations for staff takeover dashboard
+  app.get('/api/ai/active-conversations', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const activeSessions = await storage.getActiveAiConversations();
+      res.json(activeSessions);
+    } catch (error) {
+      console.error('Failed to fetch active AI conversations:', error);
+      res.status(500).json({ error: 'Failed to fetch active AI conversations' });
+    }
+  });
+
+  // Auto-assign conversation to best available agent (for AI handover)
+  app.post('/api/ai/auto-handover/:conversationId', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
       const { conversationId } = req.params;
-      const { reason } = req.body;
-      const user = req.user as any;
+      const { reason = 'Automatic handover due to low AI confidence' } = req.body;
 
-      if (!reason) {
-        return res.status(400).json({ error: 'Handover reason is required' });
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
       }
 
-      await AIService.handoverToHuman(conversationId, user.id, reason);
+      // Find best available agent
+      const bestAgent = await storage.findBestAvailableAgent();
+      if (!bestAgent) {
+        return res.status(503).json({ error: 'No agents available for handover' });
+      }
 
-      res.json({
-        success: true,
-        message: 'Conversation handed over to human agent'
-      });
+      // Perform handover to best agent
+      const success = await AIService.handoverToHuman(conversationId, bestAgent.id, reason);
+      
+      if (success) {
+        // Log the auto-handover activity
+        await storage.createActivityLog({
+          agentId: bestAgent.id,
+          conversationId,
+          action: 'took_over',
+          details: `Auto-assigned from AI: ${reason}`
+        });
+
+        // Broadcast takeover notification
+        const wsServer = (app as any).wsServer;
+        if (wsServer && wsServer.broadcastToStaff) {
+          wsServer.broadcastToStaff({
+            type: 'conversation_handover',
+            conversationId,
+            humanAgentId: bestAgent.id,
+            humanAgentName: bestAgent.name,
+            reason,
+            isAutomatic: true,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        res.json({ 
+          success: true,
+          message: 'Auto-handover successful', 
+          agentId: bestAgent.id,
+          agentName: bestAgent.name 
+        });
+      } else {
+        res.status(400).json({ error: 'No active AI session found for this conversation' });
+      }
+    } catch (error) {
+      console.error('Failed to auto-handover conversation:', error);
+      res.status(500).json({ error: 'Failed to auto-handover conversation' });
+    }
+  });
+
+  // Hand over conversation from AI to human agent
+  app.post('/api/ai/handover/:conversationId', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      const { reason = 'Manual takeover by staff' } = req.body;
+      const user = req.user as any;
+
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      // Perform handover
+      const success = await AIService.handoverToHuman(conversationId, user.id, reason);
+      
+      if (success) {
+        // Log the takeover activity
+        await storage.createActivityLog({
+          agentId: user.id,
+          conversationId,
+          action: 'took_over',
+          details: `Took over AI conversation: ${reason}`
+        });
+
+        // Broadcast takeover notification to all staff
+        const wsServer = (app as any).wsServer;
+        if (wsServer && wsServer.broadcastToStaff) {
+          wsServer.broadcastToStaff({
+            type: 'conversation_handover',
+            conversationId,
+            humanAgentId: user.id,
+            humanAgentName: user.name,
+            reason,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        res.json({
+          success: true,
+          message: 'Conversation handed over to human agent',
+          agentId: user.id,
+          agentName: user.name
+        });
+      } else {
+        res.status(400).json({ error: 'No active AI session found for this conversation' });
+      }
     } catch (error) {
       console.error('AI handover failed:', error);
       res.status(500).json({ error: 'Failed to handover conversation' });

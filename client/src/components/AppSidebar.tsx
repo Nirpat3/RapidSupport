@@ -19,6 +19,7 @@ import {
   BarChart3, 
   Users, 
   Bot,
+  UserCheck,
   Settings, 
   HelpCircle, 
   LogOut,
@@ -57,6 +58,11 @@ const getNavigationItems = (unreadCount: number) => [
     title: "AI Agents",
     url: "/ai-agents", 
     icon: Bot
+  },
+  {
+    title: "AI Takeover",
+    url: "/ai-takeover", 
+    icon: UserCheck
   },
   {
     title: "Settings",
