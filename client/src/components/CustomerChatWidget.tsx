@@ -94,6 +94,10 @@ export function CustomerChatWidget() {
   const [isProofreadingOpen, setIsProofreadingOpen] = useState(false);
   const [proofreadResult, setProofreadResult] = useState<any>(null);
   const [isProofreading, setIsProofreading] = useState(false);
+  
+  // AI Agent Response states
+  const [isAiResponding, setIsAiResponding] = useState(false);
+  const [aiTypingTimeout, setAiTypingTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   // IP address will be determined server-side for security
   const getClientIP = async (): Promise<string> => {
@@ -153,21 +157,90 @@ export function CustomerChatWidget() {
         customerId: chatState.customerId,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data, customerMessage) => {
       console.log('Message sent successfully');
       setMessageInput("");
       setSelectedFiles([]);
       refetchMessages();
+      
+      // Trigger AI agent response after customer message
+      triggerAiResponse(customerMessage);
     },
     onError: (error) => {
       console.error('Failed to send message:', error);
     },
   });
 
+  // AI Agent Response mutation
+  const aiResponseMutation = useMutation({
+    mutationFn: async (customerMessage: string) => {
+      if (!chatState.conversationId) {
+        throw new Error("No active conversation");
+      }
+      
+      return await apiRequest('POST', '/api/ai/smart-response', {
+        conversationId: chatState.conversationId,
+        customerMessage,
+        customerId: chatState.customerId, // Required for authorization
+      });
+    },
+    onSuccess: (response) => {
+      console.log('AI response generated:', response);
+      
+      // AI message is now created server-side for security
+      // Just refresh messages to show the new AI response
+      refetchMessages();
+      
+      // Handle handover if confidence is low
+      if (response.data && (response.data.requiresHumanTakeover || response.data.confidence < 70)) {
+        console.log('AI confidence low, suggesting human takeover');
+        // TODO: Implement handover notification system
+      }
+      
+      setIsAiResponding(false);
+      if (aiTypingTimeout) {
+        clearTimeout(aiTypingTimeout);
+        setAiTypingTimeout(null);
+      }
+    },
+    onError: (error) => {
+      console.error('Failed to generate AI response:', error);
+      setIsAiResponding(false);
+      if (aiTypingTimeout) {
+        clearTimeout(aiTypingTimeout);
+        setAiTypingTimeout(null);
+      }
+    },
+  });
+
+  // REMOVED: sendAiMessage function - AI messages now created server-side in /api/ai/smart-response
+
+  // Trigger AI response with typing indicator
+  const triggerAiResponse = (customerMessage: string) => {
+    setIsAiResponding(true);
+    
+    // Add realistic typing delay (2-4 seconds)
+    const typingDelay = Math.random() * 2000 + 2000;
+    const timeout = setTimeout(() => {
+      aiResponseMutation.mutate(customerMessage);
+    }, typingDelay);
+    
+    setAiTypingTimeout(timeout);
+  };
+
   // Scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Cleanup AI typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (aiTypingTimeout) {
+        clearTimeout(aiTypingTimeout);
+      }
+    };
+  }, [aiTypingTimeout]);
 
   const handleOpenChat = () => {
     setChatState(prev => ({ ...prev, isOpen: true }));
@@ -400,6 +473,27 @@ export function CustomerChatWidget() {
                       </div>
                     </div>
                   ))}
+                  
+                  {/* AI Typing Indicator */}
+                  {isAiResponding && (
+                    <div className="flex justify-start" data-testid="ai-typing-indicator">
+                      <div className="max-w-[80%] rounded-lg px-3 py-2 text-sm bg-muted">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-xs">AI Assistant</span>
+                          <Badge variant="secondary" className="text-xs">agent</Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">Typing</span>
+                          <div className="flex gap-1">
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   <div ref={messagesEndRef} />
                 </div>
               </>

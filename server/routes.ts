@@ -1156,6 +1156,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // REMOVED: /api/customer-chat/send-ai-message endpoint for security
+  // AI messages are now created server-side in /api/ai/smart-response to prevent client spoofing
+
   // Get activity logs for agent or conversation
   app.get('/api/activity-logs', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
@@ -1297,26 +1300,82 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Generate smart AI agent response for customer chat
+  // Generate smart AI agent response for customer chat and persist message
   app.post('/api/ai/smart-response', async (req, res) => {
     try {
-      const { conversationId, customerMessage, agentId } = req.body;
-      
-      if (!conversationId || !customerMessage) {
-        return res.status(400).json({ error: 'Conversation ID and customer message are required' });
+      // Validate request data with proper schema
+      const smartResponseSchema = z.object({
+        conversationId: z.string().uuid(),
+        customerMessage: z.string().min(1).max(5000), // Align with other message limits
+        customerId: z.string().uuid(), // Required for authorization
+        agentId: z.string().uuid().optional()
+      });
+
+      const { conversationId, customerMessage, customerId, agentId } = smartResponseSchema.parse(req.body);
+
+      // Check if conversation exists
+      const conversation = await storage.getConversationWithCustomer(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
       }
 
-      const response = await AIService.generateSmartAgentResponse(
+      // Security: Verify customer owns this conversation
+      if (conversation.customerId !== customerId) {
+        return res.status(403).json({ error: 'Access denied to this conversation' });
+      }
+
+      // Generate AI response
+      const aiResponse = await AIService.generateSmartAgentResponse(
         conversationId,
         customerMessage,
         agentId
       );
 
+      // Server-side: Create and persist AI message to prevent client spoofing
+      if (aiResponse.response) {
+        // TODO: Use proper system agent UUID instead of hardcoded string
+        // For now, using consistent system identifier
+        const SYSTEM_AI_AGENT_ID = 'ai-system-agent-001';
+        
+        const messageData = {
+          conversationId,
+          content: aiResponse.response,
+          senderId: SYSTEM_AI_AGENT_ID,
+          senderType: 'agent' as const
+        };
+
+        const message = await storage.createMessage(messageData);
+        
+        // Broadcast AI message to conversation participants
+        if (conversation.customer) {
+          const wsServer = (app as any).wsServer;
+          if (wsServer && wsServer.broadcastNewMessage) {
+            wsServer.broadcastNewMessage(conversationId, {
+              messageId: message.id,
+              conversationId: message.conversationId,
+              content: message.content,
+              userId: SYSTEM_AI_AGENT_ID,
+              userName: 'AI Assistant',
+              userRole: 'agent',
+              senderType: message.senderType,
+              timestamp: message.timestamp,
+              status: message.status
+            });
+          }
+        }
+      }
+
       res.json({
         success: true,
-        data: response
+        data: aiResponse
       });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid AI response request', 
+          details: fromZodError(error).toString() 
+        });
+      }
       console.error('Smart AI response generation failed:', error);
       res.status(500).json({ error: 'Failed to generate smart AI response' });
     }
