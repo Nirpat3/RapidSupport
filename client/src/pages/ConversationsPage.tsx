@@ -6,7 +6,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { UserPlus, Users, Search, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/contexts/NotificationContext";
 
@@ -251,7 +252,23 @@ export default function ConversationsPage() {
   return (
     <div className="flex flex-col lg:flex-row h-full" data-testid="conversations-page">
       {/* Mobile: Full width conversation list, Desktop: Fixed sidebar */}
-      <div className="w-full lg:w-80 lg:flex-shrink-0 flex-shrink-0 h-auto lg:h-full">
+      <div className="w-full lg:w-96 lg:flex-shrink-0 flex-shrink-0 h-auto lg:h-full bg-card border-r">
+        {/* Search Bar at Top */}
+        <div className="p-4 border-b bg-background/50">
+          <div className="flex items-center gap-2 mb-3">
+            <MessageSquare className="w-5 h-5 text-primary" />
+            <h2 className="font-semibold text-lg">Conversations</h2>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search conversations..."
+              className="pl-10"
+              data-testid="input-search-conversations-main"
+            />
+          </div>
+        </div>
+
         {/* Unassigned Conversations Section */}
         {unassignedConversations.length > 0 && (
           <div className="border-b bg-muted/30">
