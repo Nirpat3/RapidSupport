@@ -11,9 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle } from "lucide-react";
 import ChatMessage, { type Message } from "./ChatMessage";
-import { ticketApi } from "@/lib/ticketStore";
 import InternalChatPanel from "./InternalChatPanel";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface ChatInterfaceProps {
   conversationId?: string;
@@ -50,7 +49,8 @@ export default function ChatInterface({
   const [newTicket, setNewTicket] = useState({
     title: "",
     description: "",
-    priority: "medium" as const
+    priority: "medium" as const,
+    category: "General"
   });
   
   // AI Proofreading states
@@ -58,9 +58,9 @@ export default function ChatInterface({
   const [proofreadResult, setProofreadResult] = useState<any>(null);
   const [isProofreading, setIsProofreading] = useState(false);
   
-  // AI Conversation Analysis states
-  const [conversationAnalysis, setConversationAnalysis] = useState<any>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  // AI Ticket Generation states
+  const [aiTicketSuggestion, setAiTicketSuggestion] = useState<any>(null);
+  const [isGeneratingTicket, setIsGeneratingTicket] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -120,44 +120,42 @@ export default function ChatInterface({
     }
   };
 
-  const handleAnalyzeConversation = async () => {
+  const handleGenerateAITicket = async () => {
     if (!conversationId) return;
     
-    setIsAnalyzing(true);
+    setIsGeneratingTicket(true);
     try {
-      const response = await apiRequest('POST', '/api/ai/analyze-conversation', {
-        conversationId
+      const response = await apiRequest('POST', `/api/conversations/${conversationId}/generate-ticket`);
+      
+      setAiTicketSuggestion(response.data);
+      // Auto-fill the form with AI suggestions
+      setNewTicket({
+        title: response.data.title,
+        description: response.data.description,
+        priority: response.data.priority,
+        category: response.data.category || "General"
       });
       
-      setConversationAnalysis(response.data);
-    } catch (error) {
+      toast({
+        title: "AI Ticket Generated",
+        description: `Confidence: ${response.data.aiConfidenceScore}%. Review and edit as needed.`,
+      });
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to analyze conversation. Please try again.",
+        description: error.message || "Failed to generate AI ticket. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsAnalyzing(false);
+      setIsGeneratingTicket(false);
     }
   };
 
-  const applyAIAnalysis = () => {
-    if (conversationAnalysis) {
-      setNewTicket({
-        title: conversationAnalysis.suggestedTicketTitle,
-        description: conversationAnalysis.suggestedTicketDescription,
-        priority: conversationAnalysis.priority
-      });
-    }
+  const clearAISuggestion = () => {
+    setAiTicketSuggestion(null);
+    setNewTicket({ title: "", description: "", priority: "medium", category: "General" });
   };
 
-  // Debug logging
-  console.log('ChatInterface props:', { conversationId, customer, messagesCount: messages.length });
-  console.log('Messages array:', messages);
-  if (messages.length > 0) {
-    console.log('First message structure:', messages[0]);
-    console.log('First message timestamp type:', typeof messages[0].timestamp);
-  }
 
   if (!conversationId || !customer) {
     console.log('ChatInterface: No conversation or customer data');
@@ -236,81 +234,85 @@ export default function ChatInterface({
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                  {/* AI Analysis Button */}
+                  {/* AI Ticket Generation Buttons */}
                   <div className="flex gap-2">
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={handleAnalyzeConversation}
-                      disabled={isAnalyzing || !conversationId}
+                      onClick={handleGenerateAITicket}
+                      disabled={isGeneratingTicket || !conversationId}
                       className="flex-1"
-                      data-testid="button-ai-analyze"
+                      data-testid="button-ai-generate-ticket"
                     >
-                      {isAnalyzing ? (
+                      {isGeneratingTicket ? (
                         <>
                           <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                          Analyzing conversation...
+                          Generating AI ticket...
                         </>
                       ) : (
                         <>
                           <Sparkles className="w-4 h-4 mr-2" />
-                          AI Analyze Conversation
+                          Generate AI Ticket
                         </>
                       )}
                     </Button>
+                    {aiTicketSuggestion && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearAISuggestion}
+                        data-testid="button-clear-ai-suggestion"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    )}
                   </div>
 
-                  {/* AI Analysis Results */}
-                  {conversationAnalysis && (
-                    <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-blue-500" />
-                        <span className="font-medium text-blue-700 dark:text-blue-300">AI Analysis</span>
+                  {/* AI Ticket Suggestion Results */}
+                  {aiTicketSuggestion && (
+                    <div className="p-4 border rounded-lg bg-green-50 dark:bg-green-950 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-green-500" />
+                          <span className="font-medium text-green-700 dark:text-green-300">AI Generated Ticket</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Confidence:</span>
+                          <Badge variant={
+                            aiTicketSuggestion.aiConfidenceScore >= 80 ? 'default' :
+                            aiTicketSuggestion.aiConfidenceScore >= 60 ? 'secondary' : 'outline'
+                          }>
+                            {aiTicketSuggestion.aiConfidenceScore}%
+                          </Badge>
+                        </div>
                       </div>
                       
                       <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="font-medium">Summary:</span>
-                          <p className="text-muted-foreground">{conversationAnalysis.summary}</p>
-                        </div>
-                        
-                        {conversationAnalysis.keyIssues.length > 0 && (
-                          <div>
-                            <span className="font-medium">Key Issues:</span>
-                            <ul className="list-disc list-inside text-muted-foreground">
-                              {conversationAnalysis.keyIssues.map((issue: string, index: number) => (
-                                <li key={index}>{issue}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        
                         <div className="flex gap-4">
                           <div>
                             <span className="font-medium">Priority:</span>
                             <Badge variant={
-                              conversationAnalysis.priority === 'urgent' ? 'destructive' :
-                              conversationAnalysis.priority === 'high' ? 'default' :
-                              conversationAnalysis.priority === 'medium' ? 'secondary' : 'outline'
+                              aiTicketSuggestion.priority === 'urgent' ? 'destructive' :
+                              aiTicketSuggestion.priority === 'high' ? 'default' :
+                              aiTicketSuggestion.priority === 'medium' ? 'secondary' : 'outline'
                             }>
-                              {conversationAnalysis.priority}
+                              {aiTicketSuggestion.priority}
                             </Badge>
                           </div>
                           <div>
                             <span className="font-medium">Category:</span>
-                            <Badge variant="outline">{conversationAnalysis.category}</Badge>
+                            <Badge variant="outline">{aiTicketSuggestion.category}</Badge>
                           </div>
                         </div>
+                        
+                        {aiTicketSuggestion.conversationContext && (
+                          <div>
+                            <span className="font-medium">Context:</span>
+                            <p className="text-muted-foreground text-xs">{aiTicketSuggestion.conversationContext}</p>
+                          </div>
+                        )}
                       </div>
-                      
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={applyAIAnalysis}
-                        data-testid="button-apply-ai-analysis"
-                      >
-                        Apply AI Suggestions
-                      </Button>
                     </div>
                   )}
 
@@ -335,13 +337,48 @@ export default function ChatInterface({
                       rows={4}
                     />
                   </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="ticket-priority">Priority</Label>
+                      <select
+                        id="ticket-priority"
+                        value={newTicket.priority}
+                        onChange={(e) => setNewTicket({...newTicket, priority: e.target.value as any})}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        data-testid="select-chat-ticket-priority"
+                      >
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="ticket-category">Category</Label>
+                      <select
+                        id="ticket-category"
+                        value={newTicket.category}
+                        onChange={(e) => setNewTicket({...newTicket, category: e.target.value})}
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        data-testid="select-chat-ticket-category"
+                      >
+                        <option value="General">General</option>
+                        <option value="Technical">Technical</option>
+                        <option value="Billing">Billing</option>
+                        <option value="Feature Request">Feature Request</option>
+                        <option value="Bug Report">Bug Report</option>
+                        <option value="Account">Account</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setIsCreateTicketOpen(false)} data-testid="button-cancel-chat-ticket">
                     Cancel
                   </Button>
                   <Button 
-                    onClick={() => {
+                    onClick={async () => {
                       if (!newTicket.title.trim() || !newTicket.description.trim()) {
                         toast({
                           title: "Error",
@@ -352,27 +389,40 @@ export default function ChatInterface({
                       }
 
                       try {
-                        const createdTicket = ticketApi.createTicket({
+                        const ticketData = {
                           title: newTicket.title,
                           description: newTicket.description,
                           status: 'open',
-                          priority: newTicket.priority as 'low' | 'medium' | 'high' | 'urgent',
-                          category: 'Conversation Escalation',
+                          priority: newTicket.priority,
+                          category: newTicket.category,
                           customerId: customer.id,
-                          conversationId: conversationId
-                        });
+                          conversationId: conversationId,
+                          // Include AI metadata if this was AI-generated
+                          ...(aiTicketSuggestion && {
+                            isAiGenerated: true,
+                            aiConfidenceScore: aiTicketSuggestion.aiConfidenceScore,
+                            conversationContext: aiTicketSuggestion.conversationContext
+                          })
+                        };
+
+                        const response = await apiRequest('POST', '/api/tickets', ticketData);
+
+                        // Invalidate relevant caches to refresh ticket lists
+                        queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
+                        queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId] });
 
                         toast({
                           title: "Success",
-                          description: `Ticket ${createdTicket.id} created from conversation successfully!`,
+                          description: `Ticket created from conversation successfully!`,
                         });
 
                         setIsCreateTicketOpen(false);
-                        setNewTicket({ title: "", description: "", priority: "medium" });
-                      } catch (error) {
+                        setNewTicket({ title: "", description: "", priority: "medium", category: "General" });
+                        setAiTicketSuggestion(null);
+                      } catch (error: any) {
                         toast({
                           title: "Error",
-                          description: "Failed to create ticket. Please try again.",
+                          description: error.message || "Failed to create ticket. Please try again.",
                           variant: "destructive",
                         });
                       }

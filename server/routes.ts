@@ -21,7 +21,8 @@ import {
   externalTicketSyncSchema,
   anonymousCustomerSchema,
   anonymousConversationSchema,
-  updateAgentStatusSchema
+  updateAgentStatusSchema,
+  aiTicketGenerationSchema
 } from '@shared/schema';
 
 // Route-specific validation schemas
@@ -56,6 +57,14 @@ const internalMessageCreateSchema = z.object({
 
 const customerStatusSchema = z.object({
   status: z.enum(['online', 'offline', 'away'])
+});
+
+// Ticket validation schemas
+const ticketProofreadSchema = z.object({
+  title: z.string().optional(),
+  description: z.string().optional()
+}).refine(data => data.title || data.description, {
+  message: 'At least one of title or description must be provided'
 });
 
 // File upload configuration
@@ -1457,6 +1466,185 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to update customer sync status', success: false });
+    }
+  });
+
+  // ============ INTERNAL TICKET API ROUTES ============
+  
+  // Get all tickets for internal use (staff only)
+  app.get('/api/tickets', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const tickets = await storage.getAllTickets();
+      res.json(tickets);
+    } catch (error) {
+      console.error('Failed to fetch tickets:', error);
+      res.status(500).json({ error: 'Failed to fetch tickets' });
+    }
+  });
+
+  // Generate AI ticket from conversation
+  app.post('/api/conversations/:id/generate-ticket', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id: conversationId } = req.params;
+      const user = req.user as any;
+      
+      // Validate conversation exists and user has access
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      // For agents, ensure they can only generate tickets for assigned conversations
+      if (user.role === 'agent' && conversation.assignedAgentId !== user.id) {
+        return res.status(403).json({ error: 'You can only generate tickets for conversations assigned to you' });
+      }
+      
+      // Check if OpenAI service is available
+      const isAiAvailable = await AIService.checkServiceHealth();
+      if (!isAiAvailable) {
+        return res.status(503).json({ 
+          error: 'AI service is currently unavailable. Please try again later or create the ticket manually.' 
+        });
+      }
+      
+      // Generate AI ticket suggestions
+      const aiTicketData = await AIService.generateTicketFromConversation(conversationId);
+      
+      // Validate the AI-generated data against schema
+      const validatedData = aiTicketGenerationSchema.safeParse(aiTicketData);
+      if (!validatedData.success) {
+        console.error('AI generated invalid ticket data:', validatedData.error);
+        return res.status(500).json({ 
+          error: 'AI generated invalid ticket data. Please try again or create the ticket manually.' 
+        });
+      }
+      
+      res.json(validatedData.data);
+    } catch (error) {
+      console.error('Failed to generate AI ticket:', error);
+      res.status(500).json({ error: 'Failed to generate AI ticket suggestions' });
+    }
+  });
+
+  // Create ticket (manual or AI-generated)
+  app.post('/api/tickets', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const ticketData = insertTicketSchema.parse(req.body);
+      
+      // If conversation is specified, verify user has access
+      if (ticketData.conversationId) {
+        const conversation = await storage.getConversation(ticketData.conversationId);
+        if (!conversation) {
+          return res.status(404).json({ error: 'Associated conversation not found' });
+        }
+        
+        // For agents, ensure they can only create tickets for assigned conversations
+        if (user.role === 'agent' && conversation.assignedAgentId !== user.id) {
+          return res.status(403).json({ error: 'You can only create tickets for conversations assigned to you' });
+        }
+      }
+      
+      // Ensure customer exists
+      const customer = await storage.getCustomer(ticketData.customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+      
+      // Map AI generation data if present to ticket schema fields
+      const ticketCreateData: any = { ...ticketData };
+      if (ticketData.isAiGenerated && ticketData.aiConfidenceScore) {
+        // Store original AI-generated content for reference
+        ticketCreateData.aiGeneratedTitle = ticketData.title;
+        ticketCreateData.aiGeneratedDescription = ticketData.description;
+      }
+      
+      // Create the ticket
+      const ticket = await storage.createTicket(ticketCreateData);
+      
+      res.status(201).json(ticket);
+    } catch (error) {
+      console.error('Failed to create ticket:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid ticket data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to create ticket' });
+    }
+  });
+
+  // AI proofread ticket content
+  app.post('/api/tickets/proofread', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const content = ticketProofreadSchema.parse(req.body);
+      
+      // Check if OpenAI service is available
+      const isAiAvailable = await AIService.checkServiceHealth();
+      if (!isAiAvailable) {
+        return res.status(503).json({ 
+          error: 'AI service is currently unavailable. Please check your content manually.' 
+        });
+      }
+      
+      const results = await AIService.proofreadTicketContent(content);
+      res.json(results);
+    } catch (error) {
+      console.error('Failed to proofread ticket content:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid content data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to proofread ticket content' });
+    }
+  });
+
+  // Update ticket status
+  app.put('/api/tickets/:id/status', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = ticketStatusUpdateSchema.parse(req.body);
+      
+      await storage.updateTicketStatus(id, status);
+      res.json({ message: 'Ticket status updated successfully' });
+    } catch (error) {
+      console.error('Failed to update ticket status:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid status', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to update ticket status' });
+    }
+  });
+
+  // Assign ticket to agent
+  app.put('/api/tickets/:id/assign', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { agentId } = ticketAssignmentSchema.parse(req.body);
+      
+      // Verify agent exists and is active
+      const agent = await storage.getUser(agentId);
+      if (!agent || agent.role !== 'agent') {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      
+      await storage.assignTicket(id, agentId);
+      res.json({ message: 'Ticket assigned successfully' });
+    } catch (error) {
+      console.error('Failed to assign ticket:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid agent ID', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to assign ticket' });
     }
   });
 

@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
-import { Message, Conversation } from '@shared/schema';
+import { Message, Conversation, AiTicketGeneration } from '@shared/schema';
+import { storage } from './storage';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -232,6 +233,126 @@ If confidence is below 70 or the query requires sensitive information access, se
         requiresHumanTakeover: true,
         suggestedActions: ['Connect with human agent'],
       };
+    }
+  }
+
+  /**
+   * Generate AI-powered ticket from conversation
+   */
+  static async generateTicketFromConversation(conversationId: string): Promise<AiTicketGeneration & { aiConfidenceScore: number }> {
+    try {
+      // Fetch conversation messages and customer info
+      const messages = await storage.getMessagesByConversation(conversationId);
+      const conversation = await storage.getConversation(conversationId);
+      
+      if (!conversation) {
+        throw new Error('Conversation not found');
+      }
+      
+      const customer = await storage.getCustomer(conversation.customerId);
+      
+      // Guard against empty messages array
+      if (messages.length === 0) {
+        return {
+          conversationId,
+          title: 'Support Request',
+          description: 'No messages found in conversation',
+          category: 'General',
+          priority: 'medium',
+          aiConfidenceScore: 20, // Low confidence due to no data
+          conversationContext: 'Empty conversation with no messages',
+        };
+      }
+      
+      // Filter out internal messages to prevent data leakage
+      const publicMessages = messages.filter(msg => msg.scope !== 'internal');
+      
+      if (publicMessages.length === 0) {
+        return {
+          conversationId,
+          title: 'Support Request',
+          description: 'Only internal messages found in conversation',
+          category: 'General',
+          priority: 'medium',
+          aiConfidenceScore: 30, // Low confidence due to limited data
+          conversationContext: 'Conversation contains only internal staff messages',
+        };
+      }
+      
+      // Truncate to last 20 messages to avoid token limits
+      const recentMessages = publicMessages.slice(-20);
+      
+      // Use existing conversation analysis logic with filtered messages
+      const analysis = await this.analyzeConversation(recentMessages, customer);
+      
+      // Calculate confidence score based on various factors
+      let confidenceScore = 75; // Base confidence
+      
+      // Adjust based on message count (more messages = more context = higher confidence)
+      if (recentMessages.length >= 5) confidenceScore += 10;
+      else if (recentMessages.length < 2) confidenceScore -= 15;
+      
+      // Adjust based on content quality - guard against empty array
+      const avgMessageLength = recentMessages.length > 0 
+        ? recentMessages.reduce((sum, msg) => sum + msg.content.length, 0) / recentMessages.length
+        : 0;
+      if (avgMessageLength > 50) confidenceScore += 5; // Detailed messages
+      if (avgMessageLength < 20) confidenceScore -= 10; // Very short messages
+      
+      // Adjust based on sentiment (neutral/positive = higher confidence)
+      if (analysis.sentiment === 'negative') confidenceScore -= 5;
+      else if (analysis.sentiment === 'positive') confidenceScore += 5;
+      
+      // Clamp confidence between 20-95
+      confidenceScore = Math.max(20, Math.min(95, confidenceScore));
+      
+      // Generate conversation context summary
+      const contextSummary = `Conversation with ${customer?.name || 'Customer'} (${recentMessages.length} public messages, ${messages.length} total). ${analysis.sentiment} sentiment. Key issues: ${analysis.keyIssues.join(', ')}.`;
+      
+      return {
+        conversationId,
+        title: analysis.suggestedTicketTitle,
+        description: analysis.suggestedTicketDescription,
+        category: analysis.category,
+        priority: analysis.priority,
+        aiConfidenceScore: confidenceScore,
+        conversationContext: contextSummary,
+      };
+    } catch (error) {
+      console.error('Error generating ticket from conversation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Proofread ticket content for clarity and professionalism
+   */
+  static async proofreadTicketContent(content: {
+    title?: string;
+    description?: string;
+  }): Promise<{
+    title?: ProofreadResult;
+    description?: ProofreadResult;
+  }> {
+    try {
+      const results: any = {};
+      
+      if (content.title) {
+        results.title = await this.proofreadMessage(content.title, {
+          isCustomerMessage: false,
+        });
+      }
+      
+      if (content.description) {
+        results.description = await this.proofreadMessage(content.description, {
+          isCustomerMessage: false,
+        });
+      }
+      
+      return results;
+    } catch (error) {
+      console.error('Error proofreading ticket content:', error);
+      throw error;
     }
   }
 

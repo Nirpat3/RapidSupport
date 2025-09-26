@@ -240,7 +240,7 @@ export const aiTicketGenerationSchema = z.object({
   description: z.string().min(1, "Description is required"),
   category: z.string().default("General"),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
-  confidenceScore: z.number().int().min(0).max(100),
+  aiConfidenceScore: z.number().int().min(0).max(100),
   conversationContext: z.string().optional(),
 });
 
