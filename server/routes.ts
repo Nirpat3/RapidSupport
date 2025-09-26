@@ -293,6 +293,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       if (user.role === 'admin') {
         // Admins can see all conversations
         conversations = await storage.getAllConversations();
+        console.log(`Admin user ${user.name} requesting conversations, found ${conversations.length} conversations`);
       } else if (user.role === 'agent') {
         // Agents can see conversations assigned to them AND unassigned conversations
         const assignedConversations = await storage.getConversationsByAgent(user.id);
@@ -309,11 +310,13 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
       
       // Enrich conversations with last message and unread count
+      console.log(`Starting enrichment for ${conversations.length} conversations`);
       const enrichedConversations = await Promise.all(
         conversations.map(async (conv) => {
-          // Get last message for this conversation
-          const messages = await storage.getMessagesByConversation(conv.id);
-          const lastMessage = messages[messages.length - 1];
+          try {
+            // Get last message for this conversation
+            const messages = await storage.getMessagesByConversation(conv.id);
+            const lastMessage = messages[messages.length - 1];
           
           // Calculate unread count (messages not seen by current user)
           // For now, we'll mark conversations as unread if they have recent activity
@@ -356,9 +359,23 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             },
             unreadCount
           };
+          } catch (error) {
+            console.error(`Error enriching conversation ${conv.id}:`, error);
+            return {
+              ...conv,
+              lastMessage: {
+                content: 'Error loading messages',
+                timestamp: conv.createdAt,
+                sender: 'customer'
+              },
+              unreadCount: 0
+            };
+          }
         })
       );
+      console.log(`Enrichment completed, ${enrichedConversations.length} conversations enriched`);
       
+      console.log(`Sending ${enrichedConversations.length} conversations to client`);
       res.json(enrichedConversations);
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
