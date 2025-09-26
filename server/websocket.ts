@@ -10,7 +10,7 @@ interface AuthenticatedWebSocket extends WebSocket {
 }
 
 interface WebSocketMessage {
-  type: 'join_conversation' | 'leave_conversation' | 'new_message' | 'internal_message' | 'typing' | 'stop_typing' | 'user_online' | 'user_offline';
+  type: 'join_conversation' | 'leave_conversation' | 'new_message' | 'internal_message' | 'typing' | 'stop_typing' | 'user_online' | 'user_offline' | 'new_conversation';
   conversationId?: string;
   messageId?: string;
   content?: string;
@@ -360,6 +360,53 @@ class ChatWebSocketServer {
     });
 
     return staffUsers;
+  }
+
+  // Public method to broadcast new conversation notifications to all staff
+  public broadcastNewConversation(conversation: any, customer: any, message?: string) {
+    const notificationMessage = {
+      type: 'new_conversation',
+      conversation,
+      customer,
+      message: message || 'New conversation started',
+      timestamp: new Date().toISOString()
+    };
+
+    // Broadcast to all staff (agents and admins)
+    this.connections.forEach(connectionSet => {
+      connectionSet.forEach(ws => {
+        if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(notificationMessage));
+        }
+      });
+    });
+
+    console.log(`Broadcasted new conversation ${conversation.id} from ${customer.name} to all staff`);
+  }
+
+  // Public method to broadcast new message in unassigned conversations
+  public broadcastNewMessage(conversation: any, customer: any, message: any) {
+    // Only notify about messages in unassigned conversations
+    if (conversation.assignedAgentId) return;
+
+    const notificationMessage = {
+      type: 'new_message',
+      conversation,
+      customer,
+      message,
+      timestamp: new Date().toISOString()
+    };
+
+    // Broadcast to all staff (agents and admins)
+    this.connections.forEach(connectionSet => {
+      connectionSet.forEach(ws => {
+        if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(notificationMessage));
+        }
+      });
+    });
+
+    console.log(`Broadcasted new message from ${customer.name} in unassigned conversation ${conversation.id} to all staff`);
   }
 }
 

@@ -24,6 +24,7 @@ import {
   Shield
 } from "lucide-react";
 import { Link } from "wouter";
+import { useNotifications } from "@/contexts/NotificationContext";
 
 interface AppSidebarProps {
   currentUser?: {
@@ -34,12 +35,12 @@ interface AppSidebarProps {
   };
 }
 
-const navigationItems = [
+const getNavigationItems = (unreadCount: number) => [
   {
     title: "Conversations",
     url: "/",
     icon: MessageSquare,
-    badge: 5
+    badge: unreadCount > 0 ? unreadCount : undefined
   },
   {
     title: "Dashboard", 
@@ -68,6 +69,7 @@ const supportItems = [
 
 export default function AppSidebar({ currentUser }: AppSidebarProps) {
   const [activeItem, setActiveItem] = useState("/");
+  const { totalUnreadCount } = useNotifications();
   
   // TODO: remove mock functionality
   const user = currentUser || {
@@ -75,6 +77,8 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
     name: 'Sarah Smith',
     role: 'admin' as const
   };
+
+  const navigationItems = getNavigationItems(totalUnreadCount);
 
   return (
     <Sidebar>

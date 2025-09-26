@@ -975,10 +975,11 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
       req.body.ipAddress = clientIP;
       
       const customerData = createAnonymousCustomerSchema.parse(req.body);
+      const wsServer = (app as any).wsServer;
       const result = await storage.createAnonymousCustomer({
         ...customerData,
         sessionId: req.body.sessionId
-      });
+      }, wsServer);
       
       console.log('Customer created successfully - ID:', result.customerId);
       res.status(201).json(result);

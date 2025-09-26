@@ -643,7 +643,7 @@ export class DatabaseStorage implements IStorage {
     return customer || undefined;
   }
 
-  async createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }> {
+  async createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }, wsServer?: any): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }> {
     // First check if customer already exists
     const existingCustomer = await this.findExistingCustomer(
       customerData.email,
@@ -709,6 +709,12 @@ export class DatabaseStorage implements IStorage {
         details: 'Added to unassigned queue - no available agents'
         // agentId is null for system events
       });
+    }
+
+    // Broadcast new conversation notification to staff via WebSocket
+    if (wsServer && wsServer.broadcastNewConversation) {
+      const conversationWithAssignment = { ...conversation, assignedAgentId: assignedAgent?.id || null };
+      wsServer.broadcastNewConversation(conversationWithAssignment, customer, 'New customer conversation started');
     }
 
     return {
