@@ -202,10 +202,15 @@ export default function ConversationsPage() {
   });
 
   // Set first conversation as active if none selected (use effect to avoid setState during render)
+  // Only auto-select on mobile devices to keep desktop list view available
   useEffect(() => {
     if (!activeConversationId && formattedConversations.length > 0) {
-      console.log('Setting first conversation as active:', formattedConversations[0].id);
-      setActiveConversationId(formattedConversations[0].id);
+      // Only auto-select on mobile (screen width < 1024px)
+      const isMobile = window.innerWidth < 1024;
+      if (isMobile) {
+        console.log('Setting first conversation as active on mobile:', formattedConversations[0].id);
+        setActiveConversationId(formattedConversations[0].id);
+      }
     }
   }, [activeConversationId, formattedConversations]);
 

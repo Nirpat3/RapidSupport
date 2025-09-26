@@ -376,7 +376,7 @@ export function CustomerChatWidget() {
   // Chat widget content
   return (
     <div className={cn(
-      "fixed bottom-4 right-4 z-50 w-96 h-[32rem] bg-background border rounded-lg shadow-xl",
+      "fixed bottom-4 right-4 z-50 w-96 max-h-[32rem] bg-background border rounded-lg shadow-xl",
       "flex flex-col transition-all duration-200",
       chatState.isMinimized && "h-14"
     )} data-testid="widget-chat">
@@ -411,15 +411,17 @@ export function CustomerChatWidget() {
       {!chatState.isMinimized && (
         <>
           {/* Content */}
-          <CardContent className="flex-1 p-4 overflow-hidden flex flex-col">
+          <CardContent className="flex-1 p-4 overflow-y-auto flex flex-col">
             {chatState.showInfoForm ? (
-              <CustomerInfoForm
-                onSubmit={handleCustomerInfoSubmit}
-                onCancel={() => setChatState(prev => ({ ...prev, showInfoForm: false }))}
-                isLoading={createCustomerMutation.isPending}
-                title="Start a conversation"
-                description="Please provide your details to get personalized support."
-              />
+              <div className="flex-1 overflow-y-auto">
+                <CustomerInfoForm
+                  onSubmit={handleCustomerInfoSubmit}
+                  onCancel={() => setChatState(prev => ({ ...prev, showInfoForm: false }))}
+                  isLoading={createCustomerMutation.isPending}
+                  title="Start a conversation"
+                  description="Please provide your details to get personalized support."
+                />
+              </div>
             ) : chatState.conversationId ? (
               <>
                 {/* Customer Info Display */}
