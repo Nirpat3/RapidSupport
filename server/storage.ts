@@ -205,7 +205,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(conversations.updatedAt));
   }
 
-  async getConversationsByAgent(agentId: string): Promise<Conversation[]> {
+  async getConversationsByAgent(agentId: string): Promise<any[]> {
     return await db
       .select({
         id: conversations.id,
@@ -218,13 +218,21 @@ export class DatabaseStorage implements IStorage {
         sessionId: conversations.sessionId,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
+        customer: {
+          id: customers.id,
+          name: customers.name,
+          email: customers.email,
+          company: customers.company,
+          status: customers.status,
+        }
       })
       .from(conversations)
+      .leftJoin(customers, eq(conversations.customerId, customers.id))
       .where(eq(conversations.assignedAgentId, agentId))
       .orderBy(desc(conversations.updatedAt));
   }
 
-  async getAllConversations(): Promise<Conversation[]> {
+  async getAllConversations(): Promise<any[]> {
     return await db
       .select({
         id: conversations.id,
@@ -237,8 +245,16 @@ export class DatabaseStorage implements IStorage {
         sessionId: conversations.sessionId,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
+        customer: {
+          id: customers.id,
+          name: customers.name,
+          email: customers.email,
+          company: customers.company,
+          status: customers.status,
+        }
       })
       .from(conversations)
+      .leftJoin(customers, eq(conversations.customerId, customers.id))
       .orderBy(desc(conversations.updatedAt));
   }
 
@@ -856,10 +872,29 @@ export class DatabaseStorage implements IStorage {
     return bestAgent;
   }
 
-  async getUnassignedConversations(): Promise<Conversation[]> {
+  async getUnassignedConversations(): Promise<any[]> {
     return await db
-      .select()
+      .select({
+        id: conversations.id,
+        customerId: conversations.customerId,
+        assignedAgentId: conversations.assignedAgentId,
+        title: conversations.title,
+        status: conversations.status,
+        priority: conversations.priority,
+        isAnonymous: conversations.isAnonymous,
+        sessionId: conversations.sessionId,
+        createdAt: conversations.createdAt,
+        updatedAt: conversations.updatedAt,
+        customer: {
+          id: customers.id,
+          name: customers.name,
+          email: customers.email,
+          company: customers.company,
+          status: customers.status,
+        }
+      })
       .from(conversations)
+      .leftJoin(customers, eq(conversations.customerId, customers.id))
       .where(and(
         eq(conversations.assignedAgentId, null as any),
         eq(conversations.status, 'open')
