@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { parse } from 'cookie';
 import { storage } from './storage';
+import { unsign } from 'cookie-signature';
 
 interface AuthenticatedWebSocket extends WebSocket {
   userId?: string;
@@ -42,13 +43,29 @@ class ChatWebSocketServer {
     
     // Extract session cookie and validate user
     const cookies = request.headers.cookie ? parse(request.headers.cookie) : {};
-    const sessionId = cookies.sessionId;
+    console.log('Available cookies:', Object.keys(cookies));
+    let sessionId = cookies.sessionId;
     
     if (!sessionId) {
       console.log('WebSocket connection rejected: no session cookie');
+      console.log('All cookies:', cookies);
       ws.close(1008, 'Authentication required');
       return;
     }
+
+    // Unsign the cookie if it's signed (Express sessions sign cookies when secret is provided)
+    const sessionSecret = process.env.SESSION_SECRET || 'dev-secret-key-change-in-production';
+    if (sessionId.startsWith('s:')) {
+      const unsigned = unsign(sessionId.slice(2), sessionSecret);
+      if (unsigned === false) {
+        console.log('WebSocket connection rejected: invalid cookie signature');
+        ws.close(1008, 'Invalid cookie signature');
+        return;
+      }
+      sessionId = unsigned;
+    }
+    
+    console.log('Using session ID:', sessionId);
 
     // Validate session with the session store
     try {

@@ -50,12 +50,13 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     // Only notify about truly new conversations (not on first load)
     if (lastSeenConversations.size > 0 && newConversations.length > 0) {
       newConversations.forEach(conv => {
-        // Only notify about customer-initiated conversations
-        if (conv.customer && !conv.isAssigned) {
+        // Notify about all new customer-initiated conversations (assigned or unassigned)
+        if (conv.customer) {
+          const message = conv.lastMessage?.content || 'New conversation started';
           addUnreadConversation(
             conv.id, 
             conv.customer.name || 'Unknown Customer',
-            'New conversation started'
+            message
           );
         }
       });

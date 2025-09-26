@@ -163,12 +163,12 @@ export default function ConversationsPage() {
       name: conv.customer?.name || 'Unknown Customer',
       status: conv.customer?.status || 'offline'
     },
-    lastMessage: {
-      content: 'Loading...',
+    lastMessage: conv.lastMessage || {
+      content: 'No messages yet',
       timestamp: new Date(conv.updatedAt || conv.createdAt),
       sender: 'customer'
     },
-    unreadCount: 0,
+    unreadCount: conv.unreadCount || 0,
     status: conv.status || 'open',
     priority: conv.priority || 'medium',
     isAssigned: Boolean(conv.assignedAgentId), // True only if there's an assigned agent

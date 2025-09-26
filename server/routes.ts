@@ -307,7 +307,58 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         conversations = [];
       }
       
-      res.json(conversations);
+      // Enrich conversations with last message and unread count
+      const enrichedConversations = await Promise.all(
+        conversations.map(async (conv) => {
+          // Get last message for this conversation
+          const messages = await storage.getMessagesByConversation(conv.id);
+          const lastMessage = messages[messages.length - 1];
+          
+          // Calculate unread count (messages not seen by current user)
+          // For now, we'll mark conversations as unread if they have recent activity
+          // and haven't been visited by the current user recently
+          const unreadCount = 0; // TODO: Implement proper read tracking
+          
+          let lastMessageData = null;
+          if (lastMessage) {
+            // Get sender information
+            let sender;
+            if (lastMessage.senderType === 'customer') {
+              const customer = await storage.getCustomer(lastMessage.senderId);
+              sender = {
+                id: customer?.id || lastMessage.senderId,
+                name: customer?.name || 'Unknown Customer',
+                role: 'customer'
+              };
+            } else {
+              const userSender = await storage.getUser(lastMessage.senderId);
+              sender = {
+                id: userSender?.id || lastMessage.senderId,
+                name: userSender?.name || 'Unknown User',
+                role: userSender?.role || lastMessage.senderType
+              };
+            }
+            
+            lastMessageData = {
+              content: lastMessage.content,
+              timestamp: lastMessage.timestamp,
+              sender: lastMessage.senderType === 'customer' ? 'customer' : 'agent'
+            };
+          }
+          
+          return {
+            ...conv,
+            lastMessage: lastMessageData || {
+              content: 'No messages yet',
+              timestamp: conv.createdAt,
+              sender: 'customer'
+            },
+            unreadCount
+          };
+        })
+      );
+      
+      res.json(enrichedConversations);
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
       res.status(500).json({ error: 'Failed to fetch conversations' });
