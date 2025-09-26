@@ -9,6 +9,7 @@ import {
   agentWorkload,
   aiAgents,
   knowledgeBase,
+  knowledgeBaseImages,
   aiAgentLearning,
   aiAgentSessions,
   type User,
@@ -34,6 +35,8 @@ import {
   type InsertAiAgent,
   type KnowledgeBase,
   type InsertKnowledgeBase,
+  type KnowledgeBaseImage,
+  type InsertKnowledgeBaseImage,
   type AiAgentLearning,
   type InsertAiAgentLearning,
   type AiAgentSession,
@@ -136,6 +139,12 @@ export interface IStorage {
   updateKnowledgeBase(id: string, updates: Partial<InsertKnowledgeBase>): Promise<void>;
   deleteKnowledgeBase(id: string): Promise<void>;
   updateKnowledgeBaseUsage(id: string): Promise<void>;
+
+  // Knowledge Base Image operations
+  getKnowledgeBaseImages(knowledgeBaseId: string): Promise<KnowledgeBaseImage[]>;
+  createKnowledgeBaseImage(image: InsertKnowledgeBaseImage): Promise<KnowledgeBaseImage>;
+  deleteKnowledgeBaseImage(id: string): Promise<void>;
+  updateKnowledgeBaseImageOrder(id: string, displayOrder: number): Promise<void>;
   updateKnowledgeBaseEffectiveness(id: string, adjustment: number): Promise<void>;
 
   // AI Agent Learning operations
@@ -1176,6 +1185,46 @@ export class DatabaseStorage implements IStorage {
       }).where(eq(knowledgeBase.id, id));
     } catch (error) {
       console.error('Error updating knowledge base usage:', error);
+    }
+  }
+
+  // Knowledge Base Image operations
+  async getKnowledgeBaseImages(knowledgeBaseId: string): Promise<KnowledgeBaseImage[]> {
+    try {
+      return await db.select().from(knowledgeBaseImages)
+        .where(eq(knowledgeBaseImages.knowledgeBaseId, knowledgeBaseId))
+        .orderBy(knowledgeBaseImages.displayOrder, knowledgeBaseImages.createdAt);
+    } catch (error) {
+      console.error('Error fetching knowledge base images:', error);
+      return [];
+    }
+  }
+
+  async createKnowledgeBaseImage(image: InsertKnowledgeBaseImage): Promise<KnowledgeBaseImage> {
+    try {
+      const [createdImage] = await db.insert(knowledgeBaseImages).values(image).returning();
+      return createdImage;
+    } catch (error) {
+      console.error('Error creating knowledge base image:', error);
+      throw error;
+    }
+  }
+
+  async deleteKnowledgeBaseImage(id: string): Promise<void> {
+    try {
+      await db.delete(knowledgeBaseImages).where(eq(knowledgeBaseImages.id, id));
+    } catch (error) {
+      console.error('Error deleting knowledge base image:', error);
+      throw error;
+    }
+  }
+
+  async updateKnowledgeBaseImageOrder(id: string, displayOrder: number): Promise<void> {
+    try {
+      await db.update(knowledgeBaseImages).set({ displayOrder }).where(eq(knowledgeBaseImages.id, id));
+    } catch (error) {
+      console.error('Error updating knowledge base image order:', error);
+      throw error;
     }
   }
 

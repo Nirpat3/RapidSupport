@@ -53,8 +53,10 @@ import {
   User,
   Filter,
   File,
-  Globe
+  Globe,
+  ImageIcon
 } from "lucide-react";
+import { ImageUpload } from "@/components/ImageUpload";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -77,6 +79,7 @@ const knowledgeArticleSchema = z.object({
   priority: z.number().min(1).max(100).default(50),
   isActive: z.boolean().default(true),
   assignedAgentIds: z.array(z.string()).optional(),
+  images: z.array(z.any()).optional(), // File objects for image uploads
 });
 
 const urlKnowledgeSchema = z.object({
@@ -160,20 +163,52 @@ export default function KnowledgeManagementPage() {
 
   // Create article mutation
   const createMutation = useMutation({
-    mutationFn: (data: KnowledgeArticleForm) => {
+    mutationFn: async (data: KnowledgeArticleForm) => {
+      // First, create the knowledge article
       const payload = {
         ...data,
         tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
       };
-      return apiRequest('POST', '/api/knowledge-base', payload);
+      // Remove images from the payload for article creation
+      const { images, ...articlePayload } = payload;
+      
+      const createdArticle = await apiRequest('POST', '/api/knowledge-base', articlePayload);
+      
+      // If there are images, upload them after article creation
+      let imageUploadErrors: string[] = [];
+      if (images && images.length > 0) {
+        const formData = new FormData();
+        images.forEach((image: File) => {
+          formData.append('images', image);
+        });
+        
+        try {
+          await apiRequest('POST', `/api/knowledge-base/${createdArticle.id}/images`, formData);
+        } catch (imageError) {
+          console.error('Failed to upload images:', imageError);
+          imageUploadErrors.push(`Failed to upload ${images.length} image(s)`);
+        }
+      }
+      
+      return { article: createdArticle, imageUploadErrors };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
       setIsCreateDialogOpen(false);
-      toast({
-        title: "Success",
-        description: "Knowledge article created successfully.",
-      });
+      
+      // Show appropriate success message based on image upload status
+      if (result.imageUploadErrors.length > 0) {
+        toast({
+          title: "Article Created",
+          description: `Knowledge article created successfully. ${result.imageUploadErrors.join(', ')}`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Knowledge article created successfully.",
+        });
+      }
     },
     onError: (error: any) => {
       toast({
@@ -713,6 +748,7 @@ function KnowledgeArticleForm({
       tags: "",
       priority: 50,
       isActive: true,
+      images: [],
       ...defaultValues,
     },
   });
@@ -785,6 +821,30 @@ function KnowledgeArticleForm({
           )}
         />
 
+        <FormField
+          control={form.control}
+          name="images"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                Images (Optional)
+              </FormLabel>
+              <FormControl>
+                <ImageUpload
+                  onImagesChange={(images) => field.onChange(images)}
+                  maxImages={5}
+                  className="w-full"
+                />
+              </FormControl>
+              <FormDescription>
+                Add images to help illustrate the knowledge content. Images will be attached to this article.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
@@ -849,7 +909,7 @@ function KnowledgeArticleForm({
                     <div key={agent.id} className="flex items-center space-x-2">
                       <Checkbox
                         id={`agent-${agent.id}`}
-                        checked={field.value?.includes(agent.id) || false}
+                        checked={(field.value as string[])?.includes(agent.id) || false}
                         onCheckedChange={(checked) => {
                           const currentIds = field.value || [];
                           if (checked) {
@@ -958,7 +1018,6 @@ function FileUploadForm({
             accept=".txt,.md,.pdf,.doc,.docx"
             onChange={(e) => {
               setSelectedFiles(e.target.files);
-              form.setValue('files', e.target.files);
             }}
             className="cursor-pointer"
             data-testid="input-files"
@@ -1065,7 +1124,7 @@ function FileUploadForm({
                     <div key={agent.id} className="flex items-center space-x-2">
                       <Checkbox
                         id={`file-agent-${agent.id}`}
-                        checked={field.value?.includes(agent.id) || false}
+                        checked={(field.value as string[])?.includes(agent.id) || false}
                         onCheckedChange={(checked) => {
                           const currentIds = field.value || [];
                           if (checked) {
@@ -1232,7 +1291,7 @@ function UrlKnowledgeForm({
                     <div key={agent.id} className="flex items-center space-x-2">
                       <Checkbox
                         id={`url-agent-${agent.id}`}
-                        checked={field.value?.includes(agent.id) || false}
+                        checked={(field.value as string[])?.includes(agent.id) || false}
                         onCheckedChange={(checked) => {
                           const currentIds = field.value || [];
                           if (checked) {

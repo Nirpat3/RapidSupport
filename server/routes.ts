@@ -85,6 +85,37 @@ const uploadStorage = multer.diskStorage({
   }
 });
 
+// Image-specific upload configuration for knowledge base
+const imageUploadDir = './uploads/knowledge-base-images';
+if (!fs.existsSync(imageUploadDir)) {
+  fs.mkdirSync(imageUploadDir, { recursive: true });
+}
+
+const imageUploadStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, imageUploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    cb(null, 'kb-img-' + uniqueSuffix + '-' + sanitizedName);
+  }
+});
+
+const imageUpload = multer({
+  storage: imageUploadStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
+
 const upload = multer({
   storage: uploadStorage,
   limits: {
@@ -2173,14 +2204,234 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(404).json({ error: 'Knowledge base article not found' });
       }
 
-      // Remove from all agent assignments before deleting
+      // First, get and delete all associated images
+      const associatedImages = await storage.getKnowledgeBaseImages(id);
+      
+      // Delete image files from disk asynchronously with path confinement
+      const fileDeletePromises = associatedImages.map(async (image) => {
+        try {
+          if (fs.existsSync(image.filePath)) {
+            // Ensure file path is within the expected directory to prevent arbitrary file deletion
+            const resolvedFilePath = path.resolve(image.filePath);
+            const resolvedUploadDir = path.resolve(imageUploadDir);
+            
+            if (!resolvedFilePath.startsWith(resolvedUploadDir)) {
+              console.error(`Security: Attempted to delete file outside upload directory: ${image.filePath}`);
+              return;
+            }
+            
+            await fs.promises.unlink(resolvedFilePath);
+          }
+        } catch (fileError) {
+          console.error(`Failed to delete image file ${image.filePath}:`, fileError);
+          // Continue with deletion even if file removal fails
+        }
+      });
+      
+      // Wait for all file deletions to complete (or fail)
+      await Promise.allSettled(fileDeletePromises);
+      
+      // Delete image records from database
+      const imageDeletePromises = associatedImages.map(async (image) => {
+        try {
+          await storage.deleteKnowledgeBaseImage(image.id);
+        } catch (dbError) {
+          console.error(`Failed to delete image record ${image.id}:`, dbError);
+          // Continue with deletion even if DB cleanup fails
+        }
+      });
+      
+      // Wait for all database deletions to complete
+      await Promise.allSettled(imageDeletePromises);
+
+      // Remove from all agent assignments before deleting article
       await syncAgentKnowledgeAssignments(id, []);
       
+      // Finally, delete the article itself
       await storage.deleteKnowledgeBase(id);
-      res.json({ success: true, message: 'Knowledge base article deleted successfully' });
+      
+      const deletedImageCount = associatedImages.length;
+      const message = deletedImageCount > 0 
+        ? `Knowledge base article and ${deletedImageCount} associated image(s) deleted successfully`
+        : 'Knowledge base article deleted successfully';
+        
+      res.json({ success: true, message });
     } catch (error) {
       console.error('Failed to delete knowledge base article:', error);
       res.status(500).json({ error: 'Failed to delete knowledge base article' });
+    }
+  });
+
+  // Knowledge Base Image routes
+
+  // Get images for a knowledge base article
+  app.get('/api/knowledge-base/:id/images', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(id);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      const images = await storage.getKnowledgeBaseImages(id);
+      res.json(images);
+    } catch (error) {
+      console.error('Failed to get knowledge base images:', error);
+      res.status(500).json({ error: 'Failed to get knowledge base images' });
+    }
+  });
+
+  // Upload images for a knowledge base article
+  app.post('/api/knowledge-base/:id/images', requireAuth, requireRole(['admin', 'agent']), imageUpload.array('images', 10), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: 'No images provided' });
+      }
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(id);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      const uploadedImages = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const imageData = {
+          knowledgeBaseId: id,
+          filename: file.filename,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+          filePath: file.path,
+          description: '', // Can be updated later
+          displayOrder: i // Set initial order based on upload order
+        };
+
+        const uploadedImage = await storage.createKnowledgeBaseImage(imageData);
+        uploadedImages.push(uploadedImage);
+      }
+
+      res.status(201).json(uploadedImages);
+    } catch (error) {
+      console.error('Failed to upload knowledge base images:', error);
+      res.status(500).json({ error: 'Failed to upload knowledge base images' });
+    }
+  });
+
+  // Delete a knowledge base image
+  app.delete('/api/knowledge-base/:articleId/images/:imageId', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { articleId, imageId } = req.params;
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(articleId);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      // Get the image to delete the file from disk
+      const images = await storage.getKnowledgeBaseImages(articleId);
+      const imageToDelete = images.find(img => img.id === imageId);
+      
+      if (!imageToDelete) {
+        return res.status(404).json({ error: 'Image not found' });
+      }
+
+      // Delete file from disk with path confinement
+      if (fs.existsSync(imageToDelete.filePath)) {
+        // Ensure file path is within the expected directory to prevent arbitrary file deletion
+        const resolvedFilePath = path.resolve(imageToDelete.filePath);
+        const resolvedUploadDir = path.resolve(imageUploadDir);
+        
+        if (!resolvedFilePath.startsWith(resolvedUploadDir)) {
+          console.error(`Security: Attempted to delete file outside upload directory: ${imageToDelete.filePath}`);
+          return res.status(403).json({ error: 'Access denied' });
+        }
+        
+        fs.unlinkSync(resolvedFilePath);
+      }
+
+      // Delete from database
+      await storage.deleteKnowledgeBaseImage(imageId);
+
+      res.json({ success: true, message: 'Image deleted successfully' });
+    } catch (error) {
+      console.error('Failed to delete knowledge base image:', error);
+      res.status(500).json({ error: 'Failed to delete knowledge base image' });
+    }
+  });
+
+  // Update image order
+  app.put('/api/knowledge-base/:articleId/images/:imageId/order', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { articleId, imageId } = req.params;
+      const { displayOrder } = req.body;
+
+      if (typeof displayOrder !== 'number') {
+        return res.status(400).json({ error: 'Display order must be a number' });
+      }
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(articleId);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      await storage.updateKnowledgeBaseImageOrder(imageId, displayOrder);
+      res.json({ success: true, message: 'Image order updated successfully' });
+    } catch (error) {
+      console.error('Failed to update image order:', error);
+      res.status(500).json({ error: 'Failed to update image order' });
+    }
+  });
+
+  // Serve knowledge base images with authentication and path validation
+  app.get('/api/knowledge-base/images/:filename', requireAuth, requireRole(['admin', 'agent']), (req, res) => {
+    try {
+      const { filename } = req.params;
+      
+      // Validate filename to prevent path traversal attacks
+      if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        return res.status(400).json({ error: 'Invalid filename' });
+      }
+      
+      const imagePath = path.join(imageUploadDir, filename);
+      const resolvedPath = path.resolve(imagePath);
+      const resolvedUploadDir = path.resolve(imageUploadDir);
+      
+      // Ensure the resolved path is within the upload directory
+      if (!resolvedPath.startsWith(resolvedUploadDir)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      if (!fs.existsSync(resolvedPath)) {
+        return res.status(404).json({ error: 'Image not found' });
+      }
+
+      // Set appropriate content type based on file extension
+      const ext = path.extname(filename).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp'
+      };
+      
+      const mimeType = mimeTypes[ext] || 'application/octet-stream';
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+      
+      res.sendFile(resolvedPath);
+    } catch (error) {
+      console.error('Failed to serve image:', error);
+      res.status(500).json({ error: 'Failed to serve image' });
     }
   });
 

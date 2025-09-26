@@ -11,11 +11,24 @@ export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  options?: { headers?: Record<string, string> }
 ): Promise<any> {
+  // Handle FormData vs JSON
+  const isFormData = data instanceof FormData;
+  
+  const headers: Record<string, string> = {
+    ...options?.headers,
+  };
+  
+  // Only set Content-Type for JSON, let browser set it for FormData
+  if (data && !isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
+  
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+    headers,
+    body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
     credentials: "include",
   });
 

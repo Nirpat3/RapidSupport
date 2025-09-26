@@ -139,6 +139,20 @@ export const knowledgeBase = pgTable("knowledge_base", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Knowledge Base Images table - stores images attached to knowledge articles
+export const knowledgeBaseImages = pgTable("knowledge_base_images", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  knowledgeBaseId: varchar("knowledge_base_id").notNull().references(() => knowledgeBase.id),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(), // File size in bytes
+  filePath: text("file_path").notNull(), // Path to stored file
+  description: text("description"), // Optional description/alt text for the image
+  displayOrder: integer("display_order").notNull().default(0), // Order of images in the article
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // AI Agent Learning table - tracks AI interactions to improve responses over time
 export const aiAgentLearning = pgTable("ai_agent_learning", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -277,10 +291,18 @@ export const aiAgentsRelations = relations(aiAgents, ({ one, many }) => ({
   learningEntries: many(aiAgentLearning),
 }));
 
-export const knowledgeBaseRelations = relations(knowledgeBase, ({ one }) => ({
+export const knowledgeBaseRelations = relations(knowledgeBase, ({ one, many }) => ({
   createdBy: one(users, {
     fields: [knowledgeBase.createdBy],
     references: [users.id],
+  }),
+  images: many(knowledgeBaseImages),
+}));
+
+export const knowledgeBaseImagesRelations = relations(knowledgeBaseImages, ({ one }) => ({
+  knowledgeBase: one(knowledgeBase, {
+    fields: [knowledgeBaseImages.knowledgeBaseId],
+    references: [knowledgeBase.id],
   }),
 }));
 
@@ -469,6 +491,18 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick(
 
 export const updateKnowledgeBaseSchema = insertKnowledgeBaseSchema.partial();
 
+// Knowledge Base Images schemas
+export const insertKnowledgeBaseImageSchema = createInsertSchema(knowledgeBaseImages).pick({
+  knowledgeBaseId: true,
+  filename: true,
+  originalName: true,
+  mimeType: true,
+  size: true,
+  filePath: true,
+  description: true,
+  displayOrder: true,
+});
+
 // AI Agent Learning schemas
 export const insertAiAgentLearningSchema = createInsertSchema(aiAgentLearning).pick({
   agentId: true,
@@ -520,6 +554,8 @@ export type InsertAiAgent = z.infer<typeof insertAiAgentSchema>;
 export type AiAgent = typeof aiAgents.$inferSelect;
 export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
 export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
+export type InsertKnowledgeBaseImage = z.infer<typeof insertKnowledgeBaseImageSchema>;
+export type KnowledgeBaseImage = typeof knowledgeBaseImages.$inferSelect;
 export type InsertAiAgentLearning = z.infer<typeof insertAiAgentLearningSchema>;
 export type AiAgentLearning = typeof aiAgentLearning.$inferSelect;
 export type InsertAiAgentSession = z.infer<typeof insertAiAgentSessionSchema>;
