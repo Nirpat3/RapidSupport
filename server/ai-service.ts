@@ -186,20 +186,21 @@ Provide a JSON response with:
   ): Promise<AIAgentResponse> {
     try {
       const systemPrompt = `You are a helpful customer support AI assistant. Your role is to:
-- Provide helpful and accurate responses to customer queries
+- ONLY answer questions using the provided knowledge base information
 - Maintain a professional, empathetic, and friendly tone
-- Escalate to human agents when necessary
-- Use knowledge base information when available
+- Escalate to human agents when knowledge base cannot help
+- Never use general knowledge beyond what is provided
 
-Guidelines:
-- If you cannot confidently answer a question, recommend human takeover
-- For complex technical issues, suggest human agent assistance
-- For billing or account-specific questions, require human verification
-- Always be helpful and solution-oriented`;
+CRITICAL GUIDELINES:
+- You MUST ONLY use information from the provided Knowledge Base
+- If the knowledge base doesn't contain relevant information, you MUST escalate to human agents
+- NEVER provide answers from general AI knowledge
+- If confidence is low or no relevant knowledge base content exists, require human takeover
+- Always be helpful within the constraints of available knowledge`;
 
       const contextInfo = knowledgeBase?.length 
         ? `\nKnowledge Base:\n${knowledgeBase.join('\n')}\n`
-        : '';
+        : '\nKnowledge Base: No relevant knowledge base articles available.\n';
 
       const conversationContext = conversationHistory.length 
         ? `\nConversation History:\n${conversationHistory.slice(-5).join('\n')}\n`
@@ -209,12 +210,12 @@ Guidelines:
 Customer Message: "${customerMessage}"
 
 Provide a JSON response with:
-- response: Your helpful response to the customer
+- response: Your helpful response to the customer (ONLY use knowledge base information)
 - confidence: Number from 0-100 indicating confidence in your response
 - requiresHumanTakeover: Boolean if human agent should take over
 - suggestedActions: Array of recommended next steps
 
-If confidence is below 70 or the query requires sensitive information access, set requiresHumanTakeover to true.`;
+IMPORTANT: If no relevant knowledge base information is available, set requiresHumanTakeover to true and explain that you need to connect them with a human agent who can help with their specific question.`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -511,7 +512,7 @@ If confidence is below 70 or the query requires sensitive information access, se
     try {
       const knowledgeContext = knowledgeArticles.length 
         ? `\nKnowledge Base:\n${knowledgeArticles.map(kb => `${kb.title}: ${kb.content}`).join('\n')}\n`
-        : '';
+        : '\nKnowledge Base: No relevant knowledge base articles available.\n';
 
       const conversationContext = conversationHistory.length 
         ? `\nConversation History:\n${conversationHistory.join('\n')}\n`
@@ -521,17 +522,25 @@ If confidence is below 70 or the query requires sensitive information access, se
 Customer Message: "${customerMessage}"
 
 Respond according to your role and training. Provide a JSON response with:
-- response: Your helpful response to the customer
+- response: Your helpful response to the customer (ONLY use knowledge base information)
 - confidence: Number from 0-100 indicating confidence in your response
 - requiresHumanTakeover: Boolean if human agent should take over
 - suggestedActions: Array of recommended next steps
 
-Guidelines for confidence scoring:
-- 90-100: Completely confident, standard information
-- 70-89: Good confidence, using knowledge base or similar queries
-- 50-69: Moderate confidence, general guidance
-- 30-49: Low confidence, might need human help
-- 0-29: Very low confidence, definitely needs human assistance`;
+CRITICAL GUIDELINES:
+- You MUST ONLY use information from the provided Knowledge Base
+- If no relevant knowledge base articles are available, set requiresHumanTakeover to true
+- NEVER provide answers from general knowledge
+- If confidence is low or no relevant knowledge exists, require human takeover
+
+Confidence scoring:
+- 90-100: Completely confident with relevant knowledge base information
+- 70-89: Good confidence using knowledge base articles
+- 50-69: Moderate confidence with limited knowledge base info
+- 30-49: Low confidence, likely needs human help
+- 0-29: Very low confidence, definitely needs human assistance
+
+If no relevant knowledge base information is available, set requiresHumanTakeover to true and explain that you need to connect them with a human agent.`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -556,11 +565,14 @@ Guidelines for confidence scoring:
         }
       }
 
+      // Force human takeover if no knowledge articles are available
+      const shouldForceHumanTakeover = knowledgeArticles.length === 0;
+      
       return {
         response: result.response || 'I apologize, but I need to connect you with a human agent for assistance.',
-        confidence: result.confidence || 50,
-        requiresHumanTakeover: result.requiresHumanTakeover || false,
-        suggestedActions: result.suggestedActions || [],
+        confidence: shouldForceHumanTakeover ? Math.min(result.confidence || 20, 20) : (result.confidence || 50),
+        requiresHumanTakeover: shouldForceHumanTakeover || result.requiresHumanTakeover || false,
+        suggestedActions: result.suggestedActions || ['Connect with human agent'],
         knowledgeUsed: knowledgeArticles.map(kb => kb.id),
         agentId: agent.id,
       };

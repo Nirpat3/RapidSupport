@@ -24,6 +24,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Plus, 
   Search, 
@@ -34,7 +47,13 @@ import {
   Clock,
   Tag,
   FileText,
-  BookOpen
+  BookOpen,
+  Upload,
+  Link,
+  User,
+  Filter,
+  File,
+  Globe
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,7 +68,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-// Knowledge article form schema
+// Knowledge article form schemas
 const knowledgeArticleSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title must be under 200 characters"),
   content: z.string().min(10, "Content must be at least 10 characters").max(10000, "Content must be under 10000 characters"),
@@ -57,9 +76,28 @@ const knowledgeArticleSchema = z.object({
   tags: z.string().optional(),
   priority: z.number().min(1).max(100).default(50),
   isActive: z.boolean().default(true),
+  assignedAgentIds: z.array(z.string()).optional(),
+});
+
+const urlKnowledgeSchema = z.object({
+  url: z.string().url("Please enter a valid URL"),
+  category: z.string().min(1, "Category is required"),
+  tags: z.string().optional(),
+  priority: z.number().min(1).max(100).default(50),
+  assignedAgentIds: z.array(z.string()).optional(),
+});
+
+const fileKnowledgeSchema = z.object({
+  files: z.any().refine((files) => files && files.length > 0, "Please select at least one file"),
+  category: z.string().min(1, "Category is required"),
+  tags: z.string().optional(),
+  priority: z.number().min(1).max(100).default(50),
+  assignedAgentIds: z.array(z.string()).optional(),
 });
 
 type KnowledgeArticleForm = z.infer<typeof knowledgeArticleSchema>;
+type UrlKnowledgeForm = z.infer<typeof urlKnowledgeSchema>;
+type FileKnowledgeForm = z.infer<typeof fileKnowledgeSchema>;
 
 interface KnowledgeArticle {
   id: string;
@@ -71,10 +109,22 @@ interface KnowledgeArticle {
   priority: number;
   usageCount: number;
   effectiveness: number;
+  sourceType: 'manual' | 'file' | 'url';
+  fileName?: string;
+  fileType?: string;
+  sourceUrl?: string;
+  assignedAgentIds?: string[];
   createdBy?: string;
   lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface Agent {
+  id: string;
+  name: string;
+  description?: string;
+  isActive: boolean;
 }
 
 const categories = [
@@ -92,12 +142,20 @@ export default function KnowledgeManagementPage() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedSourceType, setSelectedSourceType] = useState<string>("all");
+  const [selectedAgent, setSelectedAgent] = useState<string>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<KnowledgeArticle | null>(null);
+  const [activeTab, setActiveTab] = useState("manual");
 
   // Fetch all knowledge base articles
   const { data: articles = [], isLoading, refetch } = useQuery<KnowledgeArticle[]>({
     queryKey: ['/api/knowledge-base'],
+  });
+
+  // Fetch AI agents for assignment
+  const { data: agents = [] } = useQuery<Agent[]>({
+    queryKey: ['/api/ai-agents'],
   });
 
   // Create article mutation
@@ -107,7 +165,7 @@ export default function KnowledgeManagementPage() {
         ...data,
         tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
       };
-      return apiRequest('/api/knowledge-base', 'POST', payload);
+      return apiRequest('POST', '/api/knowledge-base', payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
@@ -133,7 +191,7 @@ export default function KnowledgeManagementPage() {
         ...data,
         tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
       };
-      return apiRequest(`/api/knowledge-base/${id}`, 'PUT', payload);
+      return apiRequest('PUT', `/api/knowledge-base/${id}`, payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
@@ -154,7 +212,7 @@ export default function KnowledgeManagementPage() {
 
   // Delete article mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiRequest(`/api/knowledge-base/${id}`, 'DELETE'),
+    mutationFn: (id: string) => apiRequest('DELETE', `/api/knowledge-base/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
       toast({
@@ -171,7 +229,66 @@ export default function KnowledgeManagementPage() {
     },
   });
 
-  // Filter articles based on search and category
+  // URL knowledge creation mutation
+  const createFromUrlMutation = useMutation({
+    mutationFn: (data: UrlKnowledgeForm) => {
+      const payload = {
+        ...data,
+        tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
+        sourceType: 'url' as const,
+      };
+      return apiRequest('POST', '/api/knowledge-base/from-url', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
+      setIsCreateDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Knowledge article created from URL successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create knowledge article from URL.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // File upload mutation
+  const createFromFilesMutation = useMutation({
+    mutationFn: (data: { files: FileList; category: string; tags: string; priority: number; assignedAgentIds?: string[] }) => {
+      const formData = new FormData();
+      Array.from(data.files).forEach((file) => {
+        formData.append('files', file);
+      });
+      formData.append('category', data.category);
+      formData.append('tags', data.tags);
+      formData.append('priority', data.priority.toString());
+      if (data.assignedAgentIds) {
+        formData.append('assignedAgentIds', JSON.stringify(data.assignedAgentIds));
+      }
+      return apiRequest('POST', '/api/knowledge-base/from-files', formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
+      setIsCreateDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Knowledge articles created from files successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create knowledge articles from files.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Filter articles based on search, category, source type, and agent
   const filteredArticles = articles.filter(article => {
     const matchesSearch = searchQuery === "" || 
       article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -179,8 +296,11 @@ export default function KnowledgeManagementPage() {
       article.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
     
     const matchesCategory = selectedCategory === "all" || article.category === selectedCategory;
+    const matchesSourceType = selectedSourceType === "all" || article.sourceType === selectedSourceType;
+    const matchesAgent = selectedAgent === "all" || 
+      (article.assignedAgentIds && article.assignedAgentIds.includes(selectedAgent));
     
-    return matchesSearch && matchesCategory;
+    return matchesSearch && matchesCategory && matchesSourceType && matchesAgent;
   });
 
   // Calculate summary statistics
@@ -203,21 +323,59 @@ export default function KnowledgeManagementPage() {
           <DialogTrigger asChild>
             <Button data-testid="button-create-article">
               <Plus className="w-4 h-4 mr-2" />
-              Create Article
+              Add Knowledge
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create Knowledge Article</DialogTitle>
+              <DialogTitle>Add Knowledge Base Content</DialogTitle>
               <DialogDescription>
-                Create a new knowledge base article for AI agents to reference.
+                Add content to the knowledge base through manual entry, file upload, or URL.
               </DialogDescription>
             </DialogHeader>
-            <KnowledgeArticleForm
-              onSubmit={(data) => createMutation.mutate(data)}
-              isSubmitting={createMutation.isPending}
-              onCancel={() => setIsCreateDialogOpen(false)}
-            />
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid grid-cols-3 w-full">
+                <TabsTrigger value="manual" className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Manual Entry
+                </TabsTrigger>
+                <TabsTrigger value="files" className="flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  File Upload
+                </TabsTrigger>
+                <TabsTrigger value="url" className="flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  From URL
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="manual" className="mt-4">
+                <KnowledgeArticleForm
+                  onSubmit={(data) => createMutation.mutate(data)}
+                  isSubmitting={createMutation.isPending}
+                  onCancel={() => setIsCreateDialogOpen(false)}
+                  agents={agents}
+                />
+              </TabsContent>
+              
+              <TabsContent value="files" className="mt-4">
+                <FileUploadForm
+                  onSubmit={(data) => createFromFilesMutation.mutate(data)}
+                  isSubmitting={createFromFilesMutation.isPending}
+                  onCancel={() => setIsCreateDialogOpen(false)}
+                  agents={agents}
+                />
+              </TabsContent>
+              
+              <TabsContent value="url" className="mt-4">
+                <UrlKnowledgeForm
+                  onSubmit={(data) => createFromUrlMutation.mutate(data)}
+                  isSubmitting={createFromUrlMutation.isPending}
+                  onCancel={() => setIsCreateDialogOpen(false)}
+                  agents={agents}
+                />
+              </TabsContent>
+            </Tabs>
           </DialogContent>
         </Dialog>
       </div>
@@ -289,6 +447,7 @@ export default function KnowledgeManagementPage() {
             data-testid="input-search"
           />
         </div>
+        
         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
           <SelectTrigger className="w-[200px]" data-testid="select-category">
             <SelectValue placeholder="All Categories" />
@@ -298,6 +457,32 @@ export default function KnowledgeManagementPage() {
             {categories.map((category) => (
               <SelectItem key={category} value={category}>
                 {category}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        
+        <Select value={selectedSourceType} onValueChange={setSelectedSourceType}>
+          <SelectTrigger className="w-[150px]" data-testid="select-source-type">
+            <SelectValue placeholder="All Sources" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sources</SelectItem>
+            <SelectItem value="manual">Manual Entry</SelectItem>
+            <SelectItem value="file">File Upload</SelectItem>
+            <SelectItem value="url">URL Import</SelectItem>
+          </SelectContent>
+        </Select>
+        
+        <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+          <SelectTrigger className="w-[200px]" data-testid="select-agent">
+            <SelectValue placeholder="All Agents" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Agents</SelectItem>
+            {agents.map((agent) => (
+              <SelectItem key={agent.id} value={agent.id}>
+                {agent.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -353,6 +538,18 @@ export default function KnowledgeManagementPage() {
                       {!article.isActive && (
                         <Badge variant="secondary">Inactive</Badge>
                       )}
+                      {/* Source Type Badge */}
+                      <Badge variant="outline" className="text-xs">
+                        {article.sourceType === 'manual' && (
+                          <><FileText className="w-3 h-3 mr-1" />Manual</>
+                        )}
+                        {article.sourceType === 'file' && (
+                          <><File className="w-3 h-3 mr-1" />File</>
+                        )}
+                        {article.sourceType === 'url' && (
+                          <><Globe className="w-3 h-3 mr-1" />URL</>
+                        )}
+                      </Badge>
                     </div>
                     
                     <p className="text-muted-foreground mb-4 line-clamp-2">
@@ -362,24 +559,65 @@ export default function KnowledgeManagementPage() {
                       }
                     </p>
 
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                      <span className="flex items-center gap-1">
-                        <Tag className="w-3 h-3" />
-                        {article.category}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3" />
-                        Used {article.usageCount} times
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Target className="w-3 h-3" />
-                        {article.effectiveness}% effective
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Priority {article.priority}
-                      </span>
+                    <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground mb-3">
+                      <div className="space-y-1">
+                        <span className="flex items-center gap-1">
+                          <Tag className="w-3 h-3" />
+                          {article.category}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3" />
+                          Used {article.usageCount} times
+                        </span>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="flex items-center gap-1">
+                          <Target className="w-3 h-3" />
+                          {article.effectiveness}% effective
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Priority {article.priority}
+                        </span>
+                      </div>
                     </div>
+                    
+                    {/* File or URL Information */}
+                    {article.sourceType === 'file' && article.fileName && (
+                      <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                        <File className="w-3 h-3" />
+                        <span>{article.fileName}</span>
+                        {article.fileType && <span>({article.fileType})</span>}
+                      </div>
+                    )}
+                    {article.sourceType === 'url' && article.sourceUrl && (
+                      <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                        <Link className="w-3 h-3" />
+                        <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer" className="hover:underline truncate max-w-[300px]">
+                          {article.sourceUrl}
+                        </a>
+                      </div>
+                    )}
+                    
+                    {/* Assigned Agents */}
+                    {article.assignedAgentIds && article.assignedAgentIds.length > 0 && (
+                      <div className="text-xs text-muted-foreground mb-2">
+                        <span className="flex items-center gap-1 mb-1">
+                          <User className="w-3 h-3" />
+                          Assigned Agents:
+                        </span>
+                        <div className="flex gap-1 flex-wrap">
+                          {article.assignedAgentIds.map((agentId) => {
+                            const agent = agents.find(a => a.id === agentId);
+                            return (
+                              <Badge key={agentId} variant="secondary" className="text-xs">
+                                {agent?.name || 'Unknown Agent'}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {article.tags && article.tags.length > 0 && (
                       <div className="flex gap-1 flex-wrap">
@@ -458,11 +696,13 @@ function KnowledgeArticleForm({
   onSubmit,
   isSubmitting,
   onCancel,
+  agents = [],
 }: {
   defaultValues?: Partial<KnowledgeArticleForm>;
   onSubmit: (data: KnowledgeArticleForm) => void;
   isSubmitting: boolean;
   onCancel: () => void;
+  agents?: Agent[];
 }) {
   const form = useForm<KnowledgeArticleForm>({
     resolver: zodResolver(knowledgeArticleSchema),
@@ -593,17 +833,54 @@ function KnowledgeArticleForm({
           />
         </div>
 
+        {/* Agent Assignment */}
+        {agents.length > 0 && (
+          <FormField
+            control={form.control}
+            name="assignedAgentIds"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Assign to AI Agents</FormLabel>
+                <FormDescription>
+                  Select which AI agents can access this knowledge article
+                </FormDescription>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {agents.map((agent) => (
+                    <div key={agent.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`agent-${agent.id}`}
+                        checked={field.value?.includes(agent.id) || false}
+                        onCheckedChange={(checked) => {
+                          const currentIds = field.value || [];
+                          if (checked) {
+                            field.onChange([...currentIds, agent.id]);
+                          } else {
+                            field.onChange(currentIds.filter(id => id !== agent.id));
+                          }
+                        }}
+                        data-testid={`checkbox-agent-${agent.id}`}
+                      />
+                      <Label htmlFor={`agent-${agent.id}`} className="text-sm">
+                        {agent.name}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
         <FormField
           control={form.control}
           name="isActive"
           render={({ field }) => (
             <FormItem className="flex flex-row items-start space-x-3 space-y-0">
               <FormControl>
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={field.value}
-                  onChange={field.onChange}
-                  className="mt-2"
+                  onCheckedChange={field.onChange}
                   data-testid="checkbox-active"
                 />
               </FormControl>
@@ -625,6 +902,365 @@ function KnowledgeArticleForm({
           </Button>
           <Button type="submit" disabled={isSubmitting} data-testid="button-save-article">
             {isSubmitting ? "Saving..." : "Save Article"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
+  );
+}
+
+// File upload form component
+function FileUploadForm({
+  onSubmit,
+  isSubmitting,
+  onCancel,
+  agents = [],
+}: {
+  onSubmit: (data: { files: FileList; category: string; tags: string; priority: number; assignedAgentIds?: string[] }) => void;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  agents?: Agent[];
+}) {
+  const form = useForm({
+    resolver: zodResolver(fileKnowledgeSchema),
+    defaultValues: {
+      category: "",
+      tags: "",
+      priority: 50,
+      assignedAgentIds: [],
+    },
+  });
+
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+
+  const handleSubmit = (data: any) => {
+    if (selectedFiles) {
+      onSubmit({
+        files: selectedFiles,
+        category: data.category,
+        tags: data.tags,
+        priority: data.priority,
+        assignedAgentIds: data.assignedAgentIds,
+      });
+    }
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        {/* File Upload */}
+        <div className="space-y-2">
+          <Label htmlFor="file-upload">Upload Files</Label>
+          <Input
+            id="file-upload"
+            type="file"
+            multiple
+            accept=".txt,.md,.pdf,.doc,.docx"
+            onChange={(e) => {
+              setSelectedFiles(e.target.files);
+              form.setValue('files', e.target.files);
+            }}
+            className="cursor-pointer"
+            data-testid="input-files"
+          />
+          <p className="text-xs text-muted-foreground">
+            Supported formats: TXT, MD, PDF, DOC, DOCX. Multiple files can be selected.
+          </p>
+          {selectedFiles && selectedFiles.length > 0 && (
+            <div className="mt-2">
+              <p className="text-sm font-medium mb-1">Selected files:</p>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                {Array.from(selectedFiles).map((file, index) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <File className="w-3 h-3" />
+                    <span>{file.name}</span>
+                    <span className="text-xs">({(file.size / 1024).toFixed(1)} KB)</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <FormField
+          control={form.control}
+          name="category"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Category</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger data-testid="select-category-file">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="tags"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tags</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="billing, technical, setup (comma-separated)"
+                    {...field}
+                    data-testid="input-tags-file"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="priority"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Priority (1-100)</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number"
+                    min="1"
+                    max="100"
+                    placeholder="50"
+                    value={field.value}
+                    onChange={(e) => field.onChange(Number(e.target.value) || 50)}
+                    data-testid="input-priority-file"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Agent Assignment */}
+        {agents.length > 0 && (
+          <FormField
+            control={form.control}
+            name="assignedAgentIds"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Assign to AI Agents</FormLabel>
+                <FormDescription>
+                  Select which AI agents can access this knowledge
+                </FormDescription>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {agents.map((agent) => (
+                    <div key={agent.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`file-agent-${agent.id}`}
+                        checked={field.value?.includes(agent.id) || false}
+                        onCheckedChange={(checked) => {
+                          const currentIds = field.value || [];
+                          if (checked) {
+                            field.onChange([...currentIds, agent.id]);
+                          } else {
+                            field.onChange(currentIds.filter(id => id !== agent.id));
+                          }
+                        }}
+                        data-testid={`checkbox-file-agent-${agent.id}`}
+                      />
+                      <Label htmlFor={`file-agent-${agent.id}`} className="text-sm">
+                        {agent.name}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting || !selectedFiles} data-testid="button-upload-files">
+            {isSubmitting ? "Uploading..." : "Upload Files"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </Form>
+  );
+}
+
+// URL knowledge form component
+function UrlKnowledgeForm({
+  onSubmit,
+  isSubmitting,
+  onCancel,
+  agents = [],
+}: {
+  onSubmit: (data: UrlKnowledgeForm) => void;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  agents?: Agent[];
+}) {
+  const form = useForm<UrlKnowledgeForm>({
+    resolver: zodResolver(urlKnowledgeSchema),
+    defaultValues: {
+      url: "",
+      category: "",
+      tags: "",
+      priority: 50,
+      assignedAgentIds: [],
+    },
+  });
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="url"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Website URL</FormLabel>
+              <FormControl>
+                <Input 
+                  placeholder="https://example.com/article"
+                  type="url"
+                  {...field}
+                  data-testid="input-url"
+                />
+              </FormControl>
+              <FormDescription>
+                The system will extract content from this URL and create knowledge articles
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="category"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Category</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger data-testid="select-category-url">
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="tags"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tags</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="billing, technical, setup (comma-separated)"
+                    {...field}
+                    data-testid="input-tags-url"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="priority"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Priority (1-100)</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number"
+                    min="1"
+                    max="100"
+                    placeholder="50"
+                    value={field.value}
+                    onChange={(e) => field.onChange(Number(e.target.value) || 50)}
+                    data-testid="input-priority-url"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Agent Assignment */}
+        {agents.length > 0 && (
+          <FormField
+            control={form.control}
+            name="assignedAgentIds"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Assign to AI Agents</FormLabel>
+                <FormDescription>
+                  Select which AI agents can access this knowledge
+                </FormDescription>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {agents.map((agent) => (
+                    <div key={agent.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`url-agent-${agent.id}`}
+                        checked={field.value?.includes(agent.id) || false}
+                        onCheckedChange={(checked) => {
+                          const currentIds = field.value || [];
+                          if (checked) {
+                            field.onChange([...currentIds, agent.id]);
+                          } else {
+                            field.onChange(currentIds.filter(id => id !== agent.id));
+                          }
+                        }}
+                        data-testid={`checkbox-url-agent-${agent.id}`}
+                      />
+                      <Label htmlFor={`url-agent-${agent.id}`} className="text-sm">
+                        {agent.name}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting} data-testid="button-import-url">
+            {isSubmitting ? "Importing..." : "Import from URL"}
           </Button>
         </DialogFooter>
       </form>

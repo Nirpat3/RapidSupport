@@ -2033,6 +2033,33 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Helper function to synchronize agent assignments
+  async function syncAgentKnowledgeAssignments(articleId: string, assignedAgentIds: string[] = []) {
+    try {
+      // Get all AI agents
+      const allAgents = await storage.getAllAiAgents?.() || [];
+      
+      for (const agent of allAgents) {
+        const currentKbIds = agent.knowledgeBaseIds || [];
+        const shouldHaveAccess = assignedAgentIds.includes(agent.id);
+        const currentlyHasAccess = currentKbIds.includes(articleId);
+        
+        if (shouldHaveAccess && !currentlyHasAccess) {
+          // Add article to agent's knowledge base
+          const updatedKbIds = [...currentKbIds, articleId];
+          await storage.updateAiAgent?.(agent.id, { knowledgeBaseIds: updatedKbIds });
+        } else if (!shouldHaveAccess && currentlyHasAccess) {
+          // Remove article from agent's knowledge base
+          const updatedKbIds = currentKbIds.filter(id => id !== articleId);
+          await storage.updateAiAgent?.(agent.id, { knowledgeBaseIds: updatedKbIds });
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing agent knowledge assignments:', error);
+      // Don't throw - this is a secondary operation
+    }
+  }
+
   // Knowledge Base Management API routes
   // Get all knowledge base articles
   app.get('/api/knowledge-base', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
@@ -2083,6 +2110,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
 
       const newArticle = await storage.createKnowledgeBase(validationResult.data);
+      
+      // Sync agent assignments
+      if (validationResult.data.assignedAgentIds) {
+        await syncAgentKnowledgeAssignments(newArticle.id, validationResult.data.assignedAgentIds);
+      }
+      
       res.status(201).json(newArticle);
     } catch (error) {
       console.error('Failed to create knowledge base article:', error);
@@ -2115,6 +2148,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       await storage.updateKnowledgeBase(id, validationResult.data);
       
+      // Sync agent assignments if they changed
+      if (validationResult.data.assignedAgentIds !== undefined) {
+        await syncAgentKnowledgeAssignments(id, validationResult.data.assignedAgentIds);
+      }
+      
       // Return updated article
       const updatedArticle = await storage.getKnowledgeBase(id);
       res.json(updatedArticle);
@@ -2135,11 +2173,126 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(404).json({ error: 'Knowledge base article not found' });
       }
 
+      // Remove from all agent assignments before deleting
+      await syncAgentKnowledgeAssignments(id, []);
+      
       await storage.deleteKnowledgeBase(id);
       res.json({ success: true, message: 'Knowledge base article deleted successfully' });
     } catch (error) {
       console.error('Failed to delete knowledge base article:', error);
       res.status(500).json({ error: 'Failed to delete knowledge base article' });
+    }
+  });
+
+  // Create knowledge base articles from file uploads
+  app.post('/api/knowledge-base/from-files', requireAuth, requireRole(['admin', 'agent']), upload.array('files', 10), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const files = req.files as Express.Multer.File[];
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: 'No files provided' });
+      }
+
+      const { category, tags, priority, assignedAgentIds } = req.body;
+      
+      // Validate required fields
+      if (!category) {
+        return res.status(400).json({ error: 'Category is required' });
+      }
+
+      const articles = [];
+      const fs = require('fs');
+      
+      for (const file of files) {
+        try {
+          let content = '';
+          
+          // Extract content based on file type
+          if (file.mimetype === 'text/plain') {
+            content = fs.readFileSync(file.path, 'utf-8');
+          } else if (file.mimetype === 'application/pdf') {
+            // For now, just store file info - could add PDF text extraction later
+            content = `PDF file: ${file.originalname}\n\nThis PDF has been uploaded to the knowledge base. File size: ${(file.size / 1024).toFixed(1)} KB`;
+          } else {
+            // For other document types, store basic info
+            content = `Document: ${file.originalname}\n\nFile type: ${file.mimetype}\nFile size: ${(file.size / 1024).toFixed(1)} KB\n\nThis document has been uploaded to the knowledge base.`;
+          }
+
+          const articleData = {
+            title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
+            content,
+            category,
+            tags: tags ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [],
+            priority: priority ? parseInt(priority) : 50,
+            isActive: true,
+            sourceType: 'file' as const,
+            fileName: file.originalname,
+            fileType: file.mimetype,
+            fileSize: file.size,
+            filePath: file.path,
+            assignedAgentIds: assignedAgentIds ? JSON.parse(assignedAgentIds) : [],
+            createdBy: user.id,
+          };
+
+          const article = await storage.createKnowledgeBase(articleData);
+          articles.push(article);
+        } catch (fileError) {
+          console.error(`Error processing file ${file.originalname}:`, fileError);
+          // Continue with other files, don't fail entire request
+        }
+      }
+
+      res.status(201).json({ 
+        success: true, 
+        message: `${articles.length} knowledge articles created successfully`,
+        articles 
+      });
+    } catch (error) {
+      console.error('Failed to create knowledge base articles from files:', error);
+      res.status(500).json({ error: 'Failed to create knowledge base articles from files' });
+    }
+  });
+
+  // Create knowledge base article from URL
+  app.post('/api/knowledge-base/from-url', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { url, category, tags, priority, assignedAgentIds } = req.body;
+      
+      // Validate required fields
+      if (!url || !category) {
+        return res.status(400).json({ error: 'URL and category are required' });
+      }
+
+      // Basic URL validation
+      try {
+        new URL(url);
+      } catch {
+        return res.status(400).json({ error: 'Invalid URL format' });
+      }
+
+      // For now, create a placeholder article - could add web scraping later
+      const articleData = {
+        title: `Content from ${url}`,
+        content: `This content was imported from: ${url}\n\nURL import functionality is set up. Web scraping can be implemented to automatically extract content from this URL.`,
+        category,
+        tags: tags ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [],
+        priority: priority ? parseInt(priority) : 50,
+        isActive: true,
+        sourceType: 'url' as const,
+        sourceUrl: url,
+        urlTitle: `Content from ${url}`,
+        urlDescription: 'Imported from URL',
+        assignedAgentIds: assignedAgentIds || [],
+        createdBy: user.id,
+      };
+
+      const article = await storage.createKnowledgeBase(articleData);
+      res.status(201).json(article);
+    } catch (error) {
+      console.error('Failed to create knowledge base article from URL:', error);
+      res.status(500).json({ error: 'Failed to create knowledge base article from URL' });
     }
   });
 
