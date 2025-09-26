@@ -32,6 +32,7 @@ export interface AIAgentResponse {
   suggestedActions: string[];
   knowledgeUsed?: string[];
   agentId?: string;
+  format?: 'regular' | 'steps'; // Format type for response presentation
 }
 
 export interface SmartAgentResponse extends AIAgentResponse {
@@ -91,7 +92,13 @@ If no improvements are needed, return hasChanges: false and suggestedText should
         max_tokens: 1000,
       });
 
-      const result = JSON.parse(completion.choices[0].message.content || '{}');
+      // Parse AI response, handling markdown code blocks if present
+      let responseContent = completion.choices[0].message.content || '{}';
+      
+      // Remove markdown code blocks if present (```json ... ```)
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
       
       return {
         originalText: message,
@@ -149,7 +156,13 @@ Provide a JSON response with:
         max_tokens: 1500,
       });
 
-      const result = JSON.parse(completion.choices[0].message.content || '{}');
+      // Parse AI response, handling markdown code blocks if present
+      let responseContent = completion.choices[0].message.content || '{}';
+      
+      // Remove markdown code blocks if present (```json ... ```)
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
       
       return {
         summary: result.summary || 'Conversation analysis not available',
@@ -214,6 +227,13 @@ Provide a JSON response with:
 - confidence: Number from 0-100 indicating confidence in your response
 - requiresHumanTakeover: Boolean if human agent should take over
 - suggestedActions: Array of recommended next steps
+- format: Either "regular" or "steps" (use "steps" for instruction-based queries)
+
+FORMATTING GUIDELINES:
+- Use format: "steps" for how-to questions, tutorials, troubleshooting, setup instructions, or process explanations
+- Use format: "regular" for simple answers, information requests, or general inquiries
+- When using "steps" format, structure your response with numbered steps:
+  "1. First step description\n2. Second step description\n3. Third step description"
 
 IMPORTANT: If no relevant knowledge base information is available, set requiresHumanTakeover to true and explain that you need to connect them with a human agent who can help with their specific question.`;
 
@@ -227,13 +247,39 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         max_tokens: 1000,
       });
 
-      const result = JSON.parse(completion.choices[0].message.content || '{}');
+      // Parse AI response, handling markdown code blocks if present
+      let responseContent = completion.choices[0].message.content || '{}';
+      
+      // Remove markdown code blocks if present (```json ... ```)
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
+      
+      // Server-side fallback: Detect step-by-step content and instructional queries
+      let finalFormat = result.format || 'regular';
+      const response = result.response || 'I apologize, but I need to connect you with a human agent for assistance.';
+      
+      // Check if response contains numbered steps (1., 2., 3. or 1), 2), 3) or 1 -, 2 -, 3 -)
+      // Handle both multi-line and single-line numbered formats
+      const hasNumberedSteps = /\d+[.)]\s+.*(\n.*\d+[.)]\s+|\s+\d+[.)]\s+)/.test(response) || 
+                               /\d+\s+-\s+.*(\n.*\d+\s+-\s+|\s+\d+\s+-\s+)/.test(response) ||
+                               /\d+[.)]\s+.*\s+\d+[.)]\s+/.test(response); // Single line pattern
+      
+      // Check if customer message looks instructional
+      const instructionalKeywords = /\b(how\s+(do\s+i|to)|setup|install|configure|reset|troubleshoot|steps|guide|tutorial|instructions|process)\b/i;
+      const isInstructionalQuery = instructionalKeywords.test(customerMessage);
+      
+      // Override format if we detect step content or instructional query
+      if ((hasNumberedSteps || isInstructionalQuery) && finalFormat === 'regular') {
+        finalFormat = 'steps';
+      }
       
       return {
-        response: result.response || 'I apologize, but I need to connect you with a human agent for assistance.',
+        response,
         confidence: result.confidence || 50,
         requiresHumanTakeover: result.requiresHumanTakeover || true,
         suggestedActions: result.suggestedActions || ['Connect with human agent'],
+        format: finalFormat,
       };
     } catch (error) {
       console.error('Error generating AI response:', error);
@@ -242,6 +288,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         confidence: 0,
         requiresHumanTakeover: true,
         suggestedActions: ['Connect with human agent'],
+        format: 'regular',
       };
     }
   }
@@ -526,6 +573,13 @@ Respond according to your role and training. Provide a JSON response with:
 - confidence: Number from 0-100 indicating confidence in your response
 - requiresHumanTakeover: Boolean if human agent should take over
 - suggestedActions: Array of recommended next steps
+- format: Either "regular" or "steps" (use "steps" for instruction-based queries)
+
+FORMATTING GUIDELINES:
+- Use format: "steps" for how-to questions, tutorials, troubleshooting, setup instructions, or process explanations
+- Use format: "regular" for simple answers, information requests, or general inquiries
+- When using "steps" format, structure your response with numbered steps:
+  "1. First step description\n2. Second step description\n3. Third step description"
 
 CRITICAL GUIDELINES:
 - You MUST ONLY use information from the provided Knowledge Base
@@ -552,7 +606,13 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
         max_tokens: agent.maxTokens || 1000,
       });
 
-      const result = JSON.parse(completion.choices[0].message.content || '{}');
+      // Parse AI response, handling markdown code blocks if present
+      let responseContent = completion.choices[0].message.content || '{}';
+      
+      // Remove markdown code blocks if present (```json ... ```)
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
       
       // Update knowledge base usage statistics (if storage methods exist)
       if (knowledgeArticles.length > 0) {
@@ -565,16 +625,36 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
         }
       }
 
+      // Server-side fallback: Detect step-by-step content and instructional queries  
+      let finalFormat = result.format || 'regular';
+      const response = result.response || 'I apologize, but I need to connect you with a human agent for assistance.';
+      
+      // Check if response contains numbered steps (1., 2., 3. or 1), 2), 3) or 1 -, 2 -, 3 -)
+      // Handle both multi-line and single-line numbered formats
+      const hasNumberedSteps = /\d+[.)]\s+.*(\n.*\d+[.)]\s+|\s+\d+[.)]\s+)/.test(response) || 
+                               /\d+\s+-\s+.*(\n.*\d+\s+-\s+|\s+\d+\s+-\s+)/.test(response) ||
+                               /\d+[.)]\s+.*\s+\d+[.)]\s+/.test(response); // Single line pattern
+      
+      // Check if customer message looks instructional
+      const instructionalKeywords = /\b(how\s+(do\s+i|to)|setup|install|configure|reset|troubleshoot|steps|guide|tutorial|instructions|process)\b/i;
+      const isInstructionalQuery = instructionalKeywords.test(customerMessage);
+      
+      // Override format if we detect step content or instructional query
+      if ((hasNumberedSteps || isInstructionalQuery) && finalFormat === 'regular') {
+        finalFormat = 'steps';
+      }
+
       // Force human takeover if no knowledge articles are available
       const shouldForceHumanTakeover = knowledgeArticles.length === 0;
       
       return {
-        response: result.response || 'I apologize, but I need to connect you with a human agent for assistance.',
+        response,
         confidence: shouldForceHumanTakeover ? Math.min(result.confidence || 20, 20) : (result.confidence || 50),
         requiresHumanTakeover: shouldForceHumanTakeover || result.requiresHumanTakeover || false,
         suggestedActions: result.suggestedActions || ['Connect with human agent'],
         knowledgeUsed: knowledgeArticles.map(kb => kb.id),
         agentId: agent.id,
+        format: finalFormat,
       };
     } catch (error) {
       console.error('Error generating agent response with config:', error);
@@ -584,6 +664,7 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
         requiresHumanTakeover: true,
         suggestedActions: ['Connect with human agent'],
         agentId: agent.id,
+        format: 'regular',
       };
     }
   }

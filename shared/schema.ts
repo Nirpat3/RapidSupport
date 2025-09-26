@@ -166,6 +166,7 @@ export const aiAgentLearning = pgTable("ai_agent_learning", {
   knowledgeUsed: text("knowledge_used").array(), // Which knowledge base articles were referenced
   improvementSuggestion: text("improvement_suggestion"), // Human feedback for improvement
   wasHelpful: boolean("was_helpful"), // Simple yes/no feedback
+  responseFormat: text("response_format").default('regular'), // Format type: 'regular' or 'steps'
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

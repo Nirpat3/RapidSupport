@@ -1475,7 +1475,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
               userRole: 'agent',
               senderType: message.senderType,
               timestamp: message.timestamp,
-              status: message.status
+              status: message.status,
+              format: aiResponse.format // Include AI response format for step-by-step rendering
             });
           }
         }
