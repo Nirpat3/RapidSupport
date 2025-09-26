@@ -2631,7 +2631,6 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       const articles = [];
       const errors = [];
-      const fs = require('fs');
       
       for (const file of files) {
         try {

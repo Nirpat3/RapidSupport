@@ -202,13 +202,19 @@ export default function ConversationsPage() {
   });
 
   // Set first conversation as active if none selected (use effect to avoid setState during render)
-  // Only auto-select on mobile devices to keep desktop list view available
+  // Only auto-select on actual mobile devices to keep desktop list view available
   useEffect(() => {
     if (!activeConversationId && formattedConversations.length > 0) {
-      // Only auto-select on mobile (screen width < 1024px)
-      const isMobile = window.innerWidth < 1024;
-      if (isMobile) {
-        console.log('Setting first conversation as active on mobile:', formattedConversations[0].id);
+      // Check if it's an actual mobile device using user agent and screen width
+      const userAgent = navigator.userAgent;
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+      const isSmallScreen = window.innerWidth < 768; // Use 768px instead of 1024px
+      
+      // Only auto-select if it's both a mobile device AND has a small screen
+      const shouldAutoSelect = isMobileDevice && isSmallScreen;
+      
+      if (shouldAutoSelect) {
+        console.log('Setting first conversation as active on mobile device:', formattedConversations[0].id);
         setActiveConversationId(formattedConversations[0].id);
       }
     }

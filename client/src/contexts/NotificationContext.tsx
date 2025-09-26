@@ -63,7 +63,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     }
 
     setLastSeenConversations(currentConversationIds);
-  }, [conversations, lastSeenConversations]);
+  }, [conversations]); // Remove lastSeenConversations from dependency array to prevent infinite loop
 
   // WebSocket connection for real-time notifications
   useEffect(() => {
@@ -143,7 +143,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
   const addUnreadConversation = (conversationId: string, customerName: string, preview: string) => {
     // Prevent duplicate toasts for the same conversation
-    const toastId = `${conversationId}-${Date.now()}`;
     if (recentToastIds.has(conversationId)) {
       return;
     }

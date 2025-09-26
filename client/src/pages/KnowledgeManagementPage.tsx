@@ -91,7 +91,6 @@ const urlKnowledgeSchema = z.object({
 });
 
 const fileKnowledgeSchema = z.object({
-  files: z.any().refine((files) => files && files.length > 0, "Please select at least one file"),
   category: z.string().min(1, "Category is required"),
   tags: z.string().optional(),
   priority: z.number().min(1).max(100).default(50),
@@ -994,15 +993,21 @@ function FileUploadForm({
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
 
   const handleSubmit = (data: any) => {
-    if (selectedFiles) {
-      onSubmit({
-        files: selectedFiles,
-        category: data.category,
-        tags: data.tags,
-        priority: data.priority,
-        assignedAgentIds: data.assignedAgentIds,
+    if (!selectedFiles || selectedFiles.length === 0) {
+      form.setError("root", {
+        type: "manual",
+        message: "Please select at least one file to upload."
       });
+      return;
     }
+    
+    onSubmit({
+      files: selectedFiles,
+      category: data.category,
+      tags: data.tags,
+      priority: data.priority,
+      assignedAgentIds: data.assignedAgentIds,
+    });
   };
 
   return (
@@ -1145,6 +1150,13 @@ function FileUploadForm({
               </FormItem>
             )}
           />
+        )}
+
+        {/* Display form errors */}
+        {form.formState.errors.root && (
+          <div className="text-sm text-destructive">
+            {form.formState.errors.root.message}
+          </div>
         )}
 
         <DialogFooter>

@@ -488,6 +488,14 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick(
   priority: true,
   createdBy: true,
   assignedAgentIds: true,
+  sourceType: true,
+  fileName: true,
+  fileType: true,
+  fileSize: true,
+  filePath: true,
+  sourceUrl: true,
+  urlTitle: true,
+  urlDescription: true,
 });
 
 export const updateKnowledgeBaseSchema = insertKnowledgeBaseSchema.partial();
