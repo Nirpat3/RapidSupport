@@ -77,8 +77,25 @@ export const dashboardApi = {
 
 // Customers API
 export const customersApi = {
-  getAll: async (): Promise<Customer[]> => {
-    const response = await fetch('/api/customers', {
+  getAll: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sortBy?: 'createdAt' | 'updatedAt' | 'name';
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> => {
+    const queryParams = new URLSearchParams();
+    
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.search) queryParams.append('search', params.search);
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params?.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+
+    const url = `/api/customers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const response = await fetch(url, {
       credentials: 'include'
     });
     if (!response.ok) {

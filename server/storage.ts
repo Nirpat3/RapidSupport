@@ -28,7 +28,7 @@ import {
   type InsertAgentWorkload,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or } from "drizzle-orm";
+import { eq, desc, and, or, sql } from "drizzle-orm";
 
 // Updated interface for all CRUD operations
 export interface IStorage {
@@ -176,8 +176,76 @@ export class DatabaseStorage implements IStorage {
       .where(eq(customers.id, id));
   }
 
-  async getAllCustomers(): Promise<Customer[]> {
-    return await db.select().from(customers).orderBy(desc(customers.updatedAt));
+  async getAllCustomers(options?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sortBy?: 'createdAt' | 'updatedAt' | 'name';
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      status,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = options || {};
+
+    let query = db.select().from(customers);
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(customers);
+
+    // Apply filters
+    const whereConditions: any[] = [];
+    
+    if (search) {
+      const searchLower = `%${search.toLowerCase()}%`;
+      whereConditions.push(
+        or(
+          sql`lower(${customers.name}) like ${searchLower}`,
+          sql`lower(${customers.email}) like ${searchLower}`,
+          sql`lower(${customers.company}) like ${searchLower}`
+        )
+      );
+    }
+
+    if (status) {
+      whereConditions.push(eq(customers.status, status));
+    }
+
+    if (whereConditions.length > 0) {
+      const whereClause = whereConditions.length === 1 ? whereConditions[0] : and(...whereConditions);
+      query = query.where(whereClause);
+      countQuery = countQuery.where(whereClause);
+    }
+
+    // Apply sorting
+    const sortColumn = sortBy === 'createdAt' ? customers.createdAt
+                      : sortBy === 'updatedAt' ? customers.updatedAt 
+                      : customers.name;
+    
+    query = query.orderBy(sortOrder === 'desc' ? desc(sortColumn) : sortColumn);
+
+    // Apply pagination
+    const offset = (page - 1) * limit;
+    query = query.limit(limit).offset(offset);
+
+    // Execute queries
+    const [customerResults, countResult] = await Promise.all([
+      query,
+      countQuery
+    ]);
+
+    const total = countResult[0]?.count || 0;
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      customers: customerResults,
+      total,
+      page,
+      totalPages
+    };
   }
 
   // Conversation operations

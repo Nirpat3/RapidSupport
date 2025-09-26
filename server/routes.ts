@@ -234,9 +234,28 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
   // Customer management routes
   app.get('/api/customers', requireAuth, async (req, res) => {
     try {
-      const customers = await storage.getAllCustomers();
-      res.json(customers);
+      const {
+        page = 1,
+        limit = 10,
+        search,
+        status,
+        sortBy = 'createdAt',
+        sortOrder = 'desc'
+      } = req.query;
+
+      const options = {
+        page: parseInt(page as string, 10),
+        limit: Math.min(parseInt(limit as string, 10), 100), // Cap at 100 items per page
+        search: search as string,
+        status: status as string,
+        sortBy: (sortBy as string) as 'createdAt' | 'updatedAt' | 'name',
+        sortOrder: (sortOrder as string) as 'asc' | 'desc'
+      };
+
+      const result = await storage.getAllCustomers(options);
+      res.json(result);
     } catch (error) {
+      console.error('Failed to fetch customers:', error);
       res.status(500).json({ error: 'Failed to fetch customers' });
     }
   });
