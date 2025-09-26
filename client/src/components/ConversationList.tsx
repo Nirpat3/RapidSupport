@@ -95,7 +95,10 @@ export default function ConversationList({
                 key={conversation.id}
                 variant={activeConversationId === conversation.id ? "secondary" : "ghost"}
                 className="w-full p-2 sm:p-3 h-auto justify-start hover-elevate mb-1"
-                onClick={() => onSelectConversation?.(conversation.id)}
+                onClick={() => {
+                  console.log('Selecting assigned conversation:', conversation.id);
+                  onSelectConversation?.(conversation.id);
+                }}
                 data-testid={`conversation-${conversation.id}`}
               >
                 <div className="flex items-start gap-2 sm:gap-3 w-full min-w-0">

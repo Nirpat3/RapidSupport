@@ -70,7 +70,16 @@ export default function ChatInterface({
     setTimeout(() => setIsTyping(false), 2000);
   };
 
+  // Debug logging
+  console.log('ChatInterface props:', { conversationId, customer, messagesCount: messages.length });
+  console.log('Messages array:', messages);
+  if (messages.length > 0) {
+    console.log('First message structure:', messages[0]);
+    console.log('First message timestamp type:', typeof messages[0].timestamp);
+  }
+
   if (!conversationId || !customer) {
+    console.log('ChatInterface: No conversation or customer data');
     return (
       <div className="flex-1 flex items-center justify-center bg-background">
         <div className="text-center text-muted-foreground">
@@ -214,14 +223,17 @@ export default function ChatInterface({
 
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-        <div className="space-y-4">
-          {messages.map((message) => (
-            <ChatMessage 
-              key={message.id}
-              message={message}
-              isCurrentUser={message.sender.role !== 'customer'}
-            />
-          ))}
+        <div className="space-y-4" data-testid="messages-container">
+          {messages.map((message) => {
+            console.log('Rendering message:', message.id, message.content);
+            return (
+              <ChatMessage 
+                key={message.id}
+                message={message}
+                isCurrentUser={message.sender.role !== 'customer'}
+              />
+            );
+          })}
           
           {isTyping && (
             <div className="flex items-center gap-3" data-testid="typing-indicator">

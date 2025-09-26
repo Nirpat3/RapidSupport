@@ -203,9 +203,15 @@ export default function ConversationsPage() {
   // Set first conversation as active if none selected (use effect to avoid setState during render)
   useEffect(() => {
     if (!activeConversationId && formattedConversations.length > 0) {
+      console.log('Setting first conversation as active:', formattedConversations[0].id);
       setActiveConversationId(formattedConversations[0].id);
     }
   }, [activeConversationId, formattedConversations]);
+
+  // Get active conversation object
+  const activeConversation = activeConversationId 
+    ? formattedConversations.find(conv => conv.id === activeConversationId) 
+    : null;
 
   // Mark conversation as read when it becomes active
   useEffect(() => {
@@ -213,8 +219,6 @@ export default function ConversationsPage() {
       markAsRead(activeConversationId);
     }
   }, [activeConversationId, markAsRead]);
-
-  const activeConversation = formattedConversations.find(conv => conv.id === activeConversationId);
   
   // Send message mutation
   const sendMessage = useMutation({
@@ -265,7 +269,10 @@ export default function ConversationsPage() {
                   <div 
                     key={conv.id} 
                     className="p-3 rounded border bg-card hover-elevate cursor-pointer"
-                    onClick={() => setActiveConversationId(conv.id)}
+                    onClick={() => {
+                      console.log('Selecting unassigned conversation:', conv.id);
+                      setActiveConversationId(conv.id);
+                    }}
                     data-testid={`unassigned-conversation-${conv.id}`}
                   >
                     <div className="flex items-center justify-between mb-2">
