@@ -23,13 +23,15 @@ const pgPool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+const sessionStore = new PgSession({
+  pool: pgPool,
+  tableName: 'user_sessions',
+  createTableIfMissing: true,
+});
+
 // Session configuration with security hardening
 app.use(session({
-  store: new PgSession({
-    pool: pgPool,
-    tableName: 'user_sessions',
-    createTableIfMissing: true,
-  }),
+  store: sessionStore,
   secret: process.env.SESSION_SECRET || 'dev-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
@@ -77,7 +79,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const { server, wsServer } = await registerRoutes(app);
+  const { server, wsServer } = await registerRoutes(app, sessionStore);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

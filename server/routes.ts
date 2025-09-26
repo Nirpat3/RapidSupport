@@ -124,7 +124,7 @@ const sendCustomerMessageSchema = z.object({
   content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
 });
 
-export async function registerRoutes(app: Express): Promise<{ server: Server, wsServer?: any }> {
+export async function registerRoutes(app: Express, sessionStore?: any): Promise<{ server: Server, wsServer?: any }> {
   // Rate limiting for authentication
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -1428,8 +1428,8 @@ export async function registerRoutes(app: Express): Promise<{ server: Server, ws
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat
-  // Note: We need to pass the session store for authentication
-  const wsServer = new ChatWebSocketServer(httpServer, null);
+  // Pass the session store for authentication
+  const wsServer = new ChatWebSocketServer(httpServer, sessionStore);
   
   // Store WebSocket server reference for use in message broadcasting
   (app as any).wsServer = wsServer;
