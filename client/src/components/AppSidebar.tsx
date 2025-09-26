@@ -24,7 +24,8 @@ import {
   Settings, 
   HelpCircle, 
   LogOut,
-  Shield
+  Shield,
+  TrendingUp
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -69,6 +70,11 @@ const getNavigationItems = (unreadCount: number) => [
     title: "Knowledge Base",
     url: "/knowledge", 
     icon: BookOpen
+  },
+  {
+    title: "Analytics",
+    url: "/analytics", 
+    icon: TrendingUp
   },
   {
     title: "Settings",

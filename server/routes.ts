@@ -2143,6 +2143,61 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Analytics Routes
+  // Get comprehensive agent analytics
+  app.get('/api/analytics/agents', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { dateFrom, dateTo } = req.query;
+      
+      // Parse date parameters
+      const parsedDateFrom = dateFrom ? new Date(dateFrom as string) : undefined;
+      const parsedDateTo = dateTo ? new Date(dateTo as string) : undefined;
+
+      // Validate dates if provided
+      if (dateFrom && isNaN(parsedDateFrom!.getTime())) {
+        return res.status(400).json({ error: 'Invalid dateFrom parameter' });
+      }
+      if (dateTo && isNaN(parsedDateTo!.getTime())) {
+        return res.status(400).json({ error: 'Invalid dateTo parameter' });
+      }
+
+      const analytics = await storage.getAgentAnalytics(parsedDateFrom, parsedDateTo);
+      res.json(analytics);
+    } catch (error) {
+      console.error('Failed to fetch agent analytics:', error);
+      res.status(500).json({ error: 'Failed to fetch agent analytics' });
+    }
+  });
+
+  // Get top performing knowledge articles
+  app.get('/api/analytics/knowledge-articles', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { limit = 10 } = req.query;
+      const parsedLimit = parseInt(limit as string);
+      
+      if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+        return res.status(400).json({ error: 'Limit must be between 1 and 100' });
+      }
+
+      const topArticles = await storage.getTopKnowledgeArticles(parsedLimit);
+      res.json(topArticles);
+    } catch (error) {
+      console.error('Failed to fetch top knowledge articles:', error);
+      res.status(500).json({ error: 'Failed to fetch top knowledge articles' });
+    }
+  });
+
+  // Get agent workload metrics
+  app.get('/api/analytics/workload', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const workloadMetrics = await storage.getAgentWorkloadMetrics();
+      res.json(workloadMetrics);
+    } catch (error) {
+      console.error('Failed to fetch agent workload metrics:', error);
+      res.status(500).json({ error: 'Failed to fetch agent workload metrics' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat

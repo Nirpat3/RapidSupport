@@ -18,6 +18,7 @@ import CustomerChatPage from "@/pages/CustomerChatPage";
 import AIAgentsPage from "@/pages/AIAgentsPage";
 import StaffTakeoverPage from "@/pages/StaffTakeoverPage";
 import KnowledgeManagementPage from "@/pages/KnowledgeManagementPage";
+import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/ai-agents" component={AIAgentsPage} />
       <Route path="/ai-takeover" component={StaffTakeoverPage} />
       <Route path="/knowledge" component={KnowledgeManagementPage} />
+      <Route path="/analytics" component={AgentAnalyticsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>

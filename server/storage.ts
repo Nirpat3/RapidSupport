@@ -1341,6 +1341,102 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Analytics methods
+  async getAgentAnalytics(dateFrom?: Date, dateTo?: Date): Promise<any> {
+    const dateFilter = dateFrom && dateTo 
+      ? sql`AND ${aiAgentLearning.createdAt} BETWEEN ${dateFrom} AND ${dateTo}`
+      : sql``;
+
+    // Get overall AI agent performance metrics
+    const [overallStats] = await db.select({
+      totalInteractions: sql<number>`count(*)`,
+      avgConfidence: sql<number>`avg(${aiAgentLearning.confidence})`,
+      avgSatisfaction: sql<number>`avg(${aiAgentLearning.customerSatisfaction})`,
+      handoverRate: sql<number>`avg(case when ${aiAgentLearning.humanTookOver} then 1.0 else 0.0 end) * 100`,
+      helpfulRate: sql<number>`avg(case when ${aiAgentLearning.wasHelpful} then 1.0 else 0.0 end) * 100`,
+    }).from(aiAgentLearning).where(sql`1=1 ${dateFilter}`);
+
+    // Get per-agent performance
+    const agentPerformance = await db.select({
+      agentId: aiAgentLearning.agentId,
+      agentName: aiAgents.name,
+      interactions: sql<number>`count(*)`,
+      avgConfidence: sql<number>`avg(${aiAgentLearning.confidence})`,
+      avgSatisfaction: sql<number>`avg(${aiAgentLearning.customerSatisfaction})`,
+      handoverRate: sql<number>`avg(case when ${aiAgentLearning.humanTookOver} then 1.0 else 0.0 end) * 100`,
+      helpfulRate: sql<number>`avg(case when ${aiAgentLearning.wasHelpful} then 1.0 else 0.0 end) * 100`,
+    })
+    .from(aiAgentLearning)
+    .leftJoin(aiAgents, eq(aiAgentLearning.agentId, aiAgents.id))
+    .where(sql`1=1 ${dateFilter}`)
+    .groupBy(aiAgentLearning.agentId, aiAgents.name);
+
+    // Get knowledge base effectiveness
+    const knowledgeStats = await db.select({
+      totalArticles: sql<number>`count(*)`,
+      avgEffectiveness: sql<number>`avg(${knowledgeBase.effectiveness})`,
+      totalUsage: sql<number>`sum(${knowledgeBase.usageCount})`,
+      activeArticles: sql<number>`sum(case when ${knowledgeBase.isActive} then 1 else 0 end)`,
+    }).from(knowledgeBase);
+
+    // Get handover reasons frequency
+    const handoverReasons = await db.select({
+      reason: aiAgentSessions.handoverReason,
+      count: sql<number>`count(*)`,
+    })
+    .from(aiAgentSessions)
+    .where(sql`${aiAgentSessions.handoverReason} IS NOT NULL ${dateFilter ? sql`AND ${aiAgentSessions.startedAt} BETWEEN ${dateFrom} AND ${dateTo}` : sql``}`)
+    .groupBy(aiAgentSessions.handoverReason);
+
+    // Get trends over time (daily aggregates)
+    const trendData = await db.select({
+      date: sql<string>`date(${aiAgentLearning.createdAt})`,
+      interactions: sql<number>`count(*)`,
+      avgConfidence: sql<number>`avg(${aiAgentLearning.confidence})`,
+      handovers: sql<number>`sum(case when ${aiAgentLearning.humanTookOver} then 1 else 0 end)`,
+    })
+    .from(aiAgentLearning)
+    .where(sql`1=1 ${dateFilter}`)
+    .groupBy(sql`date(${aiAgentLearning.createdAt})`)
+    .orderBy(sql`date(${aiAgentLearning.createdAt})`);
+
+    return {
+      overall: overallStats,
+      agentPerformance,
+      knowledge: knowledgeStats[0] || {},
+      handoverReasons,
+      trends: trendData,
+    };
+  }
+
+  async getTopKnowledgeArticles(limit: number = 10): Promise<any[]> {
+    return await db.select({
+      id: knowledgeBase.id,
+      title: knowledgeBase.title,
+      category: knowledgeBase.category,
+      usageCount: knowledgeBase.usageCount,
+      effectiveness: knowledgeBase.effectiveness,
+      lastUsedAt: knowledgeBase.lastUsedAt,
+    })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.isActive, true))
+    .orderBy(desc(knowledgeBase.usageCount))
+    .limit(limit);
+  }
+
+  async getAgentWorkloadMetrics(): Promise<any[]> {
+    return await db.select({
+      agentId: agentWorkload.agentId,
+      agentName: users.name,
+      activeConversations: agentWorkload.activeConversations,
+      maxCapacity: agentWorkload.maxCapacity,
+      utilizationRate: sql<number>`(${agentWorkload.activeConversations}::float / ${agentWorkload.maxCapacity}::float) * 100`,
+    })
+    .from(agentWorkload)
+    .leftJoin(users, eq(agentWorkload.agentId, users.id))
+    .orderBy(desc(sql`(${agentWorkload.activeConversations}::float / ${agentWorkload.maxCapacity}::float)`));
+  }
+
 }
 
 export const storage = new DatabaseStorage();
