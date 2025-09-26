@@ -104,6 +104,13 @@ export const tickets = pgTable("tickets", {
   customerId: varchar("customer_id").notNull().references(() => customers.id),
   assignedAgentId: varchar("assigned_agent_id").references(() => users.id),
   conversationId: varchar("conversation_id").references(() => conversations.id), // Link to conversation if escalated
+  // AI-related fields for automated ticket generation
+  isAiGenerated: boolean("is_ai_generated").notNull().default(false), // Track if AI generated title/description
+  aiConfidenceScore: integer("ai_confidence_score"), // AI confidence in generated content (0-100)
+  aiGeneratedTitle: text("ai_generated_title"), // Original AI-generated title before human edits
+  aiGeneratedDescription: text("ai_generated_description"), // Original AI-generated description before human edits  
+  aiProcessedAt: timestamp("ai_processed_at"), // When AI processing occurred
+  conversationContext: text("conversation_context"), // Summary of conversation context used by AI
   // External sync fields
   externalId: text("external_id"), // ID from external system
   externalSystem: text("external_system"), // Name of external system
@@ -219,6 +226,22 @@ export const insertTicketSchema = createInsertSchema(tickets).pick({
   customerId: true,
   assignedAgentId: true,
   conversationId: true,
+  isAiGenerated: true,
+  aiConfidenceScore: true,
+  aiGeneratedTitle: true,
+  aiGeneratedDescription: true,
+  conversationContext: true,
+});
+
+// AI ticket generation schema specifically for AI-generated content
+export const aiTicketGenerationSchema = z.object({
+  conversationId: z.string().uuid(),
+  title: z.string().min(1, "Title is required"),
+  description: z.string().min(1, "Description is required"),
+  category: z.string().default("General"),
+  priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
+  confidenceScore: z.number().int().min(0).max(100),
+  conversationContext: z.string().optional(),
 });
 
 // External sync schemas
@@ -309,6 +332,7 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
 export type Ticket = typeof tickets.$inferSelect;
+export type AiTicketGeneration = z.infer<typeof aiTicketGenerationSchema>;
 export type ExternalCustomerSync = z.infer<typeof externalCustomerSyncSchema>;
 export type ExternalTicketSync = z.infer<typeof externalTicketSyncSchema>;
 export type AnonymousCustomer = z.infer<typeof anonymousCustomerSchema>;
