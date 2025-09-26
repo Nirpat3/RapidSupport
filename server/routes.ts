@@ -376,6 +376,29 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get individual conversation by ID
+  app.get('/api/conversations/:id', requireAuth, async (req, res) => {
+    try {
+      const conversationId = req.params.id;
+      
+      // Validate UUID format
+      if (!z.string().uuid().safeParse(conversationId).success) {
+        return res.status(400).json({ error: 'Invalid conversation ID format' });
+      }
+      
+      const conversation = await storage.getConversation(conversationId);
+      
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      res.json(conversation);
+    } catch (error) {
+      console.error('Error fetching conversation:', error);
+      res.status(500).json({ error: 'Failed to fetch conversation' });
+    }
+  });
+
   // Manually assign or reassign a conversation
   app.put('/api/conversations/:id/assign', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
