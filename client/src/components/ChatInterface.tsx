@@ -9,10 +9,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle } from "lucide-react";
 import ChatMessage, { type Message } from "./ChatMessage";
 import { ticketApi } from "@/lib/ticketStore";
 import InternalChatPanel from "./InternalChatPanel";
+import { apiRequest } from "@/lib/queryClient";
 
 interface ChatInterfaceProps {
   conversationId?: string;
@@ -51,6 +52,15 @@ export default function ChatInterface({
     description: "",
     priority: "medium" as const
   });
+  
+  // AI Proofreading states
+  const [isProofreadingOpen, setIsProofreadingOpen] = useState(false);
+  const [proofreadResult, setProofreadResult] = useState<any>(null);
+  const [isProofreading, setIsProofreading] = useState(false);
+  
+  // AI Conversation Analysis states
+  const [conversationAnalysis, setConversationAnalysis] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -67,10 +77,78 @@ export default function ChatInterface({
     console.log('Sending message:', newMessage);
     onSendMessage?.(newMessage);
     setNewMessage("");
+    setProofreadResult(null);
+    setIsProofreadingOpen(false);
     
     // Simulate typing indicator
     setIsTyping(true);
     setTimeout(() => setIsTyping(false), 2000);
+  };
+
+  const handleProofreadMessage = async () => {
+    if (!newMessage.trim()) return;
+    
+    setIsProofreading(true);
+    try {
+      const conversationHistory = messages.slice(-5).map(msg => 
+        `${msg.sender.role}: ${msg.content}`
+      );
+      
+      const response = await apiRequest('POST', '/api/ai/proofread-message', {
+        message: newMessage,
+        isCustomerMessage: false,
+        conversationHistory
+      });
+      
+      setProofreadResult(response.data);
+      setIsProofreadingOpen(true);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to proofread message. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProofreading(false);
+    }
+  };
+
+  const applyProofreadSuggestion = () => {
+    if (proofreadResult?.suggestedText) {
+      setNewMessage(proofreadResult.suggestedText);
+      setIsProofreadingOpen(false);
+    }
+  };
+
+  const handleAnalyzeConversation = async () => {
+    if (!conversationId) return;
+    
+    setIsAnalyzing(true);
+    try {
+      const response = await apiRequest('POST', '/api/ai/analyze-conversation', {
+        conversationId
+      });
+      
+      setConversationAnalysis(response.data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to analyze conversation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const applyAIAnalysis = () => {
+    if (conversationAnalysis) {
+      setNewTicket({
+        title: conversationAnalysis.suggestedTicketTitle,
+        description: conversationAnalysis.suggestedTicketDescription,
+        priority: conversationAnalysis.priority
+      });
+    }
   };
 
   // Debug logging
@@ -150,7 +228,7 @@ export default function ChatInterface({
                   Create Ticket
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
+              <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create Ticket from Conversation</DialogTitle>
                   <DialogDescription>
@@ -158,6 +236,84 @@ export default function ChatInterface({
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
+                  {/* AI Analysis Button */}
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAnalyzeConversation}
+                      disabled={isAnalyzing || !conversationId}
+                      className="flex-1"
+                      data-testid="button-ai-analyze"
+                    >
+                      {isAnalyzing ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                          Analyzing conversation...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          AI Analyze Conversation
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* AI Analysis Results */}
+                  {conversationAnalysis && (
+                    <div className="p-4 border rounded-lg bg-blue-50 dark:bg-blue-950 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-blue-500" />
+                        <span className="font-medium text-blue-700 dark:text-blue-300">AI Analysis</span>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="font-medium">Summary:</span>
+                          <p className="text-muted-foreground">{conversationAnalysis.summary}</p>
+                        </div>
+                        
+                        {conversationAnalysis.keyIssues.length > 0 && (
+                          <div>
+                            <span className="font-medium">Key Issues:</span>
+                            <ul className="list-disc list-inside text-muted-foreground">
+                              {conversationAnalysis.keyIssues.map((issue: string, index: number) => (
+                                <li key={index}>{issue}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        
+                        <div className="flex gap-4">
+                          <div>
+                            <span className="font-medium">Priority:</span>
+                            <Badge variant={
+                              conversationAnalysis.priority === 'urgent' ? 'destructive' :
+                              conversationAnalysis.priority === 'high' ? 'default' :
+                              conversationAnalysis.priority === 'medium' ? 'secondary' : 'outline'
+                            }>
+                              {conversationAnalysis.priority}
+                            </Badge>
+                          </div>
+                          <div>
+                            <span className="font-medium">Category:</span>
+                            <Badge variant="outline">{conversationAnalysis.category}</Badge>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={applyAIAnalysis}
+                        data-testid="button-apply-ai-analysis"
+                      >
+                        Apply AI Suggestions
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="grid gap-2">
                     <Label htmlFor="ticket-title">Title</Label>
                     <Input
@@ -176,6 +332,7 @@ export default function ChatInterface({
                       value={newTicket.description}
                       onChange={(e) => setNewTicket({...newTicket, description: e.target.value})}
                       data-testid="textarea-chat-ticket-description"
+                      rows={4}
                     />
                   </div>
                 </div>
@@ -315,31 +472,110 @@ export default function ChatInterface({
         </div>
       </ScrollArea>
 
-      {/* Message Input */}
-      <div className="p-4 border-t border-border bg-card">
-        <form onSubmit={handleSendMessage} className="flex items-end gap-2">
-          <Button variant="ghost" size="icon" type="button" data-testid="button-attach">
-            <Paperclip className="w-4 h-4" />
-          </Button>
-          
-          <div className="flex-1">
-            <Input
-              placeholder="Type your message..."
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              className="resize-none"
-              data-testid="input-message"
-            />
+      {/* AI Proofreading Panel */}
+      {isProofreadingOpen && proofreadResult && (
+        <div className="mx-4 mb-2 p-4 border rounded-lg bg-background">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-medium flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-blue-500" />
+              AI Proofreading Suggestions
+            </h4>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setIsProofreadingOpen(false)}
+              className="h-6 w-6"
+            >
+              <X className="w-3 h-3" />
+            </Button>
           </div>
           
-          <Button 
-            type="submit" 
-            size="icon"
-            disabled={!newMessage.trim()}
-            data-testid="button-send"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
+          {proofreadResult.hasChanges ? (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm font-medium text-muted-foreground">Original:</Label>
+                <div className="p-2 bg-muted rounded text-sm">{proofreadResult.originalText}</div>
+              </div>
+              
+              <div>
+                <Label className="text-sm font-medium text-green-600">Suggested:</Label>
+                <div className="p-2 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded text-sm">
+                  {proofreadResult.suggestedText}
+                </div>
+              </div>
+              
+              {proofreadResult.improvements.length > 0 && (
+                <div>
+                  <Label className="text-sm font-medium text-muted-foreground">Improvements:</Label>
+                  <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+                    {proofreadResult.improvements.map((improvement: string, index: number) => (
+                      <li key={index}>{improvement}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              <div className="flex gap-2">
+                <Button onClick={applyProofreadSuggestion} size="sm" data-testid="button-apply-suggestion">
+                  <Check className="w-4 h-4 mr-2" />
+                  Apply Suggestion
+                </Button>
+                <Button variant="outline" onClick={() => setIsProofreadingOpen(false)} size="sm">
+                  Keep Original
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-green-600">
+              <Check className="w-4 h-4" />
+              <span className="text-sm">Your message looks great! No improvements needed.</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Message Input */}
+      <div className="p-4 border-t border-border bg-card">
+        <form onSubmit={handleSendMessage} className="space-y-2">
+          <div className="flex items-end gap-2">
+            <Button variant="ghost" size="icon" type="button" data-testid="button-attach">
+              <Paperclip className="w-4 h-4" />
+            </Button>
+            
+            <div className="flex-1">
+              <Input
+                placeholder="Type your message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                className="resize-none"
+                data-testid="input-message"
+              />
+            </div>
+            
+            <Button 
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={handleProofreadMessage}
+              disabled={!newMessage.trim() || isProofreading}
+              data-testid="button-proofread"
+            >
+              {isProofreading ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+            </Button>
+            
+            <Button 
+              type="submit" 
+              size="icon"
+              disabled={!newMessage.trim()}
+              data-testid="button-send"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
         </form>
       </div>
 

@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip, Sparkles, Check } from "lucide-react";
 import { CustomerInfoForm } from "./CustomerInfoForm";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageAttachments, type MessageAttachment } from "./MessageAttachments";
@@ -88,6 +89,11 @@ export function CustomerChatWidget() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // AI Proofreading states for customer
+  const [isProofreadingOpen, setIsProofreadingOpen] = useState(false);
+  const [proofreadResult, setProofreadResult] = useState<any>(null);
+  const [isProofreading, setIsProofreading] = useState(false);
 
   // IP address will be determined server-side for security
   const getClientIP = async (): Promise<string> => {
@@ -217,6 +223,40 @@ export function CustomerChatWidget() {
 
     console.log('Calling sendMessageMutation with:', messageInput);
     await sendMessageMutation.mutateAsync(messageInput);
+    setProofreadResult(null);
+    setIsProofreadingOpen(false);
+  };
+
+  const handleProofreadCustomerMessage = async () => {
+    if (!messageInput.trim()) return;
+    
+    setIsProofreading(true);
+    try {
+      const conversationHistory = messages.slice(-5).map(msg => 
+        `${msg.senderType}: ${msg.content}`
+      );
+      
+      const response = await apiRequest('POST', '/api/ai/proofread-message', {
+        message: messageInput,
+        isCustomerMessage: true,
+        conversationHistory
+      });
+      
+      setProofreadResult(response.data);
+      setIsProofreadingOpen(true);
+    } catch (error) {
+      console.error('Failed to proofread message:', error);
+      // Silently fail for customers - don't show error toast
+    } finally {
+      setIsProofreading(false);
+    }
+  };
+
+  const applyProofreadSuggestion = () => {
+    if (proofreadResult?.suggestedText) {
+      setMessageInput(proofreadResult.suggestedText);
+      setIsProofreadingOpen(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -384,6 +424,52 @@ export function CustomerChatWidget() {
           {chatState.conversationId && (
             <CardFooter className="p-4 pt-0">
               <div className="space-y-3">
+                {/* AI Proofreading Panel for Customer */}
+                {isProofreadingOpen && proofreadResult && (
+                  <div className="p-3 border rounded-lg bg-background space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-sm font-medium flex items-center gap-2">
+                        <Sparkles className="w-3 h-3 text-blue-500" />
+                        Message Suggestions
+                      </h5>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => setIsProofreadingOpen(false)}
+                        className="h-5 w-5"
+                      >
+                        <X className="w-2 h-2" />
+                      </Button>
+                    </div>
+                    
+                    {proofreadResult.hasChanges ? (
+                      <div className="space-y-2">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Suggested:</Label>
+                          <div className="p-2 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded text-xs">
+                            {proofreadResult.suggestedText}
+                          </div>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <Button onClick={applyProofreadSuggestion} size="sm" className="text-xs h-7" data-testid="button-apply-customer-suggestion">
+                            <Check className="w-3 h-3 mr-1" />
+                            Use This
+                          </Button>
+                          <Button variant="outline" onClick={() => setIsProofreadingOpen(false)} size="sm" className="text-xs h-7">
+                            Keep Original
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-green-600 text-xs">
+                        <Check className="w-3 h-3" />
+                        <span>Your message looks great!</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Selected Files Display */}
                 {selectedFiles.length > 0 && (
                   <div className="space-y-2">
@@ -430,6 +516,23 @@ export function CustomerChatWidget() {
                       onEmojiSelect={handleEmojiSelect}
                       disabled={sendMessageMutation.isPending}
                     />
+
+                    {/* AI Proofread Button for Customer */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleProofreadCustomerMessage}
+                      disabled={!messageInput.trim() || isProofreading || sendMessageMutation.isPending}
+                      className="h-9 w-9"
+                      data-testid="button-proofread-customer"
+                      title="Improve your message"
+                    >
+                      {isProofreading ? (
+                        <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
 
                   <Input

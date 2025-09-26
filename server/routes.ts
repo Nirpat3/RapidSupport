@@ -11,6 +11,7 @@ import ChatWebSocketServer from './websocket';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { AIService } from './ai-service';
 import { 
   insertCustomerSchema, 
   insertConversationSchema,
@@ -1189,6 +1190,98 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         });
       }
       res.status(500).json({ error: 'Failed to update status' });
+    }
+  });
+
+  // ============================================
+  // AI ASSISTANT ENDPOINTS
+  // ============================================
+
+  // Proofread message endpoint
+  app.post('/api/ai/proofread-message', requireAuth, async (req, res) => {
+    try {
+      const { message, isCustomerMessage, conversationHistory } = req.body;
+      
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+
+      const result = await AIService.proofreadMessage(message, {
+        isCustomerMessage: isCustomerMessage || false,
+        conversationHistory: conversationHistory || []
+      });
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      console.error('Proofreading failed:', error);
+      res.status(500).json({ error: 'Failed to proofread message' });
+    }
+  });
+
+  // Analyze conversation for ticket generation
+  app.post('/api/ai/analyze-conversation', requireAuth, async (req, res) => {
+    try {
+      const { conversationId } = req.body;
+      
+      if (!conversationId) {
+        return res.status(400).json({ error: 'Conversation ID is required' });
+      }
+
+      // Get conversation messages
+      const messages = await storage.getMessagesByConversation(conversationId);
+      const conversation = await storage.getConversationWithCustomer(conversationId);
+      
+      const analysis = await AIService.analyzeConversation(messages, conversation?.customer);
+
+      res.json({
+        success: true,
+        data: analysis
+      });
+    } catch (error) {
+      console.error('Conversation analysis failed:', error);
+      res.status(500).json({ error: 'Failed to analyze conversation' });
+    }
+  });
+
+  // Generate AI agent response
+  app.post('/api/ai/generate-response', async (req, res) => {
+    try {
+      const { customerMessage, conversationHistory, knowledgeBase } = req.body;
+      
+      if (!customerMessage || typeof customerMessage !== 'string') {
+        return res.status(400).json({ error: 'Customer message is required' });
+      }
+
+      const response = await AIService.generateAgentResponse(
+        customerMessage,
+        conversationHistory || [],
+        knowledgeBase || []
+      );
+
+      res.json({
+        success: true,
+        data: response
+      });
+    } catch (error) {
+      console.error('AI response generation failed:', error);
+      res.status(500).json({ error: 'Failed to generate AI response' });
+    }
+  });
+
+  // Check AI service health
+  app.get('/api/ai/health', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const isHealthy = await AIService.checkServiceHealth();
+      res.json({
+        success: true,
+        healthy: isHealthy,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ error: 'Health check failed' });
     }
   });
 
