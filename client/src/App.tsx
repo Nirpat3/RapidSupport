@@ -56,26 +56,25 @@ function AuthenticatedApp() {
         <div className="flex h-screen w-full">
           <AppSidebar />
           <div className="flex flex-col flex-1">
-            <header className="flex items-center justify-between p-2 sm:p-4 border-b border-border bg-card">
-              <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <header className="flex items-center justify-between p-2 sm:p-4 border-b border-border bg-card min-w-0">
+              <div className="flex items-center gap-1 sm:gap-4 min-w-0 flex-1">
+                <SidebarTrigger data-testid="button-sidebar-toggle" className="flex-shrink-0" />
                 <div className="h-6 w-px bg-border hidden sm:block" />
-                <h2 className="font-semibold text-base sm:text-lg truncate" data-testid="page-header">
+                <h2 className="font-semibold text-sm sm:text-lg truncate" data-testid="page-header">
                   Support Board
                 </h2>
               </div>
-              <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                <span className="text-xs sm:text-sm text-muted-foreground truncate hidden md:block" data-testid="text-user-name">
+              <div className="flex items-center gap-1 min-w-0 flex-shrink-0">
+                <span className="text-xs text-muted-foreground truncate hidden lg:block max-w-32" data-testid="text-user-name">
                   {user?.name} ({user?.role})
                 </span>
-                <span className="text-xs sm:text-sm text-muted-foreground truncate md:hidden" data-testid="text-user-name-short">
-                  {user?.name}
+                <span className="text-xs text-muted-foreground truncate lg:hidden max-w-20" data-testid="text-user-name-short">
+                  {user?.name?.split(' ')[0]}
                 </span>
                 <ThemeToggle />
-                <div className="h-6 w-px bg-border hidden sm:block" />
                 <button 
                   onClick={logout}
-                  className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors px-1 sm:px-0"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1 ml-1"
                   data-testid="button-logout"
                 >
                   <span className="hidden sm:inline">Logout</span>

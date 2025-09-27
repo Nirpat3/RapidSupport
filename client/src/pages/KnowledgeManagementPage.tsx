@@ -377,16 +377,15 @@ export default function KnowledgeManagementPage() {
               Agents
             </Button>
           </div>
-        </div>
-        
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-create-article">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Knowledge
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-create-article">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Knowledge
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add Knowledge Base Content</DialogTitle>
               <DialogDescription>
@@ -439,6 +438,7 @@ export default function KnowledgeManagementPage() {
           </DialogContent>
         </Dialog>
       </div>
+    </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -500,57 +500,57 @@ export default function KnowledgeManagementPage() {
         <>
           {/* Search and Filters */}
           <div className="flex gap-4 flex-wrap">
-        <div className="relative flex-1 min-w-[300px]">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search articles, content, or tags..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-            data-testid="input-search"
-          />
-        </div>
-        
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-[200px]" data-testid="select-category">
-            <SelectValue placeholder="All Categories" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <Select value={selectedSourceType} onValueChange={setSelectedSourceType}>
-          <SelectTrigger className="w-[150px]" data-testid="select-source-type">
-            <SelectValue placeholder="All Sources" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Sources</SelectItem>
-            <SelectItem value="manual">Manual Entry</SelectItem>
-            <SelectItem value="file">File Upload</SelectItem>
-            <SelectItem value="url">URL Import</SelectItem>
-          </SelectContent>
-        </Select>
-        
-        <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-          <SelectTrigger className="w-[200px]" data-testid="select-agent">
-            <SelectValue placeholder="All Agents" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Agents</SelectItem>
-            {agents.map((agent) => (
-              <SelectItem key={agent.id} value={agent.id}>
-                {agent.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+            <div className="relative flex-1 min-w-[300px]">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search articles, content, or tags..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+                data-testid="input-search"
+              />
+            </div>
+            
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-[200px]" data-testid="select-category">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            <Select value={selectedSourceType} onValueChange={setSelectedSourceType}>
+              <SelectTrigger className="w-[150px]" data-testid="select-source-type">
+                <SelectValue placeholder="All Sources" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="manual">Manual Entry</SelectItem>
+                <SelectItem value="file">File Upload</SelectItem>
+                <SelectItem value="url">URL Import</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+              <SelectTrigger className="w-[200px]" data-testid="select-agent">
+                <SelectValue placeholder="All Agents" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Agents</SelectItem>
+                {agents.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
       {/* Articles List */}
       {isLoading ? (
@@ -893,6 +893,7 @@ export default function KnowledgeManagementPage() {
               onSubmit={(data) => updateMutation.mutate({ id: editingArticle.id, data })}
               isSubmitting={updateMutation.isPending}
               onCancel={() => setEditingArticle(null)}
+              agents={agents}
             />
           </DialogContent>
         </Dialog>
