@@ -53,6 +53,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull } from "drizzle-orm";
+import { KnowledgeRetrievalService } from "./knowledge-retrieval";
 
 // Updated interface for all CRUD operations
 export interface IStorage {
@@ -1220,6 +1221,22 @@ export class DatabaseStorage implements IStorage {
   async createKnowledgeBase(knowledge: InsertKnowledgeBase): Promise<KnowledgeBase> {
     try {
       const [result] = await db.insert(knowledgeBase).values(knowledge).returning();
+      
+      // Auto-reindex the newly created article for smart search
+      try {
+        const retrievalService = KnowledgeRetrievalService.getInstance();
+        console.log(`Auto-reindexing new knowledge base article: ${result.title}`);
+        // Trigger background reindexing for the new article
+        setImmediate(() => {
+          retrievalService.reindexArticle(result.id).catch(error => {
+            console.error('Background reindexing failed for new article:', error);
+          });
+        });
+      } catch (indexError) {
+        console.error('Error during auto-reindexing after create:', indexError);
+        // Don't throw - article creation should succeed even if indexing fails
+      }
+      
       return result;
     } catch (error) {
       console.error('Error creating knowledge base article:', error);
@@ -1230,6 +1247,21 @@ export class DatabaseStorage implements IStorage {
   async updateKnowledgeBase(id: string, updates: Partial<InsertKnowledgeBase>): Promise<void> {
     try {
       await db.update(knowledgeBase).set({ ...updates, updatedAt: new Date() }).where(eq(knowledgeBase.id, id));
+      
+      // Auto-reindex the updated article for smart search
+      try {
+        const retrievalService = KnowledgeRetrievalService.getInstance();
+        console.log(`Auto-reindexing updated knowledge base article: ${id}`);
+        // Trigger background reindexing for the updated article
+        setImmediate(() => {
+          retrievalService.reindexArticle(id).catch(error => {
+            console.error('Background reindexing failed for updated article:', error);
+          });
+        });
+      } catch (indexError) {
+        console.error('Error during auto-reindexing after update:', indexError);
+        // Don't throw - article update should succeed even if indexing fails
+      }
     } catch (error) {
       console.error('Error updating knowledge base article:', error);
       throw error;
@@ -1239,6 +1271,16 @@ export class DatabaseStorage implements IStorage {
   async deleteKnowledgeBase(id: string): Promise<void> {
     try {
       await db.delete(knowledgeBase).where(eq(knowledgeBase.id, id));
+      
+      // Clear cache for the deleted article
+      try {
+        const retrievalService = KnowledgeRetrievalService.getInstance();
+        retrievalService.clearCache(id);
+        console.log(`Cleared search cache for deleted knowledge base article: ${id}`);
+      } catch (indexError) {
+        console.error('Error during cache clearing after delete:', indexError);
+        // Don't throw - article deletion should succeed even if cache clearing fails
+      }
     } catch (error) {
       console.error('Error deleting knowledge base article:', error);
       throw error;

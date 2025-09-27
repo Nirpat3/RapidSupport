@@ -450,6 +450,48 @@ export class KnowledgeRetrievalService {
   }
 
   /**
+   * Reindex specific knowledge base articles (call when articles are created/updated)
+   */
+  async reindexArticle(articleId: string): Promise<void> {
+    try {
+      console.log(`Reindexing knowledge base article: ${articleId}`);
+      
+      // Clear cache for this specific article
+      this.clearCache(articleId);
+      
+      // Get the fresh article from storage
+      const articles = await storage.getKnowledgeBaseArticles?.([articleId]) || [];
+      const article = articles[0];
+      
+      if (!article) {
+        console.log(`Article ${articleId} not found for reindexing`);
+        return;
+      }
+      
+      if (!article.isActive) {
+        console.log(`Article ${articleId} is inactive, skipping reindexing`);
+        return;
+      }
+      
+      // Create chunks and generate embeddings
+      const chunks = this.chunkDocument(article);
+      
+      // Generate embeddings for each chunk
+      for (const chunk of chunks) {
+        const embeddingText = `${chunk.title}\n${chunk.content}`;
+        chunk.embedding = await this.generateEmbedding(embeddingText);
+      }
+      
+      // Cache the chunks
+      this.chunksCache.set(article.id, chunks);
+      
+      console.log(`Successfully reindexed article: ${article.title} with ${chunks.length} chunks`);
+    } catch (error) {
+      console.error(`Error reindexing article ${articleId}:`, error);
+    }
+  }
+
+  /**
    * Reindex all knowledge base articles (call periodically or on bulk updates)
    */
   async reindexAll(): Promise<void> {
