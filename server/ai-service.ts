@@ -507,6 +507,24 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         });
       }
 
+      // Track file usage when knowledge base articles are used
+      if (response.knowledgeUsed && response.knowledgeUsed.length > 0) {
+        for (const knowledgeBaseId of response.knowledgeUsed) {
+          try {
+            // Get files linked to this knowledge base article
+            const linkedFiles = await storage.getFilesLinkedToKnowledgeBase(knowledgeBaseId);
+            
+            // Increment usage count for each linked file
+            for (const linkedFile of linkedFiles) {
+              await storage.incrementFileUsage(linkedFile.id, agent.id);
+            }
+          } catch (error) {
+            console.error(`Error tracking file usage for knowledge base ${knowledgeBaseId}:`, error);
+            // Don't let usage tracking errors affect the response
+          }
+        }
+      }
+
       // Record learning data
       const shouldLearn = newMessageCount <= 100; // Limit learning data collection
       if (shouldLearn) {

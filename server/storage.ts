@@ -207,6 +207,11 @@ export interface IStorage {
   getFileUsageByAgent(agentId: string): Promise<AiAgentFileUsage[]>;
   getFileUsageByFile(fileId: string): Promise<AiAgentFileUsage[]>;
   getFileUsageStats(fileId: string): Promise<{ totalUsage: number; agentUsage: Array<{ agent: AiAgent; usage: AiAgentFileUsage }> }>;
+  
+  // File Analytics
+  getTopUsedFiles(limit: number, agentId?: string): Promise<Array<{ file: UploadedFile; totalUsage: number; lastUsed?: Date }>>;
+  getFileEffectivenessMetrics(limit: number): Promise<Array<{ file: UploadedFile; usageCount: number; effectivenessScore: number }>>;
+  getAgentFileUsageSummary(): Promise<Array<{ agentId: string; agentName: string; fileCount: number; totalUsage: number }>>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -1868,6 +1873,88 @@ export class DatabaseStorage implements IStorage {
         usage: record.usage,
       })),
     };
+  }
+
+  // File Analytics methods
+  async getTopUsedFiles(limit: number, agentId?: string): Promise<Array<{ file: UploadedFile; totalUsage: number; lastUsed?: Date }>> {
+    let query = db
+      .select({
+        file: uploadedFiles,
+        totalUsage: sql<number>`COALESCE(SUM(${aiAgentFileUsage.usageCount}), 0)`,
+        lastUsed: sql<Date | null>`MAX(${aiAgentFileUsage.lastUsedAt})`,
+      })
+      .from(uploadedFiles)
+      .leftJoin(aiAgentFileUsage, eq(uploadedFiles.id, aiAgentFileUsage.fileId))
+      .groupBy(uploadedFiles.id);
+    
+    // Filter by agent if specified
+    if (agentId) {
+      query = query.where(eq(aiAgentFileUsage.agentId, agentId));
+    }
+    
+    const results = await query
+      .orderBy(sql`SUM(${aiAgentFileUsage.usageCount}) DESC NULLS LAST`)
+      .limit(limit);
+
+    return results.map(result => ({
+      file: result.file,
+      totalUsage: Number(result.totalUsage),
+      lastUsed: result.lastUsed,
+    }));
+  }
+
+  async getFileEffectivenessMetrics(limit: number): Promise<Array<{ file: UploadedFile; usageCount: number; effectivenessScore: number }>> {
+    // Calculate effectiveness based on usage patterns and knowledge base integration
+    const results = await db
+      .select({
+        file: uploadedFiles,
+        usageCount: sql<number>`COALESCE(SUM(${aiAgentFileUsage.usageCount}), 0)`,
+        knowledgeBaseCount: sql<number>`COUNT(DISTINCT ${knowledgeBaseFiles.knowledgeBaseId})`,
+      })
+      .from(uploadedFiles)
+      .leftJoin(aiAgentFileUsage, eq(uploadedFiles.id, aiAgentFileUsage.fileId))
+      .leftJoin(knowledgeBaseFiles, eq(uploadedFiles.id, knowledgeBaseFiles.fileId))
+      .where(eq(uploadedFiles.status, 'processed'))
+      .groupBy(uploadedFiles.id)
+      .orderBy(sql`SUM(${aiAgentFileUsage.usageCount}) DESC NULLS LAST`)
+      .limit(limit);
+
+    return results.map(result => {
+      const usageCount = Number(result.usageCount);
+      const knowledgeBaseCount = Number(result.knowledgeBaseCount);
+      
+      // Calculate effectiveness score (0-100) based on usage and knowledge base integration
+      const baseScore = Math.min(usageCount * 10, 70); // Usage contributes up to 70 points
+      const integrationBonus = knowledgeBaseCount > 0 ? 30 : 0; // KB integration adds 30 points
+      const effectivenessScore = Math.min(baseScore + integrationBonus, 100);
+      
+      return {
+        file: result.file,
+        usageCount,
+        effectivenessScore,
+      };
+    });
+  }
+
+  async getAgentFileUsageSummary(): Promise<Array<{ agentId: string; agentName: string; fileCount: number; totalUsage: number }>> {
+    const results = await db
+      .select({
+        agentId: aiAgents.id,
+        agentName: aiAgents.name,
+        fileCount: sql<number>`COUNT(DISTINCT ${aiAgentFileUsage.fileId})`,
+        totalUsage: sql<number>`COALESCE(SUM(${aiAgentFileUsage.usageCount}), 0)`,
+      })
+      .from(aiAgents)
+      .leftJoin(aiAgentFileUsage, eq(aiAgents.id, aiAgentFileUsage.agentId))
+      .groupBy(aiAgents.id, aiAgents.name)
+      .orderBy(sql`SUM(${aiAgentFileUsage.usageCount}) DESC NULLS LAST`);
+
+    return results.map(result => ({
+      agentId: result.agentId,
+      agentName: result.agentName,
+      fileCount: Number(result.fileCount),
+      totalUsage: Number(result.totalUsage),
+    }));
   }
 
 }

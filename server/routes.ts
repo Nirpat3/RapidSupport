@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { randomUUID } from "crypto";
 import crypto from "crypto";
 import rateLimit from 'express-rate-limit';
+import { DocumentProcessor } from './document-processor';
 import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 import passport from './auth';
@@ -29,7 +30,6 @@ import {
   insertUploadedFileSchema,
   updateUploadedFileSchema
 } from '@shared/schema';
-import { DocumentProcessor } from './document-processor';
 import { WebScraper } from './web-scraper';
 
 // Route-specific validation schemas
@@ -263,6 +263,82 @@ const sendCustomerMessageSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
   content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
 });
+
+/**
+ * Process uploaded file for AI training by extracting text and creating knowledge base article
+ */
+async function processFileForAITraining(
+  uploadedFile: any, 
+  category: string, 
+  tags: string[], 
+  userId: string
+): Promise<void> {
+  try {
+    console.log(`Processing file ${uploadedFile.originalName} for AI training...`);
+    
+    // Only process document types that can be converted to knowledge base articles
+    const supportedMimeTypes = [
+      'text/plain',
+      'application/pdf', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+    
+    if (!supportedMimeTypes.includes(uploadedFile.mimeType)) {
+      console.log(`Skipping AI training for ${uploadedFile.originalName} - unsupported type ${uploadedFile.mimeType}`);
+      await storage.updateUploadedFile(uploadedFile.id, { 
+        status: 'processed',
+        processedAt: new Date()
+      });
+      return;
+    }
+
+    // Extract text content using DocumentProcessor
+    const documentContent = await DocumentProcessor.extractText(
+      uploadedFile.filePath,
+      uploadedFile.originalName,
+      uploadedFile.mimeType
+    );
+
+    // Format content for knowledge base
+    const content = DocumentProcessor.formatForKnowledgeBase(documentContent);
+    
+    console.log(`Successfully extracted ${documentContent.metadata?.wordCount || 0} words from ${uploadedFile.originalName}`);
+
+    // Create knowledge base article from the file
+    const articleData = {
+      title: uploadedFile.originalName.replace(/\.[^/.]+$/, ''), // Remove file extension
+      content,
+      category,
+      tags,
+      priority: 50, // Default priority
+      isActive: true,
+      sourceType: 'file' as const,
+      fileName: uploadedFile.originalName,
+      fileType: uploadedFile.mimeType,
+      fileSize: uploadedFile.size,
+      filePath: uploadedFile.filePath,
+      assignedAgentIds: [], // No agent assignments by default
+      createdBy: userId,
+    };
+
+    const knowledgeArticle = await storage.createKnowledgeBase(articleData);
+    console.log(`Created knowledge base article ${knowledgeArticle.id} for file ${uploadedFile.originalName}`);
+
+    // Link the uploaded file to the knowledge base article
+    await storage.linkFileToKnowledgeBase(uploadedFile.id, knowledgeArticle.id);
+
+    // Mark file as successfully processed
+    await storage.updateUploadedFile(uploadedFile.id, { 
+      status: 'processed',
+      processedAt: new Date()
+    });
+
+    console.log(`Successfully processed file ${uploadedFile.originalName} for AI training`);
+  } catch (error) {
+    console.error(`Error processing file ${uploadedFile.originalName}:`, error);
+    throw error;
+  }
+}
 
 export async function registerRoutes(app: Express, sessionStore?: any): Promise<{ server: Server, wsServer?: any }> {
   // Rate limiting for authentication
@@ -2978,18 +3054,15 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             // Mark file for processing
             await storage.updateUploadedFile(uploadedFile.id, { status: 'processing' });
             
-            // TODO: Add to processing queue for AI training
-            // For now, mark as processed immediately
+            // Process file for AI training asynchronously
             setTimeout(async () => {
               try {
-                await storage.updateUploadedFile(uploadedFile.id, { 
-                  status: 'processed',
-                  processedAt: new Date()
-                });
+                await processFileForAITraining(uploadedFile, category, parsedTags, user.id);
               } catch (error) {
-                console.error('Failed to update file status:', error);
+                console.error(`Failed to process file ${uploadedFile.originalName} for AI training:`, error);
+                await storage.updateUploadedFile(uploadedFile.id, { status: 'error' });
               }
-            }, 1000);
+            }, 100); // Minimal delay to allow response to return
           }
         } catch (fileError) {
           console.error(`Error processing file ${file.originalname}:`, fileError);
@@ -3228,6 +3301,48 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to fetch agent workload metrics:', error);
       res.status(500).json({ error: 'Failed to fetch agent workload metrics' });
+    }
+  });
+
+  // Get file usage analytics
+  app.get('/api/analytics/files/usage', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { limit = 10, agentId } = req.query;
+      const parsedLimit = Math.min(parseInt(limit as string) || 10, 50);
+      
+      // Get most used files with usage statistics
+      const files = await storage.getTopUsedFiles(parsedLimit, agentId as string);
+      res.json(files);
+    } catch (error) {
+      console.error('Failed to fetch file usage analytics:', error);
+      res.status(500).json({ error: 'Failed to fetch file usage analytics' });
+    }
+  });
+
+  // Get file effectiveness metrics
+  app.get('/api/analytics/files/effectiveness', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { limit = 10 } = req.query;
+      const parsedLimit = Math.min(parseInt(limit as string) || 10, 50);
+      
+      // Get files with effectiveness metrics based on AI training integration
+      const effectiveness = await storage.getFileEffectivenessMetrics(parsedLimit);
+      res.json(effectiveness);
+    } catch (error) {
+      console.error('Failed to fetch file effectiveness metrics:', error);
+      res.status(500).json({ error: 'Failed to fetch file effectiveness metrics' });
+    }
+  });
+
+  // Get agent-specific file usage statistics
+  app.get('/api/analytics/files/by-agent', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      // Get file usage breakdown by agent
+      const agentFileUsage = await storage.getAgentFileUsageSummary();
+      res.json(agentFileUsage);
+    } catch (error) {
+      console.error('Failed to fetch agent file usage analytics:', error);
+      res.status(500).json({ error: 'Failed to fetch agent file usage analytics' });
     }
   });
 
