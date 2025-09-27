@@ -525,6 +525,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Conversation management routes
   app.get('/api/conversations', requireAuth, async (req, res) => {
     try {
+      // Disable all caching to debug issue
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+      res.set('Surrogate-Control', 'no-store');
       const user = req.user as any;
       let conversations: any[];
       
@@ -536,6 +541,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         // Agents can see conversations assigned to them AND unassigned conversations
         const assignedConversations = await storage.getConversationsByAgent(user.id);
         const unassignedConversations = await storage.getUnassignedConversations();
+        
+        console.log(`Agent ${user.name} - Assigned: ${assignedConversations.length}, Unassigned: ${unassignedConversations.length}`);
+        console.log(`Unassigned conversation IDs:`, unassignedConversations.map(c => c.id));
         
         // Combine and mark which are assigned vs unassigned
         conversations = [
@@ -614,6 +622,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       console.log(`Enrichment completed, ${enrichedConversations.length} conversations enriched`);
       
       console.log(`Sending ${enrichedConversations.length} conversations to client`);
+      
+      // Disable ETags to prevent 304 caching issues
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.set('ETag', ''); // Clear ETag
+      
       res.json(enrichedConversations);
     } catch (error) {
       console.error('Failed to fetch conversations:', error);

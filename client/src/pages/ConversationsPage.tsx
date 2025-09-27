@@ -225,7 +225,7 @@ export default function ConversationsPage() {
   // Take over mutation for unassigned conversations
   const takeOverMutation = useMutation({
     mutationFn: async (conversationId: string) => {
-      return await apiRequest('PUT', `/api/conversations/${conversationId}/take-over`, {});
+      return await apiRequest(`/api/conversations/${conversationId}/take-over`, 'PUT', {});
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });

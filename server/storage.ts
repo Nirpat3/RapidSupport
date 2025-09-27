@@ -52,7 +52,7 @@ import {
   type InsertAiAgentFileUsage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql } from "drizzle-orm";
+import { eq, desc, and, or, sql, isNull } from "drizzle-orm";
 
 // Updated interface for all CRUD operations
 export interface IStorage {
@@ -369,6 +369,7 @@ export class DatabaseStorage implements IStorage {
         title: conversations.title,
         status: conversations.status,
         priority: conversations.priority,
+        followupDate: conversations.followupDate,
         isAnonymous: conversations.isAnonymous,
         sessionId: conversations.sessionId,
         createdAt: conversations.createdAt,
@@ -416,6 +417,7 @@ export class DatabaseStorage implements IStorage {
         title: conversations.title,
         status: conversations.status,
         priority: conversations.priority,
+        followupDate: conversations.followupDate,
         isAnonymous: conversations.isAnonymous,
         sessionId: conversations.sessionId,
         createdAt: conversations.createdAt,
@@ -443,6 +445,7 @@ export class DatabaseStorage implements IStorage {
         title: conversations.title,
         status: conversations.status,
         priority: conversations.priority,
+        followupDate: conversations.followupDate,
         isAnonymous: conversations.isAnonymous,
         sessionId: conversations.sessionId,
         createdAt: conversations.createdAt,
@@ -1080,33 +1083,43 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUnassignedConversations(): Promise<Conversation[]> {
-    return await db
-      .select({
-        id: conversations.id,
-        customerId: conversations.customerId,
-        assignedAgentId: conversations.assignedAgentId,
-        title: conversations.title,
-        status: conversations.status,
-        priority: conversations.priority,
-        isAnonymous: conversations.isAnonymous,
-        sessionId: conversations.sessionId,
-        createdAt: conversations.createdAt,
-        updatedAt: conversations.updatedAt,
-        customer: {
-          id: customers.id,
-          name: customers.name,
-          email: customers.email,
-          company: customers.company,
-          status: customers.status,
-        }
-      })
-      .from(conversations)
-      .leftJoin(customers, eq(conversations.customerId, customers.id))
-      .where(and(
-        eq(conversations.assignedAgentId, null as any),
-        eq(conversations.status, 'open')
-      ))
-      .orderBy(desc(conversations.createdAt));
+    try {
+      console.log('Executing getUnassignedConversations query...');
+      const results = await db
+        .select({
+          id: conversations.id,
+          customerId: conversations.customerId,
+          assignedAgentId: conversations.assignedAgentId,
+          title: conversations.title,
+          status: conversations.status,
+          priority: conversations.priority,
+          followupDate: conversations.followupDate, // Add missing field
+          isAnonymous: conversations.isAnonymous,
+          sessionId: conversations.sessionId,
+          createdAt: conversations.createdAt,
+          updatedAt: conversations.updatedAt,
+          customer: {
+            id: customers.id,
+            name: customers.name,
+            email: customers.email,
+            company: customers.company,
+            status: customers.status,
+          }
+        })
+        .from(conversations)
+        .leftJoin(customers, eq(conversations.customerId, customers.id))
+        .where(and(
+          isNull(conversations.assignedAgentId),
+          eq(conversations.status, 'open')
+        ))
+        .orderBy(desc(conversations.createdAt));
+      
+      console.log(`getUnassignedConversations found ${results.length} results:`, results.map(r => r.id));
+      return results;
+    } catch (error) {
+      console.error('Error in getUnassignedConversations:', error);
+      return [];
+    }
   }
 
   // AI Agent operations
