@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useParams } from "wouter";
 import ConversationList, { type Conversation } from "@/components/ConversationList";
 import ChatInterface from "@/components/ChatInterface";
 import { type Message } from "@/components/ChatMessage";
@@ -141,9 +142,17 @@ const sampleMessages: { [key: string]: Message[] } = {
 };
 
 export default function ConversationsPage() {
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const params = useParams<{ id?: string }>();
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(params.id || null);
   const [activeTab, setActiveTab] = useState("new");
   const { markAsRead } = useNotifications();
+  
+  // Update activeConversationId when URL parameter changes
+  useEffect(() => {
+    if (params.id && params.id !== activeConversationId) {
+      setActiveConversationId(params.id);
+    }
+  }, [params.id, activeConversationId]);
   
   // Fetch real conversations from API instead of using sample data
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<any[]>({

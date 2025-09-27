@@ -425,6 +425,27 @@ class ChatWebSocketServer {
 
     console.log(`Broadcasted new message from ${customer.name} in unassigned conversation ${conversation.id} to all staff`);
   }
+
+  // Public method to broadcast conversation updates (like follow-up scheduling)
+  public broadcastConversationUpdate(conversationId: string, updateData: any) {
+    const notificationMessage = {
+      type: 'conversation_update',
+      conversationId,
+      ...updateData,
+      timestamp: new Date().toISOString()
+    };
+
+    // Broadcast to all staff (agents and admins)
+    this.connections.forEach(connectionSet => {
+      connectionSet.forEach(ws => {
+        if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(notificationMessage));
+        }
+      });
+    });
+
+    console.log(`Broadcasted conversation update for ${conversationId}:`, updateData);
+  }
 }
 
 export default ChatWebSocketServer;

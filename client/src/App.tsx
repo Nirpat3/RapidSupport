@@ -28,6 +28,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={ConversationsPage} />
+      <Route path="/conversations" component={ConversationsPage} />
+      <Route path="/conversations/:id" component={ConversationsPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/customers" component={CustomersPage} />
       <Route path="/customers/:id" component={CustomerProfilePage} />

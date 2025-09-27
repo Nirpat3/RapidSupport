@@ -137,6 +137,20 @@ const conversationAssignSchema = z.object({
   agentId: z.string().uuid('Invalid agent ID')
 });
 
+const followupUpdateSchema = z.object({
+  followupDate: z.string().datetime().nullable()
+}).refine(
+  (data) => {
+    if (data.followupDate === null) return true;
+    const date = new Date(data.followupDate);
+    return date > new Date();
+  },
+  {
+    message: 'Follow-up date must be in the future',
+    path: ['followupDate']
+  }
+);
+
 const messageStatusSchema = z.object({
   status: z.enum(['sent', 'delivered', 'read'])
 });
@@ -920,11 +934,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Validate conversation ID
       const conversationId = z.string().uuid().parse(req.params.id);
       
-      // Validate request body - followupDate should be an ISO string
-      const followupSchema = z.object({
-        followupDate: z.string().datetime()
-      });
-      const { followupDate } = followupSchema.parse(req.body);
+      // Validate request body
+      const { followupDate } = followupUpdateSchema.parse(req.body);
+      const user = req.user as any;
       
       // Check if conversation exists
       const conversation = await storage.getConversation(conversationId);
@@ -932,13 +944,42 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(404).json({ error: 'Conversation not found' });
       }
       
-      // Update conversation with follow-up date
+      // Authorization: only assigned agent or admin can set follow-up
+      if (user.role === 'agent' && conversation.assignedAgentId !== user.id) {
+        return res.status(403).json({ error: 'You can only set follow-ups for conversations assigned to you' });
+      }
+      
+      // Update conversation with follow-up date (convert to Date or null)
+      const followupDateObj = followupDate ? new Date(followupDate) : null;
       await storage.updateConversation(conversationId, {
-        followupDate: new Date(followupDate)
+        followupDate: followupDateObj
       });
       
+      // Log the follow-up activity
+      const actionType = followupDate ? 'followup_set' : 'followup_cleared';
+      const details = followupDate 
+        ? `Follow-up scheduled for ${new Date(followupDate).toLocaleDateString()} by ${user.name}`
+        : `Follow-up cleared by ${user.name}`;
+      
+      await storage.createActivityLog({
+        agentId: user.id,
+        conversationId,
+        action: actionType,
+        details
+      });
+      
+      // Broadcast follow-up update via WebSocket
+      const wsServer = (req.app as any).wsServer;
+      if (wsServer) {
+        wsServer.broadcastConversationUpdate(conversationId, {
+          id: conversationId,
+          followupDate: followupDate,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      
       res.json({ 
-        message: 'Follow-up scheduled successfully',
+        message: followupDate ? 'Follow-up scheduled successfully' : 'Follow-up cleared successfully',
         followupDate: followupDate
       });
     } catch (error) {
