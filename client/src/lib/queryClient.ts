@@ -72,10 +72,24 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
+      retry: (failureCount, error) => {
+        // Don't retry on 4xx errors (client errors)
+        if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+          return false;
+        }
+        // Retry up to 3 times for network errors and 5xx errors
+        return failureCount < 3;
+      },
     },
     mutations: {
-      retry: false,
+      retry: (failureCount, error) => {
+        // Don't retry on 4xx errors (client errors)
+        if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+          return false;
+        }
+        // Retry up to 2 times for network errors and 5xx errors
+        return failureCount < 2;
+      },
     },
   },
 });

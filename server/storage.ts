@@ -1946,7 +1946,7 @@ export class DatabaseStorage implements IStorage {
 
   // File Analytics methods
   async getTopUsedFiles(limit: number, agentId?: string): Promise<Array<{ file: UploadedFile; totalUsage: number; lastUsed?: Date }>> {
-    let query = db
+    const baseQuery = db
       .select({
         file: uploadedFiles,
         totalUsage: sql<number>`COALESCE(SUM(${aiAgentFileUsage.usageCount}), 0)`,
@@ -1956,10 +1956,10 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(aiAgentFileUsage, eq(uploadedFiles.id, aiAgentFileUsage.fileId))
       .groupBy(uploadedFiles.id);
     
-    // Filter by agent if specified
-    if (agentId) {
-      query = query.where(eq(aiAgentFileUsage.agentId, agentId));
-    }
+    // Apply agent filter if specified
+    const query = agentId 
+      ? baseQuery.where(eq(aiAgentFileUsage.agentId, agentId))
+      : baseQuery;
     
     const results = await query
       .orderBy(sql`SUM(${aiAgentFileUsage.usageCount}) DESC NULLS LAST`)
