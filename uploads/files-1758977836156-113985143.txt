@@ -1,3 +1,0 @@
-Title: AI Training Test
-
-This document will be used to test automatic AI training file processing.
