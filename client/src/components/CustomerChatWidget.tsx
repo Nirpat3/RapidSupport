@@ -114,8 +114,8 @@ export function CustomerChatWidget() {
   // Fetch messages for active conversation
   const { data: messages = [], refetch: refetchMessages } = useQuery<ChatMessage[]>({
     queryKey: ['/api/customer-chat/messages', chatState.conversationId],
-    enabled: !!chatState.conversationId,
-    refetchInterval: 2000, // Poll for new messages every 2 seconds
+    enabled: !!chatState.conversationId && chatState.isOpen,
+    refetchInterval: chatState.isOpen ? 5000 : false, // Only poll when widget is open, every 5 seconds
   });
 
   // Create customer and conversation

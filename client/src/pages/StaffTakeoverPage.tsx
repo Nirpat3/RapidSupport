@@ -43,7 +43,7 @@ export default function StaffTakeoverPage() {
   // Fetch active AI conversations
   const { data: activeConversations = [], isLoading, refetch } = useQuery<ActiveAiConversation[]>({
     queryKey: ['/api/ai/active-conversations'],
-    refetchInterval: 5000, // Refresh every 5 seconds for real-time updates
+    refetchInterval: 10000, // Refresh every 10 seconds for real-time updates
   });
 
   // Manual takeover mutation

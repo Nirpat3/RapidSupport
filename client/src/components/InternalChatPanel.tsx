@@ -54,7 +54,7 @@ export default function InternalChatPanel({
   const { data: messages = [], isLoading } = useQuery<InternalMessage[]>({
     queryKey: ['/api/conversations', conversationId, 'internal-messages'],
     enabled: !!conversationId && isOpen,
-    refetchInterval: 5000, // Poll every 5 seconds when panel is open
+    refetchInterval: isOpen ? 10000 : false, // Only poll when panel is open, every 10 seconds
   });
 
   // Create internal message mutation
