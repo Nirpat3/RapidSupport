@@ -1,0 +1,83 @@
+Payment Terminal Configuration
+
+If you are not able to connect with your Pax. Please follow the below steps to connect your Pax machine. 
+
+Check Network Connection :-
+
+Please make sure that Lan wire is connected properly. If it is not connected, It will appear the error message "Lan Disconnected" on the screen.
+
+The Internet connection is the gateway to connect all devices on the network to communicate with one another. Please make sure Pax and Ipad are connected to the same network.
+
+Please make sure that you have turned on Local Network from Ipad Settings. Please follow the below steps to check Local Network.
+
+Check for Local Network:-
+
+Go to Settings from your Ipad.
+Click on Rapid RMS Application. (May need to scroll down to search Rapid RMS App).
+Click on Local Network Toggle button.
+
+If your devices are connected on the same network and you still cannot connect with the Pax machine. Please follow the below steps.
+
+Check Pax Configuration :-
+
+Please check entered Pax machine IP address in RapidRMS Application. You may not be able to connect with the Pax machine due to a change of IP address. If you do not remember the Pax IP address, please follow the below steps to get an IP address from the Pax machine.
+
+Please follow below steps and screenshort to check the IP address from PAX.
+
+Click on "SETTING" from Home Secren.
+Please enter password "pax9876@@ / 9876", click on OK button.
+Click on WIFI / LAN.
+Your Internet Name will be display then click on it.
+You can notedown your IP Address.
+
+Check ECR Settings for Host Port & Protocal Type :-
+
+Please follow below steps and screenshort to check ECR Settings.
+
+Open Your Pax Application from Home Screen.
+Click on Setting icon.
+Enter a password 1 and click on Enter button.
+Find "ECR Comm Settings" and click Enter.
+Select the Ethernet option and click Enter.
+Port will display as 10009, Click enter again.
+Select HTTP get or HTTPS Get and click on enter.
+
+Note:- Please make sure that HTTP and HTTPS options should be selected according to Pax configuration settings from IPad. 
+
+Processor Protocol:
+All Processor: It supports HTTP GET and HTTPS Get Protocol.
+TSYS Processor: It supports HTTP GET Protocol only.
+
+Exit to main screen by pressing < on the device.
+
+How to Select ECR Terminal Integration Mode :-
+
+Please follow below steps and screensrt to select ECR Terminal Mode (External POS).
+
+Open Your BOFA Application from Home Screen.
+Click on Setting icon.
+Enter a password 1 and click on Enter button.
+Find "System Settings" and click Enter.
+Select the ECR Terminal Integration Mode and click Enter.
+Select External POS.
+
+Pax Configuration with iPad :-
+
+Please follow below steps and screensort to check PAX configuration with iPad.
+
+After getting the Pax Machine IP address and IP Port.
+Open the Rapid RMS Application.
+Click on the setting option available at bottom of the screen.
+Enter Quick access or four digits pin.
+Click on the Pax configuration option available on the right side of the screen.
+Enter your IP address and IP Port.
+Set communication to Ethernet.
+Select HTTP and HTTPS options available for communication. 
+
+Note :- Please make sure that HTTP and HTTPS options should be selected according to ECR settings from the Pax machine. 
+
+Click or tap on the save button.
+Now, click on the test connection button. If it appears a connection message with a green indication line, which means that you are connected with the Pax machine.
+If it appears failed connection message with a red indication line, which means you may have entered the wrong IP address or IP Port. Please enter your IP address and Ip Port properly and click on the save button again.
+
+If you are still not able to connect the pax machine. Please contact your Payment Processor or Account Manager.

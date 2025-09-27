@@ -619,6 +619,15 @@ export default function FileManagementPage() {
                 )}
               </div>
 
+              {selectedFile.status === 'error' && selectedFile.errorMessage && (
+                <div>
+                  <h4 className="font-medium">Error Details</h4>
+                  <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                    {selectedFile.errorMessage}
+                  </p>
+                </div>
+              )}
+
               {selectedFile.tags && selectedFile.tags.length > 0 && (
                 <div>
                   <h4 className="font-medium mb-2">Tags</h4>
