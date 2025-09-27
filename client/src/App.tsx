@@ -53,9 +53,9 @@ function AuthenticatedApp() {
   return (
     <NotificationProvider>
       <SidebarProvider style={style as React.CSSProperties}>
-        <div className="flex h-screen w-full">
+        <div className="flex h-screen w-full max-w-full overflow-hidden">
           <AppSidebar />
-          <div className="flex flex-col flex-1">
+          <div className="flex flex-col flex-1 min-w-0">
             <header className="flex items-center justify-between p-2 sm:p-4 border-b border-border bg-card min-w-0">
               <div className="flex items-center gap-1 sm:gap-4 min-w-0 flex-1">
                 <SidebarTrigger data-testid="button-sidebar-toggle" className="flex-shrink-0" />
@@ -82,7 +82,7 @@ function AuthenticatedApp() {
                 </button>
               </div>
             </header>
-            <main className="flex-1 overflow-hidden">
+            <main className="flex-1 overflow-hidden w-full max-w-full box-border">
               <Router />
             </main>
           </div>

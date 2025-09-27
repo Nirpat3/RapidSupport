@@ -347,40 +347,43 @@ export default function KnowledgeManagementPage() {
   const totalUsage = articles.reduce((sum, a) => sum + a.usageCount, 0);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden box-border">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="space-y-4">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="page-title">Knowledge Management</h1>
-          <p className="text-muted-foreground">Manage AI knowledge base articles and track effectiveness</p>
+          <h1 className="text-xl sm:text-3xl font-bold" data-testid="page-title">Knowledge Management</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Manage AI knowledge base articles and track effectiveness</p>
         </div>
         
-        {/* View Toggle */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1 p-1 bg-muted rounded-md">
+        {/* Mobile: Stack vertically, Desktop: Side by side */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1 p-1 bg-muted rounded-md w-fit">
             <Button
               variant={managementView === "articles" ? "default" : "ghost"}
               size="sm"
               onClick={() => setManagementView("articles")}
               data-testid="button-view-articles"
+              className="text-xs sm:text-sm"
             >
-              <BookOpen className="w-4 h-4 mr-2" />
-              Articles
+              <BookOpen className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Articles</span>
             </Button>
             <Button
               variant={managementView === "agents" ? "default" : "ghost"}
               size="sm"
               onClick={() => setManagementView("agents")}
               data-testid="button-view-agents"
+              className="text-xs sm:text-sm"
             >
-              <User className="w-4 h-4 mr-2" />
-              Agents
+              <User className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Agents</span>
             </Button>
           </div>
           
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-create-article">
+              <Button data-testid="button-create-article" className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Add Knowledge
               </Button>
@@ -499,36 +502,37 @@ export default function KnowledgeManagementPage() {
       {managementView === "articles" ? (
         <>
           {/* Search and Filters */}
-          <div className="flex gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-[300px]">
+          <div className="space-y-3 sm:space-y-0 sm:flex sm:gap-4 sm:flex-wrap">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search articles, content, or tags..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 w-full"
                 data-testid="input-search"
               />
             </div>
             
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-[200px]" data-testid="select-category">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Select value={selectedSourceType} onValueChange={setSelectedSourceType}>
-              <SelectTrigger className="w-[150px]" data-testid="select-source-type">
-                <SelectValue placeholder="All Sources" />
-              </SelectTrigger>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:flex sm:gap-2">
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-category">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={selectedSourceType} onValueChange={setSelectedSourceType}>
+                <SelectTrigger className="w-full sm:w-[150px]" data-testid="select-source-type">
+                  <SelectValue placeholder="All Sources" />
+                </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Sources</SelectItem>
                 <SelectItem value="manual">Manual Entry</SelectItem>
@@ -538,7 +542,7 @@ export default function KnowledgeManagementPage() {
             </Select>
             
             <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-              <SelectTrigger className="w-[200px]" data-testid="select-agent">
+              <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-agent">
                 <SelectValue placeholder="All Agents" />
               </SelectTrigger>
               <SelectContent>
@@ -550,6 +554,7 @@ export default function KnowledgeManagementPage() {
                 ))}
               </SelectContent>
             </Select>
+            </div>
           </div>
 
       {/* Articles List */}
