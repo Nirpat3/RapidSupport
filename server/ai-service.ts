@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning } from '@shared/schema';
 import { storage } from './storage';
-import { knowledgeRetrieval, type SearchResult } from './knowledge-retrieval';
+import { knowledgeRetrieval, type SearchResult, type RetrievalOptions } from './knowledge-retrieval';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -41,6 +41,19 @@ export interface SmartAgentResponse extends AIAgentResponse {
   messageCount: number;
   avgConfidence: number;
   shouldLearn: boolean;
+}
+
+export interface QueryAnalysis {
+  type: 'instructional' | 'troubleshooting' | 'informational' | 'specific';
+  intent: string;
+  complexity: 'low' | 'medium' | 'high';
+  wordCount: number;
+  hasMultipleConcepts: boolean;
+  hasQualifiers: boolean;
+}
+
+interface EnhancedSearchResult extends SearchResult {
+  contextRelevance?: string;
 }
 
 export class AIService {
@@ -733,24 +746,38 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
         return [];
       }
 
-      // Detect if this is a how-to/instructional query
-      const isInstructionalQuery = /\b(how\s+(do\s+i|to)|setup|install|configure|connect|pair|troubleshoot|steps|guide|tutorial|instructions|process)\b/i.test(query);
+      // Enhanced query analysis for better search optimization
+      const queryAnalysis = this.analyzeQuery(query);
       
-      // Search with enhanced knowledge retrieval
-      const searchResults = await knowledgeRetrieval.search(query, knowledgeBaseIds, {
-        maxResults: 5,
-        minScore: 0.15, // Minimum relevance threshold
-        useSemanticSearch: true,
-        expandScope: true, // Allow fallback to broader search if needed
-        requireSteps: isInstructionalQuery, // Boost step-by-step content for how-to queries
+      // Dynamic search parameters based on query characteristics
+      const searchOptions = this.getOptimalSearchOptions(queryAnalysis);
+      
+      console.log(`Query analysis - Type: ${queryAnalysis.type}, Intent: ${queryAnalysis.intent}, Complexity: ${queryAnalysis.complexity}`);
+      
+      // Multi-tiered search strategy
+      let searchResults = await knowledgeRetrieval.search(query, knowledgeBaseIds, searchOptions);
+      
+      // If insufficient results for complex queries, try broader search
+      if (searchResults.length < 2 && queryAnalysis.complexity === 'high') {
+        console.log('Insufficient results for complex query, expanding search...');
+        const broadSearchOptions = {
+          ...searchOptions,
+          minScore: Math.max(0.1, searchOptions.minScore! - 0.05),
+          maxResults: 8,
+          expandScope: true,
+        };
+        searchResults = await knowledgeRetrieval.search(query, knowledgeBaseIds, broadSearchOptions);
+      }
+      
+      // Enhanced context filtering and ranking
+      const filteredResults = this.filterAndRankResults(searchResults, queryAnalysis);
+      
+      console.log(`Knowledge retrieval for "${query}": found ${filteredResults.length} relevant chunks`);
+      filteredResults.forEach((result, i) => {
+        console.log(`  ${i + 1}. ${result.chunk.title} (${result.matchType}, score: ${result.score.toFixed(2)}, relevance: ${result.contextRelevance || 'N/A'})`);
       });
 
-      console.log(`Knowledge retrieval for "${query}": found ${searchResults.length} relevant chunks`);
-      searchResults.forEach((result, i) => {
-        console.log(`  ${i + 1}. ${result.chunk.title} (${result.matchType}, score: ${result.score.toFixed(2)})`);
-      });
-
-      return searchResults;
+      return filteredResults;
     } catch (error) {
       console.error('Error getting relevant knowledge:', error);
       return [];
@@ -788,6 +815,142 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
       console.error('Error handing over to human:', error);
       return false;
     }
+  }
+
+  /**
+   * Analyze query characteristics for optimal search strategy
+   */
+  private static analyzeQuery(query: string): QueryAnalysis {
+    const lowerQuery = query.toLowerCase();
+    
+    // Query type detection
+    let type: 'instructional' | 'troubleshooting' | 'informational' | 'specific' = 'informational';
+    let intent = 'general';
+    let complexity: 'low' | 'medium' | 'high' = 'medium';
+    
+    // Instructional queries
+    if (/\b(how\s+(do\s+i|to)|setup|install|configure|connect|pair|guide|tutorial|instructions|process|steps)\b/i.test(query)) {
+      type = 'instructional';
+      intent = 'learn_process';
+    }
+    
+    // Troubleshooting queries
+    else if (/\b(not\s+working|broken|error|problem|issue|trouble|fix|resolve|solve|help|stuck)\b/i.test(query)) {
+      type = 'troubleshooting';
+      intent = 'solve_problem';
+    }
+    
+    // Specific queries
+    else if (/\b(where|what\s+is|when|which|who|specific|exact|particular)\b/i.test(query)) {
+      type = 'specific';
+      intent = 'find_specific';
+    }
+    
+    // Complexity assessment
+    const wordCount = query.split(/\s+/).length;
+    const hasMultipleConcepts = (query.match(/\b(and|or|also|plus|with|including)\b/g) || []).length > 0;
+    const hasQualifiers = (query.match(/\b(if|when|while|during|after|before)\b/g) || []).length > 0;
+    
+    if (wordCount > 15 || hasMultipleConcepts || hasQualifiers) {
+      complexity = 'high';
+    } else if (wordCount < 5) {
+      complexity = 'low';
+    }
+    
+    return { type, intent, complexity, wordCount, hasMultipleConcepts, hasQualifiers };
+  }
+
+  /**
+   * Get optimal search options based on query analysis
+   */
+  private static getOptimalSearchOptions(analysis: QueryAnalysis): RetrievalOptions {
+    const baseOptions: RetrievalOptions = {
+      useSemanticSearch: true,
+      expandScope: false,
+    };
+    
+    switch (analysis.type) {
+      case 'instructional':
+        return {
+          ...baseOptions,
+          maxResults: 6, // More results for learning
+          minScore: 0.12, // Slightly lower threshold for comprehensive steps
+          requireSteps: true,
+          expandScope: true, // Instructional content might be in various articles
+        };
+        
+      case 'troubleshooting':
+        return {
+          ...baseOptions,
+          maxResults: 5,
+          minScore: 0.2, // Higher threshold for problem-solving accuracy
+          requireSteps: true, // Troubleshooting often involves steps
+          expandScope: true, // Issues might span multiple topics
+        };
+        
+      case 'specific':
+        return {
+          ...baseOptions,
+          maxResults: 3, // Fewer, more precise results
+          minScore: 0.25, // High threshold for specific answers
+          expandScope: false, // Keep search focused
+        };
+        
+      default: // informational
+        return {
+          ...baseOptions,
+          maxResults: analysis.complexity === 'high' ? 6 : 4,
+          minScore: analysis.complexity === 'high' ? 0.15 : 0.18,
+          expandScope: analysis.complexity === 'high',
+        };
+    }
+  }
+
+  /**
+   * Filter and rank search results based on query analysis
+   */
+  private static filterAndRankResults(results: SearchResult[], analysis: QueryAnalysis): EnhancedSearchResult[] {
+    // Add context relevance scoring
+    const enhancedResults = results.map(result => {
+      let contextRelevance = 'medium';
+      let adjustedScore = result.score;
+      
+      // Boost relevance based on query type and content characteristics
+      if (analysis.type === 'instructional') {
+        if (/\b(step|steps|first|second|third|next|then|finally)\b/i.test(result.chunk.content)) {
+          contextRelevance = 'high';
+          adjustedScore *= 1.2;
+        }
+      } else if (analysis.type === 'troubleshooting') {
+        if (/\b(error|problem|issue|fix|resolve|solution|troubleshoot)\b/i.test(result.chunk.content)) {
+          contextRelevance = 'high';
+          adjustedScore *= 1.15;
+        }
+      }
+      
+      // Boost results with clear structure
+      if (result.chunk.metadata.hasStructure) {
+        adjustedScore *= 1.1;
+      }
+      
+      return {
+        ...result,
+        score: adjustedScore,
+        contextRelevance,
+      };
+    });
+    
+    // Re-sort by adjusted scores and filter low-relevance results
+    return enhancedResults
+      .sort((a, b) => b.score - a.score)
+      .filter(result => {
+        // More stringent filtering for complex queries
+        if (analysis.complexity === 'high') {
+          return result.score > 0.2;
+        }
+        return result.score > 0.15;
+      })
+      .slice(0, analysis.complexity === 'high' ? 6 : 5); // Limit results appropriately
   }
 
   /**
