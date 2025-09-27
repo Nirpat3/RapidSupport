@@ -169,7 +169,7 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
           onClick={() => {
             // Mark as read and navigate
             markAsRead(conversationId);
-            setLocation(`/?conversation=${conversationId}`);
+            setLocation(`/conversations/${conversationId}`);
           }}
           className="inline-flex h-8 shrink-0 items-center justify-center rounded-md border bg-transparent px-3 text-sm font-medium transition-colors hover:bg-secondary focus:outline-none focus:ring-1 focus:ring-ring"
           data-testid={`button-view-conversation-${conversationId}`}
