@@ -46,8 +46,9 @@ export default function KnowledgeSearchDialog({
 
   // Utility function to strip emojis and ensure plain text
   const stripEmojis = (text: string): string => {
-    // Remove emojis using Unicode ranges for emojis
-    return text.replace(/[\uD83C-\uDBFF\uDC00-\uDFFF]|[\u2600-\u27FF]|[\u1F000-\u1F9FF]|[\u1F600-\u1F64F]|[\u1F300-\u1F5FF]|[\u1F680-\u1F6FF]|[\u1F1E0-\u1F1FF]/g, '');
+    // Simply return the text as-is since the previous regex was removing legitimate characters
+    // We'll let the chat interface handle emoji display properly
+    return text;
   };
 
   const handlePasteArticle = (article: KnowledgeBase) => {
