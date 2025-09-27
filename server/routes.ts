@@ -206,7 +206,7 @@ const upload = multer({
   storage: uploadStorage,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 5 // Max 5 files per request
+    files: 15 // Max 15 files per request - increased for batch uploads
   },
   fileFilter: function (req, file, cb) {
     // For knowledge base documents, only allow supported document types
