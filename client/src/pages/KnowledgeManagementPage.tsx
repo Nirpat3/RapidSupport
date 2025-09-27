@@ -37,6 +37,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { 
   Plus, 
   Search, 
@@ -54,7 +56,10 @@ import {
   Filter,
   File,
   Globe,
-  ImageIcon
+  ImageIcon,
+  CheckCircle,
+  AlertCircle,
+  LogIn
 } from "lucide-react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { useForm } from "react-hook-form";
@@ -426,6 +431,7 @@ export default function KnowledgeManagementPage() {
                   isSubmitting={createFromFilesMutation.isPending}
                   onCancel={() => setIsCreateDialogOpen(false)}
                   agents={agents}
+                  existingArticles={articles}
                 />
               </TabsContent>
               
@@ -1214,12 +1220,15 @@ function FileUploadForm({
   isSubmitting,
   onCancel,
   agents = [],
+  existingArticles = [],
 }: {
   onSubmit: (data: { files: FileList; category: string; tags: string; priority: number; assignedAgentIds?: string[] }) => void;
   isSubmitting: boolean;
   onCancel: () => void;
   agents?: Agent[];
+  existingArticles?: KnowledgeArticle[];
 }) {
+  const { toast } = useToast();
   const form = useForm({
     resolver: zodResolver(fileKnowledgeSchema),
     defaultValues: {
@@ -1231,8 +1240,32 @@ function FileUploadForm({
   });
 
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [duplicateFiles, setDuplicateFiles] = useState<string[]>([]);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
-  const handleSubmit = (data: any) => {
+  // Normalize filename to title for comparison
+  const normalizeFilename = (filename: string): string => {
+    return filename.replace(/\.[^/.]+$/, "").toLowerCase().trim();
+  };
+
+  // Check for duplicate files
+  const checkDuplicates = (files: FileList) => {
+    const duplicates: string[] = [];
+    const existingTitles = existingArticles.map(article => article.title.toLowerCase().trim());
+    
+    Array.from(files).forEach(file => {
+      const normalizedName = normalizeFilename(file.name);
+      if (existingTitles.some(title => title.includes(normalizedName) || normalizedName.includes(title))) {
+        duplicates.push(file.name);
+      }
+    });
+    
+    setDuplicateFiles(duplicates);
+    return duplicates;
+  };
+
+  const handleSubmit = async (data: any) => {
     if (!selectedFiles || selectedFiles.length === 0) {
       form.setError("root", {
         type: "manual",
@@ -1240,19 +1273,103 @@ function FileUploadForm({
       });
       return;
     }
+
+    // Check for duplicates
+    const duplicates = checkDuplicates(selectedFiles);
+    if (duplicates.length > 0) {
+      toast({
+        title: "Duplicate Files Detected",
+        description: `These files are already in your knowledge base: ${duplicates.join(', ')}`,
+        variant: "default",
+      });
+      return;
+    }
     
-    onSubmit({
-      files: selectedFiles,
-      category: data.category,
-      tags: data.tags,
-      priority: data.priority,
-      assignedAgentIds: data.assignedAgentIds,
-    });
+    setAuthError(null);
+    setUploadProgress(0);
+    
+    try {
+      setUploadProgress(50); // Show progress during upload
+      await onSubmit({
+        files: selectedFiles,
+        category: data.category,
+        tags: data.tags,
+        priority: data.priority,
+        assignedAgentIds: data.assignedAgentIds,
+      });
+      setUploadProgress(100);
+    } catch (error: any) {
+      setUploadProgress(null);
+      
+      // Handle authentication errors specifically
+      if (error.message?.includes('401') || error.message?.includes('Not authenticated')) {
+        setAuthError('Your session has expired. Please log in to upload files.');
+      } else {
+        // Let the parent handle other errors
+        throw error;
+      }
+    }
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        {/* Existing Documents Panel */}
+        {existingArticles.length > 0 && (
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4" />
+              Existing Documents ({existingArticles.length})
+            </Label>
+            <Card className="max-h-32 overflow-y-auto">
+              <CardContent className="p-3">
+                <div className="space-y-1">
+                  {existingArticles.slice(0, 10).map((article) => (
+                    <div key={article.id} className="flex items-center justify-between text-xs">
+                      <span className="truncate">{article.title}</span>
+                      <Badge variant="outline" className="text-xs">{article.category}</Badge>
+                    </div>
+                  ))}
+                  {existingArticles.length > 10 && (
+                    <p className="text-xs text-muted-foreground text-center pt-1">
+                      ... and {existingArticles.length - 10} more documents
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Authentication Error Alert */}
+        {authError && (
+          <Alert variant="destructive">
+            <LogIn className="h-4 w-4" />
+            <AlertDescription>
+              {authError}
+              <Button 
+                variant="link" 
+                size="sm" 
+                className="p-0 h-auto ml-2" 
+                onClick={() => window.location.reload()}
+              >
+                Refresh to login
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Upload Progress */}
+        {uploadProgress !== null && (
+          <div className="space-y-2">
+            <Label>Upload Progress</Label>
+            <Progress value={uploadProgress} className="w-full" />
+            <p className="text-xs text-muted-foreground">
+              {uploadProgress === 100 ? 'Upload complete!' : `Uploading... ${uploadProgress}%`}
+            </p>
+          </div>
+        )}
+
         {/* File Upload */}
         <div className="space-y-2">
           <Label htmlFor="file-upload">Upload Files</Label>
@@ -1263,6 +1380,9 @@ function FileUploadForm({
             accept=".txt,.md,.pdf,.doc,.docx"
             onChange={(e) => {
               setSelectedFiles(e.target.files);
+              if (e.target.files) {
+                checkDuplicates(e.target.files);
+              }
             }}
             className="cursor-pointer"
             data-testid="input-files"
@@ -1274,14 +1394,32 @@ function FileUploadForm({
             <div className="mt-2">
               <p className="text-sm font-medium mb-1">Selected files:</p>
               <ul className="text-sm text-muted-foreground space-y-1">
-                {Array.from(selectedFiles).map((file, index) => (
-                  <li key={index} className="flex items-center gap-2">
-                    <File className="w-3 h-3" />
-                    <span>{file.name}</span>
-                    <span className="text-xs">({(file.size / 1024).toFixed(1)} KB)</span>
-                  </li>
-                ))}
+                {Array.from(selectedFiles).map((file, index) => {
+                  const isDuplicate = duplicateFiles.includes(file.name);
+                  return (
+                    <li key={index} className={`flex items-center gap-2 ${isDuplicate ? 'text-orange-600' : ''}`}>
+                      {isDuplicate ? (
+                        <AlertCircle className="w-3 h-3 text-orange-600" />
+                      ) : (
+                        <File className="w-3 h-3" />
+                      )}
+                      <span>{file.name}</span>
+                      <span className="text-xs">({(file.size / 1024).toFixed(1)} KB)</span>
+                      {isDuplicate && (
+                        <Badge variant="secondary" className="text-xs">Already uploaded</Badge>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
+              {duplicateFiles.length > 0 && (
+                <Alert className="mt-2">
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {duplicateFiles.length} file(s) already exist in your knowledge base. These will be skipped.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           )}
         </div>
@@ -1403,8 +1541,14 @@ function FileUploadForm({
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting || !selectedFiles} data-testid="button-upload-files">
-            {isSubmitting ? "Uploading..." : "Upload Files"}
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || !selectedFiles || duplicateFiles.length === selectedFiles?.length || authError !== null} 
+            data-testid="button-upload-files"
+          >
+            {isSubmitting ? "Uploading..." : 
+             duplicateFiles.length === selectedFiles?.length ? "All Files Already Uploaded" :
+             "Upload Files"}
           </Button>
         </DialogFooter>
       </form>
