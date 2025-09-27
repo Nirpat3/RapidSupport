@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { UserPlus, Users, Search, MessageSquare, ArrowLeft, Clock, CheckCircle, History, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/contexts/NotificationContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 // TODO: remove mock functionality
 const sampleConversations: Conversation[] = [
@@ -188,12 +189,8 @@ export default function ConversationsPage() {
   }));
 
   // Filter conversations by tab type
-  const getCurrentUserId = () => {
-    // TODO: Get current user ID from auth context
-    return "46d6565f-cee8-4ad4-acb9-5c40c78d1234"; // Placeholder - should come from auth
-  };
-
-  const currentUserId = getCurrentUserId();
+  const { user } = useAuth();
+  const currentUserId = user?.id;
   
   // Filter conversations for each tab
   const newConversations = formattedConversations.filter(conv => 
