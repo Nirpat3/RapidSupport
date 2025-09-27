@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning } from '@shared/schema';
 import { storage } from './storage';
+import { knowledgeRetrieval, type SearchResult } from './knowledge-retrieval';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -476,14 +477,14 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         .slice(-10)
         .map(msg => `${msg.senderType}: ${msg.content}`);
 
-      // Get relevant knowledge base articles
-      const knowledgeArticles = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || []);
+      // Get relevant knowledge base articles using enhanced retrieval
+      const searchResults = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || []);
 
       // Generate response using agent's configuration
       const response = await this.generateAgentResponseWithConfig(
         customerMessage,
         conversationHistory,
-        knowledgeArticles,
+        searchResults,
         agent
       );
 
@@ -572,12 +573,14 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
   private static async generateAgentResponseWithConfig(
     customerMessage: string,
     conversationHistory: string[],
-    knowledgeArticles: KnowledgeBase[],
+    searchResults: SearchResult[],
     agent: AiAgent
   ): Promise<AIAgentResponse> {
     try {
-      const knowledgeContext = knowledgeArticles.length 
-        ? `\nKnowledge Base:\n${knowledgeArticles.map(kb => `${kb.title}: ${kb.content}`).join('\n')}\n`
+      const knowledgeContext = searchResults.length 
+        ? `\nKnowledge Base:\n${searchResults.map(result => 
+            `${result.chunk.title}: ${result.chunk.content} (Relevance: ${result.score.toFixed(2)}, Match: ${result.matchType})`
+          ).join('\n')}\n`
         : '\nKnowledge Base: No relevant knowledge base articles available.\n';
 
       const conversationContext = conversationHistory.length 
@@ -601,17 +604,18 @@ FORMATTING GUIDELINES:
   "1. First step description\n2. Second step description\n3. Third step description"
 
 CRITICAL GUIDELINES:
-- You MUST ONLY use information from the provided Knowledge Base
+- You MUST ONLY use information from the provided Knowledge Base chunks
 - If no relevant knowledge base articles are available, set requiresHumanTakeover to true
-- NEVER provide answers from general knowledge
+- NEVER provide answers from general knowledge  
 - If confidence is low or no relevant knowledge exists, require human takeover
+- When using knowledge base information, mention the article title for reference
 
 Confidence scoring:
-- 90-100: Completely confident with relevant knowledge base information
-- 70-89: Good confidence using knowledge base articles
-- 50-69: Moderate confidence with limited knowledge base info
-- 30-49: Low confidence, likely needs human help
-- 0-29: Very low confidence, definitely needs human assistance
+- 90-100: Completely confident with highly relevant knowledge base chunks (score > 0.8)
+- 70-89: Good confidence using relevant knowledge base chunks (score > 0.5)
+- 50-69: Moderate confidence with moderately relevant knowledge (score > 0.3)
+- 30-49: Low confidence with weak knowledge match (score > 0.15)
+- 0-29: Very low confidence, definitely needs human assistance (score < 0.15)
 
 If no relevant knowledge base information is available, set requiresHumanTakeover to true and explain that you need to connect them with a human agent.`;
 
@@ -634,10 +638,10 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
       const result = JSON.parse(responseContent);
       
       // Update knowledge base usage statistics (if storage methods exist)
-      if (knowledgeArticles.length > 0) {
-        for (const kb of knowledgeArticles) {
+      if (searchResults.length > 0) {
+        for (const result of searchResults) {
           try {
-            await storage.updateKnowledgeBaseUsage?.(kb.id);
+            await storage.updateKnowledgeBaseUsage?.(result.chunk.knowledgeBaseId);
           } catch (e) {
             // Method may not exist yet, ignore
           }
@@ -664,14 +668,14 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
       }
 
       // Force human takeover if no knowledge articles are available
-      const shouldForceHumanTakeover = knowledgeArticles.length === 0;
+      const shouldForceHumanTakeover = searchResults.length === 0;
       
       return {
         response,
         confidence: shouldForceHumanTakeover ? Math.min(result.confidence || 20, 20) : (result.confidence || 50),
         requiresHumanTakeover: shouldForceHumanTakeover || result.requiresHumanTakeover || false,
         suggestedActions: result.suggestedActions || ['Connect with human agent'],
-        knowledgeUsed: knowledgeArticles.map(kb => kb.id),
+        knowledgeUsed: searchResults.map(result => result.chunk.knowledgeBaseId),
         agentId: agent.id,
         format: finalFormat,
       };
@@ -721,30 +725,32 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
   }
 
   /**
-   * Get relevant knowledge base articles
+   * Get relevant knowledge base articles using enhanced retrieval system
    */
-  private static async getRelevantKnowledge(query: string, knowledgeBaseIds: string[]): Promise<KnowledgeBase[]> {
+  private static async getRelevantKnowledge(query: string, knowledgeBaseIds: string[]): Promise<SearchResult[]> {
     try {
       if (knowledgeBaseIds.length === 0) {
         return [];
       }
 
-      const allArticles = await storage.getKnowledgeBaseArticles?.(knowledgeBaseIds) || [];
+      // Detect if this is a how-to/instructional query
+      const isInstructionalQuery = /\b(how\s+(do\s+i|to)|setup|install|configure|connect|pair|troubleshoot|steps|guide|tutorial|instructions|process)\b/i.test(query);
       
-      // Simple relevance matching based on keywords
-      const queryLower = query.toLowerCase();
-      const relevantArticles = allArticles.filter((article: KnowledgeBase) => {
-        const titleMatch = article.title.toLowerCase().includes(queryLower);
-        const contentMatch = article.content.toLowerCase().includes(queryLower);
-        const tagMatch = article.tags?.some((tag: string) => queryLower.includes(tag.toLowerCase()));
-        
-        return titleMatch || contentMatch || tagMatch;
+      // Search with enhanced knowledge retrieval
+      const searchResults = await knowledgeRetrieval.search(query, knowledgeBaseIds, {
+        maxResults: 5,
+        minScore: 0.15, // Minimum relevance threshold
+        useSemanticSearch: true,
+        expandScope: true, // Allow fallback to broader search if needed
+        requireSteps: isInstructionalQuery, // Boost step-by-step content for how-to queries
       });
 
-      // Sort by priority and return top 3
-      return relevantArticles
-        .sort((a: KnowledgeBase, b: KnowledgeBase) => (b.priority || 50) - (a.priority || 50))
-        .slice(0, 3);
+      console.log(`Knowledge retrieval for "${query}": found ${searchResults.length} relevant chunks`);
+      searchResults.forEach((result, i) => {
+        console.log(`  ${i + 1}. ${result.chunk.title} (${result.matchType}, score: ${result.score.toFixed(2)})`);
+      });
+
+      return searchResults;
     } catch (error) {
       console.error('Error getting relevant knowledge:', error);
       return [];
