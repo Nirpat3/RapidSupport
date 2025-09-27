@@ -21,6 +21,8 @@ export interface KnowledgeChunk {
     wordCount: number;
     sourceTitle: string;
     sourceCategory: string;
+    chunkTitle?: string;
+    hasStructure?: boolean;
   };
 }
 
@@ -108,75 +110,249 @@ export class KnowledgeRetrievalService {
   }
 
   /**
-   * Break knowledge article into smaller, focused chunks
+   * Break knowledge article into smaller, focused chunks with intelligent splitting
    */
   private chunkDocument(article: KnowledgeBase): KnowledgeChunk[] {
     const chunks: KnowledgeChunk[] = [];
-    const maxChunkSize = 600; // words
-    const overlapSize = 100; // words
+    const maxChunkSize = 500; // words - slightly smaller for better semantic units
+    const minChunkSize = 100; // words - minimum chunk size
+    const overlapSize = 75; // words - reduced overlap
     
-    // Clean and normalize content
+    // Clean and normalize content while preserving paragraph structure
     const cleanContent = article.content
-      .replace(/\s+/g, ' ')
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n') // Keep paragraph breaks but limit excessive newlines
       .trim();
     
-    const words = cleanContent.split(' ');
+    // Try intelligent splitting first
+    const intelligentChunks = this.intelligentChunkSplit(article, cleanContent, maxChunkSize, minChunkSize);
     
-    if (words.length <= maxChunkSize) {
-      // Document is small enough, create single chunk
-      chunks.push({
-        id: `${article.id}_chunk_0`,
-        knowledgeBaseId: article.id,
-        title: article.title,
-        content: cleanContent,
-        chunkIndex: 0,
-        category: article.category,
-        tags: article.tags || [],
-        priority: article.priority || 50,
-        metadata: {
-          wordCount: words.length,
-          sourceTitle: article.title,
-          sourceCategory: article.category,
-        },
-      });
-    } else {
-      // Split into chunks with overlap
-      let chunkIndex = 0;
-      let startIndex = 0;
+    if (intelligentChunks.length > 0) {
+      return intelligentChunks;
+    }
+    
+    // Fallback to word-based splitting if intelligent splitting fails
+    return this.wordBasedChunkSplit(article, cleanContent, maxChunkSize, overlapSize);
+  }
+
+  /**
+   * Intelligent chunking based on document structure
+   */
+  private intelligentChunkSplit(article: KnowledgeBase, content: string, maxChunkSize: number, minChunkSize: number): KnowledgeChunk[] {
+    const chunks: KnowledgeChunk[] = [];
+    
+    // Split by natural boundaries (headers, paragraphs, lists)
+    const sections = this.splitByStructure(content);
+    
+    let currentChunk = '';
+    let chunkIndex = 0;
+    let currentWordCount = 0;
+    
+    let currentChunkTitle: string | undefined;
+    
+    for (const section of sections) {
+      const sectionWords = section.text.trim().split(/\s+/).length;
       
-      while (startIndex < words.length) {
-        const endIndex = Math.min(startIndex + maxChunkSize, words.length);
-        const chunkWords = words.slice(startIndex, endIndex);
-        const chunkContent = chunkWords.join(' ');
+      // If adding this section would exceed max size, finalize current chunk
+      if (currentWordCount > 0 && currentWordCount + sectionWords > maxChunkSize) {
+        if (currentWordCount >= minChunkSize) {
+          chunks.push(this.createChunk(article, currentChunk, chunkIndex, currentChunkTitle));
+          chunkIndex++;
+          
+          // Add overlap from previous chunk for context preservation
+          const sentences = currentChunk.split(/[.!?]+/).filter(s => s.trim());
+          const overlapText = sentences.length > 1 ? sentences.slice(-1).join('.') + '.' : '';
+          
+          currentChunk = overlapText;
+          currentWordCount = overlapText.trim().split(/\s+/).length;
+          currentChunkTitle = undefined;
+        } else {
+          // Small chunk - keep the content intact and let post-add finalize handle it
+          // Don't reset currentChunk or title to avoid content loss
+        }
+      }
+      
+      // Set title from first section with a title
+      if (!currentChunkTitle && section.title) {
+        currentChunkTitle = section.title;
+      }
+      
+      // Add section to current chunk with small overlap
+      const sectionContent = section.text;
+      currentChunk += (currentChunk ? '\n\n' : '') + sectionContent;
+      currentWordCount += sectionWords;
+      
+      // If this section alone is large enough, make it its own chunk
+      if (currentWordCount >= maxChunkSize || section.isStandalone) {
+        chunks.push(this.createChunk(article, currentChunk, chunkIndex, currentChunkTitle || section.title));
+        chunkIndex++;
         
-        chunks.push({
-          id: `${article.id}_chunk_${chunkIndex}`,
-          knowledgeBaseId: article.id,
-          title: article.title,
-          content: chunkContent,
-          chunkIndex,
-          category: article.category,
-          tags: article.tags || [],
-          priority: article.priority || 50,
-          metadata: {
-            wordCount: chunkWords.length,
-            sourceTitle: article.title,
-            sourceCategory: article.category,
-          },
+        // Add small overlap for context preservation
+        const sentences = sectionContent.split(/[.!?]+/).filter(s => s.trim());
+        const overlapText = sentences.length > 1 ? sentences.slice(-1).join('.') + '.' : '';
+        
+        currentChunk = overlapText;
+        currentWordCount = overlapText.trim().split(/\s+/).length;
+        currentChunkTitle = undefined;
+      }
+    }
+    
+    // Handle remaining content
+    if (currentChunk.trim() && currentWordCount >= minChunkSize) {
+      chunks.push(this.createChunk(article, currentChunk, chunkIndex, currentChunkTitle || 'Additional Information'));
+    }
+    
+    return chunks;
+  }
+
+  /**
+   * Split content by structural elements
+   */
+  private splitByStructure(content: string): Array<{text: string, title?: string, isStandalone: boolean}> {
+    const sections: Array<{text: string, title?: string, isStandalone: boolean}> = [];
+    
+    // Split by headers first (markdown-style or HTML-style)
+    const headerRegex = /^(#{1,6}\s+.+|<h[1-6]>.+?<\/h[1-6]>|\*\*[^*]+\*\*\s*$|\b[A-Z][A-Z\s]{3,}:\s*$)/gm;
+    const headerMatches = Array.from(content.matchAll(headerRegex));
+    
+    if (headerMatches.length > 0) {
+      let lastIndex = 0;
+      
+      for (const match of headerMatches) {
+        // Add content before this header
+        if (match.index! > lastIndex) {
+          const beforeText = content.slice(lastIndex, match.index).trim();
+          if (beforeText) {
+            sections.push({
+              text: beforeText,
+              isStandalone: false
+            });
+          }
+        }
+        
+        // Extract header title
+        const headerText = match[0];
+        const title = this.extractHeaderTitle(headerText);
+        
+        // Find content after this header
+        const nextHeaderIndex = headerMatches[headerMatches.indexOf(match) + 1]?.index || content.length;
+        const sectionContent = content.slice(match.index!, nextHeaderIndex).trim();
+        
+        sections.push({
+          text: sectionContent,
+          title,
+          isStandalone: sectionContent.trim().split(/\s+/).length > 200 // Large sections are standalone
         });
         
-        // Move to next chunk with overlap
-        chunkIndex++;
-        startIndex = endIndex - overlapSize;
-        
-        // Prevent infinite loop
-        if (startIndex >= endIndex - overlapSize || startIndex < 0) {
-          break;
-        }
+        lastIndex = nextHeaderIndex;
+      }
+    } else {
+      // No headers found, split by double line breaks (paragraphs)
+      const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim());
+      
+      for (const paragraph of paragraphs) {
+        sections.push({
+          text: paragraph.trim(),
+          isStandalone: paragraph.trim().split(/\s+/).length > 100
+        });
+      }
+    }
+    
+    return sections;
+  }
+
+  /**
+   * Extract clean title from header text
+   */
+  private extractHeaderTitle(headerText: string): string {
+    return headerText
+      .replace(/^#+\s*/, '') // Remove markdown headers
+      .replace(/<\/?h[1-6]>/gi, '') // Remove HTML headers
+      .replace(/\*\*/g, '') // Remove bold markdown
+      .replace(/:$/, '') // Remove trailing colon
+      .trim();
+  }
+
+  /**
+   * Fallback word-based chunking
+   */
+  private wordBasedChunkSplit(article: KnowledgeBase, content: string, maxChunkSize: number, overlapSize: number): KnowledgeChunk[] {
+    const chunks: KnowledgeChunk[] = [];
+    const words = content.trim().split(/\s+/);
+    
+    if (words.length <= maxChunkSize) {
+      return [this.createChunk(article, content, 0)];
+    }
+    
+    let chunkIndex = 0;
+    let startIndex = 0;
+    
+    while (startIndex < words.length) {
+      const endIndex = Math.min(startIndex + maxChunkSize, words.length);
+      const chunkWords = words.slice(startIndex, endIndex);
+      const chunkContent = chunkWords.join(' ');
+      
+      chunks.push(this.createChunk(article, chunkContent, chunkIndex));
+      
+      chunkIndex++;
+      
+      // Move to next chunk with proper overlap handling
+      const nextStart = endIndex - overlapSize;
+      startIndex = Math.max(nextStart, startIndex + 1); // Ensure progress
+      
+      // Stop when we've processed all words
+      if (startIndex >= words.length) {
+        break;
       }
     }
     
     return chunks;
+  }
+
+  /**
+   * Create a standardized chunk object
+   */
+  private createChunk(article: KnowledgeBase, content: string, index: number, chunkTitle?: string): KnowledgeChunk {
+    const words = content.trim().split(/\s+/);
+    const title = chunkTitle || this.generateChunkTitle(article.title, content);
+    
+    return {
+      id: `${article.id}_chunk_${index}`,
+      knowledgeBaseId: article.id,
+      title,
+      content: content.trim(),
+      chunkIndex: index,
+      category: article.category,
+      tags: article.tags || [],
+      priority: article.priority || 50,
+      metadata: {
+        wordCount: words.length,
+        sourceTitle: article.title,
+        sourceCategory: article.category,
+        chunkTitle,
+        hasStructure: !!chunkTitle,
+      },
+    };
+  }
+
+  /**
+   * Generate meaningful chunk titles based on content
+   */
+  private generateChunkTitle(articleTitle: string, content: string): string {
+    const firstSentence = content.split(/[.!?]/)[0]?.trim();
+    
+    if (!firstSentence || firstSentence.length < 10) {
+      return articleTitle;
+    }
+    
+    // Extract key phrases from the first sentence
+    const keyPhrases = firstSentence
+      .replace(/^(how to|to|the|a|an)\s+/i, '')
+      .split(' ')
+      .slice(0, 6)
+      .join(' ');
+    
+    return keyPhrases.length > 3 ? keyPhrases : articleTitle;
   }
 
   /**
