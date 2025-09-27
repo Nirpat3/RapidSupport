@@ -260,7 +260,7 @@ export default function ConversationsPage() {
   // Send message mutation
   const sendMessage = useMutation({
     mutationFn: async ({ conversationId, content }: { conversationId: string; content: string }) => {
-      return await apiRequest('POST', '/api/messages', { conversationId, content });
+      return await apiRequest('/api/messages', 'POST', { conversationId, content });
     },
     onSuccess: () => {
       // Invalidate and refetch messages after sending

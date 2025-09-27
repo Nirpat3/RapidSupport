@@ -31,6 +31,7 @@ import {
   updateUploadedFileSchema
 } from '@shared/schema';
 import { WebScraper } from './web-scraper';
+import { KnowledgeRetrievalService } from './knowledge-retrieval';
 
 // Route-specific validation schemas
 const messageCreateSchema = z.object({
@@ -2486,6 +2487,65 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   }
 
   // Knowledge Base Management API routes
+  // Search knowledge base using enhanced semantic and hybrid search
+  app.get('/api/search/knowledge', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { query, maxResults, minScore, agentId } = req.query;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Search query is required' });
+      }
+
+      const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
+      const results = await knowledgeRetrieval.search(query, [], {
+        maxResults: maxResults ? parseInt(maxResults as string) : 5,
+        minScore: minScore ? parseFloat(minScore as string) : 0.15,
+        knowledgeBaseIds: agentId ? undefined : undefined, // Could filter by agent's knowledge base
+        useSemanticSearch: true,
+        expandScope: false
+      });
+
+      res.json(results);
+    } catch (error) {
+      console.error('Failed to search knowledge base:', error);
+      res.status(500).json({ error: 'Failed to search knowledge base' });
+    }
+  });
+
+  // Search articles (alias for knowledge search for backward compatibility)
+  app.get('/api/search/articles', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { query, maxResults, minScore } = req.query;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Search query is required' });
+      }
+
+      const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
+      const results = await knowledgeRetrieval.search(query, [], {
+        maxResults: maxResults ? parseInt(maxResults as string) : 5,
+        minScore: minScore ? parseFloat(minScore as string) : 0.15,
+        useSemanticSearch: true,
+        expandScope: false
+      });
+
+      // Transform results to focus on article information
+      const articleResults = results.map((result: any) => ({
+        id: result.chunk.articleId,
+        title: result.chunk.title,
+        content: result.chunk.content,
+        score: result.score,
+        matchType: result.matchType,
+        metadata: result.chunk.metadata
+      }));
+
+      res.json(articleResults);
+    } catch (error) {
+      console.error('Failed to search articles:', error);
+      res.status(500).json({ error: 'Failed to search articles' });
+    }
+  });
+
   // Get all knowledge base articles
   app.get('/api/knowledge-base', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
