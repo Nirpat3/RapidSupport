@@ -6,8 +6,9 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { UserPlus, Users, Search, MessageSquare, ArrowLeft } from "lucide-react";
+import { UserPlus, Users, Search, MessageSquare, ArrowLeft, Clock, CheckCircle, History, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/contexts/NotificationContext";
 
@@ -141,6 +142,7 @@ const sampleMessages: { [key: string]: Message[] } = {
 
 export default function ConversationsPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("new");
   const { markAsRead } = useNotifications();
   
   // Fetch real conversations from API instead of using sample data
@@ -176,9 +178,43 @@ export default function ConversationsPage() {
     assignedAgentId: conv.assignedAgentId
   }));
 
-  // Separate assigned vs unassigned conversations
-  const assignedConversations = formattedConversations.filter(conv => conv.isAssigned);
-  const unassignedConversations = formattedConversations.filter(conv => !conv.isAssigned);
+  // Filter conversations by tab type
+  const getCurrentUserId = () => {
+    // TODO: Get current user ID from auth context
+    return "46d6565f-cee8-4ad4-acb9-5c40c78d1234"; // Placeholder - should come from auth
+  };
+
+  const currentUserId = getCurrentUserId();
+  
+  // Filter conversations for each tab
+  const newConversations = formattedConversations.filter(conv => 
+    !conv.isAssigned && conv.status === 'open'
+  );
+  
+  const activeConversations = formattedConversations.filter(conv => 
+    conv.assignedAgentId === currentUserId && ['open', 'pending'].includes(conv.status)
+  );
+  
+  const followupConversations = formattedConversations.filter(conv => {
+    // TODO: Add followupDate filtering when the API provides it
+    // For now, filter by assigned conversations that are pending
+    return conv.assignedAgentId === currentUserId && conv.status === 'pending';
+  });
+  
+  const historyConversations = formattedConversations.filter(conv => 
+    conv.assignedAgentId === currentUserId && ['resolved', 'closed'].includes(conv.status)
+  );
+
+  // Get conversations for current tab
+  const getCurrentTabConversations = () => {
+    switch (activeTab) {
+      case "new": return newConversations;
+      case "active": return activeConversations;
+      case "followup": return followupConversations;
+      case "history": return historyConversations;
+      default: return newConversations;
+    }
+  };
 
   // Take over mutation for unassigned conversations
   const takeOverMutation = useMutation({
@@ -247,7 +283,7 @@ export default function ConversationsPage() {
     <div className="flex flex-col lg:flex-row h-full" data-testid="conversations-page">
       {/* Mobile: Show conversation list OR chat interface, Desktop: Side by side */}
       <div className={`${activeConversationId ? 'hidden lg:flex' : 'flex'} flex-col lg:w-96 lg:flex-shrink-0 w-full h-full lg:h-full bg-card lg:border-r`}>
-        {/* Search Bar at Top */}
+        {/* Header */}
         <div className="p-3 lg:p-4 border-b bg-background/50">
           <div className="flex items-center gap-2 mb-3">
             <MessageSquare className="w-5 h-5 text-primary" />
@@ -263,85 +299,163 @@ export default function ConversationsPage() {
           </div>
         </div>
 
-        {/* Unassigned Conversations Section */}
-        {unassignedConversations.length > 0 && (
-          <div className="border-b bg-muted/30">
-            <div className="p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                <h3 className="font-semibold text-sm">Unassigned Queue</h3>
-                <Badge variant="secondary" className="text-xs">
-                  {unassignedConversations.length}
+        {/* Conversation Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+          <TabsList className="grid w-full grid-cols-4 mx-3 mt-3">
+            <TabsTrigger value="new" className="text-xs" data-testid="tab-new">
+              <AlertCircle className="h-3 w-3 mr-1" />
+              New
+              {newConversations.length > 0 && (
+                <Badge variant="destructive" className="ml-1 text-xs px-1">
+                  {newConversations.length}
                 </Badge>
-              </div>
-              
-              <div className="space-y-2">
-                {unassignedConversations.map(conv => (
-                  <div 
-                    key={conv.id} 
-                    className="p-3 rounded border bg-card hover-elevate cursor-pointer"
-                    onClick={() => {
-                      console.log('Selecting unassigned conversation:', conv.id);
-                      setActiveConversationId(conv.id);
-                    }}
-                    data-testid={`unassigned-conversation-${conv.id}`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{conv.customer.name}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {conv.priority}
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="active" className="text-xs" data-testid="tab-active">
+              <MessageSquare className="h-3 w-3 mr-1" />
+              Active
+              {activeConversations.length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-xs px-1">
+                  {activeConversations.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="followup" className="text-xs" data-testid="tab-followup">
+              <Clock className="h-3 w-3 mr-1" />
+              Follow-up
+              {followupConversations.length > 0 && (
+                <Badge variant="outline" className="ml-1 text-xs px-1">
+                  {followupConversations.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="history" className="text-xs" data-testid="tab-history">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              History
+              {historyConversations.length > 0 && (
+                <Badge variant="outline" className="ml-1 text-xs px-1">
+                  {historyConversations.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="new" className="flex-1 mt-0">
+            <div className="p-3">
+              <p className="text-sm text-muted-foreground mb-3">
+                New conversations waiting to be assigned
+              </p>
+              {newConversations.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No new conversations</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {newConversations.map(conv => (
+                    <div 
+                      key={conv.id} 
+                      className="p-3 rounded border bg-background hover-elevate cursor-pointer"
+                      onClick={() => setActiveConversationId(conv.id)}
+                      data-testid={`new-conversation-${conv.id}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{conv.customer.name}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {conv.priority}
+                          </Badge>
+                        </div>
+                        <Badge variant="destructive" className="text-xs">
+                          Unassigned
                         </Badge>
                       </div>
-                      <Badge variant="destructive" className="text-xs">
-                        Unassigned
-                      </Badge>
+                      
+                      <p className="text-xs text-muted-foreground mb-2 truncate">
+                        {conv.lastMessage.content}
+                      </p>
+                      
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="w-full"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTakeOver(conv.id);
+                        }}
+                        disabled={takeOverMutation.isPending}
+                        data-testid={`button-take-over-${conv.id}`}
+                      >
+                        <UserPlus className="h-3 w-3 mr-1" />
+                        Take Over
+                      </Button>
                     </div>
-                    
-                    <p className="text-xs text-muted-foreground mb-2 truncate">
-                      {conv.lastMessage.content}
-                    </p>
-                    
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="w-full"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTakeOver(conv.id);
-                      }}
-                      disabled={takeOverMutation.isPending}
-                      data-testid={`button-take-over-${conv.id}`}
-                    >
-                      <UserPlus className="h-3 w-3 mr-1" />
-                      Take Over
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          </TabsContent>
 
-        {/* Assigned Conversations */}
-        <div className="flex-1">
-          {assignedConversations.length > 0 && (
-            <div className="p-4 border-b">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-sm">Your Conversations</h3>
-                <Badge variant="secondary" className="text-xs">
-                  {assignedConversations.length}
-                </Badge>
-              </div>
+          <TabsContent value="active" className="flex-1 mt-0">
+            <div className="p-3">
+              <p className="text-sm text-muted-foreground mb-3">
+                Your active conversations
+              </p>
+              {activeConversations.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No active conversations</p>
+                </div>
+              ) : (
+                <ConversationList
+                  conversations={activeConversations}
+                  activeConversationId={activeConversationId || undefined}
+                  onSelectConversation={setActiveConversationId}
+                />
+              )}
             </div>
-          )}
-          
-          <ConversationList
-            conversations={assignedConversations}
-            activeConversationId={activeConversationId || undefined}
-            onSelectConversation={setActiveConversationId}
-          />
-        </div>
+          </TabsContent>
+
+          <TabsContent value="followup" className="flex-1 mt-0">
+            <div className="p-3">
+              <p className="text-sm text-muted-foreground mb-3">
+                Conversations scheduled for follow-up
+              </p>
+              {followupConversations.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No follow-ups scheduled</p>
+                </div>
+              ) : (
+                <ConversationList
+                  conversations={followupConversations}
+                  activeConversationId={activeConversationId || undefined}
+                  onSelectConversation={setActiveConversationId}
+                />
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="history" className="flex-1 mt-0">
+            <div className="p-3">
+              <p className="text-sm text-muted-foreground mb-3">
+                Resolved and closed conversations
+              </p>
+              {historyConversations.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <CheckCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No conversation history</p>
+                </div>
+              ) : (
+                <ConversationList
+                  conversations={historyConversations}
+                  activeConversationId={activeConversationId || undefined}
+                  onSelectConversation={setActiveConversationId}
+                />
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
       
       {/* Chat interface - Mobile: Full screen when active, Desktop: Side panel */}

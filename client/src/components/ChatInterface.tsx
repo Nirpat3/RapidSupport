@@ -6,10 +6,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar } from "lucide-react";
 import ChatMessage, { type Message } from "./ChatMessage";
 import InternalChatPanel from "./InternalChatPanel";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -61,6 +64,12 @@ export default function ChatInterface({
   // AI Ticket Generation states
   const [aiTicketSuggestion, setAiTicketSuggestion] = useState<any>(null);
   const [isGeneratingTicket, setIsGeneratingTicket] = useState(false);
+  
+  // Follow-up states
+  const [isFollowupOpen, setIsFollowupOpen] = useState(false);
+  const [followupDate, setFollowupDate] = useState<Date | undefined>(undefined);
+  const [isSchedulingFollowup, setIsSchedulingFollowup] = useState(false);
+  
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -117,6 +126,35 @@ export default function ChatInterface({
     if (proofreadResult?.suggestedText) {
       setNewMessage(proofreadResult.suggestedText);
       setIsProofreadingOpen(false);
+    }
+  };
+
+  // Handle follow-up scheduling
+  const handleScheduleFollowup = async () => {
+    if (!conversationId || !followupDate) return;
+    
+    setIsSchedulingFollowup(true);
+    try {
+      await apiRequest('PUT', `/api/conversations/${conversationId}/followup`, {
+        followupDate: followupDate.toISOString()
+      });
+      
+      toast({
+        title: "Follow-up scheduled",
+        description: `Follow-up reminder set for ${format(followupDate, 'PPP')}`,
+      });
+      
+      setIsFollowupOpen(false);
+      setFollowupDate(undefined);
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    } catch (error: any) {
+      toast({
+        title: "Failed to schedule follow-up",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSchedulingFollowup(false);
     }
   };
 
@@ -445,6 +483,64 @@ export default function ChatInterface({
               <MessageSquareText className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Team Chat</span>
             </Button>
+
+            <Popover open={isFollowupOpen} onOpenChange={setIsFollowupOpen}>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="text-xs sm:text-sm"
+                  data-testid="button-schedule-followup"
+                >
+                  <Clock className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Follow-up</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="p-4 space-y-4">
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Schedule Follow-up</h4>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Set a reminder to follow up on this conversation
+                    </p>
+                  </div>
+                  <CalendarComponent
+                    mode="single"
+                    selected={followupDate}
+                    onSelect={setFollowupDate}
+                    disabled={(date) => date < new Date()}
+                    initialFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleScheduleFollowup}
+                      disabled={!followupDate || isSchedulingFollowup}
+                      size="sm"
+                      className="flex-1"
+                      data-testid="button-confirm-followup"
+                    >
+                      {isSchedulingFollowup ? (
+                        <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
+                      ) : (
+                        <Calendar className="w-3 h-3 mr-2" />
+                      )}
+                      Schedule
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setIsFollowupOpen(false);
+                        setFollowupDate(undefined);
+                      }}
+                      size="sm"
+                      data-testid="button-cancel-followup"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             
             <Button 
               variant="outline" 

@@ -914,6 +914,45 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Schedule follow-up for conversation
+  app.put('/api/conversations/:id/followup', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      // Validate conversation ID
+      const conversationId = z.string().uuid().parse(req.params.id);
+      
+      // Validate request body - followupDate should be an ISO string
+      const followupSchema = z.object({
+        followupDate: z.string().datetime()
+      });
+      const { followupDate } = followupSchema.parse(req.body);
+      
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      // Update conversation with follow-up date
+      await storage.updateConversation(conversationId, {
+        followupDate: new Date(followupDate)
+      });
+      
+      res.json({ 
+        message: 'Follow-up scheduled successfully',
+        followupDate: followupDate
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      console.error('Error scheduling follow-up:', error);
+      res.status(500).json({ error: 'Failed to schedule follow-up' });
+    }
+  });
+
   // Message management routes
   app.post('/api/messages', requireAuth, async (req, res) => {
     try {
