@@ -218,12 +218,12 @@ export default function ChatInterface({
 
         {/* Action Buttons Row */}
         <div className="px-4 pb-3">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
             <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-create-ticket-from-chat">
-                  <Ticket className="w-4 h-4 mr-2" />
-                  Create Ticket
+                <Button variant="outline" size="sm" className="text-xs sm:text-sm" data-testid="button-create-ticket-from-chat">
+                  <Ticket className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Create Ticket</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
@@ -438,47 +438,52 @@ export default function ChatInterface({
             <Button 
               variant="outline" 
               size="sm"
+              className="text-xs sm:text-sm"
               onClick={() => setIsInternalChatOpen(true)}
               data-testid="button-open-internal-chat"
             >
-              <MessageSquareText className="w-4 h-4 mr-2" />
-              Team Chat
+              <MessageSquareText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Team Chat</span>
             </Button>
             
             <Button 
               variant="outline" 
               size="sm"
+              className="text-xs sm:text-sm"
               data-testid="button-assign-agent"
             >
-              <UserCheck className="w-4 h-4 mr-2" />
-              Assign Agent
+              <UserCheck className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Assign Agent</span>
             </Button>
 
             <Button 
               variant="outline" 
               size="sm"
+              className="text-xs sm:text-sm"
               data-testid="button-close-conversation"
             >
-              <X className="w-4 h-4 mr-2" />
-              Close
+              <X className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Close</span>
             </Button>
             
             <Button 
               variant="outline" 
               size="sm"
+              className="text-xs sm:text-sm"
               data-testid="button-call-customer"
             >
-              <Phone className="w-4 h-4 mr-2" />
-              Call
+              <Phone className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Call</span>
             </Button>
             
             <Button 
               variant="outline" 
               size="sm"
+              className="text-xs sm:text-sm"
               data-testid="button-video-call"
             >
-              <Video className="w-4 h-4 mr-2" />
-              Video
+              <Video className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Video</span>
             </Button>
 
             <Button variant="ghost" size="icon" data-testid="button-more">
