@@ -967,7 +967,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const followupDateObj = followupDate ? new Date(followupDate) : null;
       await storage.updateConversation(conversationId, {
         followupDate: followupDateObj
-      });
+      } as any);
       
       // Log the follow-up activity
       const actionType = followupDate ? 'followup_set' : 'followup_cleared';
@@ -2500,7 +2500,6 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const results = await knowledgeRetrieval.search(query, [], {
         maxResults: maxResults ? parseInt(maxResults as string) : 5,
         minScore: minScore ? parseFloat(minScore as string) : 0.15,
-        knowledgeBaseIds: agentId ? undefined : undefined, // Could filter by agent's knowledge base
         useSemanticSearch: true,
         expandScope: false
       });
