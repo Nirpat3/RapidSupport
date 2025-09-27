@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest, ApiError } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -147,6 +148,7 @@ const categories = [
 
 export default function KnowledgeManagementPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSourceType, setSelectedSourceType] = useState<string>("all");
@@ -408,6 +410,17 @@ export default function KnowledgeManagementPage() {
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden box-border">
+      {/* Authentication Warning */}
+      {!user && (
+        <Alert className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950" data-testid="alert-auth-required">
+          <AlertCircle className="h-4 w-4 text-orange-600" />
+          <AlertDescription className="text-orange-800 dark:text-orange-200">
+            <strong>Authentication Required:</strong> Please log in to upload files, create articles, or manage knowledge base content. 
+            Click the login button in the top navigation to get started.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Header */}
       <div className="space-y-4">
         <div>
@@ -443,7 +456,12 @@ export default function KnowledgeManagementPage() {
           
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-create-article" className="w-full sm:w-auto">
+              <Button 
+                data-testid="button-create-article" 
+                className="w-full sm:w-auto"
+                disabled={!user}
+                title={!user ? "Please log in to add knowledge articles" : ""}
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Knowledge
               </Button>
