@@ -20,6 +20,7 @@ import StaffAIDashboard from "@/pages/StaffAIDashboard";
 import AITrainingPage from "@/pages/AITrainingPage";
 import StaffTakeoverPage from "@/pages/StaffTakeoverPage";
 import KnowledgeManagementPage from "@/pages/KnowledgeManagementPage";
+import FileManagementPage from "@/pages/FileManagementPage";
 import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
 import NotFound from "@/pages/not-found";
 
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/ai-training" component={AITrainingPage} />
       <Route path="/ai-takeover" component={StaffTakeoverPage} />
       <Route path="/knowledge" component={KnowledgeManagementPage} />
+      <Route path="/files" component={FileManagementPage} />
       <Route path="/analytics" component={AgentAnalyticsPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />

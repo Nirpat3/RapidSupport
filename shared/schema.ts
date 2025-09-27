@@ -213,6 +213,44 @@ export const tickets = pgTable("tickets", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Uploaded Files table - central file management for all uploaded files
+export const uploadedFiles = pgTable("uploaded_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  originalName: text("original_name").notNull(), // User's original filename
+  storedName: text("stored_name").notNull(), // System-generated storage filename
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(), // File size in bytes
+  sha256Hash: text("sha256_hash").notNull().unique(), // For duplicate detection
+  filePath: text("file_path").notNull(), // Storage path
+  category: text("category").notNull().default("General"), // File categorization
+  tags: text("tags").array(), // Searchable tags
+  status: text("status").notNull().default("uploaded"), // 'uploaded' | 'processing' | 'processed' | 'error'
+  duplicateOfId: varchar("duplicate_of_id"), // Will be foreign key but can't self-reference here
+  processedAt: timestamp("processed_at"), // When file was processed for AI training
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Join table linking uploaded files to knowledge base articles
+export const knowledgeBaseFiles = pgTable("knowledge_base_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fileId: varchar("file_id").notNull().references(() => uploadedFiles.id),
+  knowledgeBaseId: varchar("knowledge_base_id").notNull().references(() => knowledgeBase.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// AI Agent File Usage tracking - track which files are used by which agents
+export const aiAgentFileUsage = pgTable("ai_agent_file_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fileId: varchar("file_id").notNull().references(() => uploadedFiles.id),
+  agentId: varchar("agent_id").notNull().references(() => aiAgents.id),
+  usageCount: integer("usage_count").notNull().default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   assignedConversations: many(conversations),
@@ -298,6 +336,7 @@ export const knowledgeBaseRelations = relations(knowledgeBase, ({ one, many }) =
     references: [users.id],
   }),
   images: many(knowledgeBaseImages),
+  files: many(knowledgeBaseFiles),
 }));
 
 export const knowledgeBaseImagesRelations = relations(knowledgeBaseImages, ({ one }) => ({
@@ -330,6 +369,42 @@ export const aiAgentSessionsRelations = relations(aiAgentSessions, ({ one }) => 
   humanAgent: one(users, {
     fields: [aiAgentSessions.humanAgentId],
     references: [users.id],
+  }),
+}));
+
+// New File Management Relations
+export const uploadedFilesRelations = relations(uploadedFiles, ({ one, many }) => ({
+  createdBy: one(users, {
+    fields: [uploadedFiles.createdBy],
+    references: [users.id],
+  }),
+  duplicateOf: one(uploadedFiles, {
+    fields: [uploadedFiles.duplicateOfId],
+    references: [uploadedFiles.id],
+  }),
+  knowledgeBaseFiles: many(knowledgeBaseFiles),
+  aiAgentUsage: many(aiAgentFileUsage),
+}));
+
+export const knowledgeBaseFilesRelations = relations(knowledgeBaseFiles, ({ one }) => ({
+  file: one(uploadedFiles, {
+    fields: [knowledgeBaseFiles.fileId],
+    references: [uploadedFiles.id],
+  }),
+  knowledgeBase: one(knowledgeBase, {
+    fields: [knowledgeBaseFiles.knowledgeBaseId],
+    references: [knowledgeBase.id],
+  }),
+}));
+
+export const aiAgentFileUsageRelations = relations(aiAgentFileUsage, ({ one }) => ({
+  file: one(uploadedFiles, {
+    fields: [aiAgentFileUsage.fileId],
+    references: [uploadedFiles.id],
+  }),
+  agent: one(aiAgents, {
+    fields: [aiAgentFileUsage.agentId],
+    references: [aiAgents.id],
   }),
 }));
 
@@ -501,6 +576,38 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick(
 
 export const updateKnowledgeBaseSchema = insertKnowledgeBaseSchema.partial();
 
+// File Management schemas
+export const insertUploadedFileSchema = createInsertSchema(uploadedFiles).pick({
+  originalName: true,
+  storedName: true,
+  mimeType: true,
+  size: true,
+  sha256Hash: true,
+  filePath: true,
+  category: true,
+  tags: true,
+  status: true,
+  duplicateOfId: true,
+  processedAt: true,
+  createdBy: true,
+});
+
+export const updateUploadedFileSchema = insertUploadedFileSchema.partial();
+
+export const insertKnowledgeBaseFileSchema = createInsertSchema(knowledgeBaseFiles).pick({
+  fileId: true,
+  knowledgeBaseId: true,
+});
+
+export const insertAiAgentFileUsageSchema = createInsertSchema(aiAgentFileUsage).pick({
+  fileId: true,
+  agentId: true,
+  usageCount: true,
+  lastUsedAt: true,
+});
+
+export const updateAiAgentFileUsageSchema = insertAiAgentFileUsageSchema.partial();
+
 // Knowledge Base Images schemas
 export const insertKnowledgeBaseImageSchema = createInsertSchema(knowledgeBaseImages).pick({
   knowledgeBaseId: true,
@@ -570,3 +677,9 @@ export type InsertAiAgentLearning = z.infer<typeof insertAiAgentLearningSchema>;
 export type AiAgentLearning = typeof aiAgentLearning.$inferSelect;
 export type InsertAiAgentSession = z.infer<typeof insertAiAgentSessionSchema>;
 export type AiAgentSession = typeof aiAgentSessions.$inferSelect;
+export type InsertUploadedFile = z.infer<typeof insertUploadedFileSchema>;
+export type UploadedFile = typeof uploadedFiles.$inferSelect;
+export type InsertKnowledgeBaseFile = z.infer<typeof insertKnowledgeBaseFileSchema>;
+export type KnowledgeBaseFile = typeof knowledgeBaseFiles.$inferSelect;
+export type InsertAiAgentFileUsage = z.infer<typeof insertAiAgentFileUsageSchema>;
+export type AiAgentFileUsage = typeof aiAgentFileUsage.$inferSelect;

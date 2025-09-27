@@ -9,9 +9,13 @@ import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
 
-// Trust proxy for secure cookies in production
+// Trust proxy configuration for secure cookies and rate limiting
 if (process.env.NODE_ENV === 'production') {
+  // In production, trust only 1 proxy hop (typical load balancer setup)
   app.set('trust proxy', 1);
+} else {
+  // In development, trust loopback addresses only
+  app.set('trust proxy', 'loopback');
 }
 
 app.use(express.json());

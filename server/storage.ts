@@ -12,6 +12,9 @@ import {
   knowledgeBaseImages,
   aiAgentLearning,
   aiAgentSessions,
+  uploadedFiles,
+  knowledgeBaseFiles,
+  aiAgentFileUsage,
   type User,
   type InsertUser,
   type Customer,
@@ -41,6 +44,12 @@ import {
   type InsertAiAgentLearning,
   type AiAgentSession,
   type InsertAiAgentSession,
+  type UploadedFile,
+  type InsertUploadedFile,
+  type KnowledgeBaseFile,
+  type InsertKnowledgeBaseFile,
+  type AiAgentFileUsage,
+  type InsertAiAgentFileUsage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
@@ -169,6 +178,35 @@ export interface IStorage {
 
   // Additional conversation operations
   updateConversation(id: string, updates: Partial<InsertConversation>): Promise<void>;
+
+  // File Management operations
+  getUploadedFile(id: string): Promise<UploadedFile | undefined>;
+  getUploadedFileByHash(sha256Hash: string): Promise<UploadedFile | undefined>;
+  getAllUploadedFiles(options?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+    status?: string;
+    tags?: string[];
+    sortBy?: 'createdAt' | 'originalName' | 'size';
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{ files: UploadedFile[]; total: number; page: number; totalPages: number }>;
+  createUploadedFile(file: InsertUploadedFile): Promise<UploadedFile>;
+  updateUploadedFile(id: string, updates: Partial<InsertUploadedFile>): Promise<void>;
+  deleteUploadedFile(id: string): Promise<void>;
+  
+  // Knowledge Base File links
+  linkFileToKnowledgeBase(fileId: string, knowledgeBaseId: string): Promise<KnowledgeBaseFile>;
+  unlinkFileFromKnowledgeBase(fileId: string, knowledgeBaseId: string): Promise<void>;
+  getFilesLinkedToKnowledgeBase(knowledgeBaseId: string): Promise<UploadedFile[]>;
+  getKnowledgeBaseLinkedToFile(fileId: string): Promise<KnowledgeBase[]>;
+  
+  // AI Agent File Usage tracking
+  incrementFileUsage(fileId: string, agentId: string): Promise<void>;
+  getFileUsageByAgent(agentId: string): Promise<AiAgentFileUsage[]>;
+  getFileUsageByFile(fileId: string): Promise<AiAgentFileUsage[]>;
+  getFileUsageStats(fileId: string): Promise<{ totalUsage: number; agentUsage: Array<{ agent: AiAgent; usage: AiAgentFileUsage }> }>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -1562,6 +1600,274 @@ export class DatabaseStorage implements IStorage {
     .from(agentWorkload)
     .leftJoin(users, eq(agentWorkload.agentId, users.id))
     .orderBy(desc(sql`(${agentWorkload.activeConversations}::float / ${agentWorkload.maxCapacity}::float)`));
+  }
+
+  // File Management operations
+  async getUploadedFile(id: string): Promise<UploadedFile | undefined> {
+    const [file] = await db.select().from(uploadedFiles).where(eq(uploadedFiles.id, id));
+    return file || undefined;
+  }
+
+  async getUploadedFileByHash(sha256Hash: string): Promise<UploadedFile | undefined> {
+    const [file] = await db.select().from(uploadedFiles).where(eq(uploadedFiles.sha256Hash, sha256Hash));
+    return file || undefined;
+  }
+
+  async getAllUploadedFiles(options?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+    status?: string;
+    tags?: string[];
+    sortBy?: 'createdAt' | 'originalName' | 'size';
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{ files: UploadedFile[]; total: number; page: number; totalPages: number }> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      category,
+      status,
+      tags,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = options || {};
+
+    let query = db.select().from(uploadedFiles);
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(uploadedFiles);
+
+    // Apply filters
+    const whereConditions: any[] = [];
+    
+    if (search) {
+      const searchLower = `%${search.toLowerCase()}%`;
+      whereConditions.push(
+        or(
+          sql`lower(${uploadedFiles.originalName}) like ${searchLower}`,
+          sql`lower(${uploadedFiles.category}) like ${searchLower}`
+        )
+      );
+    }
+
+    if (category && category !== 'all') {
+      whereConditions.push(eq(uploadedFiles.category, category));
+    }
+
+    if (status && status !== 'all') {
+      whereConditions.push(eq(uploadedFiles.status, status));
+    }
+
+    if (tags && tags.length > 0) {
+      whereConditions.push(
+        sql`${uploadedFiles.tags} && ${tags}`
+      );
+    }
+
+    if (whereConditions.length > 0) {
+      const whereClause = whereConditions.length === 1 ? whereConditions[0] : and(...whereConditions);
+      query = query.where(whereClause);
+      countQuery = countQuery.where(whereClause);
+    }
+
+    // Apply sorting
+    const sortColumn = sortBy === 'createdAt' ? uploadedFiles.createdAt
+                      : sortBy === 'originalName' ? uploadedFiles.originalName 
+                      : uploadedFiles.size;
+    
+    query = query.orderBy(sortOrder === 'desc' ? desc(sortColumn) : sortColumn);
+
+    // Apply pagination
+    const offset = (page - 1) * limit;
+    query = query.limit(limit).offset(offset);
+
+    // Execute queries
+    const [fileResults, countResult] = await Promise.all([
+      query,
+      countQuery
+    ]);
+
+    const total = countResult[0]?.count || 0;
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      files: fileResults,
+      total,
+      page,
+      totalPages
+    };
+  }
+
+  async createUploadedFile(file: InsertUploadedFile): Promise<UploadedFile> {
+    const [uploadedFile] = await db
+      .insert(uploadedFiles)
+      .values({
+        ...file,
+        updatedAt: new Date(),
+      })
+      .returning();
+    return uploadedFile;
+  }
+
+  async updateUploadedFile(id: string, updates: Partial<InsertUploadedFile>): Promise<void> {
+    await db
+      .update(uploadedFiles)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(uploadedFiles.id, id));
+  }
+
+  async deleteUploadedFile(id: string): Promise<void> {
+    // Delete related records first
+    await db.delete(knowledgeBaseFiles).where(eq(knowledgeBaseFiles.fileId, id));
+    await db.delete(aiAgentFileUsage).where(eq(aiAgentFileUsage.fileId, id));
+    // Then delete the file record
+    await db.delete(uploadedFiles).where(eq(uploadedFiles.id, id));
+  }
+
+  // Knowledge Base File links
+  async linkFileToKnowledgeBase(fileId: string, knowledgeBaseId: string): Promise<KnowledgeBaseFile> {
+    const [link] = await db
+      .insert(knowledgeBaseFiles)
+      .values({ fileId, knowledgeBaseId })
+      .returning();
+    return link;
+  }
+
+  async unlinkFileFromKnowledgeBase(fileId: string, knowledgeBaseId: string): Promise<void> {
+    await db
+      .delete(knowledgeBaseFiles)
+      .where(and(
+        eq(knowledgeBaseFiles.fileId, fileId),
+        eq(knowledgeBaseFiles.knowledgeBaseId, knowledgeBaseId)
+      ));
+  }
+
+  async getFilesLinkedToKnowledgeBase(knowledgeBaseId: string): Promise<UploadedFile[]> {
+    return await db
+      .select({
+        id: uploadedFiles.id,
+        originalName: uploadedFiles.originalName,
+        storedName: uploadedFiles.storedName,
+        mimeType: uploadedFiles.mimeType,
+        size: uploadedFiles.size,
+        sha256Hash: uploadedFiles.sha256Hash,
+        filePath: uploadedFiles.filePath,
+        category: uploadedFiles.category,
+        tags: uploadedFiles.tags,
+        status: uploadedFiles.status,
+        duplicateOfId: uploadedFiles.duplicateOfId,
+        processedAt: uploadedFiles.processedAt,
+        createdBy: uploadedFiles.createdBy,
+        createdAt: uploadedFiles.createdAt,
+        updatedAt: uploadedFiles.updatedAt,
+      })
+      .from(uploadedFiles)
+      .innerJoin(knowledgeBaseFiles, eq(uploadedFiles.id, knowledgeBaseFiles.fileId))
+      .where(eq(knowledgeBaseFiles.knowledgeBaseId, knowledgeBaseId));
+  }
+
+  async getKnowledgeBaseLinkedToFile(fileId: string): Promise<KnowledgeBase[]> {
+    return await db
+      .select({
+        id: knowledgeBase.id,
+        title: knowledgeBase.title,
+        content: knowledgeBase.content,
+        category: knowledgeBase.category,
+        tags: knowledgeBase.tags,
+        isActive: knowledgeBase.isActive,
+        priority: knowledgeBase.priority,
+        usageCount: knowledgeBase.usageCount,
+        effectiveness: knowledgeBase.effectiveness,
+        sourceType: knowledgeBase.sourceType,
+        fileName: knowledgeBase.fileName,
+        fileType: knowledgeBase.fileType,
+        fileSize: knowledgeBase.fileSize,
+        filePath: knowledgeBase.filePath,
+        sourceUrl: knowledgeBase.sourceUrl,
+        urlTitle: knowledgeBase.urlTitle,
+        urlDescription: knowledgeBase.urlDescription,
+        assignedAgentIds: knowledgeBase.assignedAgentIds,
+        createdBy: knowledgeBase.createdBy,
+        lastUsedAt: knowledgeBase.lastUsedAt,
+        createdAt: knowledgeBase.createdAt,
+        updatedAt: knowledgeBase.updatedAt,
+      })
+      .from(knowledgeBase)
+      .innerJoin(knowledgeBaseFiles, eq(knowledgeBase.id, knowledgeBaseFiles.knowledgeBaseId))
+      .where(eq(knowledgeBaseFiles.fileId, fileId));
+  }
+
+  // AI Agent File Usage tracking
+  async incrementFileUsage(fileId: string, agentId: string): Promise<void> {
+    // Try to update existing usage record
+    const existing = await db
+      .select()
+      .from(aiAgentFileUsage)
+      .where(and(
+        eq(aiAgentFileUsage.fileId, fileId),
+        eq(aiAgentFileUsage.agentId, agentId)
+      ));
+
+    if (existing.length > 0) {
+      await db
+        .update(aiAgentFileUsage)
+        .set({
+          usageCount: sql`${aiAgentFileUsage.usageCount} + 1`,
+          lastUsedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(aiAgentFileUsage.fileId, fileId),
+          eq(aiAgentFileUsage.agentId, agentId)
+        ));
+    } else {
+      await db
+        .insert(aiAgentFileUsage)
+        .values({
+          fileId,
+          agentId,
+          usageCount: 1,
+          lastUsedAt: new Date(),
+        });
+    }
+  }
+
+  async getFileUsageByAgent(agentId: string): Promise<AiAgentFileUsage[]> {
+    return await db
+      .select()
+      .from(aiAgentFileUsage)
+      .where(eq(aiAgentFileUsage.agentId, agentId))
+      .orderBy(desc(aiAgentFileUsage.lastUsedAt));
+  }
+
+  async getFileUsageByFile(fileId: string): Promise<AiAgentFileUsage[]> {
+    return await db
+      .select()
+      .from(aiAgentFileUsage)
+      .where(eq(aiAgentFileUsage.fileId, fileId))
+      .orderBy(desc(aiAgentFileUsage.usageCount));
+  }
+
+  async getFileUsageStats(fileId: string): Promise<{ totalUsage: number; agentUsage: Array<{ agent: AiAgent; usage: AiAgentFileUsage }> }> {
+    const usageRecords = await db
+      .select({
+        usage: aiAgentFileUsage,
+        agent: aiAgents,
+      })
+      .from(aiAgentFileUsage)
+      .innerJoin(aiAgents, eq(aiAgentFileUsage.agentId, aiAgents.id))
+      .where(eq(aiAgentFileUsage.fileId, fileId))
+      .orderBy(desc(aiAgentFileUsage.usageCount));
+
+    const totalUsage = usageRecords.reduce((sum, record) => sum + record.usage.usageCount, 0);
+
+    return {
+      totalUsage,
+      agentUsage: usageRecords.map(record => ({
+        agent: record.agent,
+        usage: record.usage,
+      })),
+    };
   }
 
 }

@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { randomUUID } from "crypto";
+import crypto from "crypto";
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
@@ -24,7 +25,9 @@ import {
   updateAgentStatusSchema,
   aiTicketGenerationSchema,
   insertKnowledgeBaseSchema,
-  updateKnowledgeBaseSchema
+  updateKnowledgeBaseSchema,
+  insertUploadedFileSchema,
+  updateUploadedFileSchema
 } from '@shared/schema';
 import { DocumentProcessor } from './document-processor';
 import { WebScraper } from './web-scraper';
@@ -205,21 +208,32 @@ const imageUpload = multer({
 const upload = multer({
   storage: uploadStorage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-    files: 15 // Max 15 files per request - increased for batch uploads
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    files: 15, // Max 15 files per request
+    fieldSize: 1024 * 1024, // 1MB form field limit
+    fieldNameSize: 100 // Field name size limit
   },
   fileFilter: function (req, file, cb) {
-    // For knowledge base documents, only allow supported document types
+    // Strict allowlist of supported document and image types
     const allowedMimes = [
       'application/pdf',
       'text/plain',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp'
     ];
     
-    if (allowedMimes.includes(file.mimetype)) {
+    // Validate file extension matches MIME type
+    const fileExt = file.originalname.toLowerCase().split('.').pop();
+    const validExtensions = ['pdf', 'txt', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
+    
+    if (allowedMimes.includes(file.mimetype) && fileExt && validExtensions.includes(fileExt)) {
       cb(null, true);
     } else {
-      const error = new Error(`Unsupported file type: ${file.mimetype}. Only PDF, TXT, and DOCX files are supported.`);
+      const error = new Error(`Unsupported file type: ${file.mimetype}. Only PDF, TXT, DOCX, and image files are supported.`);
       (error as any).code = 'UNSUPPORTED_FILE_TYPE';
       cb(error);
     }
@@ -256,6 +270,15 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 10, // Limit each IP to 10 requests per windowMs
     message: { error: 'Too many authentication attempts, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Rate limiting for file uploads
+  const uploadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // Limit each IP to 20 upload requests per windowMs
+    message: { error: 'Too many file upload attempts, please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
   });
@@ -2370,7 +2393,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       // Sync agent assignments if they changed
       if (validationResult.data.assignedAgentIds !== undefined) {
-        await syncAgentKnowledgeAssignments(id, validationResult.data.assignedAgentIds);
+        await syncAgentKnowledgeAssignments(id, validationResult.data.assignedAgentIds || []);
       }
       
       // Return updated article
@@ -2819,6 +2842,363 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to fetch agent analytics:', error);
       res.status(500).json({ error: 'Failed to fetch agent analytics' });
+    }
+  });
+
+  // File Management API routes
+  
+  // Get all uploaded files with filtering and pagination
+  app.get('/api/files', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { 
+        page = 1, 
+        limit = 10, 
+        search, 
+        category, 
+        status, 
+        tags,
+        sortBy = 'createdAt',
+        sortOrder = 'desc'
+      } = req.query;
+
+      const parsedPage = parseInt(page as string);
+      const parsedLimit = Math.min(parseInt(limit as string), 50); // Cap at 50
+      const parsedTags = tags ? (tags as string).split(',').map(tag => tag.trim()) : undefined;
+
+      const options = {
+        page: parsedPage,
+        limit: parsedLimit,
+        search: search as string,
+        category: category as string,
+        status: status as string,
+        tags: parsedTags,
+        sortBy: sortBy as 'createdAt' | 'originalName' | 'size',
+        sortOrder: sortOrder as 'asc' | 'desc'
+      };
+
+      const result = await storage.getAllUploadedFiles(options);
+      res.json(result);
+    } catch (error) {
+      console.error('Failed to fetch uploaded files:', error);
+      res.status(500).json({ error: 'Failed to fetch uploaded files' });
+    }
+  });
+
+  // Get specific uploaded file by ID
+  app.get('/api/files/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const file = await storage.getUploadedFile(id);
+      
+      if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      
+      res.json(file);
+    } catch (error) {
+      console.error('Failed to fetch file:', error);
+      res.status(500).json({ error: 'Failed to fetch file' });
+    }
+  });
+
+  // Upload files with duplicate detection and processing
+  app.post('/api/files/upload', uploadLimiter, requireAuth, requireRole(['admin', 'agent']), upload.array('files', 15), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const files = req.files as Express.Multer.File[];
+      
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: 'No files provided' });
+      }
+
+      const { category = 'General', tags } = req.body;
+      const parsedTags = tags ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [];
+
+      const results = [];
+      const errors = [];
+
+      for (const file of files) {
+        try {
+          // Calculate SHA-256 hash for duplicate detection using streaming
+          const hash = crypto.createHash('sha256');
+          const stream = fs.createReadStream(file.path);
+          
+          const sha256Hash = await new Promise<string>((resolve, reject) => {
+            stream.on('data', chunk => hash.update(chunk));
+            stream.on('end', () => resolve(hash.digest('hex')));
+            stream.on('error', reject);
+          });
+
+          // Check for existing file with same hash
+          const existingFile = await storage.getUploadedFileByHash(sha256Hash);
+          
+          if (existingFile) {
+            // File is a duplicate
+            const duplicateData = {
+              originalName: file.originalname,
+              storedName: file.filename,
+              mimeType: file.mimetype,
+              size: file.size,
+              sha256Hash,
+              filePath: file.path,
+              category,
+              tags: parsedTags,
+              status: 'uploaded' as const,
+              duplicateOfId: existingFile.id,
+              createdBy: user.id,
+            };
+
+            const uploadedFile = await storage.createUploadedFile(duplicateData);
+            results.push({ 
+              file: uploadedFile, 
+              isDuplicate: true, 
+              originalFile: existingFile 
+            });
+          } else {
+            // New file
+            const fileData = {
+              originalName: file.originalname,
+              storedName: file.filename,
+              mimeType: file.mimetype,
+              size: file.size,
+              sha256Hash,
+              filePath: file.path,
+              category,
+              tags: parsedTags,
+              status: 'uploaded' as const,
+              createdBy: user.id,
+            };
+
+            const uploadedFile = await storage.createUploadedFile(fileData);
+            results.push({ 
+              file: uploadedFile, 
+              isDuplicate: false 
+            });
+
+            // Mark file for processing
+            await storage.updateUploadedFile(uploadedFile.id, { status: 'processing' });
+            
+            // TODO: Add to processing queue for AI training
+            // For now, mark as processed immediately
+            setTimeout(async () => {
+              try {
+                await storage.updateUploadedFile(uploadedFile.id, { 
+                  status: 'processed',
+                  processedAt: new Date()
+                });
+              } catch (error) {
+                console.error('Failed to update file status:', error);
+              }
+            }, 1000);
+          }
+        } catch (fileError) {
+          console.error(`Error processing file ${file.originalname}:`, fileError);
+          errors.push({
+            filename: file.originalname,
+            error: fileError instanceof Error ? fileError.message : 'Unknown error'
+          });
+        }
+      }
+
+      if (errors.length > 0) {
+        return res.status(422).json({ 
+          error: 'Some files failed to process',
+          results,
+          errors
+        });
+      }
+
+      res.status(201).json({ results });
+    } catch (error) {
+      console.error('Failed to upload files:', error);
+      res.status(500).json({ error: 'Failed to upload files' });
+    }
+  });
+
+  // Update file metadata
+  app.put('/api/files/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = updateUploadedFileSchema.parse(req.body);
+
+      // Check if file exists
+      const existingFile = await storage.getUploadedFile(id);
+      if (!existingFile) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      await storage.updateUploadedFile(id, updateData);
+      const updatedFile = await storage.getUploadedFile(id);
+      
+      res.json(updatedFile);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid file data',
+          details: fromZodError(error).toString()
+        });
+      }
+      console.error('Failed to update file:', error);
+      res.status(500).json({ error: 'Failed to update file' });
+    }
+  });
+
+  // Delete uploaded file
+  app.delete('/api/files/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if file exists
+      const existingFile = await storage.getUploadedFile(id);
+      if (!existingFile) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      // Delete file from disk if it exists
+      if (fs.existsSync(existingFile.filePath)) {
+        const resolvedFilePath = path.resolve(existingFile.filePath);
+        const resolvedUploadDir = path.resolve('./uploads');
+        
+        // Security check: ensure file is within uploads directory
+        if (resolvedFilePath.startsWith(resolvedUploadDir)) {
+          fs.unlinkSync(existingFile.filePath);
+        }
+      }
+
+      // Delete from database (this also removes related records)
+      await storage.deleteUploadedFile(id);
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete file:', error);
+      res.status(500).json({ error: 'Failed to delete file' });
+    }
+  });
+
+  // Link file to knowledge base article
+  app.post('/api/files/:fileId/link-knowledge-base/:knowledgeBaseId', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { fileId, knowledgeBaseId } = req.params;
+
+      // Verify both file and knowledge base exist
+      const [file, knowledgeBase] = await Promise.all([
+        storage.getUploadedFile(fileId),
+        storage.getKnowledgeBase(knowledgeBaseId)
+      ]);
+
+      if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      if (!knowledgeBase) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      const link = await storage.linkFileToKnowledgeBase(fileId, knowledgeBaseId);
+      res.status(201).json(link);
+    } catch (error) {
+      console.error('Failed to link file to knowledge base:', error);
+      res.status(500).json({ error: 'Failed to link file to knowledge base' });
+    }
+  });
+
+  // Unlink file from knowledge base article
+  app.delete('/api/files/:fileId/unlink-knowledge-base/:knowledgeBaseId', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { fileId, knowledgeBaseId } = req.params;
+
+      await storage.unlinkFileFromKnowledgeBase(fileId, knowledgeBaseId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to unlink file from knowledge base:', error);
+      res.status(500).json({ error: 'Failed to unlink file from knowledge base' });
+    }
+  });
+
+  // Get files linked to a knowledge base article
+  app.get('/api/knowledge-base/:id/linked-files', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const files = await storage.getFilesLinkedToKnowledgeBase(id);
+      res.json(files);
+    } catch (error) {
+      console.error('Failed to fetch linked files:', error);
+      res.status(500).json({ error: 'Failed to fetch linked files' });
+    }
+  });
+
+  // Get file usage statistics
+  app.get('/api/files/:id/usage-stats', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if file exists
+      const file = await storage.getUploadedFile(id);
+      if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      const stats = await storage.getFileUsageStats(id);
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch file usage stats:', error);
+      res.status(500).json({ error: 'Failed to fetch file usage stats' });
+    }
+  });
+
+  // Increment file usage for AI agent
+  app.post('/api/files/:id/usage/:agentId', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id: fileId, agentId } = req.params;
+
+      // Verify both file and agent exist
+      const [file, agent] = await Promise.all([
+        storage.getUploadedFile(fileId),
+        storage.getAiAgent(agentId)
+      ]);
+
+      if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      if (!agent) {
+        return res.status(404).json({ error: 'AI agent not found' });
+      }
+
+      await storage.incrementFileUsage(fileId, agentId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to increment file usage:', error);
+      res.status(500).json({ error: 'Failed to increment file usage' });
+    }
+  });
+
+  // Serve uploaded files
+  app.get('/api/files/:id/download', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const file = await storage.getUploadedFile(id);
+      
+      if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      // Security check: ensure file path is within uploads directory
+      const resolvedFilePath = path.resolve(file.filePath);
+      const resolvedUploadDir = path.resolve('./uploads');
+      
+      if (!resolvedFilePath.startsWith(resolvedUploadDir)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (!fs.existsSync(file.filePath)) {
+        return res.status(404).json({ error: 'File not found on disk' });
+      }
+
+      res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
+      res.setHeader('Content-Type', file.mimeType);
+      res.sendFile(path.resolve(file.filePath));
+    } catch (error) {
+      console.error('Failed to serve file:', error);
+      res.status(500).json({ error: 'Failed to serve file' });
     }
   });
 

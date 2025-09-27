@@ -23,6 +23,7 @@ import {
   Brain,
   UserCheck,
   BookOpen,
+  File,
   Settings, 
   HelpCircle, 
   LogOut,
@@ -82,6 +83,11 @@ const getNavigationItems = (unreadCount: number) => [
     title: "Knowledge Base",
     url: "/knowledge", 
     icon: BookOpen
+  },
+  {
+    title: "File Management",
+    url: "/files", 
+    icon: File
   },
   {
     title: "Analytics",
