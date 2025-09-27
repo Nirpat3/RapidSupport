@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Upload, 
@@ -566,24 +567,14 @@ export default function FileManagementPage() {
         </TabsContent>
       </Tabs>
 
-      {/* File Details Modal/Panel would go here */}
-      {selectedFile && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-2xl max-h-[80vh] overflow-auto">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>File Details</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedFile(null)}
-                  data-testid="button-close-details"
-                >
-                  ×
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+      {/* File Details Dialog */}
+      <Dialog open={!!selectedFile} onOpenChange={(open) => !open && setSelectedFile(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-auto" data-testid="dialog-file-details">
+          <DialogHeader>
+            <DialogTitle>File Details</DialogTitle>
+          </DialogHeader>
+          {selectedFile && (
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <h4 className="font-medium">File Name</h4>
@@ -649,10 +640,10 @@ export default function FileManagementPage() {
                   </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
