@@ -377,8 +377,9 @@ export default function KnowledgeManagementPage() {
               Agents
             </Button>
           </div>
-          
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        </div>
+        
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-create-article">
               <Plus className="w-4 h-4 mr-2" />
