@@ -49,6 +49,8 @@ import {
   Target,
   Clock,
   Tag,
+  Shield,
+  LogIn,
   FileText,
   BookOpen,
   Upload,
@@ -59,8 +61,7 @@ import {
   Globe,
   ImageIcon,
   CheckCircle,
-  AlertCircle,
-  LogIn
+  AlertCircle
 } from "lucide-react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { useForm } from "react-hook-form";
@@ -408,18 +409,44 @@ export default function KnowledgeManagementPage() {
     : 0;
   const totalUsage = articles.reduce((sum, a) => sum + a.usageCount, 0);
 
+  // Show authentication gate if user is not logged in
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] p-6">
+        <Card className="w-full max-w-md mx-auto">
+          <CardHeader className="text-center">
+            <CardTitle className="flex items-center justify-center gap-3 text-xl">
+              <Shield className="w-6 h-6 text-orange-600" />
+              Authentication Required
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-muted-foreground">
+              You must be logged in to access Knowledge Management. Please log in to upload files, create articles, and manage your knowledge base.
+            </p>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Login Credentials:</p>
+              <p className="text-sm text-muted-foreground">
+                Email: <strong>sarah.smith@supportboard.com</strong><br />
+                Password: <strong>agent123</strong>
+              </p>
+            </div>
+            <Button 
+              onClick={() => window.location.href = '/login'}
+              className="w-full"
+              data-testid="button-login-redirect"
+            >
+              <LogIn className="w-4 h-4 mr-2" />
+              Go to Login Page
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden box-border">
-      {/* Authentication Warning */}
-      {!user && (
-        <Alert className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950" data-testid="alert-auth-required">
-          <AlertCircle className="h-4 w-4 text-orange-600" />
-          <AlertDescription className="text-orange-800 dark:text-orange-200">
-            <strong>Authentication Required:</strong> Please log in to upload files, create articles, or manage knowledge base content. 
-            Click the login button in the top navigation to get started.
-          </AlertDescription>
-        </Alert>
-      )}
       
       {/* Header */}
       <div className="space-y-4">
