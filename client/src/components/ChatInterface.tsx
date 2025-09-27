@@ -74,9 +74,11 @@ export default function ChatInterface({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to top when new messages arrive (since newest messages are now at the top)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (scrollAreaRef.current) {
+      scrollAreaRef.current.scrollTop = 0;
+    }
   }, [messages]);
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -592,7 +594,7 @@ export default function ChatInterface({
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4" data-testid="messages-container">
-          {messages.map((message) => {
+          {messages.slice().reverse().map((message) => {
             console.log('Rendering message:', message.id, message.content);
             return (
               <ChatMessage 

@@ -228,9 +228,12 @@ export function CustomerChatWidget() {
     setAiTypingTimeout(timeout);
   };
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to top when new messages arrive (since newest messages are now at the top)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const messagesContainer = document.querySelector('[data-testid="messages-container"]');
+    if (messagesContainer) {
+      messagesContainer.scrollTop = 0;
+    }
   }, [messages]);
 
   // Cleanup AI typing timeout on unmount
@@ -440,7 +443,7 @@ export function CustomerChatWidget() {
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto space-y-3 mb-4" data-testid="messages-container">
-                  {messages.map((message) => (
+                  {messages.slice().reverse().map((message) => (
                     <div
                       key={message.id}
                       className={cn(
