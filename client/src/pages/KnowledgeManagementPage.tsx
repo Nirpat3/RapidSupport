@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, ApiError } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -216,11 +216,22 @@ export default function KnowledgeManagementPage() {
       }
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create knowledge article.",
-        variant: "destructive",
-      });
+      // Check if this is an authentication error
+      const isAuthError = (error instanceof ApiError && error.status === 401) || error.message?.includes('401');
+      
+      if (isAuthError) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to create articles. Click the login button in the top navigation.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to create knowledge article.",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -242,11 +253,22 @@ export default function KnowledgeManagementPage() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update knowledge article.",
-        variant: "destructive",
-      });
+      // Check if this is an authentication error
+      const isAuthError = (error instanceof ApiError && error.status === 401) || error.message?.includes('401');
+      
+      if (isAuthError) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to update articles. Click the login button in the top navigation.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to update knowledge article.",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -261,11 +283,22 @@ export default function KnowledgeManagementPage() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete knowledge article.",
-        variant: "destructive",
-      });
+      // Check if this is an authentication error
+      const isAuthError = (error instanceof ApiError && error.status === 401) || error.message?.includes('401');
+      
+      if (isAuthError) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to delete articles. Click the login button in the top navigation.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to delete knowledge article.",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -288,11 +321,22 @@ export default function KnowledgeManagementPage() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create knowledge article from URL.",
-        variant: "destructive",
-      });
+      // Check if this is an authentication error
+      const isAuthError = (error instanceof ApiError && error.status === 401) || error.message?.includes('401');
+      
+      if (isAuthError) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to create articles from URLs. Click the login button in the top navigation.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to create knowledge article from URL.",
+          variant: "destructive",
+        });
+      }
     },
   });
 
@@ -320,11 +364,22 @@ export default function KnowledgeManagementPage() {
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create knowledge articles from files.",
-        variant: "destructive",
-      });
+      // Check if this is an authentication error
+      const isAuthError = (error instanceof ApiError && error.status === 401) || error.message?.includes('401');
+      
+      if (isAuthError) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to upload files. Click the login button in the top navigation.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to create knowledge articles from files.",
+          variant: "destructive",
+        });
+      }
     },
   });
 
