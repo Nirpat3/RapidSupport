@@ -12,9 +12,10 @@ import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search } from "lucide-react";
 import ChatMessage, { type Message } from "./ChatMessage";
 import InternalChatPanel from "./InternalChatPanel";
+import KnowledgeSearchDialog from "./KnowledgeSearchDialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface ChatInterfaceProps {
@@ -49,6 +50,7 @@ export default function ChatInterface({
   const [isTyping, setIsTyping] = useState(false);
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [isInternalChatOpen, setIsInternalChatOpen] = useState(false);
+  const [isKnowledgeSearchOpen, setIsKnowledgeSearchOpen] = useState(false);
   const [newTicket, setNewTicket] = useState({
     title: "",
     description: "",
@@ -486,6 +488,18 @@ export default function ChatInterface({
               <span className="hidden sm:inline">Team Chat</span>
             </Button>
 
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="text-xs sm:text-sm"
+              onClick={() => setIsKnowledgeSearchOpen(true)}
+              data-testid="button-knowledge-search"
+              aria-label="Open Knowledge Base search"
+            >
+              <BookOpen className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Knowledge Base</span>
+            </Button>
+
             <Popover open={isFollowupOpen} onOpenChange={setIsFollowupOpen}>
               <PopoverTrigger asChild>
                 <Button 
@@ -738,6 +752,18 @@ export default function ChatInterface({
         customer={customer}
         isOpen={isInternalChatOpen}
         onClose={() => setIsInternalChatOpen(false)}
+      />
+
+      {/* Knowledge Base Search Dialog */}
+      <KnowledgeSearchDialog
+        open={isKnowledgeSearchOpen}
+        onOpenChange={setIsKnowledgeSearchOpen}
+        onPasteArticle={(content, title) => {
+          setNewMessage(prevMessage => {
+            const separator = prevMessage.trim() ? '\n\n' : '';
+            return prevMessage + separator + content;
+          });
+        }}
       />
     </div>
   );

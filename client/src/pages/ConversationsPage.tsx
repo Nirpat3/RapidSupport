@@ -266,9 +266,27 @@ export default function ConversationsPage() {
       // Invalidate and refetch messages after sending
       queryClient.invalidateQueries({ queryKey: ['/api/conversations', activeConversationId, 'messages'] });
     },
-    onError: (error) => {
-      console.error('Failed to send message:', error);
-      // Could add toast notification here
+    onError: (error: any) => {
+      console.error('Send message mutation failed:', error);
+      
+      let errorMessage = "Please check your connection and try again";
+      const errorMsg = typeof error?.message === 'string' ? error.message : '';
+      
+      // Handle specific error types
+      if (error?.status === 401 || errorMsg.includes('401')) {
+        errorMessage = "Authentication required. Please refresh the page and log in again";
+      } else if (error?.status === 403 || errorMsg.includes('403')) {
+        errorMessage = "You don't have permission to send messages to this conversation";
+      } else if (errorMsg) {
+        errorMessage = errorMsg;
+      }
+      
+      // Show error toast to user
+      toast({
+        title: "Failed to send message",
+        description: errorMessage,
+        variant: "destructive",
+      });
     }
   });
 
