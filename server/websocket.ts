@@ -404,7 +404,10 @@ class ChatWebSocketServer {
   // Public method to broadcast new message notifications to staff for unassigned conversations
   public broadcastNewMessageToStaff(conversation: any, customer: any, message: any) {
     // Only notify about messages in unassigned conversations
-    if (conversation.assignedAgentId) return;
+    if (conversation.assignedAgentId) {
+      console.log(`Skipping staff notification for assigned conversation ${conversation.id} (assigned to ${conversation.assignedAgentId})`);
+      return;
+    }
 
     const notificationMessage = {
       type: 'new_message',

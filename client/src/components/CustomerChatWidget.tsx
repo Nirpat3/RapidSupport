@@ -127,7 +127,7 @@ export function CustomerChatWidget() {
         ipAddress,
         sessionId: chatState.sessionId,
       };
-      const response = await apiRequest('POST', '/api/customer-chat/create-customer', requestData);
+      const response = await apiRequest('/api/customer-chat/create-customer', 'POST', requestData);
       return response;
     },
     onSuccess: (response) => {
@@ -151,7 +151,7 @@ export function CustomerChatWidget() {
         throw new Error("No active conversation");
       }
       console.log('Sending message:', { conversationId: chatState.conversationId, content, customerId: chatState.customerId });
-      return await apiRequest('POST', '/api/customer-chat/send-message', {
+      return await apiRequest('/api/customer-chat/send-message', 'POST', {
         conversationId: chatState.conversationId,
         content,
         customerId: chatState.customerId,
@@ -178,7 +178,7 @@ export function CustomerChatWidget() {
         throw new Error("No active conversation");
       }
       
-      return await apiRequest('POST', '/api/ai/smart-response', {
+      return await apiRequest('/api/ai/smart-response', 'POST', {
         conversationId: chatState.conversationId,
         customerMessage,
         customerId: chatState.customerId, // Required for authorization
@@ -481,7 +481,7 @@ export function CustomerChatWidget() {
                     <div className="flex justify-start" data-testid="ai-typing-indicator">
                       <div className="max-w-[80%] rounded-lg px-3 py-2 text-sm bg-muted">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-xs">AI Assistant</span>
+                          <span className="font-medium text-xs">Alex (AI Assistant)</span>
                           <Badge variant="secondary" className="text-xs">agent</Badge>
                         </div>
                         <div className="flex items-center gap-2">

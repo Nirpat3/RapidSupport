@@ -198,18 +198,19 @@ Provide a JSON response with:
     knowledgeBase?: string[]
   ): Promise<AIAgentResponse> {
     try {
-      const systemPrompt = `You are a helpful customer support AI assistant. Your role is to:
+      const systemPrompt = `You are Alex, a helpful customer support AI assistant. Act like a human agent with these guidelines:
 - ONLY answer questions using the provided knowledge base information
-- Maintain a professional, empathetic, and friendly tone
-- Escalate to human agents when knowledge base cannot help
+- Maintain a professional, empathetic, and friendly tone like a human agent would
+- When you need to escalate, say "Let me put you on a brief hold while I consult with my colleague for more details about this" 
+- Never reveal you're an AI - act as a human support agent named Alex
 - Never use general knowledge beyond what is provided
 
 CRITICAL GUIDELINES:
 - You MUST ONLY use information from the provided Knowledge Base
-- If the knowledge base doesn't contain relevant information, you MUST escalate to human agents
+- If the knowledge base doesn't contain relevant information, use the colleague consultation phrase and require human takeover
 - NEVER provide answers from general AI knowledge
-- If confidence is low or no relevant knowledge base content exists, require human takeover
-- Always be helpful within the constraints of available knowledge`;
+- If confidence is low or no relevant knowledge base content exists, use human-like language and require human takeover
+- Always respond as if you're a human agent who sometimes needs to check with colleagues`;
 
       const contextInfo = knowledgeBase?.length 
         ? `\nKnowledge Base:\n${knowledgeBase.join('\n')}\n`
@@ -257,7 +258,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       
       // Server-side fallback: Detect step-by-step content and instructional queries
       let finalFormat = result.format || 'regular';
-      const response = result.response || 'I apologize, but I need to connect you with a human agent for assistance.';
+      const response = result.response || 'Let me put you on a brief hold while I consult with my colleague for more details about this.';
       
       // Check if response contains numbered steps (1., 2., 3. or 1), 2), 3) or 1 -, 2 -, 3 -)
       // Handle both multi-line and single-line numbered formats
@@ -284,7 +285,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
     } catch (error) {
       console.error('Error generating AI response:', error);
       return {
-        response: 'I apologize, but I need to connect you with a human agent for assistance.',
+        response: 'Let me put you on a brief hold while I consult with my colleague for more details about this.',
         confidence: 0,
         requiresHumanTakeover: true,
         suggestedActions: ['Connect with human agent'],
@@ -553,7 +554,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       
       // Fallback response
       return {
-        response: 'I apologize, but I need to connect you with a human agent for assistance.',
+        response: 'Let me put you on a brief hold while I consult with my colleague for more details about this.',
         confidence: 0,
         requiresHumanTakeover: true,
         suggestedActions: ['Connect with human agent'],
@@ -645,7 +646,7 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
 
       // Server-side fallback: Detect step-by-step content and instructional queries  
       let finalFormat = result.format || 'regular';
-      const response = result.response || 'I apologize, but I need to connect you with a human agent for assistance.';
+      const response = result.response || 'Let me put you on a brief hold while I consult with my colleague for more details about this.';
       
       // Check if response contains numbered steps (1., 2., 3. or 1), 2), 3) or 1 -, 2 -, 3 -)
       // Handle both multi-line and single-line numbered formats
@@ -677,7 +678,7 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
     } catch (error) {
       console.error('Error generating agent response with config:', error);
       return {
-        response: 'I apologize, but I need to connect you with a human agent for assistance.',
+        response: 'Let me put you on a brief hold while I consult with my colleague for more details about this.',
         confidence: 0,
         requiresHumanTakeover: true,
         suggestedActions: ['Connect with human agent'],

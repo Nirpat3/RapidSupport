@@ -1621,8 +1621,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       // Generate AI response
       const aiResponse = await AIService.generateSmartAgentResponse(
-        conversationId,
         customerMessage,
+        conversationId,
         agentId
       );
 
@@ -1650,12 +1650,25 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
               conversationId: message.conversationId,
               content: message.content,
               userId: SYSTEM_AI_AGENT_ID,
-              userName: 'AI Assistant',
+              userName: 'Alex (AI Assistant)',
               userRole: 'agent',
               senderType: message.senderType,
               timestamp: message.timestamp,
               status: message.status,
               format: aiResponse.format // Include AI response format for step-by-step rendering
+            });
+          }
+          
+          // If AI requires human takeover, send urgent notification to all staff
+          if (aiResponse.requiresHumanTakeover && wsServer && wsServer.broadcastToStaff) {
+            wsServer.broadcastToStaff({
+              type: 'ai_assistance_required',
+              conversationId,
+              customerName: conversation.customer.name,
+              customerId: conversation.customer.id,
+              message: `Alex (AI Assistant) is consulting with colleagues about: ${customerMessage.slice(0, 100)}${customerMessage.length > 100 ? '...' : ''}`,
+              timestamp: new Date().toISOString(),
+              priority: 'high'
             });
           }
         }
