@@ -69,7 +69,14 @@ export interface IStorage {
   getCustomerByEmail(email: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomerStatus(id: string, status: string): Promise<void>;
-  getAllCustomers(): Promise<Customer[]>;
+  getAllCustomers(options?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    sortBy?: 'createdAt' | 'updatedAt' | 'name';
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
 
   // Conversation operations
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -299,8 +306,8 @@ export class DatabaseStorage implements IStorage {
       sortOrder = 'desc'
     } = options || {};
 
-    let query = db.select().from(customers);
-    let countQuery = db.select({ count: sql<number>`count(*)` }).from(customers);
+    let query = db.select().from(customers).$dynamic();
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(customers).$dynamic();
 
     // Apply filters
     const whereConditions: any[] = [];
@@ -398,6 +405,7 @@ export class DatabaseStorage implements IStorage {
         status: conversations.status,
         priority: conversations.priority,
         title: conversations.title,
+        followupDate: conversations.followupDate,
         isAnonymous: conversations.isAnonymous,
         sessionId: conversations.sessionId,
         createdAt: conversations.createdAt,
@@ -1369,12 +1377,17 @@ export class DatabaseStorage implements IStorage {
         })
         .from(aiAgentLearning)
         .leftJoin(aiAgents, eq(aiAgentLearning.agentId, aiAgents.id))
-        .orderBy(desc(aiAgentLearning.createdAt));
+        .$dynamic();
 
+      // Apply agent filter if specified
       if (filters.agentId) {
         query = query.where(eq(aiAgentLearning.agentId, filters.agentId));
       }
 
+      // Apply ordering
+      query = query.orderBy(desc(aiAgentLearning.createdAt));
+
+      // Apply pagination
       if (filters.limit) {
         query = query.limit(filters.limit);
       }
@@ -1652,8 +1665,8 @@ export class DatabaseStorage implements IStorage {
       sortOrder = 'desc'
     } = options || {};
 
-    let query = db.select().from(uploadedFiles);
-    let countQuery = db.select({ count: sql<number>`count(*)` }).from(uploadedFiles);
+    let query = db.select().from(uploadedFiles).$dynamic();
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(uploadedFiles).$dynamic();
 
     // Apply filters
     const whereConditions: any[] = [];
@@ -1773,6 +1786,7 @@ export class DatabaseStorage implements IStorage {
         category: uploadedFiles.category,
         tags: uploadedFiles.tags,
         status: uploadedFiles.status,
+        errorMessage: uploadedFiles.errorMessage,
         duplicateOfId: uploadedFiles.duplicateOfId,
         processedAt: uploadedFiles.processedAt,
         createdBy: uploadedFiles.createdBy,
@@ -1912,7 +1926,7 @@ export class DatabaseStorage implements IStorage {
     return results.map(result => ({
       file: result.file,
       totalUsage: Number(result.totalUsage),
-      lastUsed: result.lastUsed,
+      lastUsed: result.lastUsed || undefined,
     }));
   }
 
