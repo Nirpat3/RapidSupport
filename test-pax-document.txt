@@ -1,0 +1,20 @@
+How to Configure PAX Payment Terminal
+
+This is a test document for PAX payment terminal configuration. 
+
+Network Setup:
+1. Connect the PAX device to your network
+2. Configure IP settings  
+3. Test connectivity
+
+Payment Processing:
+- Configure payment processor settings
+- Test transaction processing
+- Verify batch settlement
+
+Troubleshooting:
+- Check network connections
+- Verify IP configuration  
+- Contact support if issues persist
+
+This document contains PAX configuration instructions for testing purposes.

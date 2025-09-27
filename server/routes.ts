@@ -3140,7 +3140,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
                 await processFileForAITraining(uploadedFile, category, parsedTags, user.id);
               } catch (error) {
                 console.error(`Failed to process file ${uploadedFile.originalName} for AI training:`, error);
-                await storage.updateUploadedFile(uploadedFile.id, { status: 'error' });
+                const errorMessage = error instanceof Error ? error.message : 'Unknown processing error';
+                await storage.updateUploadedFile(uploadedFile.id, { 
+                  status: 'error',
+                  errorMessage
+                });
               }
             }, 100); // Minimal delay to allow response to return
           }

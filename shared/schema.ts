@@ -226,6 +226,7 @@ export const uploadedFiles = pgTable("uploaded_files", {
   category: text("category").notNull().default("General"), // File categorization
   tags: text("tags").array(), // Searchable tags
   status: text("status").notNull().default("uploaded"), // 'uploaded' | 'processing' | 'processed' | 'error'
+  errorMessage: text("error_message"), // Error details when status is 'error'
   duplicateOfId: varchar("duplicate_of_id"), // Will be foreign key but can't self-reference here
   processedAt: timestamp("processed_at"), // When file was processed for AI training
   createdBy: varchar("created_by").notNull().references(() => users.id),
@@ -588,6 +589,7 @@ export const insertUploadedFileSchema = createInsertSchema(uploadedFiles).pick({
   category: true,
   tags: true,
   status: true,
+  errorMessage: true,
   duplicateOfId: true,
   processedAt: true,
   createdBy: true,
