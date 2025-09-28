@@ -2556,7 +2556,40 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Get specific knowledge base article
+  // Get specific knowledge base article (public access for shared articles)
+  app.get('/api/public/knowledge-base/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const article = await storage.getKnowledgeBase(id);
+      
+      if (!article) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+      
+      // Only return active articles for public access
+      if (!article.isActive) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+      
+      // Return only necessary fields for public viewing
+      const publicArticle = {
+        id: article.id,
+        title: article.title,
+        content: article.content,
+        category: article.category,
+        tags: article.tags,
+        createdAt: article.createdAt,
+        updatedAt: article.updatedAt
+      };
+      
+      res.json(publicArticle);
+    } catch (error) {
+      console.error('Failed to fetch public knowledge base article:', error);
+      res.status(500).json({ error: 'Failed to fetch knowledge base article' });
+    }
+  });
+
+  // Get specific knowledge base article (authenticated access)
   app.get('/api/knowledge-base/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
       const { id } = req.params;
