@@ -1375,16 +1375,25 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Create anonymous customer and conversation
   app.post('/api/customer-chat/create-customer', async (req, res) => {
     try {
+      console.log('=== Customer Creation Request Started ===');
+      console.log('Request body:', JSON.stringify(req.body, null, 2));
+      
       // If no sessionId provided, generate one
       if (!req.body.sessionId) {
         req.body.sessionId = randomUUID();
+        console.log('Generated sessionId:', req.body.sessionId);
       }
       
       // Get client IP from request instead of client-provided value
       const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
       req.body.ipAddress = clientIP;
+      console.log('Client IP set to:', clientIP);
       
+      console.log('Validating customer data with schema...');
       const customerData = createAnonymousCustomerSchema.parse(req.body);
+      console.log('Schema validation passed:', JSON.stringify(customerData, null, 2));
+      
+      console.log('Calling storage.createAnonymousCustomer...');
       const wsServer = (app as any).wsServer;
       const result = await storage.createAnonymousCustomer({
         ...customerData,
@@ -1392,15 +1401,23 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }, wsServer);
       
       console.log('Customer created successfully - ID:', result.customerId);
+      console.log('=== Customer Creation Request Completed ===');
       res.status(201).json(result);
     } catch (error) {
-      console.error('Customer creation failed:', error instanceof z.ZodError ? 'Validation error' : 'Server error');
+      console.error('=== Customer Creation Failed ===');
+      console.error('Error type:', error instanceof z.ZodError ? 'Validation error' : 'Server error');
+      console.error('Full error details:', error);
+      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      console.error('Request body that failed:', JSON.stringify(req.body, null, 2));
+      
       if (error instanceof z.ZodError) {
+        console.error('Zod validation errors:', error.errors);
         return res.status(400).json({ 
           error: 'Invalid customer data', 
           details: fromZodError(error).toString() 
         });
       }
+      console.error('=== End Customer Creation Error ===');
       res.status(500).json({ error: 'Failed to create customer' });
     }
   });
@@ -1450,6 +1467,52 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             timestamp: message.timestamp,
             status: message.status
           });
+        }
+
+        // Auto-generate AI response for customer messages
+        if (message.senderType === 'customer') {
+          console.log('Triggering AI response for customer message:', message.content);
+          try {
+            // Generate AI response using the smart agent system
+            const aiResponse = await AIService.generateSmartAgentResponse(
+              message.content,
+              messageData.conversationId
+            );
+
+            // Create and persist AI message to prevent client spoofing
+            if (aiResponse.response) {
+              const SYSTEM_AI_AGENT_ID = 'ai-system-agent-001';
+              
+              const aiMessageData = {
+                conversationId: messageData.conversationId,
+                content: aiResponse.response,
+                senderId: SYSTEM_AI_AGENT_ID,
+                senderType: 'agent' as const
+              };
+
+              const aiMessage = await storage.createMessage(aiMessageData);
+              
+              // Broadcast AI message to conversation participants
+              if (wsServer && wsServer.broadcastNewMessage) {
+                wsServer.broadcastNewMessage(messageData.conversationId, {
+                  messageId: aiMessage.id,
+                  conversationId: aiMessage.conversationId,
+                  content: aiMessage.content,
+                  userId: SYSTEM_AI_AGENT_ID,
+                  userName: 'Alex (AI Assistant)',
+                  userRole: 'agent',
+                  senderType: aiMessage.senderType,
+                  timestamp: aiMessage.timestamp,
+                  status: aiMessage.status
+                });
+              }
+
+              console.log('AI response generated and broadcasted:', aiMessage.id);
+            }
+          } catch (aiError) {
+            console.error('Failed to generate AI response:', aiError);
+            // Don't fail the customer message if AI response fails
+          }
         }
       }
       

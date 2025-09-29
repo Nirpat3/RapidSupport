@@ -602,44 +602,85 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       // Calculate knowledge quality score for confidence adjustment
       const knowledgeQuality = this.calculateKnowledgeQuality(searchResults);
 
+      // Detect if customer message is too vague to provide helpful assistance
+      const isVagueQuery = this.detectVagueQuery(customerMessage);
+      
+      console.log('=== AI Query Analysis Debug ===');
+      console.log('Customer message:', customerMessage);
+      console.log('Detected as vague query:', isVagueQuery);
+      console.log('Knowledge context available:', searchResults.length > 0);
+      console.log('Knowledge quality score:', knowledgeQuality.toFixed(2));
+      console.log('Search results count:', searchResults.length);
+      if (searchResults.length > 0) {
+        console.log('Top search result score:', searchResults[0].score);
+        console.log('Top search result title:', searchResults[0].chunk.title);
+      }
+
       const userPrompt = `${knowledgeContext}${conversationContext}
 Customer Message: "${customerMessage}"
 
 Agent Role: ${agent.name} - ${agent.description}
 Specializations: ${agent.specializations?.join(', ') || 'General Support'}
 
+QUERY ANALYSIS:
+- Is vague/needs clarification: ${isVagueQuery ? 'YES' : 'NO'}
+- Previous conversation context: ${conversationHistory.length > 0 ? 'Available' : 'None'}
+- Knowledge base results: ${searchResults.length} relevant chunks found
+- Knowledge quality score: ${knowledgeQuality.toFixed(2)}/10
+
 Respond according to your role and training. Provide a JSON response with:
-- response: Your helpful response to the customer (ONLY use knowledge base information)
+- response: Your helpful response to the customer (follow guidelines below)
 - confidence: Number from 0-100 indicating confidence in your response
 - requiresHumanTakeover: Boolean if human agent should take over
 - suggestedActions: Array of recommended next steps
 - format: Either "regular" or "steps" (use "steps" for instruction-based queries)
 
-ENHANCED RESPONSE GUIDELINES:
-- Use format: "steps" for how-to questions, tutorials, troubleshooting, setup instructions, or process explanations
-- Use format: "regular" for simple answers, information requests, or general inquiries
-- When using "steps" format, structure your response with numbered steps and clear descriptions
-- Reference specific knowledge base articles when appropriate (e.g., "According to our Setup Guide...")
-- If multiple high-quality sources are available, synthesize information coherently
-- Adjust confidence based on knowledge base coverage and relevance quality
-- Base your confidence on: knowledge relevance (${knowledgeQuality.toFixed(1)}/10), completeness of answer, and certainty of information
-  "1. First step description\n2. Second step description\n3. Third step description"
+MANDATORY RESPONSE STRATEGY - FOLLOW EXACTLY:
 
-CRITICAL GUIDELINES:
-- You MUST ONLY use information from the provided Knowledge Base chunks
-- If no relevant knowledge base articles are available, set requiresHumanTakeover to true
-- NEVER provide answers from general knowledge  
-- If confidence is low or no relevant knowledge exists, require human takeover
-- When using knowledge base information, mention the article title for reference
+STEP 1: CHECK QUERY TYPE
+- If "Is vague/needs clarification" = YES → GO TO VAGUE QUERY RESPONSE
+- If "Is vague/needs clarification" = NO → GO TO SPECIFIC QUERY RESPONSE
+
+VAGUE QUERY RESPONSE (only when query analysis shows vague = YES):
+- DO NOT provide solutions or knowledge base information
+- Ask 2-3 specific clarifying questions to understand their exact issue
+- Be empathetic: "I'm here to help! To provide you with the best assistance..."
+- Guide them to be more specific: "What specifically are you experiencing?"
+- Use examples: "For example, are you having trouble with setup, connectivity, or error messages?"
+- Set confidence to 70-85
+- Set requiresHumanTakeover to false
+
+SPECIFIC QUERY RESPONSE (only when query analysis shows vague = NO):
+- If knowledge base results > 0 and quality score > 3.0 → PROVIDE KNOWLEDGE-BASED SOLUTION
+- Use format: "steps" for how-to questions, tutorials, troubleshooting, setup instructions
+- Use format: "regular" for simple answers, information requests, or general inquiries
+- Reference specific knowledge base articles when appropriate
+- Provide comprehensive solutions using ONLY the provided knowledge base information
+- Set confidence to 70-95 based on knowledge quality
+- Set requiresHumanTakeover to false
+
+- If knowledge base results = 0 or quality score < 3.0 → ESCALATE TO HUMAN
+- Set requiresHumanTakeover to true
+- Explain you need to connect them with a specialist
+
+CRITICAL RULES:
+- NEVER ask clarifying questions when query analysis shows vague = NO
+- NEVER provide knowledge-based solutions when query analysis shows vague = YES
+- ONLY use information from the provided Knowledge Base chunks for solutions
+- NEVER provide answers from general knowledge when giving solutions
 
 Confidence scoring:
-- 90-100: Completely confident with highly relevant knowledge base chunks (score > 0.8)
-- 70-89: Good confidence using relevant knowledge base chunks (score > 0.5)
-- 50-69: Moderate confidence with moderately relevant knowledge (score > 0.3)
-- 30-49: Low confidence with weak knowledge match (score > 0.15)
-- 0-29: Very low confidence, definitely needs human assistance (score < 0.15)
+- For clarifying questions on vague queries: 70-85
+- For knowledge-based solutions: 90-100 (highly relevant), 70-89 (good), 50-69 (moderate), 30-49 (low), 0-29 (very low)
+- For human handoffs: 20-40
 
-If no relevant knowledge base information is available, set requiresHumanTakeover to true and explain that you need to connect them with a human agent.`;
+Example clarifying response for vague queries:
+"I'm here to help! To provide you with the best assistance, could you tell me a bit more about what's happening? For example:
+- Are you experiencing an error message? If so, what does it say?
+- Is this related to setting up new equipment or troubleshooting existing setup?
+- What specific step or process are you having trouble with?
+
+The more details you can share, the better I can help you resolve this quickly!"`;
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -1077,5 +1118,71 @@ ${result.chunk.metadata.hasStructure ? '[Well-structured content]' : '[Unstructu
     } catch (error) {
       console.error('Error recording customer feedback:', error);
     }
+  }
+
+  /**
+   * Detect if a customer query is too vague to provide specific assistance
+   */
+  private static detectVagueQuery(customerMessage: string): boolean {
+    const message = customerMessage.toLowerCase().trim();
+    
+    // Patterns that indicate vague queries
+    const vagePatterns = [
+      // Direct vague statements
+      /^(i have an? )?issue$/,
+      /^(i have an? )?problem$/,
+      /^(need )?help$/,
+      /^not working$/,
+      /^it('s)? not working$/,
+      /^broken$/,
+      /^it('s)? broken$/,
+      /^doesn('t)? work$/,
+      /^won('t)? work$/,
+      /^something('s)? wrong$/,
+      /^there('s)? a problem$/,
+      /^i('m)? having trouble$/,
+      /^i('m)? having issues?$/,
+      /^can('t)? get it to work$/,
+      /^it('s)? not functioning$/,
+      
+      // Very short vague requests
+      /^help me$/,
+      /^fix it$/,
+      /^fix this$/,
+      /^what('s)? wrong$/,
+      /^why not working$/,
+      /^why isn('t)? it working$/,
+      
+      // Generic support requests
+      /^i need support$/,
+      /^i need assistance$/,
+      /^can you help$/,
+      /^can you help me$/,
+      
+      // Emergency-sounding but vague
+      /^urgent$/,
+      /^emergency$/,
+      /^asap$/,
+      /^important$/,
+    ];
+    
+    // Check if message matches any vague pattern
+    const isVague = vagePatterns.some(pattern => pattern.test(message));
+    
+    // Additional checks for vague characteristics
+    if (!isVague) {
+      // Very short messages (under 10 characters) are often vague
+      if (message.length < 10) {
+        return true;
+      }
+      
+      // Messages with only pronouns and no specifics
+      const hasOnlyPronouns = /^(it|this|that|they|them)(\s+(is|are|was|were|don('t)?|doesn('t)?|won('t)?|can('t)?|isn('t)?|aren('t)?|wasn('t)?|weren('t)?))?(\s+(work|working|function|functioning))?$/i.test(message);
+      if (hasOnlyPronouns) {
+        return true;
+      }
+    }
+    
+    return isVague;
   }
 }
