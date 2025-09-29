@@ -1201,7 +1201,10 @@ export class DatabaseStorage implements IStorage {
 
   async getKnowledgeBaseArticles(ids: string[]): Promise<KnowledgeBase[]> {
     try {
-      if (ids.length === 0) return [];
+      if (ids.length === 0) {
+        // If no IDs provided, return all active knowledge base articles
+        return await db.select().from(knowledgeBase).where(eq(knowledgeBase.isActive, true)).orderBy(desc(knowledgeBase.priority), desc(knowledgeBase.createdAt));
+      }
       return await db.select().from(knowledgeBase).where(sql`${knowledgeBase.id} = ANY(${ids})`);
     } catch (error) {
       console.error('Error fetching knowledge base articles:', error);

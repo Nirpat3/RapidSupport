@@ -559,16 +559,20 @@ export class KnowledgeRetrievalService {
       
       // Get chunks for the specified knowledge base IDs
       let chunks = await this.getChunks(knowledgeBaseIds);
+      console.log(`Initial chunks from specified IDs: ${chunks.length}`);
       
       // If no results and expandScope is true, try with all available articles
       if (chunks.length === 0 && expandScope) {
         console.log('Expanding search scope to all knowledge base articles');
         const allArticles = await storage.getKnowledgeBaseArticles?.([]) || [];
+        console.log(`Found ${allArticles.length} total knowledge base articles`);
         const allKbIds = allArticles.map(article => article.id);
         chunks = await this.getChunks(allKbIds);
+        console.log(`Chunks after expanding scope: ${chunks.length}`);
       }
       
       if (chunks.length === 0) {
+        console.log('No chunks available for search');
         return [];
       }
       

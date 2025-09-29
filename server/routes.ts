@@ -2490,7 +2490,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Search knowledge base using enhanced semantic and hybrid search
   app.get('/api/search/knowledge', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      const { query, maxResults, minScore, agentId } = req.query;
+      const { query, maxResults, minScore, agentId, expandScope } = req.query;
       
       if (!query || typeof query !== 'string') {
         return res.status(400).json({ error: 'Search query is required' });
@@ -2501,7 +2501,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         maxResults: maxResults ? parseInt(maxResults as string) : 5,
         minScore: minScore ? parseFloat(minScore as string) : 0.15,
         useSemanticSearch: true,
-        expandScope: false
+        expandScope: expandScope === 'true' || true // Default to true to search all articles
       });
 
       res.json(results);
