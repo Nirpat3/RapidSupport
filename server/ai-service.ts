@@ -590,18 +590,23 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
     agent: AiAgent
   ): Promise<AIAgentResponse> {
     try {
+      // Enhanced knowledge context formatting with better structure
       const knowledgeContext = searchResults.length 
-        ? `\nKnowledge Base:\n${searchResults.map(result => 
-            `${result.chunk.title}: ${result.chunk.content} (Relevance: ${result.score.toFixed(2)}, Match: ${result.matchType})`
-          ).join('\n')}\n`
+        ? this.formatKnowledgeContext(searchResults)
         : '\nKnowledge Base: No relevant knowledge base articles available.\n';
 
       const conversationContext = conversationHistory.length 
         ? `\nConversation History:\n${conversationHistory.join('\n')}\n`
         : '';
 
+      // Calculate knowledge quality score for confidence adjustment
+      const knowledgeQuality = this.calculateKnowledgeQuality(searchResults);
+
       const userPrompt = `${knowledgeContext}${conversationContext}
 Customer Message: "${customerMessage}"
+
+Agent Role: ${agent.name} - ${agent.description}
+Specializations: ${agent.specializations?.join(', ') || 'General Support'}
 
 Respond according to your role and training. Provide a JSON response with:
 - response: Your helpful response to the customer (ONLY use knowledge base information)
@@ -610,10 +615,14 @@ Respond according to your role and training. Provide a JSON response with:
 - suggestedActions: Array of recommended next steps
 - format: Either "regular" or "steps" (use "steps" for instruction-based queries)
 
-FORMATTING GUIDELINES:
+ENHANCED RESPONSE GUIDELINES:
 - Use format: "steps" for how-to questions, tutorials, troubleshooting, setup instructions, or process explanations
 - Use format: "regular" for simple answers, information requests, or general inquiries
-- When using "steps" format, structure your response with numbered steps:
+- When using "steps" format, structure your response with numbered steps and clear descriptions
+- Reference specific knowledge base articles when appropriate (e.g., "According to our Setup Guide...")
+- If multiple high-quality sources are available, synthesize information coherently
+- Adjust confidence based on knowledge base coverage and relevance quality
+- Base your confidence on: knowledge relevance (${knowledgeQuality.toFixed(1)}/10), completeness of answer, and certainty of information
   "1. First step description\n2. Second step description\n3. Third step description"
 
 CRITICAL GUIDELINES:
@@ -683,9 +692,30 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
       // Force human takeover if no knowledge articles are available
       const shouldForceHumanTakeover = searchResults.length === 0;
       
+      // Enhanced confidence calculation using knowledge quality
+      let adjustedConfidence = result.confidence || 50;
+      
+      if (!shouldForceHumanTakeover && searchResults.length > 0) {
+        // Adjust confidence based on knowledge quality score
+        const qualityMultiplier = Math.min(1.2, 0.8 + (knowledgeQuality / 25)); // 0.8 to 1.2 range
+        adjustedConfidence = Math.round(adjustedConfidence * qualityMultiplier);
+        
+        // Boost confidence for multiple high-quality sources
+        if (searchResults.length > 1 && knowledgeQuality > 7) {
+          adjustedConfidence = Math.min(95, adjustedConfidence + 5);
+        }
+        
+        // Lower confidence for weak knowledge matches
+        if (knowledgeQuality < 4) {
+          adjustedConfidence = Math.max(20, adjustedConfidence - 15);
+        }
+      } else if (shouldForceHumanTakeover) {
+        adjustedConfidence = Math.min(adjustedConfidence, 25);
+      }
+      
       return {
         response,
-        confidence: shouldForceHumanTakeover ? Math.min(result.confidence || 20, 20) : (result.confidence || 50),
+        confidence: Math.max(0, Math.min(100, adjustedConfidence)),
         requiresHumanTakeover: shouldForceHumanTakeover || result.requiresHumanTakeover || false,
         suggestedActions: result.suggestedActions || ['Connect with human agent'],
         knowledgeUsed: searchResults.map(result => result.chunk.knowledgeBaseId),
@@ -951,6 +981,61 @@ If no relevant knowledge base information is available, set requiresHumanTakeove
         return result.score > 0.15;
       })
       .slice(0, analysis.complexity === 'high' ? 6 : 5); // Limit results appropriately
+  }
+
+  /**
+   * Format knowledge context for better AI consumption
+   */
+  private static formatKnowledgeContext(searchResults: SearchResult[]): string {
+    if (searchResults.length === 0) {
+      return '\nKnowledge Base: No relevant knowledge base articles available.\n';
+    }
+
+    const sections = searchResults.map((result, index) => {
+      const relevanceLabel = result.score > 0.8 ? 'High' : 
+                            result.score > 0.5 ? 'Medium' : 'Low';
+      
+      return `
+--- Knowledge Source ${index + 1}: ${result.chunk.title} ---
+Relevance: ${relevanceLabel} (${result.score.toFixed(2)})
+Match Type: ${result.matchType}
+Content:
+${result.chunk.content}
+${result.chunk.metadata.hasStructure ? '[Well-structured content]' : '[Unstructured content]'}
+---`;
+    });
+
+    return `\nKnowledge Base Sources:\n${sections.join('\n')}\n`;
+  }
+
+  /**
+   * Calculate overall knowledge quality score for confidence adjustment
+   */
+  private static calculateKnowledgeQuality(searchResults: SearchResult[]): number {
+    if (searchResults.length === 0) return 0;
+
+    const scores = searchResults.map(result => {
+      let quality = result.score * 10; // Base score from 0-10
+      
+      // Boost for high-relevance matches
+      if (result.score > 0.7) quality += 1;
+      if (result.score > 0.9) quality += 1;
+      
+      // Boost for structured content
+      if (result.chunk.metadata.hasStructure) quality += 0.5;
+      
+      // Boost for semantic matches (more reliable)
+      if (result.matchType === 'semantic') quality += 0.5;
+      
+      return Math.min(10, quality);
+    });
+
+    // Average with bias toward higher scores
+    const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    const maxScore = Math.max(...scores);
+    
+    // Weighted average favoring the best result
+    return (avgScore * 0.7 + maxScore * 0.3);
   }
 
   /**

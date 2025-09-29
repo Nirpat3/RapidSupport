@@ -52,7 +52,7 @@ import {
   type InsertAiAgentFileUsage,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, isNull } from "drizzle-orm";
+import { eq, desc, and, or, sql, isNull, inArray } from "drizzle-orm";
 import { KnowledgeRetrievalService } from "./knowledge-retrieval";
 
 // Updated interface for all CRUD operations
@@ -1205,7 +1205,8 @@ export class DatabaseStorage implements IStorage {
         // If no IDs provided, return all active knowledge base articles
         return await db.select().from(knowledgeBase).where(eq(knowledgeBase.isActive, true)).orderBy(desc(knowledgeBase.priority), desc(knowledgeBase.createdAt));
       }
-      return await db.select().from(knowledgeBase).where(sql`${knowledgeBase.id} = ANY(${ids})`);
+      // Use inArray instead of ANY for proper array handling
+      return await db.select().from(knowledgeBase).where(inArray(knowledgeBase.id, ids));
     } catch (error) {
       console.error('Error fetching knowledge base articles:', error);
       return [];
