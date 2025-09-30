@@ -15,6 +15,10 @@ import {
   uploadedFiles,
   knowledgeBaseFiles,
   aiAgentFileUsage,
+  posts,
+  postComments,
+  postLikes,
+  postViews,
   type User,
   type InsertUser,
   type Customer,
@@ -50,6 +54,14 @@ import {
   type InsertKnowledgeBaseFile,
   type AiAgentFileUsage,
   type InsertAiAgentFileUsage,
+  type Post,
+  type InsertPost,
+  type PostComment,
+  type InsertPostComment,
+  type PostLike,
+  type InsertPostLike,
+  type PostView,
+  type InsertPostView,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray } from "drizzle-orm";
@@ -220,6 +232,36 @@ export interface IStorage {
   getTopUsedFiles(limit: number, agentId?: string): Promise<Array<{ file: UploadedFile; totalUsage: number; lastUsed?: Date }>>;
   getFileEffectivenessMetrics(limit: number): Promise<Array<{ file: UploadedFile; usageCount: number; effectivenessScore: number }>>;
   getAgentFileUsageSummary(): Promise<Array<{ agentId: string; agentName: string; fileCount: number; totalUsage: number }>>;
+
+  // Feed Module operations
+  // Post operations
+  createPost(post: InsertPost): Promise<Post>;
+  getPost(id: string): Promise<Post | undefined>;
+  getPosts(options?: { 
+    visibility?: string; 
+    userId?: string; 
+    userType?: 'staff' | 'customer';
+    page?: number;
+    limit?: number;
+  }): Promise<{ posts: Post[]; total: number; page: number; totalPages: number }>;
+  updatePost(id: string, updates: Partial<InsertPost>): Promise<void>;
+  deletePost(id: string): Promise<void>;
+
+  // Post comment operations
+  createPostComment(comment: InsertPostComment): Promise<PostComment>;
+  getPostComments(postId: string): Promise<PostComment[]>;
+  deletePostComment(id: string): Promise<void>;
+
+  // Post like operations
+  likePost(postId: string, userId: string, userType: 'staff' | 'customer'): Promise<PostLike>;
+  unlikePost(postId: string, userId: string): Promise<void>;
+  getPostLikes(postId: string): Promise<PostLike[]>;
+  hasUserLikedPost(postId: string, userId: string): Promise<boolean>;
+
+  // Post view operations
+  recordPostView(postId: string, userId: string, userType: 'staff' | 'customer'): Promise<PostView>;
+  getPostViews(postId: string): Promise<PostView[]>;
+  getPostStats(postId: string): Promise<{ views: number; likes: number; comments: number }>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -2028,6 +2070,233 @@ export class DatabaseStorage implements IStorage {
       fileCount: Number(result.fileCount),
       totalUsage: Number(result.totalUsage),
     }));
+  }
+
+  // ========================================
+  // FEED MODULE IMPLEMENTATIONS
+  // ========================================
+
+  async createPost(insertPost: InsertPost): Promise<Post> {
+    const [post] = await db
+      .insert(posts)
+      .values({
+        ...insertPost,
+        updatedAt: new Date(),
+      })
+      .returning();
+    return post;
+  }
+
+  async getPost(id: string): Promise<Post | undefined> {
+    const [post] = await db.select().from(posts).where(eq(posts.id, id));
+    return post || undefined;
+  }
+
+  async getPosts(options?: { 
+    visibility?: string; 
+    userId?: string; 
+    userType?: 'staff' | 'customer';
+    page?: number;
+    limit?: number;
+  }): Promise<{ posts: Post[]; total: number; page: number; totalPages: number }> {
+    const page = options?.page || 1;
+    const limit = options?.limit || 20;
+    const offset = (page - 1) * limit;
+
+    let query = db.select().from(posts).$dynamic();
+    let countQuery = db.select({ count: sql<number>`count(*)` }).from(posts).$dynamic();
+
+    // Apply visibility filters
+    if (options?.visibility === 'internal') {
+      query = query.where(eq(posts.visibility, 'internal'));
+      countQuery = countQuery.where(eq(posts.visibility, 'internal'));
+    } else if (options?.visibility === 'all_customers') {
+      query = query.where(eq(posts.visibility, 'all_customers'));
+      countQuery = countQuery.where(eq(posts.visibility, 'all_customers'));
+    } else if (options?.visibility === 'targeted' && options?.userId) {
+      query = query.where(
+        and(
+          eq(posts.visibility, 'targeted'),
+          sql`${options.userId} = ANY(${posts.targetedUserIds})`
+        )
+      );
+      countQuery = countQuery.where(
+        and(
+          eq(posts.visibility, 'targeted'),
+          sql`${options.userId} = ANY(${posts.targetedUserIds})`
+        )
+      );
+    } else if (options?.userId && options?.userType) {
+      // Show posts based on user type and visibility
+      if (options.userType === 'staff') {
+        // Staff can see internal posts and targeted posts for them
+        query = query.where(
+          or(
+            eq(posts.visibility, 'internal'),
+            and(
+              eq(posts.visibility, 'targeted'),
+              sql`${options.userId} = ANY(${posts.targetedUserIds})`
+            )
+          )
+        );
+        countQuery = countQuery.where(
+          or(
+            eq(posts.visibility, 'internal'),
+            and(
+              eq(posts.visibility, 'targeted'),
+              sql`${options.userId} = ANY(${posts.targetedUserIds})`
+            )
+          )
+        );
+      } else {
+        // Customers can see all_customers posts and targeted posts for them
+        query = query.where(
+          or(
+            eq(posts.visibility, 'all_customers'),
+            and(
+              eq(posts.visibility, 'targeted'),
+              sql`${options.userId} = ANY(${posts.targetedUserIds})`
+            )
+          )
+        );
+        countQuery = countQuery.where(
+          or(
+            eq(posts.visibility, 'all_customers'),
+            and(
+              eq(posts.visibility, 'targeted'),
+              sql`${options.userId} = ANY(${posts.targetedUserIds})`
+            )
+          )
+        );
+      }
+    }
+
+    const [{ count }] = await countQuery;
+    const total = Number(count);
+    const totalPages = Math.ceil(total / limit);
+
+    const postResults = await query
+      .orderBy(desc(posts.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return {
+      posts: postResults,
+      total,
+      page,
+      totalPages,
+    };
+  }
+
+  async updatePost(id: string, updates: Partial<InsertPost>): Promise<void> {
+    await db
+      .update(posts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(posts.id, id));
+  }
+
+  async deletePost(id: string): Promise<void> {
+    await db.delete(posts).where(eq(posts.id, id));
+  }
+
+  async createPostComment(insertComment: InsertPostComment): Promise<PostComment> {
+    const [comment] = await db
+      .insert(postComments)
+      .values({
+        ...insertComment,
+        updatedAt: new Date(),
+      })
+      .returning();
+    return comment;
+  }
+
+  async getPostComments(postId: string): Promise<PostComment[]> {
+    return await db
+      .select()
+      .from(postComments)
+      .where(eq(postComments.postId, postId))
+      .orderBy(desc(postComments.createdAt));
+  }
+
+  async deletePostComment(id: string): Promise<void> {
+    await db.delete(postComments).where(eq(postComments.id, id));
+  }
+
+  async likePost(postId: string, userId: string, userType: 'staff' | 'customer'): Promise<PostLike> {
+    const [like] = await db
+      .insert(postLikes)
+      .values({
+        postId,
+        userId,
+        userType,
+      })
+      .returning();
+    return like;
+  }
+
+  async unlikePost(postId: string, userId: string): Promise<void> {
+    await db
+      .delete(postLikes)
+      .where(and(eq(postLikes.postId, postId), eq(postLikes.userId, userId)));
+  }
+
+  async getPostLikes(postId: string): Promise<PostLike[]> {
+    return await db
+      .select()
+      .from(postLikes)
+      .where(eq(postLikes.postId, postId))
+      .orderBy(desc(postLikes.createdAt));
+  }
+
+  async hasUserLikedPost(postId: string, userId: string): Promise<boolean> {
+    const [like] = await db
+      .select()
+      .from(postLikes)
+      .where(and(eq(postLikes.postId, postId), eq(postLikes.userId, userId)));
+    return !!like;
+  }
+
+  async recordPostView(postId: string, userId: string, userType: 'staff' | 'customer'): Promise<PostView> {
+    const [view] = await db
+      .insert(postViews)
+      .values({
+        postId,
+        userId,
+        userType,
+      })
+      .returning();
+    return view;
+  }
+
+  async getPostViews(postId: string): Promise<PostView[]> {
+    return await db
+      .select()
+      .from(postViews)
+      .where(eq(postViews.postId, postId))
+      .orderBy(desc(postViews.viewedAt));
+  }
+
+  async getPostStats(postId: string): Promise<{ views: number; likes: number; comments: number }> {
+    const [viewCount] = await db
+      .select({ count: sql<number>`count(DISTINCT ${postViews.userId})` })
+      .from(postViews)
+      .where(eq(postViews.postId, postId));
+
+    const [likeCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(postLikes)
+      .where(eq(postLikes.postId, postId));
+
+    const [commentCount] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(postComments)
+      .where(eq(postComments.postId, postId));
+
+    return {
+      views: Number(viewCount.count),
+      likes: Number(likeCount.count),
+      comments: Number(commentCount.count),
+    };
   }
 
 }
