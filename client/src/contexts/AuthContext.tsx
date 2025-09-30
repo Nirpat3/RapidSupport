@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async (): Promise<void> => {
     try {
-      await apiRequest('POST', '/api/auth/logout');
+      await apiRequest('/api/auth/logout', 'POST');
       
       setUser(null);
       queryClient.clear();

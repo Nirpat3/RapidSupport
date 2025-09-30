@@ -180,7 +180,7 @@ export default function KnowledgeManagementPage() {
       // Remove images from the payload for article creation
       const { images, ...articlePayload } = payload;
       
-      const createdArticle = await apiRequest('POST', '/api/knowledge-base', articlePayload);
+      const createdArticle = await apiRequest('/api/knowledge-base', 'POST', articlePayload);
       
       // If there are images, upload them after article creation
       let imageUploadErrors: string[] = [];
@@ -191,7 +191,7 @@ export default function KnowledgeManagementPage() {
         });
         
         try {
-          await apiRequest('POST', `/api/knowledge-base/${createdArticle.id}/images`, formData);
+          await apiRequest(`/api/knowledge-base/${createdArticle.id}/images`, 'POST', formData);
         } catch (imageError) {
           console.error('Failed to upload images:', imageError);
           imageUploadErrors.push(`Failed to upload ${images.length} image(s)`);
@@ -245,7 +245,7 @@ export default function KnowledgeManagementPage() {
         ...data,
         tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
       };
-      return apiRequest('PUT', `/api/knowledge-base/${id}`, payload);
+      return apiRequest(`/api/knowledge-base/${id}`, 'PUT', payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
@@ -277,7 +277,7 @@ export default function KnowledgeManagementPage() {
 
   // Delete article mutation
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiRequest('DELETE', `/api/knowledge-base/${id}`),
+    mutationFn: (id: string) => apiRequest(`/api/knowledge-base/${id}`, 'DELETE'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
       toast({
@@ -313,7 +313,7 @@ export default function KnowledgeManagementPage() {
         tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
         sourceType: 'url' as const,
       };
-      return apiRequest('POST', '/api/knowledge-base/from-url', payload);
+      return apiRequest('/api/knowledge-base/from-url', 'POST', payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
@@ -356,7 +356,7 @@ export default function KnowledgeManagementPage() {
       if (data.assignedAgentIds) {
         formData.append('assignedAgentIds', JSON.stringify(data.assignedAgentIds));
       }
-      return apiRequest('POST', '/api/knowledge-base/from-files', formData);
+      return apiRequest('/api/knowledge-base/from-files', 'POST', formData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
@@ -1448,7 +1448,7 @@ function FileUploadForm({
             <AlertDescription>
               {authError}
               <Button 
-                variant="link" 
+                variant="ghost" 
                 size="sm" 
                 className="p-0 h-auto ml-2" 
                 onClick={() => window.location.reload()}

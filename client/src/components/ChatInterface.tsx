@@ -112,7 +112,7 @@ export default function ChatInterface({
         `${msg.sender.role}: ${msg.content}`
       );
       
-      const response = await apiRequest('POST', '/api/ai/proofread-message', {
+      const response = await apiRequest('/api/ai/proofread-message', 'POST', {
         message: newMessage,
         isCustomerMessage: false,
         conversationHistory
@@ -172,7 +172,7 @@ export default function ChatInterface({
     
     setIsGeneratingTicket(true);
     try {
-      const response = await apiRequest('POST', `/api/conversations/${conversationId}/generate-ticket`);
+      const response = await apiRequest(`/api/conversations/${conversationId}/generate-ticket`, 'POST');
       
       setAiTicketSuggestion(response.data);
       // Auto-fill the form with AI suggestions
@@ -479,7 +479,7 @@ export default function ChatInterface({
                           })
                         };
 
-                        const response = await apiRequest('POST', '/api/tickets', ticketData);
+                        const response = await apiRequest('/api/tickets', 'POST', ticketData);
 
                         // Invalidate relevant caches to refresh ticket lists
                         queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });

@@ -49,7 +49,7 @@ export default function StaffTakeoverPage() {
   // Manual takeover mutation
   const takeoverMutation = useMutation({
     mutationFn: ({ conversationId, reason }: { conversationId: string; reason: string }) =>
-      apiRequest('POST', `/api/ai/handover/${conversationId}`, { reason }),
+      apiRequest(`/api/ai/handover/${conversationId}`, 'POST', { reason }),
     onSuccess: (data) => {
       toast({
         title: 'Takeover Successful',
@@ -70,7 +70,7 @@ export default function StaffTakeoverPage() {
   // Auto-assign mutation
   const autoAssignMutation = useMutation({
     mutationFn: ({ conversationId, reason }: { conversationId: string; reason: string }) =>
-      apiRequest('POST', `/api/ai/auto-handover/${conversationId}`, { reason }),
+      apiRequest(`/api/ai/auto-handover/${conversationId}`, 'POST', { reason }),
     onSuccess: (data) => {
       toast({
         title: 'Auto-Assignment Successful',

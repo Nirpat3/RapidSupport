@@ -94,7 +94,7 @@ export default function StaffAIDashboard() {
       };
       
       const startTime = Date.now();
-      const result = await apiRequest('POST', '/api/ai/generate-response', payload);
+      const result = await apiRequest('/api/ai/generate-response', 'POST', payload);
       const processingTime = Date.now() - startTime;
       
       return {

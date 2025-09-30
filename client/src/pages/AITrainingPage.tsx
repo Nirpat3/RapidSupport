@@ -201,7 +201,7 @@ export default function AITrainingPage() {
   // Submit feedback mutation
   const submitFeedbackMutation = useMutation({
     mutationFn: async (feedback: TrainingFeedback) => {
-      return apiRequest('POST', '/api/ai/learning/feedback', feedback);
+      return apiRequest('/api/ai/learning/feedback', 'POST', feedback);
     },
     onSuccess: () => {
       toast({
@@ -222,7 +222,7 @@ export default function AITrainingPage() {
   // Submit correction mutation 
   const submitCorrectionMutation = useMutation({
     mutationFn: async (correction: CorrectionSubmission) => {
-      return apiRequest('POST', '/api/ai/learning/correction', correction);
+      return apiRequest('/api/ai/learning/correction', 'POST', correction);
     },
     onSuccess: () => {
       toast({
