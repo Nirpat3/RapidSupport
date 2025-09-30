@@ -799,3 +799,12 @@ export type InsertPostLike = z.infer<typeof insertPostLikeSchema>;
 export type PostLike = typeof postLikes.$inferSelect;
 export type InsertPostView = z.infer<typeof insertPostViewSchema>;
 export type PostView = typeof postViews.$inferSelect;
+
+// Post with engagement stats
+export type PostWithStats = Post & {
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  hasLiked: boolean;
+  authorName: string;
+};

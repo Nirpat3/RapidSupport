@@ -3639,32 +3639,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Get posts with visibility filtering
-  app.get('/api/feed/posts', requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const { visibility, page, limit } = req.query;
-      const userId = user.id;
-      const userType: 'staff' | 'customer' = user.role === 'admin' || user.role === 'agent' ? 'staff' : 'customer';
-      
-      const options = {
-        visibility: visibility as string,
-        userId,
-        userType,
-        page: page ? parseInt(page as string) : undefined,
-        limit: limit ? parseInt(limit as string) : undefined,
-      };
-
-      const posts = await storage.getPosts(options);
-      res.json(posts);
-    } catch (error) {
-      console.error('Failed to fetch posts:', error);
-      res.status(500).json({ error: 'Failed to fetch posts' });
-    }
-  });
-
-  // Get single post
-  app.get('/api/feed/posts/:id', requireAuth, async (req, res) => {
+  // Get single post (must come before :filter to avoid UUID conflicts)
+  app.get('/api/feed/posts/:id([0-9a-f-]{36})', requireAuth, async (req, res) => {
     try {
       const post = await storage.getPost(req.params.id);
       if (!post) {
@@ -3811,6 +3787,63 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to fetch post stats:', error);
       res.status(500).json({ error: 'Failed to fetch post stats' });
+    }
+  });
+
+  // Get posts with visibility filtering (must come after all :id routes)
+  app.get('/api/feed/posts/:filter(all|internal|urgent)?', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { filter } = req.params;
+      const { page, limit } = req.query;
+      const userId = user.id;
+      const userType: 'staff' | 'customer' = user.role === 'admin' || user.role === 'agent' ? 'staff' : 'customer';
+      
+      // Check authorization for internal posts
+      if (filter === 'internal' && userType !== 'staff') {
+        return res.status(403).json({ error: 'Access denied to internal posts' });
+      }
+      
+      // Map filter to visibility option
+      let visibility = filter;
+      if (filter === 'all' || !filter) {
+        visibility = undefined; // Get all posts user has access to
+      } else if (filter === 'urgent') {
+        // Special handling for urgent - we'll filter after fetching
+        visibility = undefined;
+      }
+      
+      const options = {
+        visibility: visibility === 'urgent' ? undefined : visibility,
+        userId,
+        userType,
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+      };
+
+      const result = await storage.getPosts(options);
+      
+      // Filter for urgent posts if requested
+      let postsToReturn = result.posts;
+      if (filter === 'urgent') {
+        postsToReturn = result.posts.filter(post => post.isUrgent);
+      }
+      
+      // Enrich posts with author names
+      const postsWithAuthors = await Promise.all(
+        postsToReturn.map(async (post) => {
+          const author = await storage.getUser(post.authorId);
+          return {
+            ...post,
+            authorName: author?.name || 'Unknown'
+          };
+        })
+      );
+      
+      res.json(postsWithAuthors);
+    } catch (error) {
+      console.error('Failed to fetch posts:', error);
+      res.status(500).json({ error: 'Failed to fetch posts' });
     }
   });
 

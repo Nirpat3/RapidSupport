@@ -24,6 +24,7 @@ import {
   UserCheck,
   BookOpen,
   File,
+  Rss,
   Settings, 
   HelpCircle, 
   LogOut,
@@ -93,6 +94,11 @@ const getNavigationItems = (unreadCount: number) => [
     title: "Analytics",
     url: "/analytics", 
     icon: TrendingUp
+  },
+  {
+    title: "Feed",
+    url: "/feed", 
+    icon: Rss
   },
   {
     title: "Settings",

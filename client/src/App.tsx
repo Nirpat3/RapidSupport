@@ -22,6 +22,7 @@ import StaffTakeoverPage from "@/pages/StaffTakeoverPage";
 import KnowledgeManagementPage from "@/pages/KnowledgeManagementPage";
 import FileManagementPage from "@/pages/FileManagementPage";
 import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
+import FeedPage from "@/pages/FeedPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/knowledge" component={KnowledgeManagementPage} />
       <Route path="/files" component={FileManagementPage} />
       <Route path="/analytics" component={AgentAnalyticsPage} />
+      <Route path="/feed" component={FeedPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
     </Switch>
