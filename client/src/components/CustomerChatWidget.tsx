@@ -443,7 +443,7 @@ export function CustomerChatWidget() {
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto space-y-3 mb-4" data-testid="messages-container">
-                  {messages.slice().reverse().map((message) => (
+                  {messages.map((message) => (
                     <div
                       key={message.id}
                       className={cn(

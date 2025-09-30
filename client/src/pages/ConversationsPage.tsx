@@ -227,8 +227,11 @@ export default function ConversationsPage() {
     mutationFn: async (conversationId: string) => {
       return await apiRequest(`/api/conversations/${conversationId}/take-over`, 'PUT', {});
     },
-    onSuccess: () => {
+    onSuccess: (_, conversationId) => {
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      // Switch to active tab and select the conversation
+      setActiveTab('active');
+      setActiveConversationId(conversationId);
       toast({
         title: "Success",
         description: "Conversation assigned to you successfully",
