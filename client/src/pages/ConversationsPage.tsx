@@ -185,7 +185,8 @@ export default function ConversationsPage() {
     status: conv.status || 'open',
     priority: conv.priority || 'medium',
     isAssigned: Boolean(conv.assignedAgentId), // True only if there's an assigned agent
-    assignedAgentId: conv.assignedAgentId
+    assignedAgentId: conv.assignedAgentId,
+    followupDate: conv.followupDate ? new Date(conv.followupDate) : undefined
   }));
 
   // Filter conversations by tab type
@@ -202,9 +203,8 @@ export default function ConversationsPage() {
   );
   
   const followupConversations = formattedConversations.filter(conv => {
-    // TODO: Add followupDate filtering when the API provides it
-    // For now, filter by assigned conversations that are pending
-    return conv.assignedAgentId === currentUserId && conv.status === 'pending';
+    // Show conversations that have a follow-up date scheduled and are assigned to current user
+    return conv.assignedAgentId === currentUserId && conv.followupDate !== undefined;
   });
   
   const historyConversations = formattedConversations.filter(conv => 

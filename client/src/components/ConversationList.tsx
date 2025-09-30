@@ -25,6 +25,7 @@ export interface Conversation {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   isAssigned?: boolean;
   assignedAgentId?: string;
+  followupDate?: Date;
 }
 
 interface ConversationListProps {
