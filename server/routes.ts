@@ -3805,7 +3805,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
       
       // Map filter to visibility option
-      let visibility = filter;
+      let visibility: string | undefined = filter;
       if (filter === 'all' || !filter) {
         visibility = undefined; // Get all posts user has access to
       } else if (filter === 'urgent') {

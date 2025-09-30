@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +10,32 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   MessageCircle, 
   Heart, 
@@ -17,10 +46,13 @@ import {
   FileText,
   Image as ImageIcon,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  X
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Post } from "@shared/schema";
 
 type PostWithAuthor = Post & {
@@ -33,9 +65,21 @@ type PostStats = {
   comments: number;
 };
 
+const createPostSchema = z.object({
+  content: z.string().min(1, "Content is required").max(5000, "Content must be less than 5000 characters"),
+  visibility: z.enum(['internal', 'all_customers', 'targeted']),
+  isUrgent: z.boolean().default(false),
+  links: z.string().optional(),
+  images: z.string().optional(),
+});
+
+type CreatePostFormData = z.infer<typeof createPostSchema>;
+
 export default function FeedPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   const { data: posts = [], isLoading, error, refetch } = useQuery<PostWithAuthor[]>({
     queryKey: ['/api/feed/posts', activeTab],
@@ -43,6 +87,52 @@ export default function FeedPage() {
   });
 
   const isStaff = user?.role === 'admin' || user?.role === 'agent';
+
+  const form = useForm<CreatePostFormData>({
+    resolver: zodResolver(createPostSchema),
+    defaultValues: {
+      content: '',
+      visibility: 'internal',
+      isUrgent: false,
+      links: '',
+      images: '',
+    },
+  });
+
+  const createPostMutation = useMutation({
+    mutationFn: async (data: CreatePostFormData) => {
+      const links = data.links?.split(',').map(l => l.trim()).filter(Boolean);
+      const images = data.images?.split(',').map(i => i.trim()).filter(Boolean);
+      
+      return await apiRequest('/api/feed/posts', 'POST', {
+        content: data.content,
+        visibility: data.visibility,
+        isUrgent: data.isUrgent,
+        links: links?.length ? links : undefined,
+        images: images?.length ? images : undefined,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/feed/posts'] });
+      toast({
+        title: "Post created",
+        description: "Your post has been published successfully.",
+      });
+      setIsCreateDialogOpen(false);
+      form.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to create post",
+        description: error.message || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: CreatePostFormData) => {
+    createPostMutation.mutate(data);
+  };
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
@@ -174,10 +264,7 @@ export default function FeedPage() {
           {isStaff && (
             <Button 
               className="w-full sm:w-auto"
-              onClick={() => {
-                // TODO: Implement in task 6
-                alert('Create post form will be implemented in the next task');
-              }}
+              onClick={() => setIsCreateDialogOpen(true)}
               data-testid="button-create-post"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -239,6 +326,157 @@ export default function FeedPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Create Post Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Post</DialogTitle>
+            <DialogDescription>
+              Share announcements, updates, or important information with your team or customers.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="content"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Content</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="What would you like to share?"
+                        className="min-h-32"
+                        data-testid="input-post-content"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Write your announcement or update (max 5000 characters)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="visibility"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Visibility</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-visibility">
+                          <SelectValue placeholder="Select visibility" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="internal">Staff Only</SelectItem>
+                        <SelectItem value="all_customers">All Customers</SelectItem>
+                        <SelectItem value="targeted">Targeted</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Choose who can see this post
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="isUrgent"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        data-testid="checkbox-urgent"
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Mark as Urgent
+                      </FormLabel>
+                      <FormDescription>
+                        Urgent posts will be highlighted and shown in the urgent tab
+                      </FormDescription>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="links"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Links (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://example.com, https://example2.com"
+                        data-testid="input-links"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Add external links (comma-separated)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="images"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Image URLs (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://example.com/image1.jpg, https://example.com/image2.jpg"
+                        data-testid="input-images"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Add image URLs (comma-separated)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsCreateDialogOpen(false);
+                    form.reset();
+                  }}
+                  data-testid="button-cancel"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createPostMutation.isPending}
+                  data-testid="button-submit-post"
+                >
+                  {createPostMutation.isPending ? "Creating..." : "Create Post"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
