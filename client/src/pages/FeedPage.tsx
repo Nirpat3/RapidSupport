@@ -69,8 +69,36 @@ const createPostSchema = z.object({
   content: z.string().min(1, "Content is required").max(5000, "Content must be less than 5000 characters"),
   visibility: z.enum(['internal', 'all_customers', 'targeted']),
   isUrgent: z.boolean().default(false),
-  links: z.string().optional(),
-  images: z.string().optional(),
+  links: z.string().optional().refine(
+    (val) => {
+      if (!val) return true;
+      const urls = val.split(',').map(l => l.trim()).filter(Boolean);
+      return urls.every(url => {
+        try {
+          const parsed = new URL(url);
+          return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch {
+          return false;
+        }
+      });
+    },
+    { message: "All links must be valid http or https URLs" }
+  ),
+  images: z.string().optional().refine(
+    (val) => {
+      if (!val) return true;
+      const urls = val.split(',').map(i => i.trim()).filter(Boolean);
+      return urls.every(url => {
+        try {
+          const parsed = new URL(url);
+          return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch {
+          return false;
+        }
+      });
+    },
+    { message: "All image URLs must be valid http or https URLs" }
+  ),
 });
 
 type CreatePostFormData = z.infer<typeof createPostSchema>;

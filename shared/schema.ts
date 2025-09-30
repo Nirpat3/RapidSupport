@@ -772,7 +772,33 @@ export const insertPostSchema = createInsertSchema(posts).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}).refine(
+  (data) => {
+    if (!data.links) return true;
+    return data.links.every(link => {
+      try {
+        const url = new URL(link);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    });
+  },
+  { message: "All links must be valid http or https URLs", path: ['links'] }
+).refine(
+  (data) => {
+    if (!data.images) return true;
+    return data.images.every(img => {
+      try {
+        const url = new URL(img);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    });
+  },
+  { message: "All image URLs must be valid http or https URLs", path: ['images'] }
+);
 
 export const insertPostCommentSchema = createInsertSchema(postComments).omit({
   id: true,
