@@ -144,7 +144,7 @@ export default function ChatInterface({
     
     setIsSchedulingFollowup(true);
     try {
-      await apiRequest('PUT', `/api/conversations/${conversationId}/followup`, {
+      await apiRequest(`/api/conversations/${conversationId}/followup`, 'PUT', {
         followupDate: followupDate.toISOString()
       });
       
@@ -208,7 +208,7 @@ export default function ChatInterface({
     
     setIsClosingConversation(true);
     try {
-      await apiRequest('PATCH', `/api/conversations/${conversationId}/status`, {
+      await apiRequest(`/api/conversations/${conversationId}/status`, 'PATCH', {
         status: 'closed'
       });
       
