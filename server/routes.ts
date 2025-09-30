@@ -28,7 +28,11 @@ import {
   insertKnowledgeBaseSchema,
   updateKnowledgeBaseSchema,
   insertUploadedFileSchema,
-  updateUploadedFileSchema
+  updateUploadedFileSchema,
+  insertPostSchema,
+  insertPostCommentSchema,
+  insertPostLikeSchema,
+  insertPostViewSchema
 } from '@shared/schema';
 import { WebScraper } from './web-scraper';
 import { KnowledgeRetrievalService } from './knowledge-retrieval';
@@ -3608,6 +3612,205 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to fetch agent file usage analytics:', error);
       res.status(500).json({ error: 'Failed to fetch agent file usage analytics' });
+    }
+  });
+
+  // ========================================
+  // FEED MODULE ROUTES
+  // ========================================
+
+  // Create new post (admin/agent only)
+  app.post('/api/feed/posts', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const postData = insertPostSchema.parse({
+        ...req.body,
+        authorId: user.id,
+      });
+      
+      const post = await storage.createPost(postData);
+      res.status(201).json(post);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      console.error('Failed to create post:', error);
+      res.status(500).json({ error: 'Failed to create post' });
+    }
+  });
+
+  // Get posts with visibility filtering
+  app.get('/api/feed/posts', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { visibility, page, limit } = req.query;
+      const userId = user.id;
+      const userType: 'staff' | 'customer' = user.role === 'admin' || user.role === 'agent' ? 'staff' : 'customer';
+      
+      const options = {
+        visibility: visibility as string,
+        userId,
+        userType,
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+      };
+
+      const posts = await storage.getPosts(options);
+      res.json(posts);
+    } catch (error) {
+      console.error('Failed to fetch posts:', error);
+      res.status(500).json({ error: 'Failed to fetch posts' });
+    }
+  });
+
+  // Get single post
+  app.get('/api/feed/posts/:id', requireAuth, async (req, res) => {
+    try {
+      const post = await storage.getPost(req.params.id);
+      if (!post) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+      res.json(post);
+    } catch (error) {
+      console.error('Failed to fetch post:', error);
+      res.status(500).json({ error: 'Failed to fetch post' });
+    }
+  });
+
+  // Update post (author or admin only)
+  app.patch('/api/feed/posts/:id', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const post = await storage.getPost(req.params.id);
+      if (!post) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      // Check authorization
+      if (post.authorId !== user.id && user.role !== 'admin') {
+        return res.status(403).json({ error: 'Unauthorized to update this post' });
+      }
+
+      await storage.updatePost(req.params.id, req.body);
+      const updatedPost = await storage.getPost(req.params.id);
+      res.json(updatedPost);
+    } catch (error) {
+      console.error('Failed to update post:', error);
+      res.status(500).json({ error: 'Failed to update post' });
+    }
+  });
+
+  // Delete post (author or admin only)
+  app.delete('/api/feed/posts/:id', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const post = await storage.getPost(req.params.id);
+      if (!post) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      // Check authorization
+      if (post.authorId !== user.id && user.role !== 'admin') {
+        return res.status(403).json({ error: 'Unauthorized to delete this post' });
+      }
+
+      await storage.deletePost(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to delete post:', error);
+      res.status(500).json({ error: 'Failed to delete post' });
+    }
+  });
+
+  // Add comment to post
+  app.post('/api/feed/posts/:id/comments', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const commentData = insertPostCommentSchema.parse({
+        postId: req.params.id,
+        authorId: user.id,
+        authorType: user.role === 'admin' || user.role === 'agent' ? 'staff' : 'customer',
+        content: req.body.content,
+      });
+
+      const comment = await storage.createPostComment(commentData);
+      res.status(201).json(comment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      console.error('Failed to create comment:', error);
+      res.status(500).json({ error: 'Failed to create comment' });
+    }
+  });
+
+  // Get post comments
+  app.get('/api/feed/posts/:id/comments', requireAuth, async (req, res) => {
+    try {
+      const comments = await storage.getPostComments(req.params.id);
+      res.json(comments);
+    } catch (error) {
+      console.error('Failed to fetch comments:', error);
+      res.status(500).json({ error: 'Failed to fetch comments' });
+    }
+  });
+
+  // Like post
+  app.post('/api/feed/posts/:id/like', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const userId = user.id;
+      const userType: 'staff' | 'customer' = user.role === 'admin' || user.role === 'agent' ? 'staff' : 'customer';
+      
+      // Check if already liked
+      const hasLiked = await storage.hasUserLikedPost(req.params.id, userId);
+      if (hasLiked) {
+        return res.status(400).json({ error: 'Post already liked' });
+      }
+
+      const like = await storage.likePost(req.params.id, userId, userType);
+      res.status(201).json(like);
+    } catch (error) {
+      console.error('Failed to like post:', error);
+      res.status(500).json({ error: 'Failed to like post' });
+    }
+  });
+
+  // Unlike post
+  app.delete('/api/feed/posts/:id/like', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      await storage.unlikePost(req.params.id, user.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to unlike post:', error);
+      res.status(500).json({ error: 'Failed to unlike post' });
+    }
+  });
+
+  // Record post view
+  app.post('/api/feed/posts/:id/view', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const userId = user.id;
+      const userType: 'staff' | 'customer' = user.role === 'admin' || user.role === 'agent' ? 'staff' : 'customer';
+      
+      const view = await storage.recordPostView(req.params.id, userId, userType);
+      res.status(201).json(view);
+    } catch (error) {
+      console.error('Failed to record view:', error);
+      res.status(500).json({ error: 'Failed to record view' });
+    }
+  });
+
+  // Get post stats
+  app.get('/api/feed/posts/:id/stats', requireAuth, async (req, res) => {
+    try {
+      const stats = await storage.getPostStats(req.params.id);
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch post stats:', error);
+      res.status(500).json({ error: 'Failed to fetch post stats' });
     }
   });
 
