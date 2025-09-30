@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
@@ -72,14 +73,18 @@ export default function ChatInterface({
   const [followupDate, setFollowupDate] = useState<Date | undefined>(undefined);
   const [isSchedulingFollowup, setIsSchedulingFollowup] = useState(false);
   
+  // Close conversation states
+  const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false);
+  const [isClosingConversation, setIsClosingConversation] = useState(false);
+  
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Auto-scroll to top when new messages arrive (since newest messages are now at the top)
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = 0;
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
@@ -196,6 +201,33 @@ export default function ChatInterface({
   const clearAISuggestion = () => {
     setAiTicketSuggestion(null);
     setNewTicket({ title: "", description: "", priority: "medium", category: "General" });
+  };
+
+  const handleCloseConversation = async () => {
+    if (!conversationId) return;
+    
+    setIsClosingConversation(true);
+    try {
+      await apiRequest('PATCH', `/api/conversations/${conversationId}/status`, {
+        status: 'closed'
+      });
+      
+      toast({
+        title: "Conversation closed",
+        description: "This conversation has been marked as complete",
+      });
+      
+      setIsCloseDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    } catch (error: any) {
+      toast({
+        title: "Failed to close conversation",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsClosingConversation(false);
+    }
   };
 
 
@@ -572,6 +604,7 @@ export default function ChatInterface({
               variant="outline" 
               size="sm"
               className="text-xs sm:text-sm"
+              onClick={() => setIsCloseDialogOpen(true)}
               data-testid="button-close-conversation"
             >
               <X className="w-4 h-4 sm:mr-2" />
@@ -608,16 +641,13 @@ export default function ChatInterface({
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4" data-testid="messages-container">
-          {messages.slice().reverse().map((message) => {
-            console.log('Rendering message:', message.id, message.content);
-            return (
-              <ChatMessage 
-                key={message.id}
-                message={message}
-                isCurrentUser={message.sender.role !== 'customer'}
-              />
-            );
-          })}
+          {messages.map((message) => (
+            <ChatMessage 
+              key={message.id}
+              message={message}
+              isCurrentUser={message.sender.role !== 'customer'}
+            />
+          ))}
           
           {isTyping && customer && (
             <div className="flex items-center gap-3" data-testid="typing-indicator">
@@ -765,6 +795,28 @@ export default function ChatInterface({
           });
         }}
       />
+
+      {/* Close Conversation Confirmation Dialog */}
+      <AlertDialog open={isCloseDialogOpen} onOpenChange={setIsCloseDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close this conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will mark the conversation as complete. You can still view it in the history, but it will no longer appear in your active conversations.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleCloseConversation}
+              disabled={isClosingConversation}
+              data-testid="button-confirm-close"
+            >
+              {isClosingConversation ? 'Closing...' : 'Close Conversation'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
