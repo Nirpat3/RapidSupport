@@ -686,3 +686,116 @@ export type InsertKnowledgeBaseFile = z.infer<typeof insertKnowledgeBaseFileSche
 export type KnowledgeBaseFile = typeof knowledgeBaseFiles.$inferSelect;
 export type InsertAiAgentFileUsage = z.infer<typeof insertAiAgentFileUsageSchema>;
 export type AiAgentFileUsage = typeof aiAgentFileUsage.$inferSelect;
+
+// ========================================
+// FEED MODULE SCHEMA
+// ========================================
+
+// Posts table - social media style feed posts
+export const posts = pgTable("posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  authorId: varchar("author_id").notNull().references(() => users.id), // Staff/admin who created the post
+  content: text("content").notNull(), // Main post content
+  images: text("images").array(), // Array of image URLs/paths
+  links: text("links").array(), // Array of external links
+  attachedArticleIds: text("attached_article_ids").array(), // Knowledge base article IDs
+  visibility: text("visibility").notNull().default("internal"), // 'internal' | 'all_customers' | 'targeted'
+  targetedUserIds: text("targeted_user_ids").array(), // Specific user/customer IDs when visibility='targeted'
+  isUrgent: boolean("is_urgent").notNull().default(false), // Urgent/priority flag
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Post comments table
+export const postComments = pgTable("post_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => posts.id),
+  authorId: varchar("author_id").notNull(), // Can be user or customer ID
+  authorType: text("author_type").notNull(), // 'staff' | 'customer'
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Post likes table
+export const postLikes = pgTable("post_likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => posts.id),
+  userId: varchar("user_id").notNull(), // Can be user or customer ID
+  userType: text("user_type").notNull(), // 'staff' | 'customer'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Post views table - track who viewed each post
+export const postViews = pgTable("post_views", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => posts.id),
+  userId: varchar("user_id").notNull(), // Can be user or customer ID
+  userType: text("user_type").notNull(), // 'staff' | 'customer'
+  viewedAt: timestamp("viewed_at").notNull().defaultNow(),
+});
+
+// Feed module relations
+export const postsRelations = relations(posts, ({ one, many }) => ({
+  author: one(users, {
+    fields: [posts.authorId],
+    references: [users.id],
+  }),
+  comments: many(postComments),
+  likes: many(postLikes),
+  views: many(postViews),
+}));
+
+export const postCommentsRelations = relations(postComments, ({ one }) => ({
+  post: one(posts, {
+    fields: [postComments.postId],
+    references: [posts.id],
+  }),
+}));
+
+export const postLikesRelations = relations(postLikes, ({ one }) => ({
+  post: one(posts, {
+    fields: [postLikes.postId],
+    references: [posts.id],
+  }),
+}));
+
+export const postViewsRelations = relations(postViews, ({ one }) => ({
+  post: one(posts, {
+    fields: [postViews.postId],
+    references: [posts.id],
+  }),
+}));
+
+// Feed module insert schemas
+export const insertPostSchema = createInsertSchema(posts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPostCommentSchema = createInsertSchema(postComments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPostLikeSchema = createInsertSchema(postLikes).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPostViewSchema = createInsertSchema(postViews).omit({
+  id: true,
+  viewedAt: true,
+});
+
+// Feed module types
+export type InsertPost = z.infer<typeof insertPostSchema>;
+export type Post = typeof posts.$inferSelect;
+export type InsertPostComment = z.infer<typeof insertPostCommentSchema>;
+export type PostComment = typeof postComments.$inferSelect;
+export type InsertPostLike = z.infer<typeof insertPostLikeSchema>;
+export type PostLike = typeof postLikes.$inferSelect;
+export type InsertPostView = z.infer<typeof insertPostViewSchema>;
+export type PostView = typeof postViews.$inferSelect;
