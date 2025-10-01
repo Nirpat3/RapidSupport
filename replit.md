@@ -6,6 +6,13 @@ Support Board is a modern, full-stack customer support platform built with React
 
 ## Recent Changes
 
+**October 1, 2025**
+- ✅ **Staff Notification Bug Fixed**: Resolved critical issue where staff weren't receiving notifications when customers replied to assigned conversations
+- ✅ **WebSocket Notification Logic**: Now correctly notifies assigned agent + all admins for assigned conversations, and all staff for unassigned conversations
+- ✅ **Assign Agent Button Fixed**: Button now properly calls the takeover API and assigns conversations to the current user
+- ✅ **Button Implementation**: Added loading state, success/error toasts, and automatic cache invalidation after assignment
+- ✅ **End-to-End Validation**: Comprehensive testing confirms both notification delivery and conversation assignment work correctly
+
 **September 30, 2025**
 - ✅ **Feed Post Creation Complete**: Implemented comprehensive post creation dialog with form validation, security measures, and full functionality
 - ✅ **Security Hardening**: Added URL protocol validation (http/https only) on both client and server to prevent XSS and phishing attacks
