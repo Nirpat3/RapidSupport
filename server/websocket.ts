@@ -401,14 +401,8 @@ class ChatWebSocketServer {
     console.log(`Broadcasted new conversation ${conversation.id} from ${customer.name} to all staff`);
   }
 
-  // Public method to broadcast new message notifications to staff for unassigned conversations
+  // Public method to broadcast new message notifications to staff
   public broadcastNewMessageToStaff(conversation: any, customer: any, message: any) {
-    // Only notify about messages in unassigned conversations
-    if (conversation.assignedAgentId) {
-      console.log(`Skipping staff notification for assigned conversation ${conversation.id} (assigned to ${conversation.assignedAgentId})`);
-      return;
-    }
-
     const notificationMessage = {
       type: 'new_message',
       conversation,
@@ -417,16 +411,29 @@ class ChatWebSocketServer {
       timestamp: new Date().toISOString()
     };
 
-    // Broadcast to all staff (agents and admins)
-    this.connections.forEach(connectionSet => {
-      connectionSet.forEach(ws => {
-        if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(notificationMessage));
-        }
+    // If conversation is assigned, notify only the assigned agent (and admins)
+    if (conversation.assignedAgentId) {
+      this.connections.forEach(connectionSet => {
+        connectionSet.forEach(ws => {
+          // Notify the assigned agent OR any admin
+          if (ws.readyState === WebSocket.OPEN &&
+              (ws.userId === conversation.assignedAgentId || ws.userRole === 'admin')) {
+            ws.send(JSON.stringify(notificationMessage));
+          }
+        });
       });
-    });
-
-    console.log(`Broadcasted new message from ${customer.name} in unassigned conversation ${conversation.id} to all staff`);
+      console.log(`Notified assigned agent ${conversation.assignedAgentId} and admins about new message in conversation ${conversation.id}`);
+    } else {
+      // If unassigned, broadcast to all staff
+      this.connections.forEach(connectionSet => {
+        connectionSet.forEach(ws => {
+          if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(notificationMessage));
+          }
+        });
+      });
+      console.log(`Broadcasted new message from ${customer.name} in unassigned conversation ${conversation.id} to all staff`);
+    }
   }
 
   // Public method to broadcast conversation updates (like follow-up scheduling)
