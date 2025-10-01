@@ -793,6 +793,36 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Notification routes
+  app.get('/api/notifications/unread-counts', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const unreadCounts = await storage.getUnreadCountsByConversation(user.id);
+      res.json(unreadCounts);
+    } catch (error) {
+      console.error('Failed to fetch unread counts:', error);
+      res.status(500).json({ error: 'Failed to fetch unread counts' });
+    }
+  });
+
+  app.put('/api/notifications/:conversationId/read', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { conversationId } = req.params;
+      
+      // Validate UUID format
+      if (!z.string().uuid().safeParse(conversationId).success) {
+        return res.status(400).json({ error: 'Invalid conversation ID format' });
+      }
+      
+      await storage.markConversationAsRead(user.id, conversationId);
+      res.json({ message: 'Conversation marked as read' });
+    } catch (error) {
+      console.error('Failed to mark conversation as read:', error);
+      res.status(500).json({ error: 'Failed to mark conversation as read' });
+    }
+  });
+
   app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
     try {
       const messages = await storage.getMessagesByConversation(req.params.id);
@@ -1447,7 +1477,10 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Get conversation and customer details for notifications
       const conversation = await storage.getConversationWithCustomer(messageData.conversationId);
       if (conversation && conversation.customer) {
-        // Broadcast message notification to staff if conversation is unassigned
+        // Create notifications for all staff members
+        await storage.createNotificationsForAllStaff(messageData.conversationId);
+        
+        // Broadcast message notification to staff
         const wsServer = (app as any).wsServer;
         if (wsServer && wsServer.broadcastNewMessageToStaff) {
           wsServer.broadcastNewMessageToStaff(conversation, conversation.customer, {

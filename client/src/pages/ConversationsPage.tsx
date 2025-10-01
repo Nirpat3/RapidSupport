@@ -160,6 +160,11 @@ export default function ConversationsPage() {
     queryKey: ['/api/conversations'],
   });
 
+  // Fetch unread counts for conversations
+  const { data: unreadCounts = [] } = useQuery<Array<{ conversationId: string; count: number }>>({
+    queryKey: ['/api/notifications/unread-counts'],
+  });
+
   // Fetch messages for active conversation
   const { data: activeMessages = [], isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ['/api/conversations', activeConversationId, 'messages'],
@@ -169,25 +174,28 @@ export default function ConversationsPage() {
   const { toast } = useToast();
 
   // Convert API conversation data to match ConversationList format
-  const formattedConversations: Conversation[] = conversations.map(conv => ({
-    id: conv.id,
-    customer: {
-      id: conv.customer?.id || conv.customerId,
-      name: conv.customer?.name || 'Unknown Customer',
-      status: conv.customer?.status || 'offline'
-    },
-    lastMessage: conv.lastMessage || {
-      content: 'No messages yet',
-      timestamp: new Date(conv.updatedAt || conv.createdAt),
-      sender: 'customer'
-    },
-    unreadCount: conv.unreadCount || 0,
-    status: conv.status || 'open',
-    priority: conv.priority || 'medium',
-    isAssigned: Boolean(conv.assignedAgentId), // True only if there's an assigned agent
-    assignedAgentId: conv.assignedAgentId,
-    followupDate: conv.followupDate ? new Date(conv.followupDate) : undefined
-  }));
+  const formattedConversations: Conversation[] = conversations.map(conv => {
+    const unreadCount = unreadCounts.find(u => u.conversationId === conv.id)?.count || 0;
+    return {
+      id: conv.id,
+      customer: {
+        id: conv.customer?.id || conv.customerId,
+        name: conv.customer?.name || 'Unknown Customer',
+        status: conv.customer?.status || 'offline'
+      },
+      lastMessage: conv.lastMessage || {
+        content: 'No messages yet',
+        timestamp: new Date(conv.updatedAt || conv.createdAt),
+        sender: 'customer'
+      },
+      unreadCount,
+      status: conv.status || 'open',
+      priority: conv.priority || 'medium',
+      isAssigned: Boolean(conv.assignedAgentId), // True only if there's an assigned agent
+      assignedAgentId: conv.assignedAgentId,
+      followupDate: conv.followupDate ? new Date(conv.followupDate) : undefined
+    };
+  });
 
   // Filter conversations by tab type
   const { user } = useAuth();
@@ -198,17 +206,23 @@ export default function ConversationsPage() {
     !conv.isAssigned && conv.status === 'open'
   );
   
+  // Active: ALL conversations (open and pending), regardless of assignment
   const activeConversations = formattedConversations.filter(conv => 
-    conv.assignedAgentId === currentUserId && ['open', 'pending'].includes(conv.status)
+    ['open', 'pending'].includes(conv.status)
+  );
+  
+  // Assigned to Me: Only conversations assigned to current user
+  const assignedToMeConversations = formattedConversations.filter(conv => 
+    conv.assignedAgentId === currentUserId
   );
   
   const followupConversations = formattedConversations.filter(conv => {
-    // Show conversations that have a follow-up date scheduled and are assigned to current user
-    return conv.assignedAgentId === currentUserId && conv.followupDate !== undefined;
+    // Show conversations that have a follow-up date scheduled
+    return conv.followupDate !== undefined;
   });
   
   const historyConversations = formattedConversations.filter(conv => 
-    conv.assignedAgentId === currentUserId && ['resolved', 'closed'].includes(conv.status)
+    ['resolved', 'closed'].includes(conv.status)
   );
 
   // Get conversations for current tab
@@ -216,6 +230,7 @@ export default function ConversationsPage() {
     switch (activeTab) {
       case "new": return newConversations;
       case "active": return activeConversations;
+      case "assigned": return assignedToMeConversations;
       case "followup": return followupConversations;
       case "history": return historyConversations;
       default: return newConversations;
@@ -256,7 +271,18 @@ export default function ConversationsPage() {
   // Mark conversation as read when it becomes active
   useEffect(() => {
     if (activeConversationId) {
+      // Mark as read in notification context (for notification badge)
       markAsRead(activeConversationId);
+      
+      // Also mark as read in the database for per-user tracking
+      apiRequest(`/api/notifications/${activeConversationId}/read`, 'PUT', {})
+        .then(() => {
+          // Refresh unread counts after marking as read
+          queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-counts'] });
+        })
+        .catch((error) => {
+          console.error('Failed to mark conversation as read:', error);
+        });
     }
   }, [activeConversationId, markAsRead]);
   
@@ -328,7 +354,7 @@ export default function ConversationsPage() {
 
         {/* Conversation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-4 mx-3 mt-3">
+          <TabsList className="grid w-full grid-cols-5 mx-3 mt-3">
             <TabsTrigger value="new" className="text-xs" data-testid="tab-new">
               <AlertCircle className="h-3 w-3 mr-1" />
               New
@@ -344,6 +370,15 @@ export default function ConversationsPage() {
               {activeConversations.length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-xs px-1">
                   {activeConversations.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="assigned" className="text-xs" data-testid="tab-assigned">
+              <Users className="h-3 w-3 mr-1" />
+              Mine
+              {assignedToMeConversations.length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-xs px-1">
+                  {assignedToMeConversations.length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -426,7 +461,7 @@ export default function ConversationsPage() {
           <TabsContent value="active" className="flex-1 mt-0">
             <div className="p-3">
               <p className="text-sm text-muted-foreground mb-3">
-                Your active conversations
+                All active conversations
               </p>
               {activeConversations.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
@@ -436,6 +471,26 @@ export default function ConversationsPage() {
               ) : (
                 <ConversationList
                   conversations={activeConversations}
+                  activeConversationId={activeConversationId || undefined}
+                  onSelectConversation={setActiveConversationId}
+                />
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="assigned" className="flex-1 mt-0">
+            <div className="p-3">
+              <p className="text-sm text-muted-foreground mb-3">
+                Conversations assigned to you
+              </p>
+              {assignedToMeConversations.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No assigned conversations</p>
+                </div>
+              ) : (
+                <ConversationList
+                  conversations={assignedToMeConversations}
                   activeConversationId={activeConversationId || undefined}
                   onSelectConversation={setActiveConversationId}
                 />

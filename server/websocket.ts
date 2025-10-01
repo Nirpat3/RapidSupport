@@ -411,29 +411,17 @@ class ChatWebSocketServer {
       timestamp: new Date().toISOString()
     };
 
-    // If conversation is assigned, notify only the assigned agent (and admins)
-    if (conversation.assignedAgentId) {
-      this.connections.forEach(connectionSet => {
-        connectionSet.forEach(ws => {
-          // Notify the assigned agent OR any admin
-          if (ws.readyState === WebSocket.OPEN &&
-              (ws.userId === conversation.assignedAgentId || ws.userRole === 'admin')) {
-            ws.send(JSON.stringify(notificationMessage));
-          }
-        });
+    // Always notify ALL staff (agents + admins) regardless of assignment status
+    this.connections.forEach(connectionSet => {
+      connectionSet.forEach(ws => {
+        if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(notificationMessage));
+        }
       });
-      console.log(`Notified assigned agent ${conversation.assignedAgentId} and admins about new message in conversation ${conversation.id}`);
-    } else {
-      // If unassigned, broadcast to all staff
-      this.connections.forEach(connectionSet => {
-        connectionSet.forEach(ws => {
-          if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(notificationMessage));
-          }
-        });
-      });
-      console.log(`Broadcasted new message from ${customer.name} in unassigned conversation ${conversation.id} to all staff`);
-    }
+    });
+    
+    const assignedInfo = conversation.assignedAgentId ? `(assigned to ${conversation.assignedAgentId})` : '(unassigned)';
+    console.log(`Broadcasted new message from ${customer.name} in conversation ${conversation.id} ${assignedInfo} to all staff`);
   }
 
   // Public method to broadcast conversation updates (like follow-up scheduling)

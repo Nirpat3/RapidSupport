@@ -62,6 +62,16 @@ export const messages = pgTable("messages", {
   status: text("status").notNull().default("sent"), // 'sent' | 'delivered' | 'read'
 });
 
+// Notifications table - tracks per-user unread conversations
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  readAt: timestamp("read_at"),
+});
+
 // Attachments table - for file uploads in messages
 export const attachments = pgTable("attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -508,6 +518,17 @@ export const insertInternalMessageSchema = insertMessageSchema.extend({
   senderType: z.enum(['agent', 'admin']), // Only staff can send internal messages
 });
 
+// Notification schemas
+export const insertNotificationSchema = createInsertSchema(notifications).pick({
+  userId: true,
+  conversationId: true,
+  isRead: true,
+});
+
+export const markNotificationReadSchema = z.object({
+  conversationId: z.string().uuid(),
+});
+
 // Attachment schemas
 export const insertAttachmentSchema = createInsertSchema(attachments).pick({
   messageId: true,
@@ -657,6 +678,8 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
 export type InsertTicket = z.infer<typeof insertTicketSchema>;
 export type Ticket = typeof tickets.$inferSelect;
 export type AiTicketGeneration = z.infer<typeof aiTicketGenerationSchema>;

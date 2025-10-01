@@ -3,6 +3,7 @@ import {
   customers,
   conversations,
   messages,
+  notifications,
   tickets,
   attachments,
   activityLogs,
@@ -27,6 +28,8 @@ import {
   type InsertConversation,
   type Message,
   type InsertMessage,
+  type Notification,
+  type InsertNotification,
   type Ticket,
   type InsertTicket,
   type ExternalCustomerSync,
@@ -107,6 +110,13 @@ export interface IStorage {
   createMessage(message: InsertMessage): Promise<Message>;
   createInternalMessage(message: InsertMessage & { scope: 'internal' }): Promise<Message>;
   updateMessageStatus(id: string, status: string): Promise<void>;
+
+  // Notification operations
+  createNotification(notification: InsertNotification): Promise<Notification>;
+  markConversationAsRead(userId: string, conversationId: string): Promise<void>;
+  getUnreadNotificationsForUser(userId: string): Promise<Notification[]>;
+  getUnreadCountsByConversation(userId: string): Promise<Array<{ conversationId: string; count: number }>>;
+  createNotificationsForAllStaff(conversationId: string): Promise<void>;
 
   // Ticket operations
   getTicket(id: string): Promise<Ticket | undefined>;
@@ -604,6 +614,75 @@ export class DatabaseStorage implements IStorage {
       .update(messages)
       .set({ status })
       .where(eq(messages.id, id));
+  }
+
+  // Notification operations
+  async createNotification(notification: InsertNotification): Promise<Notification> {
+    const [result] = await db
+      .insert(notifications)
+      .values(notification)
+      .returning();
+    return result;
+  }
+
+  async markConversationAsRead(userId: string, conversationId: string): Promise<void> {
+    await db
+      .update(notifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.conversationId, conversationId),
+        eq(notifications.isRead, false)
+      ));
+  }
+
+  async getUnreadNotificationsForUser(userId: string): Promise<Notification[]> {
+    return await db
+      .select()
+      .from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.isRead, false)
+      ))
+      .orderBy(desc(notifications.createdAt));
+  }
+
+  async getUnreadCountsByConversation(userId: string): Promise<Array<{ conversationId: string; count: number }>> {
+    const result = await db
+      .select({
+        conversationId: notifications.conversationId,
+        count: sql<number>`count(*)::int`
+      })
+      .from(notifications)
+      .where(and(
+        eq(notifications.userId, userId),
+        eq(notifications.isRead, false)
+      ))
+      .groupBy(notifications.conversationId);
+    
+    return result;
+  }
+
+  async createNotificationsForAllStaff(conversationId: string): Promise<void> {
+    // Get all staff (agents and admins)
+    const staff = await db
+      .select()
+      .from(users)
+      .where(or(
+        eq(users.role, 'agent'),
+        eq(users.role, 'admin')
+      ));
+    
+    // Create notifications for all staff
+    if (staff.length > 0) {
+      await db.insert(notifications).values(
+        staff.map(user => ({
+          userId: user.id,
+          conversationId,
+          isRead: false
+        }))
+      );
+    }
   }
 
   // Ticket operations
