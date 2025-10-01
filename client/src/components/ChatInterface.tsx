@@ -77,6 +77,9 @@ export default function ChatInterface({
   const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false);
   const [isClosingConversation, setIsClosingConversation] = useState(false);
   
+  // Takeover state
+  const [isTakingOver, setIsTakingOver] = useState(false);
+  
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -227,6 +230,30 @@ export default function ChatInterface({
       });
     } finally {
       setIsClosingConversation(false);
+    }
+  };
+
+  const handleTakeOver = async () => {
+    if (!conversationId) return;
+    
+    setIsTakingOver(true);
+    try {
+      await apiRequest(`/api/conversations/${conversationId}/take-over`, 'PUT');
+      
+      toast({
+        title: "Conversation assigned",
+        description: "This conversation has been assigned to you",
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    } catch (error: any) {
+      toast({
+        title: "Failed to assign conversation",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTakingOver(false);
     }
   };
 
@@ -594,10 +621,12 @@ export default function ChatInterface({
               variant="outline" 
               size="sm"
               className="text-xs sm:text-sm"
+              onClick={handleTakeOver}
+              disabled={isTakingOver}
               data-testid="button-assign-agent"
             >
               <UserCheck className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Assign Agent</span>
+              <span className="hidden sm:inline">{isTakingOver ? 'Assigning...' : 'Assign Agent'}</span>
             </Button>
 
             <Button 
