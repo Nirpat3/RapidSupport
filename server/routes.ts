@@ -1506,51 +1506,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           });
         }
 
-        // Auto-generate AI response for customer messages
-        if (message.senderType === 'customer') {
-          console.log('Triggering AI response for customer message:', message.content);
-          try {
-            // Generate AI response using the smart agent system
-            const aiResponse = await AIService.generateSmartAgentResponse(
-              message.content,
-              messageData.conversationId
-            );
-
-            // Create and persist AI message to prevent client spoofing
-            if (aiResponse.response) {
-              const SYSTEM_AI_AGENT_ID = 'ai-system-agent-001';
-              
-              const aiMessageData = {
-                conversationId: messageData.conversationId,
-                content: aiResponse.response,
-                senderId: SYSTEM_AI_AGENT_ID,
-                senderType: 'agent' as const
-              };
-
-              const aiMessage = await storage.createMessage(aiMessageData);
-              
-              // Broadcast AI message to conversation participants
-              if (wsServer && wsServer.broadcastNewMessage) {
-                wsServer.broadcastNewMessage(messageData.conversationId, {
-                  messageId: aiMessage.id,
-                  conversationId: aiMessage.conversationId,
-                  content: aiMessage.content,
-                  userId: SYSTEM_AI_AGENT_ID,
-                  userName: 'Alex (AI Assistant)',
-                  userRole: 'agent',
-                  senderType: aiMessage.senderType,
-                  timestamp: aiMessage.timestamp,
-                  status: aiMessage.status
-                });
-              }
-
-              console.log('AI response generated and broadcasted:', aiMessage.id);
-            }
-          } catch (aiError) {
-            console.error('Failed to generate AI response:', aiError);
-            // Don't fail the customer message if AI response fails
-          }
-        }
+        // AI response is triggered by the client via /api/ai/smart-response endpoint
+        // This prevents duplicate AI responses and gives the client control over AI triggering
       }
       
       res.status(201).json(message);
