@@ -73,6 +73,14 @@ export const notifications = pgTable("notifications", {
   readAt: timestamp("read_at"),
 });
 
+// Message Reads table - tracks which messages each user has read (for per-message unread tracking)
+export const messageReads = pgTable("message_reads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull().references(() => messages.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  readAt: timestamp("read_at").notNull().defaultNow(),
+});
+
 // Attachments table - for file uploads in messages
 export const attachments = pgTable("attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -307,6 +315,18 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
     references: [conversations.id],
   }),
   attachments: many(attachments),
+  reads: many(messageReads),
+}));
+
+export const messageReadsRelations = relations(messageReads, ({ one }) => ({
+  message: one(messages, {
+    fields: [messageReads.messageId],
+    references: [messages.id],
+  }),
+  user: one(users, {
+    fields: [messageReads.userId],
+    references: [users.id],
+  }),
 }));
 
 export const attachmentsRelations = relations(attachments, ({ one }) => ({
@@ -527,6 +547,16 @@ export const insertNotificationSchema = createInsertSchema(notifications).pick({
 });
 
 export const markNotificationReadSchema = z.object({
+  conversationId: z.string().uuid(),
+});
+
+// Message Reads schemas
+export const insertMessageReadSchema = createInsertSchema(messageReads).pick({
+  messageId: true,
+  userId: true,
+});
+
+export const markConversationReadSchema = z.object({
   conversationId: z.string().uuid(),
 });
 
