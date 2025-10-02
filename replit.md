@@ -6,6 +6,15 @@ Support Board is a modern, full-stack customer support platform built with React
 
 ## Recent Changes
 
+**October 2, 2025**
+- ✅ **Message-Level Unread Tracking System**: Implemented comprehensive unread notification system with per-message read tracking
+- ✅ **Database Schema**: Added messageReads join table with composite unique constraint (messageId, userId) to track read status for each message
+- ✅ **Backend API**: Added GET /api/unread-counts endpoint returning conversation-level unread counts and PUT /api/conversations/:id/mark-read for marking messages as read
+- ✅ **Auto-Read Logic**: Messages automatically marked as read for sender when created; all messages marked as read when conversation is opened
+- ✅ **Real-time Updates**: WebSocket broadcasts 'unread_count_update' events to affected users, triggering automatic UI updates via query cache invalidation
+- ✅ **Frontend UI Features**: Unread count badges on conversation list items, browser tab title showing total unread count "(N) Support Board", auto-mark-as-read on conversation open
+- ✅ **End-to-End Testing**: Comprehensive Playwright testing confirms all notification features work correctly including real-time updates, badge display, and read persistence
+
 **October 1, 2025**
 - ✅ **Staff Notification Bug Fixed**: Resolved critical issue where staff weren't receiving notifications when customers replied to assigned conversations
 - ✅ **WebSocket Notification Logic**: Now correctly notifies assigned agent + all admins for assigned conversations, and all staff for unassigned conversations
