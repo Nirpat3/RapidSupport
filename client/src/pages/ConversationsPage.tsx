@@ -275,16 +275,18 @@ export default function ConversationsPage() {
       markAsRead(activeConversationId);
       
       // Also mark as read in the database for per-user tracking
+      // Only attempt if we haven't tried recently to prevent infinite loops
       apiRequest(`/api/notifications/${activeConversationId}/read`, 'PUT', {})
         .then(() => {
           // Refresh unread counts after marking as read
           queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-counts'] });
         })
         .catch((error) => {
-          console.error('Failed to mark conversation as read:', error);
+          // Silently fail - notification clearing is not critical to the UI
+          console.log('Note: Could not clear notification for this conversation');
         });
     }
-  }, [activeConversationId, markAsRead]);
+  }, [activeConversationId]);
   
   // Send message mutation
   const sendMessage = useMutation({

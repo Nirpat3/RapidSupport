@@ -810,9 +810,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const user = req.user as any;
       const { conversationId } = req.params;
       
-      // Validate UUID format
-      if (!z.string().uuid().safeParse(conversationId).success) {
-        return res.status(400).json({ error: 'Invalid conversation ID format' });
+      // Validate conversation ID is a non-empty string
+      if (!conversationId || typeof conversationId !== 'string' || conversationId.trim() === '') {
+        return res.status(400).json({ error: 'Invalid conversation ID' });
       }
       
       await storage.markConversationAsRead(user.id, conversationId);
