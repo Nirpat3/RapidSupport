@@ -40,6 +40,11 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   });
 
   const conversations = conversationsResponse || [];
+  
+  // Fetch unread counts for tab title updates
+  const { data: unreadCountsData = [] } = useQuery<Array<{ conversationId: string; unreadCount: number }>>({
+    queryKey: ['/api/unread-counts'],
+  });
 
   // Detect new conversations and show notifications
   useEffect(() => {
@@ -65,6 +70,17 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
     setLastSeenConversations(currentConversationIds);
   }, [conversations]); // Remove lastSeenConversations from dependency array to prevent infinite loop
+
+  // Update browser tab title with total unread count
+  useEffect(() => {
+    const totalUnread = unreadCountsData.reduce((sum, item) => sum + item.unreadCount, 0);
+    
+    if (totalUnread > 0) {
+      document.title = `(${totalUnread}) Support Board`;
+    } else {
+      document.title = 'Support Board';
+    }
+  }, [unreadCountsData]);
 
   // WebSocket connection for real-time notifications
   useEffect(() => {
