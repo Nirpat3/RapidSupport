@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Users, Search, MessageSquare, ArrowLeft, Clock, CheckCircle, History, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -165,6 +166,11 @@ export default function ConversationsPage() {
     queryKey: ['/api/unread-counts'],
   });
 
+  // Fetch staff members for assignment dropdown
+  const { data: staffMembers = [] } = useQuery<Array<{ id: string; name: string; email: string; role: string }>>({
+    queryKey: ['/api/users/staff'],
+  });
+
   // Fetch messages for active conversation
   const { data: activeMessages = [], isLoading: messagesLoading } = useQuery<Message[]>({
     queryKey: ['/api/conversations', activeConversationId, 'messages'],
@@ -237,25 +243,33 @@ export default function ConversationsPage() {
     }
   };
 
-  // Take over mutation for unassigned conversations
-  const takeOverMutation = useMutation({
-    mutationFn: async (conversationId: string) => {
-      return await apiRequest(`/api/conversations/${conversationId}/take-over`, 'PUT', {});
+  // Assign conversation to a staff member
+  const assignMutation = useMutation({
+    mutationFn: async ({ conversationId, agentId }: { conversationId: string; agentId: string }) => {
+      return await apiRequest(`/api/conversations/${conversationId}/assign`, 'PUT', { agentId });
     },
-    onSuccess: (_, conversationId) => {
+    onSuccess: (_, { conversationId, agentId }) => {
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
-      // Switch to active tab and select the conversation
-      setActiveTab('active');
-      setActiveConversationId(conversationId);
+      const assignedAgent = staffMembers.find(s => s.id === agentId);
+      const isAssignedToMe = agentId === currentUserId;
+      
       toast({
         title: "Success",
-        description: "Conversation assigned to you successfully",
+        description: isAssignedToMe 
+          ? "Conversation assigned to you successfully" 
+          : `Conversation assigned to ${assignedAgent?.name || 'staff member'}`,
       });
+      
+      // If assigned to current user, switch to assigned tab
+      if (isAssignedToMe) {
+        setActiveTab('assigned');
+        setActiveConversationId(conversationId);
+      }
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to take over conversation",
+        description: error.message || "Failed to assign conversation",
         variant: "destructive",
       });
     }
@@ -328,8 +342,8 @@ export default function ConversationsPage() {
     });
   };
   
-  const handleTakeOver = (conversationId: string) => {
-    takeOverMutation.mutate(conversationId);
+  const handleAssign = (conversationId: string, agentId: string) => {
+    assignMutation.mutate({ conversationId, agentId });
   };
 
   return (
@@ -437,20 +451,27 @@ export default function ConversationsPage() {
                         {conv.lastMessage.content}
                       </p>
                       
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="w-full"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTakeOver(conv.id);
-                        }}
-                        disabled={takeOverMutation.isPending}
-                        data-testid={`button-take-over-${conv.id}`}
-                      >
-                        <UserPlus className="h-3 w-3 mr-1" />
-                        Take Over
-                      </Button>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Select 
+                          onValueChange={(agentId) => handleAssign(conv.id, agentId)}
+                          disabled={assignMutation.isPending}
+                        >
+                          <SelectTrigger 
+                            className="w-full h-9"
+                            data-testid={`select-assign-${conv.id}`}
+                          >
+                            <UserPlus className="h-3 w-3 mr-1" />
+                            <SelectValue placeholder="Assign to..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {staffMembers.map(staff => (
+                              <SelectItem key={staff.id} value={staff.id}>
+                                {staff.name} {staff.id === currentUserId && '(Me)'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   ))}
                 </div>
