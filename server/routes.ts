@@ -39,7 +39,7 @@ import { KnowledgeRetrievalService } from './knowledge-retrieval';
 
 // Route-specific validation schemas
 const messageCreateSchema = z.object({
-  conversationId: z.string().uuid('Invalid conversation ID'),
+  conversationId: z.string(),
   content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
 });
 
