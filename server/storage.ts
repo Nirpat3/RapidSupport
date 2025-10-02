@@ -4,6 +4,7 @@ import {
   conversations,
   messages,
   notifications,
+  messageReads,
   tickets,
   attachments,
   activityLogs,
@@ -117,6 +118,11 @@ export interface IStorage {
   getUnreadNotificationsForUser(userId: string): Promise<Notification[]>;
   getUnreadCountsByConversation(userId: string): Promise<Array<{ conversationId: string; count: number }>>;
   createNotificationsForAllStaff(conversationId: string): Promise<void>;
+  
+  // Message Read operations - for per-message unread tracking
+  createMessageRead(messageId: string, userId: string): Promise<void>;
+  markAllConversationMessagesAsRead(conversationId: string, userId: string): Promise<void>;
+  getUnreadMessageCountsPerConversation(userId: string): Promise<Array<{ conversationId: string; unreadCount: number }>>;
 
   // Ticket operations
   getTicket(id: string): Promise<Ticket | undefined>;
@@ -688,6 +694,141 @@ export class DatabaseStorage implements IStorage {
         }))
       );
     }
+  }
+
+  // Message Read operations - for per-message unread tracking
+  async createMessageRead(messageId: string, userId: string): Promise<void> {
+    await db.insert(messageReads).values({
+      messageId,
+      userId
+    });
+  }
+
+  async markAllConversationMessagesAsRead(conversationId: string, userId: string): Promise<void> {
+    // Get the conversation to verify membership
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, conversationId));
+    
+    if (!conversation) {
+      return; // Conversation doesn't exist
+    }
+    
+    // Check if userId is a staff member (from users table)
+    const [staffUser] = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, userId));
+    
+    const isStaff = !!staffUser;
+    const isAdmin = staffUser?.role === 'admin';
+    
+    // Verify membership based on role
+    let hasAccess = false;
+    if (isAdmin) {
+      // Admins can access all conversations
+      hasAccess = true;
+    } else if (isStaff) {
+      // Staff can access assigned conversations or unassigned conversations
+      hasAccess = conversation.assignedAgentId === userId || conversation.assignedAgentId === null;
+    } else {
+      // For non-staff, check if userId matches customerId
+      // This works for both registered and anonymous customers (they all have customer IDs)
+      hasAccess = conversation.customerId === userId;
+    }
+    
+    if (!hasAccess) {
+      return; // User is not authorized to access this conversation
+    }
+    
+    // Get all messages in the conversation that haven't been read by this user
+    // Filter by scope based on user role
+    const unreadMessages = await db
+      .select({ id: messages.id })
+      .from(messages)
+      .leftJoin(
+        messageReads,
+        and(
+          eq(messageReads.messageId, messages.id),
+          eq(messageReads.userId, userId)
+        )
+      )
+      .where(and(
+        eq(messages.conversationId, conversationId),
+        isNull(messageReads.id), // Message hasn't been read by this user
+        // Staff can see all messages, customers only see public messages
+        isStaff ? sql`true` : eq(messages.scope, 'public')
+      ));
+
+    // Create read entries for all unread messages
+    if (unreadMessages.length > 0) {
+      await db.insert(messageReads).values(
+        unreadMessages.map(msg => ({
+          messageId: msg.id,
+          userId
+        }))
+      );
+    }
+  }
+
+  async getUnreadMessageCountsPerConversation(userId: string): Promise<Array<{ conversationId: string; unreadCount: number }>> {
+    // Check if userId is a staff member (from users table)
+    const [staffUser] = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, userId));
+    
+    const isStaff = !!staffUser;
+    const isAdmin = staffUser?.role === 'admin';
+    
+    // Build conversation filter based on user role and membership
+    let conversationFilter;
+    if (isAdmin) {
+      // Admins can see all conversations
+      conversationFilter = sql`true`;
+    } else if (isStaff) {
+      // Agents can see conversations assigned to them or unassigned conversations
+      conversationFilter = or(
+        eq(conversations.assignedAgentId, userId),
+        isNull(conversations.assignedAgentId)
+      );
+    } else {
+      // For non-staff (customers), only show conversations where they are the customer
+      // This works for both registered and anonymous customers (they all have customer IDs)
+      conversationFilter = eq(conversations.customerId, userId);
+    }
+    
+    // Get all messages for conversations involving this user
+    // Count those that don't have a read entry for this user
+    const result = await db
+      .select({
+        conversationId: messages.conversationId,
+        unreadCount: sql<number>`count(*)::int`
+      })
+      .from(messages)
+      .innerJoin(
+        conversations,
+        eq(messages.conversationId, conversations.id)
+      )
+      .leftJoin(
+        messageReads,
+        and(
+          eq(messageReads.messageId, messages.id),
+          eq(messageReads.userId, userId)
+        )
+      )
+      .where(and(
+        isNull(messageReads.id), // Message hasn't been read by this user
+        conversationFilter, // Only count messages from conversations the user can access
+        // Filter by message scope based on user role
+        isStaff
+          ? sql`true` // Staff can see all messages (public and internal)
+          : eq(messages.scope, 'public') // Customers only see public messages
+      ))
+      .groupBy(messages.conversationId);
+
+    return result;
   }
 
   // Ticket operations
