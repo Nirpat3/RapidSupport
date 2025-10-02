@@ -11,7 +11,7 @@ interface AuthenticatedWebSocket extends WebSocket {
 }
 
 interface WebSocketMessage {
-  type: 'join_conversation' | 'leave_conversation' | 'new_message' | 'internal_message' | 'typing' | 'stop_typing' | 'user_online' | 'user_offline' | 'new_conversation';
+  type: 'join_conversation' | 'leave_conversation' | 'new_message' | 'internal_message' | 'typing' | 'stop_typing' | 'user_online' | 'user_offline' | 'new_conversation' | 'unread_count_update';
   conversationId?: string;
   messageId?: string;
   content?: string;
@@ -20,6 +20,8 @@ interface WebSocketMessage {
   userRole?: string;
   scope?: 'public' | 'internal';
   timestamp?: string;
+  unreadCount?: number;
+  unreadCounts?: Array<{ conversationId: string; unreadCount: number }>;
 }
 
 class ChatWebSocketServer {
@@ -327,6 +329,32 @@ class ChatWebSocketServer {
       scope: 'internal',
       ...messageData
     });
+  }
+
+  // Public method to broadcast unread count updates to a specific user
+  public async broadcastUnreadCountUpdate(userId: string) {
+    try {
+      // Fetch unread counts for this user from storage
+      const unreadCounts = await storage.getUnreadMessageCountsPerConversation(userId);
+      
+      // Send the update to all of this user's WebSocket connections
+      const userConnections = this.connections.get(userId);
+      if (userConnections) {
+        const message = JSON.stringify({
+          type: 'unread_count_update',
+          unreadCounts,
+          timestamp: new Date().toISOString()
+        });
+        
+        userConnections.forEach(ws => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(message);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error broadcasting unread count update:', error);
+    }
   }
 
   // Private method to broadcast messages only to staff members (agents/admins) in a conversation

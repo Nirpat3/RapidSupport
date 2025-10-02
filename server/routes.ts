@@ -1198,6 +1198,21 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           timestamp: message.timestamp,
           status: message.status
         });
+        
+        // Broadcast unread count updates to affected users
+        // Customer now has an unread message from the agent
+        if (conversation.customerId) {
+          wsServer.broadcastUnreadCountUpdate(conversation.customerId);
+        }
+        
+        // Also update all staff members who can see this conversation
+        const allUsers = await storage.getAllUsers();
+        for (const staffUser of allUsers) {
+          // Skip the sender (they already marked their message as read)
+          if (staffUser.id !== user.id) {
+            wsServer.broadcastUnreadCountUpdate(staffUser.id);
+          }
+        }
       }
       
       res.status(201).json(message);
@@ -1339,6 +1354,15 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           timestamp: message.timestamp,
           status: message.status
         });
+        
+        // Broadcast unread count updates to staff members (excluding sender)
+        const allUsers = await storage.getAllUsers();
+        for (const staffUser of allUsers) {
+          // Skip the sender (they already marked their message as read)
+          if (staffUser.id !== user.id) {
+            wsServer.broadcastUnreadCountUpdate(staffUser.id);
+          }
+        }
       }
       
       res.status(201).json(message);
@@ -1833,6 +1857,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
               status: message.status,
               format: aiResponse.format // Include AI response format for step-by-step rendering
             });
+            
+            // Broadcast unread count updates to affected users
+            // Customer now has an unread message from the AI
+            if (conversation.customerId) {
+              wsServer.broadcastUnreadCountUpdate(conversation.customerId);
+            }
+            
+            // Also update all staff members who can see this conversation
+            const allUsers = await storage.getAllUsers();
+            for (const staffUser of allUsers) {
+              wsServer.broadcastUnreadCountUpdate(staffUser.id);
+            }
           }
           
           // If AI requires human takeover, send urgent notification to all staff
