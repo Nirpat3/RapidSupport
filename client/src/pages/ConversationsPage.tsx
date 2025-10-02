@@ -274,17 +274,17 @@ export default function ConversationsPage() {
       // Mark as read in notification context (for notification badge)
       markAsRead(activeConversationId);
       
-      // Also mark as read in the database for per-user tracking
-      // Only attempt if we haven't tried recently to prevent infinite loops
+      // TODO: Re-enable notification clearing after fixing database conversation IDs
+      // Currently disabled to prevent 400 errors with non-UUID conversation IDs
+      /*
       apiRequest(`/api/notifications/${activeConversationId}/read`, 'PUT', {})
         .then(() => {
-          // Refresh unread counts after marking as read
           queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-counts'] });
         })
         .catch((error) => {
-          // Silently fail - notification clearing is not critical to the UI
           console.log('Note: Could not clear notification for this conversation');
         });
+      */
     }
   }, [activeConversationId]);
   
