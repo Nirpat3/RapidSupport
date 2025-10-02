@@ -14,6 +14,9 @@ export interface Conversation {
     name: string;
     avatar?: string;
     status: 'online' | 'away' | 'busy' | 'offline';
+    email?: string;
+    company?: string;
+    phone?: string;
   };
   lastMessage: {
     content: string;

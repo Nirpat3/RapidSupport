@@ -439,6 +439,7 @@ export class DatabaseStorage implements IStorage {
           name: customers.name,
           email: customers.email,
           company: customers.company,
+          phone: customers.phone,
           status: customers.status,
         }
       })
@@ -488,6 +489,7 @@ export class DatabaseStorage implements IStorage {
           name: customers.name,
           email: customers.email,
           company: customers.company,
+          phone: customers.phone,
           status: customers.status,
         }
       })
@@ -516,6 +518,7 @@ export class DatabaseStorage implements IStorage {
           name: customers.name,
           email: customers.email,
           company: customers.company,
+          phone: customers.phone,
           status: customers.status,
         }
       })
@@ -1233,6 +1236,7 @@ export class DatabaseStorage implements IStorage {
             name: customers.name,
             email: customers.email,
             company: customers.company,
+            phone: customers.phone,
             status: customers.status,
           }
         })
