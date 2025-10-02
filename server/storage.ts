@@ -121,7 +121,7 @@ export interface IStorage {
   
   // Message Read operations - for per-message unread tracking
   createMessageRead(messageId: string, userId: string): Promise<void>;
-  markAllConversationMessagesAsRead(conversationId: string, userId: string): Promise<void>;
+  markAllConversationMessagesAsRead(conversationId: string, userId: string): Promise<boolean>; // Returns true if conversation found, false otherwise
   getUnreadMessageCountsPerConversation(userId: string): Promise<Array<{ conversationId: string; unreadCount: number }>>;
 
   // Ticket operations
@@ -704,7 +704,7 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async markAllConversationMessagesAsRead(conversationId: string, userId: string): Promise<void> {
+  async markAllConversationMessagesAsRead(conversationId: string, userId: string): Promise<boolean> {
     // Get the conversation to verify membership
     const [conversation] = await db
       .select()
@@ -712,7 +712,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(conversations.id, conversationId));
     
     if (!conversation) {
-      return; // Conversation doesn't exist
+      return false; // Conversation doesn't exist
     }
     
     // Check if userId is a staff member (from users table)
@@ -739,7 +739,7 @@ export class DatabaseStorage implements IStorage {
     }
     
     if (!hasAccess) {
-      return; // User is not authorized to access this conversation
+      return false; // User is not authorized to access this conversation
     }
     
     // Get all messages in the conversation that haven't been read by this user
@@ -770,6 +770,8 @@ export class DatabaseStorage implements IStorage {
         }))
       );
     }
+    
+    return true; // Successfully marked messages as read
   }
 
   async getUnreadMessageCountsPerConversation(userId: string): Promise<Array<{ conversationId: string; unreadCount: number }>> {

@@ -823,6 +823,48 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Message-level unread tracking routes
+  app.get('/api/unread-counts', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const unreadCounts = await storage.getUnreadMessageCountsPerConversation(user.id);
+      res.json(unreadCounts);
+    } catch (error) {
+      console.error('Failed to fetch unread message counts:', error);
+      res.status(500).json({ error: 'Failed to fetch unread message counts' });
+    }
+  });
+
+  app.put('/api/conversations/:conversationId/mark-read', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      // Validate conversation ID is a valid UUID
+      const uuidSchema = z.object({
+        conversationId: z.string().uuid('Invalid conversation ID format')
+      });
+      
+      const validation = uuidSchema.safeParse(req.params);
+      if (!validation.success) {
+        const readableError = fromZodError(validation.error);
+        return res.status(400).json({ error: readableError.message });
+      }
+      
+      const { conversationId } = validation.data;
+      
+      const success = await storage.markAllConversationMessagesAsRead(conversationId, user.id);
+      
+      if (!success) {
+        return res.status(404).json({ error: 'Conversation not found or access denied' });
+      }
+      
+      res.json({ message: 'All messages marked as read' });
+    } catch (error) {
+      console.error('Failed to mark messages as read:', error);
+      res.status(500).json({ error: 'Failed to mark messages as read' });
+    }
+  });
+
   app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
     try {
       const messages = await storage.getMessagesByConversation(req.params.id);
