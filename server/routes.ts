@@ -475,6 +475,23 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get staff members (agents and admins) for assignment
+  app.get('/api/users/staff', requireAuth, requireRole(['agent', 'admin']), async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      // Filter to only agents and admins, remove passwords
+      const staffUsers = users
+        .filter(user => user.role === 'agent' || user.role === 'admin')
+        .map(user => {
+          const { password, ...userWithoutPassword } = user;
+          return userWithoutPassword;
+        });
+      res.json(staffUsers);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch staff' });
+    }
+  });
+
   // Customer management routes
   app.get('/api/customers', requireAuth, async (req, res) => {
     try {
