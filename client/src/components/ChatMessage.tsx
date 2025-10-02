@@ -25,35 +25,105 @@ interface ChatMessageProps {
   viewerRole?: 'customer' | 'agent' | 'admin'; // Role of the person viewing the message
 }
 
-// Helper function to render step-by-step content
-function renderStepByStepContent(content: string) {
-  // Parse numbered steps from the content (e.g., "1. First step\n2. Second step")
-  const stepPattern = /^\d+\.\s+(.+)/gm;
-  const steps = [];
-  let match;
+// Helper function to render formatted content with proper lists and line breaks
+function renderFormattedContent(content: string) {
+  const lines = content.split('\n');
+  const elements: JSX.Element[] = [];
+  let currentList: { type: 'ordered' | 'unordered'; items: string[] } | null = null;
   
-  while ((match = stepPattern.exec(content)) !== null) {
-    steps.push(match[1].trim());
+  lines.forEach((line, index) => {
+    const trimmedLine = line.trim();
+    
+    // Check for numbered list items (e.g., "1. Item", "2. Item")
+    const numberedMatch = trimmedLine.match(/^(\d+)\.\s+(.+)/);
+    if (numberedMatch) {
+      const itemText = numberedMatch[2];
+      if (currentList?.type !== 'ordered') {
+        // Close previous list if it was unordered
+        if (currentList) {
+          elements.push(renderList(currentList, elements.length));
+          currentList = null;
+        }
+        // Start new ordered list
+        currentList = { type: 'ordered', items: [itemText] };
+      } else {
+        currentList.items.push(itemText);
+      }
+      return;
+    }
+    
+    // Check for bullet points (e.g., "- Item", "* Item", "• Item")
+    const bulletMatch = trimmedLine.match(/^[-*•]\s+(.+)/);
+    if (bulletMatch) {
+      const itemText = bulletMatch[1];
+      if (currentList?.type !== 'unordered') {
+        // Close previous list if it was ordered
+        if (currentList) {
+          elements.push(renderList(currentList, elements.length));
+          currentList = null;
+        }
+        // Start new unordered list
+        currentList = { type: 'unordered', items: [itemText] };
+      } else {
+        currentList.items.push(itemText);
+      }
+      return;
+    }
+    
+    // Regular line - close any open list first
+    if (currentList) {
+      elements.push(renderList(currentList, elements.length));
+      currentList = null;
+    }
+    
+    // Add line with proper spacing
+    if (trimmedLine) {
+      elements.push(
+        <p key={index} className="mb-2 last:mb-0">
+          {trimmedLine}
+        </p>
+      );
+    } else if (index < lines.length - 1) {
+      // Empty line creates spacing
+      elements.push(<div key={index} className="h-2" />);
+    }
+  });
+  
+  // Close any remaining list
+  if (currentList) {
+    elements.push(renderList(currentList, elements.length));
   }
   
-  // If we found steps, render them as a list, otherwise render as regular content
-  if (steps.length > 0) {
+  return elements.length > 0 ? <div className="space-y-1">{elements}</div> : content;
+}
+
+// Helper to render a list
+function renderList(list: { type: 'ordered' | 'unordered'; items: string[] }, key: number) {
+  if (list.type === 'ordered') {
     return (
-      <ol className="space-y-2" data-testid="message-steps-list">
-        {steps.map((step, index) => (
-          <li key={index} className="flex gap-2" data-testid={`message-step-${index}`}>
+      <ol key={key} className="space-y-2 my-2" data-testid="message-ordered-list">
+        {list.items.map((item, index) => (
+          <li key={index} className="flex gap-2" data-testid={`message-list-item-${index}`}>
             <span className="flex-shrink-0 w-5 h-5 bg-primary/20 text-primary text-xs font-medium rounded-full flex items-center justify-center">
               {index + 1}
             </span>
-            <span className="flex-1">{step}</span>
+            <span className="flex-1">{item}</span>
           </li>
         ))}
       </ol>
     );
+  } else {
+    return (
+      <ul key={key} className="space-y-2 my-2" data-testid="message-unordered-list">
+        {list.items.map((item, index) => (
+          <li key={index} className="flex gap-2" data-testid={`message-list-item-${index}`}>
+            <span className="flex-shrink-0 w-1.5 h-1.5 bg-primary rounded-full mt-2" />
+            <span className="flex-1">{item}</span>
+          </li>
+        ))}
+      </ul>
+    );
   }
-  
-  // Fallback to regular content if no steps found
-  return content;
 }
 
 export default function ChatMessage({ message, isCurrentUser = false, viewerRole }: ChatMessageProps) {
@@ -125,7 +195,7 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
           }`}
           data-testid={`message-content-${message.id}`}
         >
-          {shouldRenderAsSteps ? renderStepByStepContent(message.content) : message.content}
+          {renderFormattedContent(message.content)}
         </div>
         
         {message.status && isCurrentUser && (
