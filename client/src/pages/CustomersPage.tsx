@@ -47,7 +47,7 @@ const tagColors = {
 
 export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -71,7 +71,7 @@ export default function CustomersPage() {
     page: currentPage,
     limit: pageSize,
     search: searchQuery || undefined,
-    status: statusFilter || undefined,
+    status: statusFilter && statusFilter !== "all" ? statusFilter : undefined,
     sortBy,
     sortOrder
   };
@@ -86,6 +86,17 @@ export default function CustomersPage() {
   const customers = customersResponse?.customers || [];
   const totalPages = customersResponse?.totalPages || 1;
   const total = customersResponse?.total || 0;
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[CustomersPage] Data loaded:', { 
+      customersCount: customers.length, 
+      totalPages, 
+      total,
+      isLoading, 
+      error: error ? String(error) : null 
+    });
+  }, [customers.length, totalPages, total, isLoading, error]);
 
   const createCustomerMutation = useMutation({
     mutationFn: customersApi.create,
@@ -467,7 +478,7 @@ export default function CustomersPage() {
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Status</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="online">Online</SelectItem>
                   <SelectItem value="away">Away</SelectItem>
                   <SelectItem value="busy">Busy</SelectItem>
@@ -476,9 +487,9 @@ export default function CustomersPage() {
               </Select>
               
               {/* Sort Options */}
-              <Select value={sortBy} onValueChange={(value: 'createdAt' | 'updatedAt' | 'name') => setSortBy(value)}>
+              <Select value={sortBy || "createdAt"} onValueChange={(value: 'createdAt' | 'updatedAt' | 'name') => setSortBy(value)}>
                 <SelectTrigger className="w-full sm:w-32">
-                  <SelectValue />
+                  <SelectValue placeholder="Sort By" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="createdAt">Created</SelectItem>
@@ -568,7 +579,7 @@ export default function CustomersPage() {
                   <div className="flex items-center gap-2">
                     <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(parseInt(value))}>
                       <SelectTrigger className="w-20">
-                        <SelectValue />
+                        <SelectValue placeholder="10" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="10">10</SelectItem>
