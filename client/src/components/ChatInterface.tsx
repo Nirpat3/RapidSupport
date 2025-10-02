@@ -362,7 +362,7 @@ export default function ChatInterface({
   return (
     <div className="flex-1 flex flex-col bg-background">
       {/* Enhanced Chat Header */}
-      <div className="border-b border-border bg-card">
+      <div className="sticky top-0 z-10 border-b border-border bg-card">
         {/* Main Header Info */}
         <div className="p-4 pb-3">
           <div className="flex items-start justify-between">
