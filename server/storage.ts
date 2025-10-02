@@ -596,6 +596,13 @@ export class DatabaseStorage implements IStorage {
       .values(messageData)
       .returning();
     
+    // Automatically mark the message as read for the sender
+    // (users shouldn't see their own messages as unread)
+    await db.insert(messageReads).values({
+      messageId: message.id,
+      userId: insertMessage.senderId
+    });
+    
     // Only update conversation timestamp for public messages (customer-facing activity)
     if (messageData.scope === 'public') {
       await db
@@ -615,6 +622,13 @@ export class DatabaseStorage implements IStorage {
         scope: 'internal'
       })
       .returning();
+    
+    // Automatically mark the message as read for the sender
+    // (users shouldn't see their own messages as unread)
+    await db.insert(messageReads).values({
+      messageId: message.id,
+      userId: insertMessage.senderId
+    });
     
     // Internal messages don't update conversation timestamp (hidden from customer view)
     return message;

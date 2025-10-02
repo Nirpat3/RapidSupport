@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -79,7 +79,10 @@ export const messageReads = pgTable("message_reads", {
   messageId: varchar("message_id").notNull().references(() => messages.id),
   userId: varchar("user_id").notNull().references(() => users.id),
   readAt: timestamp("read_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  // Ensure each user can only mark a message as read once
+  uniqueMessageUser: unique().on(table.messageId, table.userId),
+}));
 
 // Attachments table - for file uploads in messages
 export const attachments = pgTable("attachments", {
