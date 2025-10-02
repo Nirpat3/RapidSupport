@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
+import { queryClient } from '@/lib/queryClient';
 
 interface NotificationContextType {
   unreadConversations: Set<string>;
@@ -109,6 +110,12 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
                     message.content
                 );
               }
+            }
+            
+            // Handle unread count updates
+            if (data.type === 'unread_count_update' && data.unreadCounts) {
+              // Invalidate the unread counts query to trigger a refetch
+              queryClient.invalidateQueries({ queryKey: ['/api/unread-counts'] });
             }
           } catch (error) {
             console.error('Error parsing WebSocket message:', error);

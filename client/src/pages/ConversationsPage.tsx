@@ -160,9 +160,9 @@ export default function ConversationsPage() {
     queryKey: ['/api/conversations'],
   });
 
-  // Fetch unread counts for conversations
-  const { data: unreadCounts = [] } = useQuery<Array<{ conversationId: string; count: number }>>({
-    queryKey: ['/api/notifications/unread-counts'],
+  // Fetch unread counts for conversations (using new message-level tracking API)
+  const { data: unreadCounts = [] } = useQuery<Array<{ conversationId: string; unreadCount: number }>>({
+    queryKey: ['/api/unread-counts'],
   });
 
   // Fetch messages for active conversation
@@ -175,7 +175,7 @@ export default function ConversationsPage() {
 
   // Convert API conversation data to match ConversationList format
   const formattedConversations: Conversation[] = conversations.map(conv => {
-    const unreadCount = unreadCounts.find(u => u.conversationId === conv.id)?.count || 0;
+    const unreadCount = unreadCounts.find(u => u.conversationId === conv.id)?.unreadCount || 0;
     return {
       id: conv.id,
       customer: {
