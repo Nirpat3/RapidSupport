@@ -208,6 +208,7 @@ export interface IStorage {
 
   // Additional conversation operations
   updateConversation(id: string, updates: Partial<InsertConversation>): Promise<void>;
+  toggleAiAssistance(conversationId: string, enabled: boolean): Promise<void>;
 
   // File Management operations
   getUploadedFile(id: string): Promise<UploadedFile | undefined>;
@@ -462,6 +463,7 @@ export class DatabaseStorage implements IStorage {
         followupDate: conversations.followupDate,
         isAnonymous: conversations.isAnonymous,
         sessionId: conversations.sessionId,
+        aiAssistanceEnabled: conversations.aiAssistanceEnabled,
         createdAt: conversations.createdAt,
         updatedAt: conversations.updatedAt,
       })
@@ -1229,6 +1231,7 @@ export class DatabaseStorage implements IStorage {
           followupDate: conversations.followupDate, // Add missing field
           isAnonymous: conversations.isAnonymous,
           sessionId: conversations.sessionId,
+          aiAssistanceEnabled: conversations.aiAssistanceEnabled,
           createdAt: conversations.createdAt,
           updatedAt: conversations.updatedAt,
           customer: {
@@ -1704,6 +1707,17 @@ export class DatabaseStorage implements IStorage {
       await db.update(conversations).set({ ...updates, updatedAt: new Date() }).where(eq(conversations.id, id));
     } catch (error) {
       console.error('Error updating conversation:', error);
+      throw error;
+    }
+  }
+
+  async toggleAiAssistance(conversationId: string, enabled: boolean): Promise<void> {
+    try {
+      await db.update(conversations)
+        .set({ aiAssistanceEnabled: enabled, updatedAt: new Date() })
+        .where(eq(conversations.id, conversationId));
+    } catch (error) {
+      console.error('Error toggling AI assistance:', error);
       throw error;
     }
   }

@@ -46,6 +46,7 @@ export const conversations = pgTable("conversations", {
   isAnonymous: boolean("is_anonymous").notNull().default(false), // Track anonymous customer conversations
   sessionId: text("session_id"), // Track anonymous sessions before customer info collected
   followupDate: timestamp("followup_date"), // When this conversation needs follow-up (nullable)
+  aiAssistanceEnabled: boolean("ai_assistance_enabled").notNull().default(true), // Toggle AI auto-response
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

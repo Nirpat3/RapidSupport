@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search } from "lucide-react";
 import ChatMessage, { type Message } from "./ChatMessage";
 import InternalChatPanel from "./InternalChatPanel";
@@ -52,6 +53,9 @@ export default function ChatInterface({
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [isInternalChatOpen, setIsInternalChatOpen] = useState(false);
   const [isKnowledgeSearchOpen, setIsKnowledgeSearchOpen] = useState(false);
+  const [isInternalMode, setIsInternalMode] = useState(false);
+  const [aiAssistanceEnabled, setAiAssistanceEnabled] = useState(true);
+  const [isTogglingAi, setIsTogglingAi] = useState(false);
   const [newTicket, setNewTicket] = useState({
     title: "",
     description: "",
@@ -83,6 +87,7 @@ export default function ChatInterface({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -91,9 +96,36 @@ export default function ChatInterface({
     }
   }, [messages]);
 
+  // Fetch and sync AI assistance state from conversation data
+  useEffect(() => {
+    const fetchConversationData = async () => {
+      if (!conversationId) return;
+      
+      try {
+        const response = await fetch(`/api/conversations/${conversationId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.aiAssistanceEnabled !== undefined) {
+            setAiAssistanceEnabled(data.aiAssistanceEnabled);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch conversation AI state:', error);
+      }
+    };
+    
+    fetchConversationData();
+  }, [conversationId]);
+
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
+    
+    // If in internal mode, send as internal message
+    if (isInternalMode) {
+      handleSendInternalMessage(e);
+      return;
+    }
     
     console.log('Sending message:', newMessage);
     onSendMessage?.(newMessage);
@@ -254,6 +286,60 @@ export default function ChatInterface({
       });
     } finally {
       setIsTakingOver(false);
+    }
+  };
+
+  const handleToggleAI = async () => {
+    if (!conversationId) return;
+    
+    setIsTogglingAi(true);
+    const newState = !aiAssistanceEnabled;
+    
+    try {
+      await apiRequest(`/api/conversations/${conversationId}/ai-assistance`, 'PATCH', {
+        enabled: newState
+      });
+      
+      setAiAssistanceEnabled(newState);
+      
+      toast({
+        title: `AI ${newState ? 'enabled' : 'disabled'}`,
+        description: `AI assistance has been ${newState ? 'enabled' : 'disabled'} for this conversation`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to toggle AI",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTogglingAi(false);
+    }
+  };
+
+  const handleSendInternalMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !conversationId) return;
+    
+    try {
+      await apiRequest(`/api/conversations/${conversationId}/internal-messages`, 'POST', {
+        content: newMessage
+      });
+      
+      setNewMessage("");
+      setIsInternalMode(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'internal-messages'] });
+      
+      toast({
+        title: "Internal message sent",
+        description: "Your message is visible only to staff members",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to send internal message",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
     }
   };
 
@@ -559,6 +645,19 @@ export default function ChatInterface({
               <span className="hidden sm:inline">Knowledge Base</span>
             </Button>
 
+            <Button 
+              variant={aiAssistanceEnabled ? "default" : "outline"}
+              size="sm"
+              className="text-xs sm:text-sm"
+              onClick={handleToggleAI}
+              disabled={isTogglingAi}
+              data-testid="button-toggle-ai"
+              aria-label={`${aiAssistanceEnabled ? 'Disable' : 'Enable'} AI assistance`}
+            >
+              <Sparkles className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">{aiAssistanceEnabled ? 'AI On' : 'AI Off'}</span>
+            </Button>
+
             <Popover open={isFollowupOpen} onOpenChange={setIsFollowupOpen}>
               <PopoverTrigger asChild>
                 <Button 
@@ -675,6 +774,7 @@ export default function ChatInterface({
               key={message.id}
               message={message}
               isCurrentUser={message.sender.role !== 'customer'}
+              viewerRole={user?.role}
             />
           ))}
           
@@ -763,6 +863,25 @@ export default function ChatInterface({
       {/* Message Input */}
       <div className="p-4 border-t border-border bg-card">
         <form onSubmit={handleSendMessage} className="space-y-2">
+          {/* Internal Message Toggle */}
+          {isInternalMode && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
+              <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span className="text-sm text-amber-700 dark:text-amber-300 font-medium">
+                Internal Message Mode - Only visible to staff
+              </span>
+              <Button 
+                type="button"
+                variant="ghost" 
+                size="sm"
+                onClick={() => setIsInternalMode(false)}
+                className="ml-auto h-6"
+                data-testid="button-disable-internal-mode"
+              >
+                Switch to Public
+              </Button>
+            </div>
+          )}
           <div className="flex items-end gap-2">
             <Button variant="ghost" size="icon" type="button" data-testid="button-attach">
               <Paperclip className="w-4 h-4" />
@@ -770,13 +889,24 @@ export default function ChatInterface({
             
             <div className="flex-1">
               <Input
-                placeholder="Type your message..."
+                placeholder={isInternalMode ? "Type internal message (staff only)..." : "Type your message..."}
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                className="resize-none"
+                className={isInternalMode ? "border-amber-300 dark:border-amber-700" : ""}
                 data-testid="input-message"
               />
             </div>
+            
+            <Button 
+              type="button"
+              variant={isInternalMode ? "default" : "outline"}
+              size="icon"
+              onClick={() => setIsInternalMode(!isInternalMode)}
+              title={isInternalMode ? "Switch to public message" : "Switch to internal message (staff only)"}
+              data-testid="button-toggle-internal"
+            >
+              <MessageSquareText className="w-4 h-4" />
+            </Button>
             
             <Button 
               type="button"

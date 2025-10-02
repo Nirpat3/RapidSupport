@@ -976,6 +976,64 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Toggle AI assistance for conversation
+  app.patch('/api/conversations/:id/ai-assistance', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      // Validate conversation ID
+      const conversationId = z.string().parse(req.params.id);
+      
+      // Validate request body
+      const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+      const user = req.user as any;
+      
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      // Authorization: only assigned agent or admin can toggle AI
+      if (user.role === 'agent' && conversation.assignedAgentId !== user.id) {
+        return res.status(403).json({ error: 'You can only toggle AI for conversations assigned to you' });
+      }
+      
+      // Toggle AI assistance
+      await storage.toggleAiAssistance(conversationId, enabled);
+      
+      // Log the activity
+      await storage.createActivityLog({
+        agentId: user.id,
+        conversationId,
+        action: enabled ? 'ai_enabled' : 'ai_disabled',
+        details: `AI assistance ${enabled ? 'enabled' : 'disabled'} by ${user.name}`
+      });
+      
+      // Broadcast AI toggle update via WebSocket
+      const wsServer = (req.app as any).wsServer;
+      if (wsServer) {
+        wsServer.broadcastConversationUpdate(conversationId, {
+          id: conversationId,
+          aiAssistanceEnabled: enabled,
+          updatedAt: new Date().toISOString()
+        });
+      }
+      
+      res.json({ 
+        message: `AI assistance ${enabled ? 'enabled' : 'disabled'} successfully`,
+        aiAssistanceEnabled: enabled
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      console.error('Error toggling AI assistance:', error);
+      res.status(500).json({ error: 'Failed to toggle AI assistance' });
+    }
+  });
+
   // Schedule follow-up for conversation
   app.put('/api/conversations/:id/followup', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
@@ -1070,6 +1128,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         content,
         scope: 'public'
       });
+      
+      // Auto-disable AI assistance when an agent responds
+      if (conversation.aiAssistanceEnabled) {
+        await storage.toggleAiAssistance(conversationId, false);
+      }
       
       // Log the response activity
       await storage.createActivityLog({
