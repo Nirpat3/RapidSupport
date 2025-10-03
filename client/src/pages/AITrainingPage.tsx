@@ -80,6 +80,7 @@ interface QAResponse {
     title: string;
     content: string;
     category: string;
+    relevance: number;
   }>;
 }
 
@@ -828,9 +829,14 @@ export default function AITrainingPage() {
       <Dialog open={correctionDialogOpen} onOpenChange={setCorrectionDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Provide Response Correction</DialogTitle>
+            <DialogTitle>
+              {selectedSource ? 'Update Knowledge Base Article' : 'Provide Response Correction'}
+            </DialogTitle>
             <DialogDescription>
-              Help improve AI responses by providing a better alternative and explanation.
+              {selectedSource 
+                ? 'Improve the knowledge base content based on the AI response' 
+                : 'Help improve AI responses by providing a better alternative and explanation.'
+              }
             </DialogDescription>
           </DialogHeader>
           
@@ -843,6 +849,21 @@ export default function AITrainingPage() {
                 setSelectedEntry(null);
               }}
               isSubmitting={submitCorrectionMutation.isPending}
+            />
+          )}
+          
+          {selectedSource && qaResponse && (
+            <QACorrectionForm
+              source={selectedSource}
+              question={question}
+              originalResponse={qaResponse.response}
+              agentId={selectedAgent}
+              onSubmit={(data) => submitQACorrectionMutation.mutate(data)}
+              onCancel={() => {
+                setCorrectionDialogOpen(false);
+                setSelectedSource(null);
+              }}
+              isSubmitting={submitQACorrectionMutation.isPending}
             />
           )}
         </DialogContent>
@@ -973,6 +994,133 @@ function CorrectionForm({ entry, onSubmit, onCancel, isSubmitting }: CorrectionF
           data-testid="button-submit-correction"
         >
           {isSubmitting ? "Submitting..." : "Submit Correction"}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// Q&A Correction Form Component
+interface QACorrectionFormProps {
+  source: QAResponse['sources'][0];
+  question: string;
+  originalResponse: string;
+  agentId: string;
+  onSubmit: (data: { 
+    question: string; 
+    originalResponse: string; 
+    correctedResponse: string; 
+    reasoning: string; 
+    knowledgeBaseId: string; 
+    agentId?: string 
+  }) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+}
+
+function QACorrectionForm({ source, question, originalResponse, agentId, onSubmit, onCancel, isSubmitting }: QACorrectionFormProps) {
+  const [correctedResponse, setCorrectedResponse] = useState(source.content || "");
+  const [reasoning, setReasoning] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!correctedResponse.trim() || !reasoning.trim()) return;
+
+    onSubmit({
+      question,
+      originalResponse,
+      correctedResponse: correctedResponse.trim(),
+      reasoning: reasoning.trim(),
+      knowledgeBaseId: source.id,
+      agentId: agentId !== "all" ? agentId : undefined
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Context */}
+      <div className="space-y-4">
+        <div>
+          <Label className="text-sm font-medium">Question Asked</Label>
+          <div className="mt-1 p-3 bg-muted/50 rounded-lg text-sm">
+            {question}
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium">AI Response</Label>
+          <div className="mt-1 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm">
+            {originalResponse}
+          </div>
+        </div>
+
+        <div>
+          <Label className="text-sm font-medium">Source Article: {source.title}</Label>
+          <div className="mt-1 p-2 bg-muted/30 rounded text-xs text-muted-foreground">
+            Category: {source.category} | Relevance: {Math.round(source.relevance * 100)}%
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Corrected Content */}
+      <div className="space-y-2">
+        <Label htmlFor="corrected-response" className="text-sm font-medium">
+          Updated Article Content *
+        </Label>
+        <Textarea
+          id="corrected-response"
+          placeholder="Update the knowledge base article content..."
+          value={correctedResponse}
+          onChange={(e) => setCorrectedResponse(e.target.value)}
+          required
+          rows={6}
+          className="resize-none"
+          data-testid="textarea-corrected-response"
+        />
+        <p className="text-xs text-muted-foreground">
+          Improve the article content to better answer questions like this.
+        </p>
+      </div>
+
+      {/* Reasoning */}
+      <div className="space-y-2">
+        <Label htmlFor="correction-reasoning" className="text-sm font-medium">
+          Reason for Update *
+        </Label>
+        <Textarea
+          id="correction-reasoning"
+          placeholder="Explain why this update improves the article..."
+          value={reasoning}
+          onChange={(e) => setReasoning(e.target.value)}
+          required
+          rows={3}
+          className="resize-none"
+          data-testid="textarea-correction-reasoning"
+        />
+        <p className="text-xs text-muted-foreground">
+          Describe what was missing or incorrect in the original content.
+        </p>
+      </div>
+
+      {/* Actions */}
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isSubmitting}
+          data-testid="button-cancel-qa-correction"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          disabled={!correctedResponse.trim() || !reasoning.trim() || isSubmitting}
+          data-testid="button-submit-qa-correction"
+        >
+          {isSubmitting ? "Updating..." : "Update Knowledge Base"}
         </Button>
       </div>
     </form>
