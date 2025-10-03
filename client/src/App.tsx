@@ -88,7 +88,7 @@ function AuthenticatedApp() {
                 </button>
               </div>
             </header>
-            <main className="flex-1 overflow-hidden w-full max-w-full box-border">
+            <main className="flex-1 overflow-y-auto w-full max-w-full box-border">
               <Router />
             </main>
           </div>
