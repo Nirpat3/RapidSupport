@@ -6,6 +6,19 @@ Support Board is a modern, full-stack customer support platform built with React
 
 ## Recent Changes
 
+**October 3, 2025**
+- ✅ **AI Training Live Q&A Feature**: Implemented comprehensive live Q&A system for staff to interactively train AI agents
+- ✅ **Database Schema**: Added `knowledgeBaseVersions` table with version tracking (version number, content snapshots, change reasons, editor info)
+- ✅ **Backend APIs**: 
+  - POST /api/ai-training/ask - Ask questions to AI agents and receive responses with source file tracking
+  - POST /api/ai-training/correct - Submit corrections that update knowledge base articles with automatic version creation and learning entry logging
+  - GET /api/knowledge-base/:id/versions - Retrieve version history for knowledge base articles
+- ✅ **Frontend Q&A Interface**: Built Live Q&A tab in AI Training page with agent selector, question input, response display with confidence scores, and source files list showing which KB articles were used
+- ✅ **Correction Workflow**: Implemented QACorrectionForm component allowing staff to suggest corrections to source articles directly from Q&A responses
+- ✅ **Version Control System**: All knowledge base updates create version snapshots with change reasons for full audit trail
+- ✅ **Learning Analytics**: Corrections automatically create learning entries linking to affected KB articles for comprehensive training analytics
+- ✅ **Type-Safe Implementation**: Fully typed interfaces (QAResponse with sources and relevance scores) ensure compile-time safety
+
 **October 2, 2025**
 - ✅ **Message-Level Unread Tracking System**: Implemented comprehensive unread notification system with per-message read tracking
 - ✅ **Database Schema**: Added messageReads join table with composite unique constraint (messageId, userId) to track read status for each message
