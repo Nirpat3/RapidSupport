@@ -497,37 +497,49 @@ export default function AITrainingPage() {
                 {/* Response */}
                 <div className="space-y-2">
                   <Label>Response</Label>
-                  <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <p className="whitespace-pre-wrap">{qaResponse.response}</p>
-                  </div>
+                  <ScrollArea className="h-[200px] w-full rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="p-4 bg-blue-50 dark:bg-blue-950/20">
+                      <p className="whitespace-pre-wrap text-sm">{qaResponse.response}</p>
+                    </div>
+                  </ScrollArea>
                 </div>
 
                 {/* Knowledge Sources */}
                 {qaResponse.sources.length > 0 && (
                   <div className="space-y-2">
                     <Label>Knowledge Sources Used ({qaResponse.sources.length})</Label>
-                    <div className="space-y-2">
-                      {qaResponse.sources.map((source) => (
-                        <div key={source.id} className="p-3 border rounded-lg space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium">{source.title}</h4>
-                            <Badge variant="outline" className="text-xs">{source.category}</Badge>
+                    <ScrollArea className="h-[300px] w-full">
+                      <div className="space-y-2 pr-4">
+                        {qaResponse.sources.map((source) => (
+                          <div key={source.id} className="p-3 border rounded-lg space-y-2 hover-elevate">
+                            <div className="flex items-center justify-between gap-2">
+                              <h4 className="font-medium text-sm">{source.title}</h4>
+                              <Badge variant="outline" className="text-xs flex-shrink-0">{source.category}</Badge>
+                            </div>
+                            <ScrollArea className="max-h-[100px] w-full">
+                              <p className="text-sm text-muted-foreground pr-2">{source.content}</p>
+                            </ScrollArea>
+                            <div className="flex items-center justify-between pt-2">
+                              <Badge variant="secondary" className="text-xs">
+                                Relevance: {Math.round(source.relevance * 100)}%
+                              </Badge>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedSource(source);
+                                  setCorrectionDialogOpen(true);
+                                }}
+                                data-testid={`button-suggest-correction-${source.id}`}
+                              >
+                                <PenTool className="w-3 h-3 mr-1" />
+                                Suggest Correction
+                              </Button>
+                            </div>
                           </div>
-                          <p className="text-sm text-muted-foreground line-clamp-2">{source.content}</p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedSource(source);
-                              setCorrectionDialogOpen(true);
-                            }}
-                          >
-                            <PenTool className="w-3 h-3 mr-1" />
-                            Suggest Correction
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   </div>
                 )}
               </CardContent>
