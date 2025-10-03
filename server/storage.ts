@@ -17,6 +17,7 @@ import {
   uploadedFiles,
   knowledgeBaseFiles,
   aiAgentFileUsage,
+  knowledgeBaseVersions,
   posts,
   postComments,
   postLikes,
@@ -58,6 +59,8 @@ import {
   type InsertKnowledgeBaseFile,
   type AiAgentFileUsage,
   type InsertAiAgentFileUsage,
+  type KnowledgeBaseVersion,
+  type InsertKnowledgeBaseVersion,
   type Post,
   type InsertPost,
   type PostComment,
@@ -184,6 +187,11 @@ export interface IStorage {
   updateKnowledgeBase(id: string, updates: Partial<InsertKnowledgeBase>): Promise<void>;
   deleteKnowledgeBase(id: string): Promise<void>;
   updateKnowledgeBaseUsage(id: string): Promise<void>;
+
+  // Knowledge Base Version operations
+  createKnowledgeBaseVersion(version: InsertKnowledgeBaseVersion): Promise<KnowledgeBaseVersion>;
+  getKnowledgeBaseVersions(knowledgeBaseId: string): Promise<KnowledgeBaseVersion[]>;
+  getLatestVersionNumber(knowledgeBaseId: string): Promise<number>;
 
   // Knowledge Base Image operations
   getKnowledgeBaseImages(knowledgeBaseId: string): Promise<KnowledgeBaseImage[]>;
@@ -1585,6 +1593,42 @@ export class DatabaseStorage implements IStorage {
       }).where(eq(knowledgeBase.id, id));
     } catch (error) {
       console.error('Error updating knowledge base usage:', error);
+    }
+  }
+
+  // Knowledge Base Version operations
+  async createKnowledgeBaseVersion(version: InsertKnowledgeBaseVersion): Promise<KnowledgeBaseVersion> {
+    try {
+      const [createdVersion] = await db.insert(knowledgeBaseVersions).values(version).returning();
+      return createdVersion;
+    } catch (error) {
+      console.error('Error creating knowledge base version:', error);
+      throw error;
+    }
+  }
+
+  async getKnowledgeBaseVersions(knowledgeBaseId: string): Promise<KnowledgeBaseVersion[]> {
+    try {
+      return await db.select().from(knowledgeBaseVersions)
+        .where(eq(knowledgeBaseVersions.knowledgeBaseId, knowledgeBaseId))
+        .orderBy(desc(knowledgeBaseVersions.version));
+    } catch (error) {
+      console.error('Error fetching knowledge base versions:', error);
+      return [];
+    }
+  }
+
+  async getLatestVersionNumber(knowledgeBaseId: string): Promise<number> {
+    try {
+      const versions = await db.select().from(knowledgeBaseVersions)
+        .where(eq(knowledgeBaseVersions.knowledgeBaseId, knowledgeBaseId))
+        .orderBy(desc(knowledgeBaseVersions.version))
+        .limit(1);
+      
+      return versions.length > 0 ? versions[0].version : 0;
+    } catch (error) {
+      console.error('Error fetching latest version number:', error);
+      return 0;
     }
   }
 

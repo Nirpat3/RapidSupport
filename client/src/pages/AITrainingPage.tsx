@@ -70,6 +70,19 @@ interface CorrectionSubmission {
   knowledgeToAdd?: string;
 }
 
+interface QAResponse {
+  success: boolean;
+  response: string;
+  confidence: number;
+  knowledgeUsed: string[];
+  sources: Array<{
+    id: string;
+    title: string;
+    content: string;
+    category: string;
+  }>;
+}
+
 export default function AITrainingPage() {
   const { toast } = useToast();
   const [selectedAgent, setSelectedAgent] = useState<string>("all");
@@ -78,6 +91,11 @@ export default function AITrainingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<AiLearningEntry | null>(null);
+  
+  // Q&A state
+  const [question, setQuestion] = useState("");
+  const [qaResponse, setQaResponse] = useState<QAResponse | null>(null);
+  const [selectedSource, setSelectedSource] = useState<QAResponse['sources'][0] | null>(null);
 
   // Fetch AI agents
   const { data: agents = [], isLoading: agentsLoading } = useQuery<AiAgent[]>({
@@ -242,6 +260,64 @@ export default function AITrainingPage() {
     }
   });
 
+  // Ask question mutation
+  const askQuestionMutation = useMutation({
+    mutationFn: async ({ question, agentId }: { question: string; agentId: string }) => {
+      return apiRequest('/api/ai-training/ask', 'POST', { question, agentId });
+    },
+    onSuccess: (data) => {
+      setQaResponse(data);
+      toast({
+        title: "Response generated",
+        description: `AI responded with ${data.confidence}% confidence`
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate AI response. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Submit correction from Q&A mutation
+  const submitQACorrectionMutation = useMutation({
+    mutationFn: async (data: { question: string; originalResponse: string; correctedResponse: string; reasoning: string; knowledgeBaseId: string; agentId?: string }) => {
+      return apiRequest('/api/ai-training/correct', 'POST', data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Correction submitted",
+        description: "Knowledge base updated with your correction"
+      });
+      setCorrectionDialogOpen(false);
+      setSelectedSource(null);
+      setQaResponse(null);
+      setQuestion("");
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to submit correction. Please try again.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleAskQuestion = () => {
+    if (!question.trim() || !selectedAgent || selectedAgent === "all") {
+      toast({
+        title: "Validation error",
+        description: "Please select an agent and enter a question",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    askQuestionMutation.mutate({ question, agentId: selectedAgent });
+  };
+
   const handleFeedback = (entry: AiLearningEntry, wasHelpful: boolean) => {
     submitFeedbackMutation.mutate({
       entryId: entry.id,
@@ -341,12 +417,122 @@ export default function AITrainingPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="review" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="qa" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="qa" data-testid="tab-qa">Live Q&A</TabsTrigger>
           <TabsTrigger value="review" data-testid="tab-review">Review Responses</TabsTrigger>
           <TabsTrigger value="corrections" data-testid="tab-corrections">Submit Corrections</TabsTrigger>
           <TabsTrigger value="analytics" data-testid="tab-analytics">Training Analytics</TabsTrigger>
         </TabsList>
+
+        {/* Live Q&A Tab */}
+        <TabsContent value="qa" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                Ask Questions & Get AI Responses
+              </CardTitle>
+              <CardDescription>
+                Test AI responses and see which knowledge base articles are being used
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Agent selection */}
+              <div className="space-y-2">
+                <Label htmlFor="qa-agent">Select AI Agent</Label>
+                <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                  <SelectTrigger data-testid="select-qa-agent">
+                    <SelectValue placeholder="Select an agent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {agents.map(agent => (
+                      <SelectItem key={agent.id} value={agent.id}>
+                        {agent.name} - {agent.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Question input */}
+              <div className="space-y-2">
+                <Label htmlFor="question">Your Question</Label>
+                <Textarea
+                  id="question"
+                  placeholder="Ask a question to test the AI response..."
+                  className="min-h-[100px]"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  data-testid="input-question"
+                />
+              </div>
+
+              <Button
+                className="w-full"
+                onClick={handleAskQuestion}
+                disabled={!selectedAgent || selectedAgent === "all" || askQuestionMutation.isPending}
+                data-testid="button-ask-question"
+              >
+                <Brain className="w-4 h-4 mr-2" />
+                {askQuestionMutation.isPending ? "Generating..." : "Ask Question"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* AI Response Display */}
+          {qaResponse && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="w-5 h-5" />
+                  AI Response
+                  <Badge {...getConfidenceBadge(qaResponse.confidence)} className="ml-auto">
+                    {qaResponse.confidence}% confidence
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Response */}
+                <div className="space-y-2">
+                  <Label>Response</Label>
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="whitespace-pre-wrap">{qaResponse.response}</p>
+                  </div>
+                </div>
+
+                {/* Knowledge Sources */}
+                {qaResponse.sources.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Knowledge Sources Used ({qaResponse.sources.length})</Label>
+                    <div className="space-y-2">
+                      {qaResponse.sources.map((source) => (
+                        <div key={source.id} className="p-3 border rounded-lg space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">{source.title}</h4>
+                            <Badge variant="outline" className="text-xs">{source.category}</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{source.content}</p>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedSource(source);
+                              setCorrectionDialogOpen(true);
+                            }}
+                          >
+                            <PenTool className="w-3 h-3 mr-1" />
+                            Suggest Correction
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         {/* Review Responses Tab */}
         <TabsContent value="review" className="space-y-6">

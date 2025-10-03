@@ -275,6 +275,20 @@ export const aiAgentFileUsage = pgTable("ai_agent_file_usage", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Knowledge Base Versions table - tracks version history of knowledge base articles
+export const knowledgeBaseVersions = pgTable("knowledge_base_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  knowledgeBaseId: varchar("knowledge_base_id").notNull().references(() => knowledgeBase.id),
+  version: integer("version").notNull(), // Version number (1, 2, 3, etc.)
+  title: text("title").notNull(), // Title at this version
+  content: text("content").notNull(), // Content at this version
+  category: text("category").notNull(),
+  tags: text("tags").array(),
+  changeReason: text("change_reason"), // Why was this change made
+  changedBy: varchar("changed_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   assignedConversations: many(conversations),
@@ -824,6 +838,18 @@ export const postViewsRelations = relations(postViews, ({ one }) => ({
   }),
 }));
 
+// Knowledge Base Version relations
+export const knowledgeBaseVersionsRelations = relations(knowledgeBaseVersions, ({ one }) => ({
+  knowledgeBase: one(knowledgeBase, {
+    fields: [knowledgeBaseVersions.knowledgeBaseId],
+    references: [knowledgeBase.id],
+  }),
+  changedBy: one(users, {
+    fields: [knowledgeBaseVersions.changedBy],
+    references: [users.id],
+  }),
+}));
+
 // Feed module insert schemas
 export const insertPostSchema = createInsertSchema(posts).omit({
   id: true,
@@ -891,3 +917,12 @@ export type PostWithStats = Post & {
   hasLiked: boolean;
   authorName: string;
 };
+
+// Knowledge Base Versions insert schema and types
+export const insertKnowledgeBaseVersionSchema = createInsertSchema(knowledgeBaseVersions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertKnowledgeBaseVersion = z.infer<typeof insertKnowledgeBaseVersionSchema>;
+export type KnowledgeBaseVersion = typeof knowledgeBaseVersions.$inferSelect;

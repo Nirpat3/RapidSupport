@@ -2188,6 +2188,146 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // AI Training Q&A - Ask a question and get AI response with sources
+  app.post('/api/ai-training/ask', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { question, agentId } = req.body;
+      
+      if (!question || !agentId) {
+        return res.status(400).json({ error: 'Question and agent ID are required' });
+      }
+
+      // Get the AI agent
+      const agent = await storage.getAiAgent(agentId);
+      if (!agent) {
+        return res.status(404).json({ error: 'AI agent not found' });
+      }
+
+      // Generate AI response with source tracking
+      const aiResponse = await AIService.generateSmartAgentResponse(
+        question,
+        'temp-training-conversation',
+        agentId
+      );
+
+      // Get detailed knowledge base articles used
+      const knowledgeBaseIds = aiResponse.knowledgeUsed || [];
+      const sources = knowledgeBaseIds.length > 0 
+        ? await storage.getKnowledgeBaseArticles(knowledgeBaseIds)
+        : [];
+
+      res.json({
+        success: true,
+        response: aiResponse.response,
+        confidence: aiResponse.confidence,
+        knowledgeUsed: knowledgeBaseIds,
+        sources: sources.map(kb => ({
+          id: kb.id,
+          title: kb.title,
+          content: kb.content,
+          category: kb.category
+        }))
+      });
+    } catch (error) {
+      console.error('Failed to generate AI response for training:', error);
+      res.status(500).json({ error: 'Failed to generate AI response' });
+    }
+  });
+
+  // AI Training - Submit correction and update knowledge base
+  app.post('/api/ai-training/correct', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { question, originalResponse, correctedResponse, reasoning, knowledgeBaseId, agentId } = req.body;
+      const user = req.user as any;
+      
+      if (!question || !correctedResponse || !reasoning || !knowledgeBaseId) {
+        return res.status(400).json({ 
+          error: 'Question, corrected response, reasoning, and knowledge base ID are required' 
+        });
+      }
+
+      // Get the knowledge base article
+      const kb = await storage.getKnowledgeBase(knowledgeBaseId);
+      if (!kb) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      // Get latest version number
+      const latestVersion = await storage.getLatestVersionNumber(knowledgeBaseId);
+
+      // Create version snapshot before update
+      await storage.createKnowledgeBaseVersion({
+        knowledgeBaseId,
+        version: latestVersion + 1,
+        title: kb.title,
+        content: correctedResponse, // Store the corrected response as the new content
+        category: kb.category,
+        tags: kb.tags || [],
+        changeReason: `Correction: ${reasoning}`,
+        changedBy: user.id
+      });
+
+      // Update the knowledge base with corrected content
+      await storage.updateKnowledgeBase(knowledgeBaseId, {
+        content: correctedResponse
+      });
+
+      // Create learning entry for the correction if agentId is provided
+      if (agentId) {
+        // Create a temporary conversation for the training session
+        const tempCustomer = await storage.createCustomer({
+          name: 'Training Session',
+          email: `training-${Date.now()}@system.local`
+        });
+
+        const tempConversation = await storage.createConversation({
+          customerId: tempCustomer.id,
+          status: 'closed',
+          priority: 'low',
+          isAnonymous: false
+        });
+
+        await storage.createAiAgentLearning({
+          agentId,
+          conversationId: tempConversation.id,
+          customerQuery: question,
+          aiResponse: originalResponse || 'N/A',
+          confidence: 0, // Mark as corrected
+          humanTookOver: true,
+          knowledgeUsed: [knowledgeBaseId],
+          wasHelpful: false,
+          improvementSuggestion: `Correction applied: ${reasoning}. New response: ${correctedResponse.substring(0, 200)}...`
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Knowledge base updated and version created',
+        version: latestVersion + 1
+      });
+    } catch (error) {
+      console.error('Failed to submit correction and update knowledge base:', error);
+      res.status(500).json({ error: 'Failed to submit correction' });
+    }
+  });
+
+  // Get version history for a knowledge base article
+  app.get('/api/knowledge-base/:id/versions', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const versions = await storage.getKnowledgeBaseVersions(id);
+      
+      res.json({
+        success: true,
+        versions
+      });
+    } catch (error) {
+      console.error('Failed to fetch knowledge base versions:', error);
+      res.status(500).json({ error: 'Failed to fetch version history' });
+    }
+  });
+
   // File upload endpoint for chat attachments
   app.post('/api/upload-attachment', upload.array('files', 5), async (req, res) => {
     try {
