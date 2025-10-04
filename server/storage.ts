@@ -146,6 +146,7 @@ export interface IStorage {
 
   // Customer chat operations for anonymous customers
   getConversationBySession(sessionId: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null>;
+  getConversationByIP(ipAddress: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null>;
   createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }>;
   getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string; attachments?: Attachment[] }>>;
   createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message>;
@@ -1045,6 +1046,36 @@ export class DatabaseStorage implements IStorage {
       .from(conversations)
       .innerJoin(customers, eq(conversations.customerId, customers.id))
       .where(eq(conversations.sessionId, sessionId));
+
+    if (!conversation) {
+      return null;
+    }
+
+    return {
+      conversationId: conversation.id,
+      customerId: conversation.customerId,
+      customerInfo: {
+        name: conversation.customer.name,
+        email: conversation.customer.email,
+        phone: conversation.customer.phone || '',
+        company: conversation.customer.company || '',
+        ipAddress: conversation.customer.ipAddress || '',
+      },
+    };
+  }
+
+  async getConversationByIP(ipAddress: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null> {
+    const [conversation] = await db
+      .select({
+        id: conversations.id,
+        customerId: conversations.customerId,
+        customer: customers,
+      })
+      .from(conversations)
+      .innerJoin(customers, eq(conversations.customerId, customers.id))
+      .where(eq(customers.ipAddress, ipAddress))
+      .orderBy(desc(conversations.createdAt))
+      .limit(1);
 
     if (!conversation) {
       return null;

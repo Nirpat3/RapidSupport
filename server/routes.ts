@@ -1540,12 +1540,29 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.get('/api/customer-chat/check-session/:sessionId', async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const conversation = await storage.getConversationBySession(sessionId);
+      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
       
+      // First try to find by sessionId
+      let conversation = await storage.getConversationBySession(sessionId);
+      
+      // If not found by session, try to find by IP address
+      if (!conversation && clientIP !== 'unknown') {
+        conversation = await storage.getConversationByIP(clientIP);
+      }
+      
+      // Return conversation with IP address
       if (conversation) {
-        res.json(conversation);
+        res.json({
+          ...conversation,
+          ipAddress: clientIP
+        });
       } else {
-        res.json(null);
+        res.json({
+          conversationId: null,
+          customerId: null,
+          customerInfo: null,
+          ipAddress: clientIP
+        });
       }
     } catch (error) {
       res.status(500).json({ error: 'Failed to check session' });
