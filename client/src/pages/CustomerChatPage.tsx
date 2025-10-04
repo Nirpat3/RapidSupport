@@ -335,6 +335,21 @@ export default function CustomerChatPage() {
     }
   };
 
+  const handleStartNewConversation = () => {
+    // Clear localStorage
+    localStorage.removeItem('customer-chat-state');
+    // Reset state
+    setChatState({
+      conversationId: null,
+      customerId: null,
+      sessionId: crypto.randomUUID(),
+      customerInfo: null,
+    });
+    setChatStarted(false);
+    setQuestion('');
+    setSelectedFiles([]);
+  };
+
   const suggestedQuestions = [
     "How do I reset my password?",
     "What are your pricing plans?",
@@ -349,7 +364,7 @@ export default function CustomerChatPage() {
         {/* Header */}
         <header className="border-b bg-card sticky top-0 z-10">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center">
                   <Sparkles className="h-5 w-5 text-primary-foreground" />
@@ -361,10 +376,22 @@ export default function CustomerChatPage() {
                   )}
                 </div>
               </div>
-              <Badge variant="secondary" className="gap-1.5">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                Online
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleStartNewConversation}
+                  className="gap-2"
+                  data-testid="button-new-conversation"
+                >
+                  <MessageSquarePlus className="h-4 w-4" />
+                  New Chat
+                </Button>
+                <Badge variant="secondary" className="gap-1.5">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  Online
+                </Badge>
+              </div>
             </div>
           </div>
         </header>
