@@ -1668,6 +1668,105 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Upload files for customer chat messages
+  const customerChatUploadDir = './uploads/customer-chat';
+  if (!fs.existsSync(customerChatUploadDir)) {
+    fs.mkdirSync(customerChatUploadDir, { recursive: true });
+  }
+
+  const customerChatStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, customerChatUploadDir);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+      cb(null, 'chat-' + uniqueSuffix + '-' + sanitizedName);
+    }
+  });
+
+  const customerChatUpload = multer({
+    storage: customerChatStorage,
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+      files: 5, // Max 5 files per message
+    },
+    fileFilter: function (req, file, cb) {
+      const allowedMimes = [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'application/pdf',
+        'text/plain',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ];
+      if (allowedMimes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only images, PDF, TXT, and DOCX are allowed'));
+      }
+    }
+  });
+
+  app.post('/api/customer-chat/upload-files', customerChatUpload.array('files', 5), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      const { messageId } = req.body;
+
+      if (!messageId) {
+        return res.status(400).json({ error: 'Message ID is required' });
+      }
+
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
+
+      const attachments = await Promise.all(
+        files.map(async (file) => {
+          return await storage.createAttachment({
+            messageId,
+            filename: file.filename,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            size: file.size,
+            filePath: file.path,
+          });
+        })
+      );
+
+      res.status(201).json({ attachments });
+    } catch (error) {
+      console.error('Failed to upload customer chat files:', error);
+      res.status(500).json({ error: 'Failed to upload files' });
+    }
+  });
+
+  // Serve customer chat attachments
+  app.get('/api/customer-chat/files/:filename', (req, res) => {
+    try {
+      const { filename } = req.params;
+      const filePath = path.join(customerChatUploadDir, filename);
+      
+      // Security: Prevent directory traversal
+      const resolvedPath = path.resolve(filePath);
+      const resolvedDir = path.resolve(customerChatUploadDir);
+      
+      if (!resolvedPath.startsWith(resolvedDir)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+
+      res.sendFile(resolvedPath);
+    } catch (error) {
+      console.error('Failed to serve customer chat file:', error);
+      res.status(500).json({ error: 'Failed to serve file' });
+    }
+  });
+
   // REMOVED: /api/customer-chat/send-ai-message endpoint for security
   // AI messages are now created server-side in /api/ai/smart-response to prevent client spoofing
 

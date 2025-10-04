@@ -147,7 +147,7 @@ export interface IStorage {
   // Customer chat operations for anonymous customers
   getConversationBySession(sessionId: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null>;
   createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }>;
-  getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string }>>;
+  getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string; attachments?: Attachment[] }>>;
   createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message>;
   findExistingCustomer(email: string, phone: string, company: string): Promise<Customer | undefined>;
 
@@ -1167,7 +1167,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string }>> {
+  async getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string; attachments?: Attachment[] }>> {
     const messageResults = await db
       .select({
         message: messages,
@@ -1183,24 +1183,32 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(messages.timestamp);
 
-    return messageResults.map((result) => {
-      const message = result.message;
-      let senderName = 'Unknown';
-      
-      if (message.senderType === 'customer' && result.customer) {
-        senderName = result.customer.name;
-      } else if ((message.senderType === 'agent' || message.senderType === 'admin') && result.agent) {
-        senderName = result.agent.name;
-      }
+    // Fetch attachments for all messages in parallel
+    const messagesWithAttachments = await Promise.all(
+      messageResults.map(async (result) => {
+        const message = result.message;
+        let senderName = 'Unknown';
+        
+        if (message.senderType === 'customer' && result.customer) {
+          senderName = result.customer.name;
+        } else if ((message.senderType === 'agent' || message.senderType === 'admin') && result.agent) {
+          senderName = result.agent.name;
+        }
 
-      return {
-        id: message.id,
-        content: message.content,
-        senderType: message.senderType as 'customer' | 'agent',
-        senderName,
-        timestamp: message.timestamp.toISOString(),
-      };
-    });
+        const messageAttachments = await this.getAttachmentsByMessage(message.id);
+
+        return {
+          id: message.id,
+          content: message.content,
+          senderType: message.senderType as 'customer' | 'agent',
+          senderName,
+          timestamp: message.timestamp.toISOString(),
+          attachments: messageAttachments.length > 0 ? messageAttachments : undefined,
+        };
+      })
+    );
+
+    return messagesWithAttachments;
   }
 
   async createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message> {
