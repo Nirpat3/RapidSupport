@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bot, Plus, Edit, Trash2, Settings, Users, Brain, MessageSquare } from "lucide-react";
+import { Bot, Plus, Edit, Trash2, Settings, Users, Brain, MessageSquare, AlertTriangle } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
@@ -308,8 +308,9 @@ export default function AIAgentsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const { data: agents = [], isLoading } = useQuery<AiAgent[]>({
+  const { data: agents = [], isLoading, isError, error } = useQuery<AiAgent[]>({
     queryKey: ["/api/ai/agents"],
+    retry: 1,
   });
 
   const deleteMutation = useMutation({
@@ -350,6 +351,27 @@ export default function AIAgentsPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card className="p-6">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+            <div>
+              <h2 className="text-xl font-semibold">Authentication Required</h2>
+              <p className="text-muted-foreground mt-2">
+                Please log in to access the AI Agents management page.
+              </p>
+            </div>
+            <Button onClick={() => window.location.href = '/auth'}>
+              Go to Login
+            </Button>
+          </div>
+        </Card>
       </div>
     );
   }

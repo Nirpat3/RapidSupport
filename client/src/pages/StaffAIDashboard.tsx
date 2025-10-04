@@ -65,8 +65,9 @@ export default function StaffAIDashboard() {
   const { toast } = useToast();
 
   // Fetch AI agents
-  const { data: agents = [], isLoading: agentsLoading } = useQuery<AiAgent[]>({
+  const { data: agents = [], isLoading: agentsLoading, isError } = useQuery<AiAgent[]>({
     queryKey: ["/api/ai/agents"],
+    retry: 1,
   });
 
   // Stable mock performance metrics (in real app, this would come from analytics)
@@ -150,6 +151,27 @@ export default function StaffAIDashboard() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="container mx-auto p-6">
+        <Card className="p-6">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <AlertTriangle className="h-12 w-12 text-destructive" />
+            <div>
+              <h2 className="text-xl font-semibold">Authentication Required</h2>
+              <p className="text-muted-foreground mt-2">
+                Please log in to access the Staff AI Dashboard.
+              </p>
+            </div>
+            <Button onClick={() => window.location.href = '/auth'}>
+              Go to Login
+            </Button>
+          </div>
+        </Card>
       </div>
     );
   }
