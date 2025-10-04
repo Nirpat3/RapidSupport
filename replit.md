@@ -32,6 +32,9 @@ The customer chat features a rich media input system supporting file attachments
 ### User Experience Enhancements
 The customer chat features a Perplexity-style redesign with a prominent hero input for immediate question entry, progressive disclosure of customer information (collected after the first message), suggested questions, and visual feature cards. Session persistence is managed via localStorage. A "Continue Conversation Card" is prominently displayed for returning users to manually resume existing chats.
 
+### IP-Based User Identification
+The system automatically identifies returning customers using IP address detection. When a customer visits the support page, their IP is captured and checked against existing conversations. The system uses a priority-based fallback: first checking sessionId (localStorage), then matching by IP address for broader identification. The user's IP address is transparently displayed in both the hero view and chat header. When a returning customer is detected via IP match, the continue conversation card displays "(Identified by IP address)" messaging. This provides convenience for returning users while maintaining transparency about the identification method.
+
 ### Unread Tracking & Notifications
 A comprehensive unread tracking system monitors message read status per user, utilizing a `messageReads` join table. Backend APIs provide unread counts and allow marking messages as read. WebSocket broadcasts `unread_count_update` events for real-time UI updates, with features like unread count badges and browser tab title updates.
 
