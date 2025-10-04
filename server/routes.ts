@@ -3043,6 +3043,55 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Public support search - AI-powered knowledge base search without authentication
+  app.post('/api/public/support/search', async (req, res) => {
+    try {
+      const { question } = req.body;
+      
+      if (!question) {
+        return res.status(400).json({ error: 'Question is required' });
+      }
+
+      // Get a default AI agent for public support (first active agent)
+      const agents = await storage.getAllAiAgents();
+      const publicAgent = agents.find(a => a.isActive) || agents[0];
+      
+      if (!publicAgent) {
+        return res.status(503).json({ error: 'Support service temporarily unavailable' });
+      }
+
+      // Generate AI response with source tracking
+      const aiResponse = await AIService.generateSmartAgentResponse(
+        question,
+        'public-support-query',
+        publicAgent.id
+      );
+
+      // Get detailed knowledge base articles used (only active/published ones)
+      const knowledgeBaseIds = aiResponse.knowledgeUsed || [];
+      const allSources = knowledgeBaseIds.length > 0 
+        ? await storage.getKnowledgeBaseArticles(knowledgeBaseIds)
+        : [];
+      
+      // Filter to only return active/published articles
+      const sources = allSources.filter(kb => kb.isActive);
+
+      res.json({
+        response: aiResponse.response,
+        confidence: aiResponse.confidence,
+        sources: sources.map(kb => ({
+          id: kb.id,
+          title: kb.title,
+          category: kb.category,
+          relevanceScore: 0.8 // Default relevance score for public display
+        }))
+      });
+    } catch (error) {
+      console.error('Failed to search public support:', error);
+      res.status(500).json({ error: 'Failed to search support articles' });
+    }
+  });
+
   // Get specific knowledge base article (authenticated access)
   app.get('/api/knowledge-base/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {

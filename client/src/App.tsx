@@ -15,6 +15,7 @@ import CustomersPage from "@/pages/CustomersPage";
 import CustomerProfilePage from "@/pages/CustomerProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import CustomerChatPage from "@/pages/CustomerChatPage";
+import SupportPage from "@/pages/SupportPage";
 import AIAgentsPage from "@/pages/AIAgentsPage";
 import StaffAIDashboard from "@/pages/StaffAIDashboard";
 import AITrainingPage from "@/pages/AITrainingPage";
@@ -101,8 +102,9 @@ function AuthenticatedApp() {
 function AppContent() {
   const { user, login, isLoading } = useAuth();
   
-  // Check if we're on the customer chat page (public route)
+  // Check if we're on public routes
   const isCustomerChatPage = window.location.pathname === '/customer-chat';
+  const isSupportPage = window.location.pathname === '/support';
   
   // For customer chat page, render without authentication but with necessary providers
   if (isCustomerChatPage) {
@@ -110,6 +112,18 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <CustomerChatPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // For support page, render without authentication
+  if (isSupportPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <SupportPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

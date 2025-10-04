@@ -25,7 +25,8 @@ import {
   Mic,
   X,
   Image as ImageIcon,
-  FileText
+  FileText,
+  MessageSquarePlus
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { CustomerInfoForm } from "@/components/CustomerInfoForm";
