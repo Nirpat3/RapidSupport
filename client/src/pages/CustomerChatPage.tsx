@@ -685,13 +685,13 @@ export default function CustomerChatPage() {
                   }
                 }}
                 placeholder="Ask a question or describe your issue..."
-                className="pl-12 pr-24 h-14 text-base rounded-2xl shadow-lg border-2 focus-visible:ring-2"
+                className="pl-12 pr-28 sm:pr-32 h-14 text-base rounded-2xl shadow-lg border-2 focus-visible:ring-2"
                 data-testid="input-hero-question"
               />
               <Button
                 onClick={handleAskQuestion}
                 disabled={!question.trim() || sendMessageMutation.isPending || createCustomerMutation.isPending}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl h-10"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl h-10 min-w-[80px] sm:min-w-[90px]"
                 data-testid="button-ask-question"
               >
                 {sendMessageMutation.isPending || createCustomerMutation.isPending ? (
