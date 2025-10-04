@@ -53,9 +53,10 @@ interface ChatMessage {
 }
 
 interface ExistingConversationResponse {
-  conversationId: string;
-  customerId: string;
-  customerInfo: AnonymousCustomer;
+  conversationId: string | null;
+  customerId: string | null;
+  customerInfo: AnonymousCustomer | null;
+  ipAddress: string;
 }
 
 interface CreateCustomerResponse {
@@ -694,10 +695,16 @@ export default function CustomerChatPage() {
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Get instant answers from our AI-powered support or connect with our team
             </p>
+            {/* Show IP Address */}
+            {existingConversation?.ipAddress && (
+              <div className="mt-4 text-sm text-muted-foreground" data-testid="text-user-ip">
+                Your IP: {existingConversation.ipAddress}
+              </div>
+            )}
           </div>
 
           {/* Continue Conversation Card - Shows when user has existing conversation */}
-          {chatState.conversationId && (
+          {(chatState.conversationId || existingConversation?.conversationId) && (
             <Card className="mb-8 border-2 border-primary/20 bg-primary/5">
               <CardContent className="pt-6">
                 <div className="flex items-start gap-4">
@@ -706,9 +713,14 @@ export default function CustomerChatPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold mb-1">Continue your conversation</h3>
-                    {chatState.customerInfo && (
+                    {(chatState.customerInfo || existingConversation?.customerInfo) && (
                       <p className="text-sm text-muted-foreground mb-3">
-                        Welcome back, {chatState.customerInfo.name}
+                        Welcome back, {chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
+                        {existingConversation?.conversationId && !chatState.conversationId && (
+                          <span className="text-xs block mt-1">
+                            (Identified by IP address)
+                          </span>
+                        )}
                       </p>
                     )}
                     <Button 
