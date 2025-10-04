@@ -6,6 +6,19 @@ Support Board is a modern, full-stack customer support platform built with React
 
 ## Recent Changes
 
+**October 4, 2025**
+- ✅ **Perplexity-Style Customer Chat Redesign**: Complete UX overhaul with modern, conversion-optimized interface
+- ✅ **Hero Input Experience**: Large prominent search input on /customer-chat allows immediate question entry without widget interaction
+- ✅ **Progressive Disclosure**: Customer info collection moved AFTER first message (not before) to reduce friction and improve conversion
+- ✅ **Suggested Questions**: Pre-written question buttons for common inquiries (password reset, pricing, upgrades, billing)
+- ✅ **Feature Cards**: Visual trust indicators (Instant Answers, Secure & Private, Fast Response) on hero page
+- ✅ **Session Persistence**: localStorage-based session management with automatic chat rehydration on page reload
+- ✅ **CustomerInfoForm Enhancement**: Added "bare" mode for dialog usage with icon-prefixed inputs and cleaner design
+- ✅ **Critical Bug Fix**: Resolved state race condition where first message was lost - now uses API response IDs directly
+- ✅ **Clean Modern Design**: Perplexity-inspired minimal interface with rounded message bubbles, better spacing, professional typography
+- ✅ **Mobile Responsive**: Sticky header and input, auto-scroll to latest messages, optimized for all screen sizes
+- ✅ **End-to-End Testing**: Comprehensive validation confirms progressive disclosure, session persistence, and first message delivery all working correctly
+
 **October 3, 2025**
 - ✅ **AI Training Live Q&A Feature**: Implemented comprehensive live Q&A system for staff to interactively train AI agents
 - ✅ **Database Schema**: Added `knowledgeBaseVersions` table with version tracking (version number, content snapshots, change reasons, editor info)
