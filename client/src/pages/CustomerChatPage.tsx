@@ -123,10 +123,9 @@ export default function CustomerChatPage() {
     localStorage.setItem('customer-chat-state', JSON.stringify(chatState));
   }, [chatState]);
 
-  // Check for existing conversation
+  // Check for existing conversation - always run to get IP address
   const { data: existingConversation } = useQuery<ExistingConversationResponse | null>({
     queryKey: ['/api/customer-chat/check-session', chatState.sessionId],
-    enabled: !chatState.conversationId,
   });
 
   // Fetch messages for active conversation
@@ -439,6 +438,11 @@ export default function CustomerChatPage() {
                   <h1 className="text-lg font-semibold" data-testid="title-support-chat">Support Chat</h1>
                   {chatState.customerInfo && (
                     <p className="text-xs text-muted-foreground">{chatState.customerInfo.name}</p>
+                  )}
+                  {existingConversation?.ipAddress && (
+                    <p className="text-xs text-muted-foreground" data-testid="text-user-ip">
+                      Your IP: {existingConversation.ipAddress}
+                    </p>
                   )}
                 </div>
               </div>
