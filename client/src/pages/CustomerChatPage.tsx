@@ -76,7 +76,6 @@ export default function CustomerChatPage() {
   const [showInfoDialog, setShowInfoDialog] = useState(false);
   const [pendingMessage, setPendingMessage] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [chatStarted, setChatStarted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // File upload, emoji, camera, voice states
@@ -109,6 +108,20 @@ export default function CustomerChatPage() {
       sessionId: crypto.randomUUID(),
       customerInfo: null,
     };
+  });
+
+  // Initialize chatStarted based on whether we have a saved conversation
+  const [chatStarted, setChatStarted] = useState(() => {
+    const savedState = localStorage.getItem('customer-chat-state');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        return !!parsed.conversationId;
+      } catch (e) {
+        return false;
+      }
+    }
+    return false;
   });
 
   // Save chat state to localStorage whenever it changes
