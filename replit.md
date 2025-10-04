@@ -6,7 +6,24 @@ Support Board is a modern, full-stack customer support platform built with React
 
 ## Recent Changes
 
-**October 4, 2025**
+**October 4, 2025 (Latest Session)**
+- ✅ **Rich Media Input System**: Complete customer chat enhancement with file attachments, camera capture, emoji picker, and voice-to-text
+- ✅ **File Attachments**: Drag-drop and multi-file upload support (up to 15 files, 10MB each) for images (JPG, PNG, GIF, WebP) and documents (PDF, TXT, DOCX)
+- ✅ **Camera Capture**: HTML5 camera integration for mobile devices to capture and send photos directly from chat
+- ✅ **Emoji Picker**: emoji-picker-react integration with modern emoji support and search functionality
+- ✅ **Voice-to-Text**: Web Speech API integration for hands-free message dictation with browser compatibility detection
+- ✅ **File Preview & Display**: Inline image previews, download links for documents, proper file metadata (filename, size, type)
+- ✅ **Start New Conversation**: Clear button to reset chat session and begin fresh conversation while preserving customer data
+- ✅ **Support Page**: Public-facing knowledge base search with Perplexity-style interface and AI-powered article recommendations
+- ✅ **Public API**: Unauthenticated `/api/public/support/search` endpoint for knowledge base queries without login
+- ✅ **Attachment Storage**: Dedicated `attachments` table with foreign keys to messages, file metadata, and secure file serving
+- ✅ **Critical Bug Fixes**: 
+  - Fixed file-only message validation - uses '[Attachment]' placeholder for messages with only files
+  - Resolved state race condition with pending files during customer creation flow
+  - Added `.trim()` safeguards to ensure proper content validation
+- ✅ **End-to-End Testing**: Comprehensive validation confirms all scenarios work (text-only, file-only, text+files for new and existing customers)
+
+**October 4, 2025 (Previous Session)**
 - ✅ **Perplexity-Style Customer Chat Redesign**: Complete UX overhaul with modern, conversion-optimized interface
 - ✅ **Hero Input Experience**: Large prominent search input on /customer-chat allows immediate question entry without widget interaction
 - ✅ **Progressive Disclosure**: Customer info collection moved AFTER first message (not before) to reduce friction and improve conversion
