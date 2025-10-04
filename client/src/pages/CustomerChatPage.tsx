@@ -18,12 +18,29 @@ import {
   User,
   Building2,
   Mail,
-  Phone
+  Phone,
+  Paperclip,
+  Camera,
+  Smile,
+  Mic,
+  X,
+  Image as ImageIcon,
+  FileText
 } from "lucide-react";
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { CustomerInfoForm } from "@/components/CustomerInfoForm";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { AnonymousCustomer } from "@shared/schema";
+
+interface Attachment {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  filePath: string;
+}
 
 interface ChatMessage {
   id: string;
@@ -31,6 +48,7 @@ interface ChatMessage {
   senderType: 'customer' | 'agent' | 'ai';
   senderName: string;
   timestamp: string;
+  attachments?: Attachment[];
 }
 
 interface ExistingConversationResponse {
@@ -58,6 +76,14 @@ export default function CustomerChatPage() {
   const [pendingMessage, setPendingMessage] = useState("");
   const [chatStarted, setChatStarted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // File upload, emoji, camera, voice states
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Initialize chat state with localStorage persistence
   const [chatState, setChatState] = useState<ChatState>(() => {
@@ -186,11 +212,15 @@ export default function CustomerChatPage() {
   }, []);
 
   const handleAskQuestion = async () => {
-    if (!question.trim()) return;
+    if (!question.trim() && selectedFiles.length === 0) return;
 
     // If already has conversation, just send message
     if (chatState.conversationId) {
-      await sendMessageMutation.mutateAsync({ content: question });
+      const messageContent = question.trim() || (selectedFiles.length > 0 ? '[Attachment]' : '');
+      const response = await sendMessageMutation.mutateAsync({ content: messageContent });
+      if (selectedFiles.length > 0 && response?.id) {
+        await uploadFiles(response.id);
+      }
       setChatStarted(true);
       return;
     }
@@ -205,11 +235,15 @@ export default function CustomerChatPage() {
       });
       setChatStarted(true);
       // Use IDs from existingConversation to avoid state race
-      await sendMessageMutation.mutateAsync({ 
-        content: question,
+      const messageContent = question.trim() || (selectedFiles.length > 0 ? '[Attachment]' : '');
+      const response = await sendMessageMutation.mutateAsync({ 
+        content: messageContent,
         conversationId: existingConversation.conversationId,
         customerId: existingConversation.customerId,
       });
+      if (selectedFiles.length > 0 && response?.id) {
+        await uploadFiles(response.id);
+      }
       return;
     }
 
@@ -220,6 +254,85 @@ export default function CustomerChatPage() {
 
   const handleCustomerInfoSubmit = async (customerData: AnonymousCustomer) => {
     await createCustomerMutation.mutateAsync(customerData);
+  };
+
+  // File upload handlers
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles(prev => [...prev, ...files].slice(0, 5)); // Max 5 files
+  };
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles(prev => [...prev, ...files].slice(0, 5));
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadFiles = async (messageId: string) => {
+    if (selectedFiles.length === 0) return;
+    
+    const formData = new FormData();
+    selectedFiles.forEach(file => {
+      formData.append('files', file);
+    });
+    formData.append('messageId', messageId);
+
+    try {
+      await fetch('/api/customer-chat/upload-files', {
+        method: 'POST',
+        body: formData,
+      });
+      setSelectedFiles([]);
+    } catch (error) {
+      console.error('Failed to upload files:', error);
+    }
+  };
+
+  // Emoji picker handler
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    setQuestion(prev => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
+  };
+
+  // Voice-to-text handler
+  const toggleVoiceRecognition = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Voice recognition is not supported in your browser');
+      return;
+    }
+
+    if (isRecording) {
+      recognitionRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join('');
+        setQuestion(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setIsRecording(false);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+      setIsRecording(true);
+    }
   };
 
   const suggestedQuestions = [
@@ -282,7 +395,44 @@ export default function CustomerChatPage() {
                         : "bg-muted"
                     )}
                   >
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                    {message.content && (
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                    )}
+                    
+                    {/* Display attachments */}
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="mt-2 space-y-2">
+                        {message.attachments.map((attachment) => (
+                          <div key={attachment.id} className="flex items-center gap-2">
+                            {attachment.mimeType.startsWith('image/') ? (
+                              <a
+                                href={`/api/customer-chat/files/${attachment.filename}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={`/api/customer-chat/files/${attachment.filename}`}
+                                  alt={attachment.originalName}
+                                  className="max-w-full h-auto rounded-lg max-h-48"
+                                />
+                              </a>
+                            ) : (
+                              <a
+                                href={`/api/customer-chat/files/${attachment.filename}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-3 py-2 bg-black/10 dark:bg-white/10 rounded-lg hover-elevate"
+                              >
+                                <FileText className="h-4 w-4" />
+                                <span className="text-sm">{attachment.originalName}</span>
+                              </a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
                     <p className="text-xs mt-2 opacity-70">
                       {new Date(message.timestamp).toLocaleTimeString([], { 
                         hour: '2-digit', 
@@ -305,7 +455,104 @@ export default function CustomerChatPage() {
         {/* Input Area */}
         <div className="border-t bg-card sticky bottom-0">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 max-w-3xl">
+            {/* File Previews */}
+            {selectedFiles.length > 0 && (
+              <div className="mb-3 flex gap-2 flex-wrap">
+                {selectedFiles.map((file, idx) => (
+                  <div key={idx} className="relative group">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg border">
+                      {file.type.startsWith('image/') ? (
+                        <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                      )}
+                      <span className="text-sm max-w-[150px] truncate">{file.name}</span>
+                      <button
+                        onClick={() => removeFile(idx)}
+                        className="ml-2 hover-elevate rounded-full p-0.5"
+                        data-testid={`button-remove-file-${idx}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
             <div className="flex gap-2 items-end">
+              {/* Action Buttons */}
+              <div className="flex gap-1">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  multiple
+                  accept="image/*,application/pdf,.txt,.docx"
+                  className="hidden"
+                />
+                <input
+                  type="file"
+                  ref={cameraInputRef}
+                  onChange={handleCameraCapture}
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                />
+                
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach file"
+                  data-testid="button-attach-file"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </Button>
+                
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => cameraInputRef.current?.click()}
+                  title="Take picture"
+                  data-testid="button-camera"
+                >
+                  <Camera className="h-5 w-5" />
+                </Button>
+                
+                <div className="relative">
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    title="Add emoji"
+                    data-testid="button-emoji"
+                  >
+                    <Smile className="h-5 w-5" />
+                  </Button>
+                  {showEmojiPicker && (
+                    <div className="absolute bottom-12 left-0 z-50">
+                      <EmojiPicker onEmojiClick={handleEmojiClick} />
+                    </div>
+                  )}
+                </div>
+                
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={toggleVoiceRecognition}
+                  className={cn(isRecording && "bg-red-500 text-white hover:bg-red-600")}
+                  title={isRecording ? "Stop recording" : "Voice to text"}
+                  data-testid="button-voice"
+                >
+                  <Mic className="h-5 w-5" />
+                </Button>
+              </div>
+
               <div className="flex-1 relative">
                 <Input
                   value={question}
@@ -324,7 +571,7 @@ export default function CustomerChatPage() {
               </div>
               <Button
                 onClick={handleAskQuestion}
-                disabled={!question.trim() || sendMessageMutation.isPending}
+                disabled={(!question.trim() && selectedFiles.length === 0) || sendMessageMutation.isPending}
                 size="icon"
                 className="h-12 w-12 rounded-xl"
                 data-testid="button-send-message"
