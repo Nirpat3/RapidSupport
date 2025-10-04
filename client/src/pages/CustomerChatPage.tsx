@@ -82,8 +82,12 @@ export default function CustomerChatPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const recognitionRef = useRef<any>(null);
 
   // Initialize chat state with localStorage persistence
@@ -303,6 +307,64 @@ export default function CustomerChatPage() {
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     setSelectedFiles(prev => [...prev, ...files].slice(0, 5));
+  };
+
+  // Open camera using MediaDevices API (works on all devices)
+  const openCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } // Use rear camera on mobile
+      });
+      setCameraStream(stream);
+      setShowCamera(true);
+      
+      // Wait for video element to be ready
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Camera access error:', error);
+      alert('Unable to access camera. Please check permissions.');
+    }
+  };
+
+  // Capture photo from camera stream
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    
+    if (!context) return;
+    
+    // Set canvas dimensions to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw video frame to canvas
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Convert canvas to blob then to file
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' });
+        setSelectedFiles(prev => [...prev, file].slice(0, 5));
+        closeCamera();
+      }
+    }, 'image/jpeg', 0.9);
+  };
+
+  // Close camera and cleanup
+  const closeCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setShowCamera(false);
   };
 
   const removeFile = (index: number) => {
@@ -580,7 +642,7 @@ export default function CustomerChatPage() {
                   type="button"
                   size="icon"
                   variant="ghost"
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={openCamera}
                   title="Take picture"
                   data-testid="button-camera"
                 >
@@ -797,6 +859,49 @@ export default function CustomerChatPage() {
             isLoading={createCustomerMutation.isPending}
             bare
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Camera Dialog */}
+      <Dialog open={showCamera} onOpenChange={(open) => !open && closeCamera()}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-5 w-5" />
+              Take a Photo
+            </DialogTitle>
+            <DialogDescription>
+              Position your camera and click capture when ready
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+              <video 
+                ref={videoRef}
+                autoPlay 
+                playsInline
+                className="w-full h-full object-cover"
+                data-testid="video-camera-preview"
+              />
+              <canvas ref={canvasRef} className="hidden" />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={closeCamera}
+                data-testid="button-camera-cancel"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={capturePhoto}
+                data-testid="button-camera-capture"
+              >
+                <Camera className="mr-2 h-4 w-4" />
+                Capture Photo
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
