@@ -75,6 +75,7 @@ export default function CustomerChatPage() {
   const [question, setQuestion] = useState("");
   const [showInfoDialog, setShowInfoDialog] = useState(false);
   const [pendingMessage, setPendingMessage] = useState("");
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [chatStarted, setChatStarted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -148,14 +149,36 @@ export default function CustomerChatPage() {
       setShowInfoDialog(false);
       setChatStarted(true);
       
-      // Send the pending message with IDs from the response (don't rely on state update)
-      if (pendingMessage) {
-        await sendMessageMutation.mutateAsync({
-          content: pendingMessage,
+      // Send the pending message and/or files with IDs from the response
+      if (pendingMessage.trim() || pendingFiles.length > 0) {
+        const messageContent = pendingMessage.trim() || (pendingFiles.length > 0 ? '[Attachment]' : '');
+        const messageResponse = await sendMessageMutation.mutateAsync({
+          content: messageContent,
           conversationId: response.conversationId,
           customerId: response.customerId,
         });
+        
+        // Upload pending files if they exist
+        if (pendingFiles.length > 0 && messageResponse?.id) {
+          const formData = new FormData();
+          pendingFiles.forEach(file => {
+            formData.append('files', file);
+          });
+          formData.append('messageId', messageResponse.id);
+
+          try {
+            await fetch('/api/customer-chat/upload-files', {
+              method: 'POST',
+              body: formData,
+            });
+          } catch (error) {
+            console.error('Failed to upload pending files:', error);
+          }
+        }
+        
         setPendingMessage("");
+        setPendingFiles([]);
+        setSelectedFiles([]);
       }
     },
   });
@@ -248,8 +271,9 @@ export default function CustomerChatPage() {
       return;
     }
 
-    // New customer - show info dialog and store pending message
+    // New customer - show info dialog and store pending message and files
     setPendingMessage(question);
+    setPendingFiles(selectedFiles);
     setShowInfoDialog(true);
   };
 
