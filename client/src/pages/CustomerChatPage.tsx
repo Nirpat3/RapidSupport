@@ -114,19 +114,8 @@ export default function CustomerChatPage() {
     };
   });
 
-  // Initialize chatStarted based on whether we have a saved conversation
-  const [chatStarted, setChatStarted] = useState(() => {
-    const savedState = localStorage.getItem('customer-chat-state');
-    if (savedState) {
-      try {
-        const parsed = JSON.parse(savedState);
-        return !!parsed.conversationId;
-      } catch (e) {
-        return false;
-      }
-    }
-    return false;
-  });
+  // Initialize chatStarted to false - let user choose to continue or start new
+  const [chatStarted, setChatStarted] = useState(false);
 
   // Save chat state to localStorage whenever it changes
   useEffect(() => {
@@ -232,7 +221,7 @@ export default function CustomerChatPage() {
     }
   }, [messages, chatStarted]);
 
-  // Check if returning customer (from API)
+  // Sync state with existing conversation from API (don't auto-start)
   useEffect(() => {
     if (existingConversation?.conversationId && !chatState.conversationId) {
       setChatState({
@@ -241,50 +230,26 @@ export default function CustomerChatPage() {
         sessionId: chatState.sessionId,
         customerInfo: existingConversation.customerInfo,
       });
-      setChatStarted(true);
     }
   }, [existingConversation]);
-
-  // Check if returning customer (from localStorage on mount)
-  useEffect(() => {
-    if (chatState.conversationId) {
-      setChatStarted(true);
-    }
-  }, []);
 
   const handleAskQuestion = async () => {
     if (!question.trim() && selectedFiles.length === 0) return;
 
-    // If already has conversation, just send message
-    if (chatState.conversationId) {
+    // If chat already started (in chat interface), send message
+    if (chatStarted && chatState.conversationId) {
       const messageContent = question.trim() || (selectedFiles.length > 0 ? '[Attachment]' : '');
       const response = await sendMessageMutation.mutateAsync({ content: messageContent });
       if (selectedFiles.length > 0 && response?.id) {
         await uploadFiles(response.id);
       }
-      setChatStarted(true);
       return;
     }
 
-    // If has existing session, resume it
-    if (existingConversation?.conversationId) {
-      setChatState({
-        conversationId: existingConversation.conversationId,
-        customerId: existingConversation.customerId,
-        sessionId: chatState.sessionId,
-        customerInfo: existingConversation.customerInfo,
-      });
-      setChatStarted(true);
-      // Use IDs from existingConversation to avoid state race
-      const messageContent = question.trim() || (selectedFiles.length > 0 ? '[Attachment]' : '');
-      const response = await sendMessageMutation.mutateAsync({ 
-        content: messageContent,
-        conversationId: existingConversation.conversationId,
-        customerId: existingConversation.customerId,
-      });
-      if (selectedFiles.length > 0 && response?.id) {
-        await uploadFiles(response.id);
-      }
+    // If has saved conversation but chat not started, direct to "Open Chat" button
+    if (chatState.conversationId || existingConversation?.conversationId) {
+      // User has existing conversation - they should click "Open Chat" to continue
+      // Hero input is only for starting NEW conversations
       return;
     }
 
@@ -731,6 +696,35 @@ export default function CustomerChatPage() {
             </p>
           </div>
 
+          {/* Continue Conversation Card - Shows when user has existing conversation */}
+          {chatState.conversationId && (
+            <Card className="mb-8 border-2 border-primary/20 bg-primary/5">
+              <CardContent className="pt-6">
+                <div className="flex items-start gap-4">
+                  <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold mb-1">Continue your conversation</h3>
+                    {chatState.customerInfo && (
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Welcome back, {chatState.customerInfo.name}
+                      </p>
+                    )}
+                    <Button 
+                      onClick={() => setChatStarted(true)}
+                      className="gap-2"
+                      data-testid="button-continue-conversation"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      Open Chat
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Search Input */}
           <div className="mb-8">
             <div className="relative">
@@ -863,7 +857,7 @@ export default function CustomerChatPage() {
       </Dialog>
 
       {/* Camera Dialog */}
-      <Dialog open={showCamera} onOpenChange={(open) => !open && closeCamera()}>
+      <Dialog open={showCamera} onOpenChange={(open) => { if (!open) closeCamera(); }}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
