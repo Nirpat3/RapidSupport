@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -47,9 +47,11 @@ import {
   Image as ImageIcon,
   AlertTriangle,
   RefreshCw,
-  X
+  X,
+  Search,
+  Hash
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -125,11 +127,25 @@ export default function FeedPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const isStaff = user?.role === 'admin' || user?.role === 'agent';
 
+  // Get all available tags
+  const { data: allTags = [] } = useQuery<string[]>({
+    queryKey: ['/api/feed/tags'],
+  });
+
+  const queryParams = new URLSearchParams();
+  if (searchQuery) queryParams.append('search', searchQuery);
+  if (selectedTags.length > 0) {
+    selectedTags.forEach(tag => queryParams.append('tags', tag));
+  }
+  const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
   const { data: posts = [], isLoading, error, refetch } = useQuery<PostWithAuthor[]>({
-    queryKey: ['/api/feed/posts', activeTab],
+    queryKey: ['/api/feed/posts', activeTab, queryString],
     enabled: !!user,
   });
 
@@ -199,13 +215,32 @@ export default function FeedPage() {
     targeted: 'bg-purple-500/10 text-purple-700 dark:text-purple-400'
   };
 
+  const markAsReadMutation = useMutation({
+    mutationFn: async (postId: string) => {
+      await apiRequest(`/api/feed/posts/${postId}/read`, 'POST');
+    },
+  });
+
   const PostCard = ({ post }: { post: PostWithAuthor }) => {
     // Note: This creates N+1 queries - known performance issue to be optimized
     const { data: stats } = useQuery<PostStats>({
       queryKey: ['/api/feed/posts', post.id, 'stats'],
     });
 
+    // Mark post as read when it's rendered
+    useEffect(() => {
+      if (user?.id) {
+        markAsReadMutation.mutate(post.id);
+      }
+    }, [post.id]);
+
     const hasAttachments = (post.links?.length || 0) + (post.images?.length || 0) + (post.attachedArticleIds?.length || 0) > 0;
+
+    const handleTagClick = (tag: string) => {
+      if (!selectedTags.includes(tag)) {
+        setSelectedTags([...selectedTags, tag]);
+      }
+    };
 
     return (
       <Card className="hover-elevate" data-testid={`post-${post.id}`}>
@@ -221,7 +256,7 @@ export default function FeedPage() {
                 <p className="text-sm font-medium" data-testid={`post-author-${post.id}`}>
                   {post.authorName}
                 </p>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground" title={format(new Date(post.createdAt), 'PPpp')}>
                   • {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
                 </span>
               </div>
@@ -249,6 +284,23 @@ export default function FeedPage() {
           <p className="text-sm whitespace-pre-wrap" data-testid={`post-content-${post.id}`}>
             {post.content}
           </p>
+
+          {post.tags && post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {post.tags.map((tag, idx) => (
+                <Badge 
+                  key={idx}
+                  variant="secondary"
+                  className="cursor-pointer hover-elevate active-elevate-2 flex items-center gap-1"
+                  onClick={() => handleTagClick(tag)}
+                  data-testid={`tag-${post.id}-${idx}`}
+                >
+                  <Hash className="w-3 h-3" />
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
 
           {hasAttachments && (
             <div className="flex flex-wrap gap-2">
@@ -327,6 +379,72 @@ export default function FeedPage() {
             </Button>
           )}
         </div>
+
+        {/* Search and Filter */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <Input
+              placeholder="Search posts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+              data-testid="input-search"
+            />
+          </div>
+          {allTags.length > 0 && (
+            <Select
+              value={selectedTags[0] || ''}
+              onValueChange={(value) => {
+                if (value && !selectedTags.includes(value)) {
+                  setSelectedTags([...selectedTags, value]);
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-48" data-testid="select-tags">
+                <SelectValue placeholder="Filter by tag" />
+              </SelectTrigger>
+              <SelectContent>
+                {allTags.map(tag => (
+                  <SelectItem key={tag} value={tag}>
+                    <div className="flex items-center gap-1">
+                      <Hash className="w-3 h-3" />
+                      {tag}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {/* Active Filters */}
+        {selectedTags.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-sm text-muted-foreground">Active filters:</span>
+            {selectedTags.map(tag => (
+              <Badge key={tag} variant="secondary" className="flex items-center gap-1">
+                <Hash className="w-3 h-3" />
+                {tag}
+                <button
+                  onClick={() => setSelectedTags(selectedTags.filter(t => t !== tag))}
+                  className="ml-1"
+                  data-testid={`remove-tag-${tag}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            ))}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedTags([])}
+              data-testid="button-clear-filters"
+            >
+              Clear all
+            </Button>
+          </div>
+        )}
 
         {/* Error State */}
         {error && (
@@ -409,7 +527,7 @@ export default function FeedPage() {
                       />
                     </FormControl>
                     <FormDescription>
-                      Write your announcement or update (max 5000 characters)
+                      Write your announcement or update (max 5000 characters). Use #hashtags to categorize your post.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
