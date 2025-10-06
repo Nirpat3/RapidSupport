@@ -785,6 +785,7 @@ export const posts = pgTable("posts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   authorId: varchar("author_id").notNull().references(() => users.id), // Staff/admin who created the post
   content: text("content").notNull(), // Main post content
+  tags: text("tags").array(), // Array of hashtags extracted from content
   images: text("images").array(), // Array of image URLs/paths
   links: text("links").array(), // Array of external links
   attachedArticleIds: text("attached_article_ids").array(), // Knowledge base article IDs
@@ -824,6 +825,14 @@ export const postViews = pgTable("post_views", {
   viewedAt: timestamp("viewed_at").notNull().defaultNow(),
 });
 
+// Post reads table - track read/unread status for notifications
+export const postReads = pgTable("post_reads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => posts.id),
+  userId: varchar("user_id").notNull(), // Can be user or customer ID
+  readAt: timestamp("read_at").notNull().defaultNow(),
+});
+
 // Feed module relations
 export const postsRelations = relations(posts, ({ one, many }) => ({
   author: one(users, {
@@ -852,6 +861,13 @@ export const postLikesRelations = relations(postLikes, ({ one }) => ({
 export const postViewsRelations = relations(postViews, ({ one }) => ({
   post: one(posts, {
     fields: [postViews.postId],
+    references: [posts.id],
+  }),
+}));
+
+export const postReadsRelations = relations(postReads, ({ one }) => ({
+  post: one(posts, {
+    fields: [postReads.postId],
     references: [posts.id],
   }),
 }));
@@ -917,6 +933,11 @@ export const insertPostViewSchema = createInsertSchema(postViews).omit({
   viewedAt: true,
 });
 
+export const insertPostReadSchema = createInsertSchema(postReads).omit({
+  id: true,
+  readAt: true,
+});
+
 // Feed module types
 export type InsertPost = z.infer<typeof insertPostSchema>;
 export type Post = typeof posts.$inferSelect;
@@ -926,6 +947,8 @@ export type InsertPostLike = z.infer<typeof insertPostLikeSchema>;
 export type PostLike = typeof postLikes.$inferSelect;
 export type InsertPostView = z.infer<typeof insertPostViewSchema>;
 export type PostView = typeof postViews.$inferSelect;
+export type InsertPostRead = z.infer<typeof insertPostReadSchema>;
+export type PostRead = typeof postReads.$inferSelect;
 
 // Post with engagement stats
 export type PostWithStats = Post & {
