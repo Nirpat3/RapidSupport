@@ -69,6 +69,7 @@ const createPostSchema = z.object({
   content: z.string().min(1, "Content is required").max(5000, "Content must be less than 5000 characters"),
   visibility: z.enum(['internal', 'all_customers', 'targeted']),
   isUrgent: z.boolean().default(false),
+  targetedCustomerIds: z.array(z.string()).optional(),
   links: z.string().optional().refine(
     (val) => {
       if (!val) return true;
@@ -99,22 +100,45 @@ const createPostSchema = z.object({
     },
     { message: "All image URLs must be valid http or https URLs" }
   ),
+}).refine((data) => {
+  if (data.visibility === 'targeted' && (!data.targetedCustomerIds || data.targetedCustomerIds.length === 0)) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Please select at least one customer for targeted posts",
+  path: ["targetedCustomerIds"],
 });
 
 type CreatePostFormData = z.infer<typeof createPostSchema>;
+
+type Customer = {
+  id: string;
+  name: string;
+  email: string;
+  company?: string;
+};
 
 export default function FeedPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+
+  const isStaff = user?.role === 'admin' || user?.role === 'agent';
 
   const { data: posts = [], isLoading, error, refetch } = useQuery<PostWithAuthor[]>({
     queryKey: ['/api/feed/posts', activeTab],
     enabled: !!user,
   });
 
-  const isStaff = user?.role === 'admin' || user?.role === 'agent';
+  const { data: customersResponse, isLoading: customersLoading } = useQuery<{customers: Customer[], total: number}>({
+    queryKey: ['/api/customers', { limit: 1000 }],
+    enabled: isStaff,
+  });
+
+  const customers = customersResponse?.customers || [];
 
   const form = useForm<CreatePostFormData>({
     resolver: zodResolver(createPostSchema),
@@ -122,6 +146,7 @@ export default function FeedPage() {
       content: '',
       visibility: 'internal',
       isUrgent: false,
+      targetedCustomerIds: [],
       links: '',
       images: '',
     },
@@ -136,6 +161,7 @@ export default function FeedPage() {
         content: data.content,
         visibility: data.visibility,
         isUrgent: data.isUrgent,
+        targetedUserIds: data.visibility === 'targeted' ? data.targetedCustomerIds : undefined,
         links: links?.length ? links : undefined,
         images: images?.length ? images : undefined,
       });
@@ -147,6 +173,7 @@ export default function FeedPage() {
         description: "Your post has been published successfully.",
       });
       setIsCreateDialogOpen(false);
+      setSelectedCustomerIds([]);
       form.reset();
     },
     onError: (error: Error) => {
@@ -395,7 +422,16 @@ export default function FeedPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Visibility</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select 
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        if (value !== 'targeted') {
+                          form.setValue('targetedCustomerIds', []);
+                          setSelectedCustomerIds([]);
+                        }
+                      }} 
+                      defaultValue={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger data-testid="select-visibility">
                           <SelectValue placeholder="Select visibility" />
@@ -414,6 +450,74 @@ export default function FeedPage() {
                   </FormItem>
                 )}
               />
+
+              {form.watch('visibility') === 'targeted' && (
+                <FormField
+                  control={form.control}
+                  name="targetedCustomerIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Select Customers</FormLabel>
+                      <FormDescription>
+                        Choose which customers should see this post
+                      </FormDescription>
+                      <FormControl>
+                        <ScrollArea className="h-64 rounded-md border p-4">
+                          {customersLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                            </div>
+                          ) : customers.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-8">
+                              No customers found
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {customers.map((customer: Customer) => (
+                                <div key={customer.id} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    checked={field.value?.includes(customer.id)}
+                                    onCheckedChange={(checked) => {
+                                      const currentIds = field.value || [];
+                                      if (checked) {
+                                        field.onChange([...currentIds, customer.id]);
+                                        setSelectedCustomerIds([...currentIds, customer.id]);
+                                      } else {
+                                        const newIds = currentIds.filter(id => id !== customer.id);
+                                        field.onChange(newIds);
+                                        setSelectedCustomerIds(newIds);
+                                      }
+                                    }}
+                                    data-testid={`checkbox-customer-${customer.id}`}
+                                  />
+                                  <label
+                                    htmlFor={customer.id}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                  >
+                                    <div>
+                                      <p className="font-medium">{customer.name}</p>
+                                      <p className="text-xs text-muted-foreground">{customer.email}</p>
+                                      {customer.company && (
+                                        <p className="text-xs text-muted-foreground">{customer.company}</p>
+                                      )}
+                                    </div>
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </ScrollArea>
+                      </FormControl>
+                      {field.value && field.value.length > 0 && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {field.value.length} customer{field.value.length === 1 ? '' : 's'} selected
+                        </p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               <FormField
                 control={form.control}
@@ -487,6 +591,7 @@ export default function FeedPage() {
                   variant="outline"
                   onClick={() => {
                     setIsCreateDialogOpen(false);
+                    setSelectedCustomerIds([]);
                     form.reset();
                   }}
                   data-testid="button-cancel"
