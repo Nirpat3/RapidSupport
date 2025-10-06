@@ -2337,11 +2337,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         response: aiResponse.response,
         confidence: aiResponse.confidence,
         knowledgeUsed: knowledgeBaseIds,
-        sources: sources.map(kb => ({
+        sources: sources.map((kb, index) => ({
           id: kb.id,
           title: kb.title,
           content: kb.content,
-          category: kb.category
+          category: kb.category,
+          relevance: kb.effectiveness ? kb.effectiveness / 100 : 0.85 - (index * 0.05)
         }))
       });
     } catch (error) {
