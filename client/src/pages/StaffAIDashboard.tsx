@@ -521,7 +521,7 @@ export default function StaffAIDashboard() {
                 <ScrollArea className="h-80">
                   <div className="space-y-3">
                     {/* Mock active sessions */}
-                    {[...Array(5)].map((_, i) => {
+                    {[...Array(12)].map((_, i) => {
                       const confidence = 75 + (i * 5);
                       const agent = agents[i % agents.length];
                       return (
@@ -574,7 +574,7 @@ export default function StaffAIDashboard() {
                 <ScrollArea className="h-80">
                   <div className="space-y-3">
                     {/* Mock intervention cases */}
-                    {[...Array(4)].map((_, i) => {
+                    {[...Array(10)].map((_, i) => {
                       const reasons = [
                         'Low confidence response',
                         'Complex billing query',
