@@ -22,6 +22,7 @@ import {
   postComments,
   postLikes,
   postViews,
+  postReads,
   type User,
   type InsertUser,
   type Customer,
@@ -69,6 +70,8 @@ import {
   type InsertPostLike,
   type PostView,
   type InsertPostView,
+  type PostRead,
+  type InsertPostRead,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray } from "drizzle-orm";
@@ -269,11 +272,14 @@ export interface IStorage {
     visibility?: string; 
     userId?: string; 
     userType?: 'staff' | 'customer';
+    search?: string;
+    tags?: string[];
     page?: number;
     limit?: number;
   }): Promise<{ posts: Post[]; total: number; page: number; totalPages: number }>;
   updatePost(id: string, updates: Partial<InsertPost>): Promise<void>;
   deletePost(id: string): Promise<void>;
+  getAllTags(): Promise<string[]>;
 
   // Post comment operations
   createPostComment(comment: InsertPostComment): Promise<PostComment>;
@@ -290,6 +296,12 @@ export interface IStorage {
   recordPostView(postId: string, userId: string, userType: 'staff' | 'customer'): Promise<PostView>;
   getPostViews(postId: string): Promise<PostView[]>;
   getPostStats(postId: string): Promise<{ views: number; likes: number; comments: number }>;
+
+  // Post read operations for notifications
+  markPostAsRead(postId: string, userId: string): Promise<void>;
+  getUnreadPostsCount(userId: string): Promise<number>;
+  getUnreadPosts(userId: string): Promise<Post[]>;
+  hasUserReadPost(postId: string, userId: string): Promise<boolean>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -2456,6 +2468,8 @@ export class DatabaseStorage implements IStorage {
     visibility?: string; 
     userId?: string; 
     userType?: 'staff' | 'customer';
+    search?: string;
+    tags?: string[];
     page?: number;
     limit?: number;
   }): Promise<{ posts: Post[]; total: number; page: number; totalPages: number }> {
@@ -2466,21 +2480,15 @@ export class DatabaseStorage implements IStorage {
     let query = db.select().from(posts).$dynamic();
     let countQuery = db.select({ count: sql<number>`count(*)` }).from(posts).$dynamic();
 
+    const conditions: any[] = [];
+
     // Apply visibility filters
     if (options?.visibility === 'internal') {
-      query = query.where(eq(posts.visibility, 'internal'));
-      countQuery = countQuery.where(eq(posts.visibility, 'internal'));
+      conditions.push(eq(posts.visibility, 'internal'));
     } else if (options?.visibility === 'all_customers') {
-      query = query.where(eq(posts.visibility, 'all_customers'));
-      countQuery = countQuery.where(eq(posts.visibility, 'all_customers'));
+      conditions.push(eq(posts.visibility, 'all_customers'));
     } else if (options?.visibility === 'targeted' && options?.userId) {
-      query = query.where(
-        and(
-          eq(posts.visibility, 'targeted'),
-          sql`${options.userId} = ANY(${posts.targetedUserIds})`
-        )
-      );
-      countQuery = countQuery.where(
+      conditions.push(
         and(
           eq(posts.visibility, 'targeted'),
           sql`${options.userId} = ANY(${posts.targetedUserIds})`
@@ -2490,16 +2498,7 @@ export class DatabaseStorage implements IStorage {
       // Show posts based on user type and visibility
       if (options.userType === 'staff') {
         // Staff can see internal posts and targeted posts for them
-        query = query.where(
-          or(
-            eq(posts.visibility, 'internal'),
-            and(
-              eq(posts.visibility, 'targeted'),
-              sql`${options.userId} = ANY(${posts.targetedUserIds})`
-            )
-          )
-        );
-        countQuery = countQuery.where(
+        conditions.push(
           or(
             eq(posts.visibility, 'internal'),
             and(
@@ -2510,16 +2509,7 @@ export class DatabaseStorage implements IStorage {
         );
       } else {
         // Customers can see all_customers posts and targeted posts for them
-        query = query.where(
-          or(
-            eq(posts.visibility, 'all_customers'),
-            and(
-              eq(posts.visibility, 'targeted'),
-              sql`${options.userId} = ANY(${posts.targetedUserIds})`
-            )
-          )
-        );
-        countQuery = countQuery.where(
+        conditions.push(
           or(
             eq(posts.visibility, 'all_customers'),
             and(
@@ -2529,6 +2519,24 @@ export class DatabaseStorage implements IStorage {
           )
         );
       }
+    }
+
+    // Apply search filter
+    if (options?.search) {
+      conditions.push(sql`${posts.content} ILIKE ${'%' + options.search + '%'}`);
+    }
+
+    // Apply tag filter
+    if (options?.tags && options.tags.length > 0) {
+      conditions.push(sql`${posts.tags} && ARRAY[${sql.join(options.tags.map(tag => sql`${tag}`), sql`, `)}]::text[]`);
+    }
+
+    // Combine all conditions
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
+    if (whereCondition) {
+      query = query.where(whereCondition);
+      countQuery = countQuery.where(whereCondition);
     }
 
     const [{ count }] = await countQuery;
@@ -2657,6 +2665,75 @@ export class DatabaseStorage implements IStorage {
       likes: Number(likeCount.count),
       comments: Number(commentCount.count),
     };
+  }
+
+  async getAllTags(): Promise<string[]> {
+    const result = await db
+      .select({ tags: posts.tags })
+      .from(posts)
+      .where(sql`${posts.tags} IS NOT NULL`);
+
+    const allTags = new Set<string>();
+    result.forEach(row => {
+      if (row.tags) {
+        row.tags.forEach(tag => allTags.add(tag));
+      }
+    });
+
+    return Array.from(allTags).sort();
+  }
+
+  async markPostAsRead(postId: string, userId: string): Promise<void> {
+    await db
+      .insert(postReads)
+      .values({ postId, userId })
+      .onConflictDoNothing();
+  }
+
+  async getUnreadPostsCount(userId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(posts)
+      .leftJoin(postReads, and(
+        eq(posts.id, postReads.postId),
+        eq(postReads.userId, userId)
+      ))
+      .where(isNull(postReads.id));
+
+    return Number(result.count);
+  }
+
+  async getUnreadPosts(userId: string): Promise<Post[]> {
+    return await db
+      .select({
+        id: posts.id,
+        authorId: posts.authorId,
+        content: posts.content,
+        tags: posts.tags,
+        images: posts.images,
+        links: posts.links,
+        attachedArticleIds: posts.attachedArticleIds,
+        visibility: posts.visibility,
+        targetedUserIds: posts.targetedUserIds,
+        isUrgent: posts.isUrgent,
+        createdAt: posts.createdAt,
+        updatedAt: posts.updatedAt,
+      })
+      .from(posts)
+      .leftJoin(postReads, and(
+        eq(posts.id, postReads.postId),
+        eq(postReads.userId, userId)
+      ))
+      .where(isNull(postReads.id))
+      .orderBy(desc(posts.createdAt));
+  }
+
+  async hasUserReadPost(postId: string, userId: string): Promise<boolean> {
+    const [read] = await db
+      .select()
+      .from(postReads)
+      .where(and(eq(postReads.postId, postId), eq(postReads.userId, userId)));
+    return !!read;
   }
 
 }
