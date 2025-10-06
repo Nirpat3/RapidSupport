@@ -26,6 +26,10 @@ export const customers = pgTable("customers", {
   ipAddress: text("ip_address"), // Track IP for session management
   tags: text("tags").array(), // Array of tags for categorization
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
+  // Portal access fields
+  portalPassword: text("portal_password"), // Hashed password for portal login (nullable - not all customers have portal access)
+  hasPortalAccess: boolean("has_portal_access").notNull().default(false), // Whether customer can access portal
+  portalLastLogin: timestamp("portal_last_login"), // Last time customer logged into portal
   // External sync fields
   externalId: text("external_id"), // ID from external system
   externalSystem: text("external_system"), // Name of external system (e.g., "zendesk", "jira")
@@ -484,6 +488,18 @@ export const anonymousCustomerSchema = z.object({
   ipAddress: z.string().optional(),
 });
 
+// Customer portal login schema
+export const customerPortalLoginSchema = z.object({
+  email: z.string().email("Valid email is required"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+// Customer portal signup/set password schema
+export const customerPortalSetPasswordSchema = z.object({
+  customerId: z.string().uuid(),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
 export const insertTicketSchema = createInsertSchema(tickets).pick({
   title: true,
   description: true,
@@ -735,6 +751,8 @@ export type ExternalCustomerSync = z.infer<typeof externalCustomerSyncSchema>;
 export type ExternalTicketSync = z.infer<typeof externalTicketSyncSchema>;
 export type AnonymousCustomer = z.infer<typeof anonymousCustomerSchema>;
 export type AnonymousConversation = z.infer<typeof anonymousConversationSchema>;
+export type CustomerPortalLogin = z.infer<typeof customerPortalLoginSchema>;
+export type CustomerPortalSetPassword = z.infer<typeof customerPortalSetPasswordSchema>;
 export type InsertAttachment = z.infer<typeof insertAttachmentSchema>;
 export type Attachment = typeof attachments.$inferSelect;
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
