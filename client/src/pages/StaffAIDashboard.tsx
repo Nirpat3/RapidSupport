@@ -99,7 +99,7 @@ export default function StaffAIDashboard() {
       const processingTime = Date.now() - startTime;
       
       return {
-        ...result,
+        ...result.data,
         agentId: request.agentId,
         processingTime
       } as AITestResponse;
