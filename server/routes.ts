@@ -4268,9 +4268,20 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.post('/api/feed/posts', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
       const user = req.user as any;
+      
+      // Extract hashtags from content
+      const content = req.body.content || '';
+      const hashtagRegex = /#(\w+)/g;
+      const tags: string[] = [];
+      let match;
+      while ((match = hashtagRegex.exec(content)) !== null) {
+        tags.push(match[1]);
+      }
+      
       const postData = insertPostSchema.parse({
         ...req.body,
         authorId: user.id,
+        tags: tags.length > 0 ? tags : undefined,
       });
       
       const post = await storage.createPost(postData);
@@ -4435,6 +4446,41 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Mark post as read
+  app.post('/api/feed/posts/:id/read', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      await storage.markPostAsRead(req.params.id, user.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to mark post as read:', error);
+      res.status(500).json({ error: 'Failed to mark post as read' });
+    }
+  });
+
+  // Get all tags
+  app.get('/api/feed/tags', async (req, res) => {
+    try {
+      const tags = await storage.getAllTags();
+      res.json(tags);
+    } catch (error) {
+      console.error('Failed to fetch tags:', error);
+      res.status(500).json({ error: 'Failed to fetch tags' });
+    }
+  });
+
+  // Get unread posts count
+  app.get('/api/feed/unread-count', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const count = await storage.getUnreadPostsCount(user.id);
+      res.json({ count });
+    } catch (error) {
+      console.error('Failed to fetch unread count:', error);
+      res.status(500).json({ error: 'Failed to fetch unread count' });
+    }
+  });
+
   // Get posts with visibility filtering (must come after all :id routes)
   app.get('/api/feed/posts/:filter(all|internal|urgent|targeted|customer)?', async (req, res) => {
     try {
@@ -4516,10 +4562,15 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         visibility = undefined;
       }
       
+      const search = req.query.search as string | undefined;
+      const tags = req.query.tags as string | string[] | undefined;
+      
       const options = {
         visibility: visibility === 'urgent' ? undefined : visibility,
         userId,
         userType,
+        search,
+        tags: tags ? (Array.isArray(tags) ? tags : [tags]) : undefined,
         page: page ? parseInt(page as string) : undefined,
         limit: limit ? parseInt(limit as string) : undefined,
       };
