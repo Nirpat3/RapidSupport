@@ -4366,11 +4366,69 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Get posts with visibility filtering (must come after all :id routes)
-  app.get('/api/feed/posts/:filter(all|internal|urgent)?', requireAuth, async (req, res) => {
+  app.get('/api/feed/posts/:filter(all|internal|urgent|targeted|customer)?', async (req, res) => {
     try {
-      const user = req.user as any;
       const { filter } = req.params;
       const { page, limit } = req.query;
+      
+      // Check if this is a customer portal request (no staff auth, but has customer session)
+      const customerId = (req.session as any).customerId;
+      const customerUserType = (req.session as any).userType;
+      
+      // For customer portal requests
+      if (customerId && customerUserType === 'customer') {
+        const customer = await storage.getCustomer(customerId);
+        if (!customer || !customer.hasPortalAccess) {
+          return res.status(401).json({ error: 'Portal access not granted' });
+        }
+        
+        // Map filter to visibility option
+        let visibility: string | undefined = filter;
+        if (filter === 'customer' || filter === 'all' || !filter) {
+          visibility = undefined; // Get all posts customer has access to
+        } else if (filter === 'urgent') {
+          // Special handling for urgent - we'll filter after fetching
+          visibility = undefined;
+        }
+        
+        // Get posts visible to this customer
+        const options = {
+          visibility: visibility === 'urgent' ? undefined : visibility,
+          userId: customerId,
+          userType: 'customer' as const,
+        };
+        
+        const result = await storage.getPosts(options);
+        
+        // Filter for urgent posts if requested
+        let postsToReturn = result.posts;
+        if (filter === 'urgent') {
+          postsToReturn = result.posts.filter(post => post.isUrgent);
+        }
+        
+        // Enrich posts with author names
+        const postsWithAuthors = await Promise.all(
+          postsToReturn.map(async (post) => {
+            const author = await storage.getUser(post.authorId);
+            return {
+              ...post,
+              author: {
+                id: author?.id || post.authorId,
+                name: author?.name || 'Unknown'
+              }
+            };
+          })
+        );
+        
+        return res.json(postsWithAuthors);
+      }
+      
+      // For staff requests, require authentication
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      
+      const user = req.user as any;
       const userId = user.id;
       const userType: 'staff' | 'customer' = user.role === 'admin' || user.role === 'agent' ? 'staff' : 'customer';
       

@@ -24,6 +24,8 @@ import KnowledgeManagementPage from "@/pages/KnowledgeManagementPage";
 import FileManagementPage from "@/pages/FileManagementPage";
 import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
 import FeedPage from "@/pages/FeedPage";
+import CustomerPortalLogin from "@/pages/CustomerPortalLogin";
+import CustomerPortalFeed from "@/pages/CustomerPortalFeed";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -105,6 +107,8 @@ function AppContent() {
   // Check if we're on public routes
   const isCustomerChatPage = window.location.pathname === '/customer-chat';
   const isSupportPage = window.location.pathname === '/support';
+  const isPortalLoginPage = window.location.pathname === '/portal/login';
+  const isPortalPage = window.location.pathname.startsWith('/portal') && window.location.pathname !== '/portal/login';
   
   // For customer chat page, render without authentication but with necessary providers
   if (isCustomerChatPage) {
@@ -124,6 +128,30 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <SupportPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // For customer portal login page, render without staff authentication
+  if (isPortalLoginPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <CustomerPortalLogin />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // For customer portal pages, render without staff authentication
+  if (isPortalPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <CustomerPortalFeed />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
