@@ -660,6 +660,76 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get conversations for a specific customer
+  app.get('/api/customers/:customerId/conversations', requireAuth, async (req, res) => {
+    try {
+      // Validate customer ID
+      const customerId = z.string().uuid().parse(req.params.customerId);
+      
+      // Verify customer exists
+      const customer = await storage.getCustomer(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+      
+      // Get conversations for this customer
+      const conversations = await storage.getConversationsByCustomer(customerId);
+      
+      // Enrich conversations with last message and agent info
+      const enrichedConversations = await Promise.all(
+        conversations.map(async (conv) => {
+          try {
+            // Get last message for this conversation
+            const messages = await storage.getMessagesByConversation(conv.id);
+            const lastMessage = messages[messages.length - 1];
+            
+            let lastMessageData = null;
+            if (lastMessage) {
+              lastMessageData = {
+                content: lastMessage.content,
+                timestamp: lastMessage.timestamp,
+                sender: lastMessage.senderType
+              };
+            }
+            
+            // Get agent info if assigned
+            let agentName = null;
+            if (conv.assignedAgentId) {
+              const agent = await storage.getUser(conv.assignedAgentId);
+              agentName = agent?.name || null;
+            }
+            
+            return {
+              ...conv,
+              lastMessage: lastMessageData,
+              agentName,
+              messageCount: messages.length
+            };
+          } catch (error) {
+            console.error(`Error enriching conversation ${conv.id}:`, error);
+            return {
+              ...conv,
+              lastMessage: null,
+              agentName: null,
+              messageCount: 0
+            };
+          }
+        })
+      );
+      
+      res.json(enrichedConversations);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid customer ID', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      console.error('Failed to fetch customer conversations:', error);
+      res.status(500).json({ error: 'Failed to fetch conversations' });
+    }
+  });
+
   // Conversation management routes
   app.get('/api/conversations', requireAuth, async (req, res) => {
     try {

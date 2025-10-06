@@ -51,40 +51,6 @@ const priorityColors = {
   urgent: 'border-red-500 text-red-700 bg-red-50'
 };
 
-// Mock data for comprehensive customer profile - will be replaced with real API calls
-const mockConversations = [
-  {
-    id: '1',
-    subject: 'Account Setup Issue',
-    status: 'resolved',
-    priority: 'medium',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2),
-    lastMessage: 'Thank you for your help! The issue is now resolved.',
-    agent: 'Sarah Smith',
-    messageCount: 8
-  },
-  {
-    id: '2',
-    subject: 'Billing Question',
-    status: 'open',
-    priority: 'low',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6),
-    lastMessage: 'Can you explain the premium features?',
-    agent: 'Tom Wilson',
-    messageCount: 3
-  },
-  {
-    id: '3',
-    subject: 'Technical Support',
-    status: 'pending',
-    priority: 'high',
-    createdAt: new Date(Date.now() - 1000 * 60 * 30),
-    lastMessage: 'The feature is not working as expected',
-    agent: null,
-    messageCount: 1
-  }
-];
-
 // Using shared ticket store instead of local mock data
 
 const mockFAQs = [
@@ -148,6 +114,19 @@ export default function CustomerProfilePage() {
   const { data: customer, isLoading, error } = useQuery({
     queryKey: ['/api/customers', id],
     queryFn: () => customersApi.getById(id!),
+    enabled: !!id,
+  });
+
+  // Fetch conversations for this customer
+  const { data: conversations = [], isLoading: conversationsLoading } = useQuery<any[]>({
+    queryKey: ['/api/customers', id, 'conversations'],
+    queryFn: async () => {
+      const response = await fetch(`/api/customers/${id}/conversations`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch conversations');
+      }
+      return response.json();
+    },
     enabled: !!id,
   });
 
@@ -465,53 +444,68 @@ export default function CustomerProfilePage() {
               <CardDescription>All conversations with {customer.name}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockConversations.map((conversation) => (
-                  <div key={conversation.id} className="border rounded-lg p-4 hover-elevate" data-testid={`conversation-${conversation.id}`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h4 className="font-medium">{conversation.subject}</h4>
-                          <Badge 
-                            variant={conversation.status === 'resolved' ? 'default' : conversation.status === 'open' ? 'secondary' : 'outline'}
-                            className="text-xs"
-                          >
-                            {conversation.status}
-                          </Badge>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${priorityColors[conversation.priority as keyof typeof priorityColors]}`}
-                          >
-                            {conversation.priority}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {conversation.lastMessage}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>{conversation.messageCount} messages</span>
-                          <span>
-                            {formatDistanceToNow(conversation.createdAt, { addSuffix: true })}
-                          </span>
-                          {conversation.agent && (
-                            <span>Handled by {conversation.agent}</span>
+              {conversationsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-24 w-full" />
+                  ))}
+                </div>
+              ) : conversations.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">No conversations yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {conversations.map((conversation: any) => (
+                    <div key={conversation.id} className="border rounded-lg p-4 hover-elevate" data-testid={`conversation-${conversation.id}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="font-medium">{conversation.title || 'Untitled Conversation'}</h4>
+                            <Badge 
+                              variant={conversation.status === 'resolved' ? 'default' : conversation.status === 'open' ? 'secondary' : 'outline'}
+                              className="text-xs"
+                            >
+                              {conversation.status}
+                            </Badge>
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${priorityColors[conversation.priority as keyof typeof priorityColors]}`}
+                            >
+                              {conversation.priority}
+                            </Badge>
+                          </div>
+                          {conversation.lastMessage && (
+                            <p className="text-sm text-muted-foreground mb-2">
+                              {conversation.lastMessage.content}
+                            </p>
                           )}
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span>{conversation.messageCount || 0} messages</span>
+                            <span>
+                              {formatDistanceToNow(new Date(conversation.createdAt), { addSuffix: true })}
+                            </span>
+                            {conversation.agentName && (
+                              <span>Handled by {conversation.agentName}</span>
+                            )}
+                          </div>
                         </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          asChild
+                          data-testid={`button-view-conversation-${conversation.id}`}
+                        >
+                          <Link href={`/conversations/${conversation.id}`}>
+                            View
+                          </Link>
+                        </Button>
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        asChild
-                        data-testid={`button-view-conversation-${conversation.id}`}
-                      >
-                        <Link href={`/?conversation=${conversation.id}`}>
-                          View
-                        </Link>
-                      </Button>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
