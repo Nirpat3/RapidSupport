@@ -97,6 +97,8 @@ export interface IStorage {
     sortBy?: 'createdAt' | 'updatedAt' | 'name';
     sortOrder?: 'asc' | 'desc';
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
+  setCustomerPortalPassword(customerId: string, hashedPassword: string): Promise<void>;
+  updateCustomerPortalLastLogin(customerId: string): Promise<void>;
 
   // Conversation operations
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -428,6 +430,27 @@ export class DatabaseStorage implements IStorage {
       page,
       totalPages
     };
+  }
+
+  async setCustomerPortalPassword(customerId: string, hashedPassword: string): Promise<void> {
+    await db
+      .update(customers)
+      .set({ 
+        portalPassword: hashedPassword,
+        hasPortalAccess: true,
+        updatedAt: new Date()
+      })
+      .where(eq(customers.id, customerId));
+  }
+
+  async updateCustomerPortalLastLogin(customerId: string): Promise<void> {
+    await db
+      .update(customers)
+      .set({ 
+        portalLastLogin: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(customers.id, customerId));
   }
 
   // Conversation operations

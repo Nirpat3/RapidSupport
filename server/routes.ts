@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { DocumentProcessor } from './document-processor';
 import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
+import { hash, compare } from 'bcryptjs';
 import passport from './auth';
 import { requireAuth, requireRole } from './auth';
 import { storage } from "./storage";
@@ -457,6 +458,121 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.json({ user: req.user });
     } else {
       res.status(401).json({ error: 'Not authenticated' });
+    }
+  });
+
+  // Customer portal authentication routes
+  app.post('/api/portal/auth/login', authLimiter, csrfProtection, async (req, res) => {
+    try {
+      const loginData = z.object({
+        email: z.string().email(),
+        password: z.string(),
+      }).parse(req.body);
+
+      // Find customer by email
+      const customer = await storage.getCustomerByEmail(loginData.email);
+      if (!customer) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      // Check if customer has portal access
+      if (!customer.hasPortalAccess || !customer.portalPassword) {
+        return res.status(403).json({ error: 'Portal access not granted. Please contact support.' });
+      }
+
+      // Check password
+      const isValidPassword = await compare(loginData.password, customer.portalPassword);
+      if (!isValidPassword) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      // Update last login timestamp
+      await storage.updateCustomerPortalLastLogin(customer.id);
+
+      // Store customer info in session
+      req.session.regenerate((regenerateErr: any) => {
+        if (regenerateErr) {
+          return res.status(500).json({ error: 'Session regeneration failed' });
+        }
+
+        // Store customer ID and type in session
+        (req.session as any).customerId = customer.id;
+        (req.session as any).userType = 'customer';
+
+        // Return customer info (without password)
+        const { portalPassword: _, ...customerData } = customer;
+        res.json({ customer: customerData, message: 'Login successful' });
+      });
+    } catch (error) {
+      console.error('Customer portal login error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid request data' });
+      }
+      res.status(500).json({ error: 'Login failed' });
+    }
+  });
+
+  app.post('/api/portal/auth/logout', (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Customer portal logout error:', err);
+        return res.status(500).json({ error: 'Logout failed' });
+      }
+
+      res.clearCookie('sessionId', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax'
+      });
+
+      res.json({ message: 'Logout successful' });
+    });
+  });
+
+  app.get('/api/portal/auth/me', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const customer = await storage.getCustomer(customerId);
+      if (!customer || !customer.hasPortalAccess) {
+        return res.status(401).json({ error: 'Portal access not granted' });
+      }
+
+      // Return customer info (without password)
+      const { portalPassword: _, ...customerData } = customer;
+      res.json({ customer: customerData });
+    } catch (error) {
+      console.error('Get customer portal auth error:', error);
+      res.status(500).json({ error: 'Failed to get customer info' });
+    }
+  });
+
+  // Set customer portal password (staff only)
+  app.post('/api/portal/set-password', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const passwordData = z.object({
+        customerId: z.string().uuid(),
+        password: z.string().min(6, "Password must be at least 6 characters"),
+      }).parse(req.body);
+
+      // Hash password
+      const hashedPassword = await hash(passwordData.password, 10);
+
+      // Update customer with hashed password and grant portal access
+      await storage.setCustomerPortalPassword(passwordData.customerId, hashedPassword);
+
+      res.json({ message: 'Portal access granted successfully' });
+    } catch (error) {
+      console.error('Set portal password error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid request data' });
+      }
+      res.status(500).json({ error: 'Failed to set portal password' });
     }
   });
 
