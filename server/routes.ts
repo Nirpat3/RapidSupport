@@ -1906,16 +1906,21 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Generate AI agent response
   app.post('/api/ai/generate-response', async (req, res) => {
     try {
-      const { customerMessage, conversationHistory, knowledgeBase } = req.body;
+      const { agentId, customerMessage, conversationHistory } = req.body;
       
       if (!customerMessage || typeof customerMessage !== 'string') {
         return res.status(400).json({ error: 'Customer message is required' });
       }
 
-      const response = await AIService.generateAgentResponse(
+      if (!agentId || typeof agentId !== 'string') {
+        return res.status(400).json({ error: 'Agent ID is required' });
+      }
+
+      // Use smart response generation with knowledge base integration
+      const response = await AIService.generateSmartAgentResponse(
         customerMessage,
-        conversationHistory || [],
-        knowledgeBase || []
+        `test-conversation-${Date.now()}`,
+        agentId
       );
 
       res.json({
