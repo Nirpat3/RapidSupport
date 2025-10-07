@@ -13,7 +13,7 @@ async function seed() {
   await db.delete(users);
 
   // Create admin user
-  const hashedAdminPassword = await hash("admin", 10);
+  const hashedAdminPassword = await hash("admin123", 10);
   const [adminUser] = await db.insert(users).values({
     email: "admin@supportboard.com",
     password: hashedAdminPassword,
@@ -145,7 +145,7 @@ async function seed() {
   await db.insert(messages).values([...conv1Messages, ...conv3Messages]);
 
   console.log("✅ Database seeded successfully!");
-  console.log("👤 Admin user: admin@supportboard.com / admin");
+  console.log("👤 Admin user: admin@supportboard.com / admin123");
   console.log("👥 Agent users: sarah.smith@supportboard.com / agent123");
   console.log("               tom.wilson@supportboard.com / agent123");
 }
