@@ -104,9 +104,10 @@ function AuthenticatedApp() {
 function AppContent() {
   const { user, login, isLoading } = useAuth();
   
-  // Check if we're on public routes
+  // Check if we're on public routes - ONLY customer-chat is public for anonymous users
   const isCustomerChatPage = window.location.pathname === '/customer-chat';
-  const isSupportPage = window.location.pathname === '/support';
+  
+  // Customer portal pages (separate from staff portal - customers have their own login)
   const isPortalLoginPage = window.location.pathname === '/portal/login';
   const isPortalPage = window.location.pathname.startsWith('/portal') && window.location.pathname !== '/portal/login';
   
@@ -116,18 +117,6 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <CustomerChatPage />
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
-    );
-  }
-  
-  // For support page, render without authentication
-  if (isSupportPage) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <SupportPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
