@@ -416,14 +416,26 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Regenerate session to prevent fixation
       req.session.regenerate((regenerateErr: any) => {
         if (regenerateErr) {
+          console.error('Session regeneration error:', regenerateErr);
           return res.status(500).json({ error: 'Session regeneration failed' });
         }
         
         req.logIn(user, (loginErr) => {
           if (loginErr) {
+            console.error('Login error:', loginErr);
             return res.status(500).json({ error: 'Login failed' });
           }
-          res.json({ user, message: 'Login successful' });
+          
+          // Save session explicitly to ensure it's persisted
+          req.session.save((saveErr) => {
+            if (saveErr) {
+              console.error('Session save error:', saveErr);
+              return res.status(500).json({ error: 'Session save failed' });
+            }
+            
+            console.log('✅ Login successful:', user.email, '| Session ID:', req.sessionID);
+            res.json({ user, message: 'Login successful' });
+          });
         });
       });
     })(req, res, next);
