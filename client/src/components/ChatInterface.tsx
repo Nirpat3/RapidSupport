@@ -891,11 +891,18 @@ export default function ChatInterface({
             </Button>
             
             <div className="flex-1">
-              <Input
+              <Textarea
                 placeholder={isInternalMode ? "Type internal message (staff only)..." : "Type your message..."}
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                className={isInternalMode ? "border-amber-300 dark:border-amber-700" : ""}
+                onKeyDown={(e) => {
+                  // Prevent form submission on Enter - require clicking Send button
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                  }
+                }}
+                className={`resize-none ${isInternalMode ? "border-amber-300 dark:border-amber-700" : ""}`}
+                rows={2}
                 data-testid="input-message"
               />
             </div>
