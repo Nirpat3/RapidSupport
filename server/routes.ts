@@ -1511,6 +1511,110 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Activity Notification routes
+  // Get all activity notifications for current user
+  app.get('/api/activity/notifications', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const unreadOnly = req.query.unreadOnly === 'true';
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const search = req.query.search as string | undefined;
+      
+      const notifications = await storage.getActivityNotifications(user.id, {
+        unreadOnly,
+        limit,
+        search,
+      });
+      
+      res.json(notifications);
+    } catch (error) {
+      console.error('Error fetching activity notifications:', error);
+      res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+  });
+
+  // Get unread activity notification count
+  app.get('/api/activity/notifications/unread-count', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const count = await storage.getUnreadActivityCount(user.id);
+      res.json({ count });
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+      res.status(500).json({ error: 'Failed to fetch unread count' });
+    }
+  });
+
+  // Mark a notification as read
+  app.patch('/api/activity/notifications/:id/read', requireAuth, async (req, res) => {
+    try {
+      const notificationId = z.string().uuid().parse(req.params.id);
+      await storage.markActivityNotificationAsRead(notificationId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid notification ID' });
+      }
+      res.status(500).json({ error: 'Failed to mark notification as read' });
+    }
+  });
+
+  // Mark all notifications as read
+  app.patch('/api/activity/notifications/read-all', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      await storage.markAllActivityNotificationsAsRead(user.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      res.status(500).json({ error: 'Failed to mark all notifications as read' });
+    }
+  });
+
+  // Create a notification (for testing or system use)
+  app.post('/api/activity/notifications', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const notificationData = z.object({
+        userId: z.string().uuid(),
+        type: z.enum(['mention', 'tag', 'reminder', 'assignment', 'comment', 'system']),
+        title: z.string(),
+        message: z.string(),
+        link: z.string().optional(),
+        linkType: z.enum(['conversation', 'post', 'knowledge_base', 'custom']).optional(),
+        relatedId: z.string().uuid().optional(),
+        triggeredBy: z.string().uuid().optional(),
+      }).parse(req.body);
+      
+      const notification = await storage.createActivityNotification(notificationData);
+      res.status(201).json(notification);
+    } catch (error) {
+      console.error('Error creating notification:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to create notification' });
+    }
+  });
+
+  // Delete a notification
+  app.delete('/api/activity/notifications/:id', requireAuth, async (req, res) => {
+    try {
+      const notificationId = z.string().uuid().parse(req.params.id);
+      await storage.deleteActivityNotification(notificationId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid notification ID' });
+      }
+      res.status(500).json({ error: 'Failed to delete notification' });
+    }
+  });
+
   // Message management routes
   app.post('/api/messages', requireAuth, async (req, res) => {
     try {
