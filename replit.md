@@ -47,6 +47,9 @@ The platform includes a comprehensive conversation rating and feedback system to
 ### Staff Performance Tracking
 A robust staff performance analytics system tracks detailed agent metrics including total conversations handled, primary vs. contributed conversations, closure rates, average ratings (with distribution across 1-5 stars), AI sentiment analysis scores, and message counts. Performance stats are calculated for customizable time periods and stored in the `agentPerformanceStats` table. The system provides both individual agent performance views (accessible by agents for their own stats) and admin-only aggregate views showing all agents' performance metrics for comparison and management insights.
 
+### Activity Notifications System
+A comprehensive activity notifications system enables staff to receive alerts for mentions, tags, reminders, assignments, and other important events. The system features a dedicated Activity page accessible via the sidebar Bell icon, displaying all notifications with search and filtering capabilities. Notifications support multiple types (mention, tag, reminder, assignment, comment, system) and include navigation links to source content. Real-time unread count badges appear in the sidebar, updating automatically every 30 seconds. The Activity page provides mark-as-read functionality, bulk operations (mark all read), and notification deletion. All notification icons use lucide-react components for consistent theming across light/dark modes.
+
 ## External Dependencies
 
 - **Database**: PostgreSQL (Neon serverless)

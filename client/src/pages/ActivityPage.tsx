@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Search, Bell, Check, CheckCheck, Trash2, Filter } from "lucide-react";
+import { Search, Bell, Check, CheckCheck, Trash2, Filter, MessageSquare, Tag, Clock, ClipboardCheck, MessageCircle, Info } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,21 +83,22 @@ export default function ActivityPage() {
   };
 
   const getNotificationIcon = (type: string) => {
+    const iconClass = "w-5 h-5";
     switch (type) {
       case 'mention':
-        return '💬';
+        return <MessageSquare className={iconClass} />;
       case 'tag':
-        return '🏷️';
+        return <Tag className={iconClass} />;
       case 'reminder':
-        return '⏰';
+        return <Clock className={iconClass} />;
       case 'assignment':
-        return '📋';
+        return <ClipboardCheck className={iconClass} />;
       case 'comment':
-        return '💭';
+        return <MessageCircle className={iconClass} />;
       case 'system':
-        return '🔔';
+        return <Bell className={iconClass} />;
       default:
-        return '📌';
+        return <Info className={iconClass} />;
     }
   };
 
@@ -181,7 +182,7 @@ export default function ActivityPage() {
               >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    <div className="text-2xl mt-0.5">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary shrink-0">
                       {getNotificationIcon(notification.type)}
                     </div>
                     <div className="flex-1 min-w-0">

@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { 
   Sidebar, 
   SidebarContent, 
@@ -49,7 +49,7 @@ interface AppSidebarProps {
 const getNavigationItems = (unreadCount: number, activityCount: number) => [
   {
     title: "Conversations",
-    url: "/",
+    url: "/conversations",
     icon: MessageSquare,
     badge: unreadCount > 0 ? unreadCount : undefined
   },
@@ -125,7 +125,7 @@ const supportItems = [
 ];
 
 export default function AppSidebar({ currentUser }: AppSidebarProps) {
-  const [activeItem, setActiveItem] = useState("/");
+  const [location] = useLocation();
   const { totalUnreadCount } = useNotifications();
   
   // TODO: remove mock functionality
@@ -168,8 +168,7 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild
-                    isActive={activeItem === item.url}
-                    onClick={() => setActiveItem(item.url)}
+                    isActive={location === item.url}
                     data-testid={`nav-${item.title.toLowerCase().replace(' ', '-')}`}
                   >
                     <Link href={item.url}>
@@ -196,8 +195,7 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild
-                    isActive={activeItem === item.url}
-                    onClick={() => setActiveItem(item.url)}
+                    isActive={location === item.url}
                     data-testid={`support-${item.title.toLowerCase().replace(' ', '-')}`}
                   >
                     <Link href={item.url}>
