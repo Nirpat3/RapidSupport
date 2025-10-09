@@ -986,7 +986,7 @@ export default function CustomerChatPage() {
       </Dialog>
 
       {/* Conversation Rating Dialog */}
-      {chatState.conversationId && showRatingDialog && (
+      {chatState.conversationId && (
         <ConversationRatingDialog
           conversationId={chatState.conversationId}
           isOpen={showRatingDialog}
@@ -994,6 +994,7 @@ export default function CustomerChatPage() {
           onSubmit={() => {
             // Rating submitted successfully
             setShowRatingDialog(false);
+            ratingCheckDone.current = false; // Reset to allow rating again if needed
           }}
         />
       )}
