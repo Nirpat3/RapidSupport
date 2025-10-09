@@ -1357,6 +1357,149 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Conversation rating routes
+  app.post('/api/conversations/:id/rating', async (req, res) => {
+    try {
+      const conversationId = z.string().uuid().parse(req.params.id);
+      
+      // Validate request body - rating (1-5), optional feedback text, optional customer details
+      const ratingSchema = z.object({
+        rating: z.number().int().min(1).max(5),
+        feedback: z.string().optional(),
+        customerName: z.string().optional(),
+        customerEmail: z.string().email().optional(),
+      });
+      
+      const { rating, feedback, customerName, customerEmail } = ratingSchema.parse(req.body);
+      
+      // Check if conversation exists
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      // Check if rating already exists
+      const existingRating = await storage.getConversationRating(conversationId);
+      if (existingRating) {
+        return res.status(400).json({ error: 'Conversation already rated' });
+      }
+      
+      // Get all messages for sentiment analysis
+      const messages = await storage.getMessagesByConversation(conversationId);
+      
+      // Perform AI sentiment analysis on the conversation
+      const aiService = AIService.getInstance();
+      const sentimentAnalysis = await aiService.analyzeConversationSentiment(messages);
+      
+      // Create the rating record
+      const newRating = await storage.createConversationRating({
+        conversationId,
+        rating,
+        feedback: feedback || null,
+        primaryAgentId: conversation.assignedAgentId,
+        aiSentimentScore: sentimentAnalysis.sentimentScore,
+        aiCustomerTone: sentimentAnalysis.customerTone,
+        aiResolutionQuality: sentimentAnalysis.resolutionQuality,
+        customerName: customerName || null,
+        customerEmail: customerEmail || null,
+      });
+      
+      res.status(201).json(newRating);
+    } catch (error) {
+      console.error('Error creating conversation rating:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to create rating' });
+    }
+  });
+
+  // Get conversation rating
+  app.get('/api/conversations/:id/rating', async (req, res) => {
+    try {
+      const conversationId = z.string().uuid().parse(req.params.id);
+      
+      const rating = await storage.getConversationRating(conversationId);
+      if (!rating) {
+        return res.status(404).json({ error: 'No rating found for this conversation' });
+      }
+      
+      res.json(rating);
+    } catch (error) {
+      console.error('Error fetching conversation rating:', error);
+      res.status(500).json({ error: 'Failed to fetch rating' });
+    }
+  });
+
+  // Get agent performance statistics
+  app.get('/api/agents/:agentId/performance', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const agentId = z.string().uuid().parse(req.params.agentId);
+      const user = req.user as any;
+      
+      // Authorization: agents can only view their own stats, admins can view all
+      if (user.role === 'agent' && user.id !== agentId) {
+        return res.status(403).json({ error: 'You can only view your own performance statistics' });
+      }
+      
+      // Get query params for date range
+      const periodStart = req.query.periodStart ? new Date(req.query.periodStart as string) : undefined;
+      const periodEnd = req.query.periodEnd ? new Date(req.query.periodEnd as string) : undefined;
+      
+      const stats = await storage.getAgentPerformanceStats(agentId, periodStart, periodEnd);
+      
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching agent performance:', error);
+      res.status(500).json({ error: 'Failed to fetch performance statistics' });
+    }
+  });
+
+  // Calculate and store agent performance statistics for a period
+  app.post('/api/agents/:agentId/performance/calculate', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const agentId = z.string().uuid().parse(req.params.agentId);
+      
+      const periodSchema = z.object({
+        periodStart: z.string().transform(s => new Date(s)),
+        periodEnd: z.string().transform(s => new Date(s)),
+      });
+      
+      const { periodStart, periodEnd } = periodSchema.parse(req.body);
+      
+      const stats = await storage.calculateAndStoreAgentStats(agentId, periodStart, periodEnd);
+      
+      res.status(201).json(stats);
+    } catch (error) {
+      console.error('Error calculating agent performance:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to calculate performance statistics' });
+    }
+  });
+
+  // Get all agents' performance statistics (admin only)
+  app.get('/api/agents/performance/all', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const periodStart = req.query.periodStart ? new Date(req.query.periodStart as string) : undefined;
+      const periodEnd = req.query.periodEnd ? new Date(req.query.periodEnd as string) : undefined;
+      
+      const stats = await storage.getAllAgentsPerformanceStats(periodStart, periodEnd);
+      
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching all agents performance:', error);
+      res.status(500).json({ error: 'Failed to fetch performance statistics' });
+    }
+  });
+
   // Message management routes
   app.post('/api/messages', requireAuth, async (req, res) => {
     try {
