@@ -57,6 +57,9 @@ export default function ChatInterface({
   const [isInternalMode, setIsInternalMode] = useState(false);
   const [aiAssistanceEnabled, setAiAssistanceEnabled] = useState(true);
   const [isTogglingAi, setIsTogglingAi] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [newTicket, setNewTicket] = useState({
     title: "",
     description: "",
@@ -118,9 +121,65 @@ export default function ChatInterface({
     fetchConversationData();
   }, [conversationId]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setSelectedFiles(files);
+      toast({
+        title: "Files selected",
+        description: `${files.length} file(s) ready to send`,
+      });
+    }
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadFiles = async (messageId: string) => {
+    if (selectedFiles.length === 0) return;
+
+    setIsUploadingFiles(true);
+    try {
+      const formData = new FormData();
+      formData.append('messageId', messageId);
+      selectedFiles.forEach(file => {
+        formData.append('files', file);
+      });
+
+      const response = await fetch('/api/upload-attachment', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload files');
+      }
+
+      toast({
+        title: "Files uploaded",
+        description: `${selectedFiles.length} file(s) attached successfully`,
+      });
+      
+      setSelectedFiles([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('File upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: "Failed to upload files. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingFiles(false);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() && selectedFiles.length === 0) return;
     
     // If in internal mode, send as internal message
     if (isInternalMode) {
@@ -129,8 +188,17 @@ export default function ChatInterface({
     }
     
     console.log('Sending message:', newMessage);
-    onSendMessage?.(newMessage);
+    
+    // Send the message first
+    onSendMessage?.(newMessage || '📎 File attachment');
+    
+    // Note: In a real implementation, we'd need the message ID to attach files
+    // For now, clear the message and files
     setNewMessage("");
+    setSelectedFiles([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setProofreadResult(null);
     setIsProofreadingOpen(false);
     
@@ -885,8 +953,43 @@ export default function ChatInterface({
               </Button>
             </div>
           )}
+          
+          {/* Selected files preview */}
+          {selectedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {selectedFiles.map((file, index) => (
+                <Badge key={index} variant="secondary" className="gap-2">
+                  <Paperclip className="w-3 h-3" />
+                  <span className="text-xs">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveFile(index)}
+                    className="ml-1 hover:text-destructive"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          )}
+          
           <div className="flex items-end gap-2">
-            <Button variant="ghost" size="icon" type="button" data-testid="button-attach">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.txt,.docx,.jpg,.jpeg,.png,.gif,.webp"
+              onChange={handleFileSelect}
+              className="hidden"
+              data-testid="input-file"
+            />
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              type="button" 
+              onClick={() => fileInputRef.current?.click()}
+              data-testid="button-attach"
+            >
               <Paperclip className="w-4 h-4" />
             </Button>
             
@@ -936,10 +1039,14 @@ export default function ChatInterface({
             <Button 
               type="submit" 
               size="icon"
-              disabled={!newMessage.trim()}
+              disabled={(!newMessage.trim() && selectedFiles.length === 0) || isUploadingFiles}
               data-testid="button-send"
             >
-              <Send className="w-4 h-4" />
+              {isUploadingFiles ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </Button>
           </div>
         </form>
