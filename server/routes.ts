@@ -588,6 +588,191 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Customer portal stats
+  app.get('/api/customer-portal/stats', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const conversations = await storage.getConversationsByCustomer(customerId);
+      
+      const stats = {
+        totalConversations: conversations.length,
+        openConversations: conversations.filter(c => c.status === 'open' || c.status === 'in_progress').length,
+        closedConversations: conversations.filter(c => c.status === 'closed' || c.status === 'resolved').length,
+        pendingFeedback: 0, // Will implement when feedback feature is added
+      };
+
+      res.json(stats);
+    } catch (error) {
+      console.error('Get customer portal stats error:', error);
+      res.status(500).json({ error: 'Failed to get stats' });
+    }
+  });
+
+  // Customer portal all conversations
+  app.get('/api/customer-portal/conversations', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const conversations = await storage.getConversationsByCustomer(customerId);
+      
+      // Map all conversations
+      const allConversations = conversations
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        .map(conv => ({
+          id: conv.id,
+          subject: conv.subject || 'Untitled Conversation',
+          status: conv.status,
+          createdAt: conv.createdAt,
+          updatedAt: conv.updatedAt,
+          unreadCount: 0, // Can implement unread tracking later
+        }));
+
+      res.json(allConversations);
+    } catch (error) {
+      console.error('Get customer portal all conversations error:', error);
+      res.status(500).json({ error: 'Failed to get conversations' });
+    }
+  });
+
+  // Customer portal recent conversations
+  app.get('/api/customer-portal/conversations/recent', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const conversations = await storage.getConversationsByCustomer(customerId);
+      
+      // Get recent 5 conversations, sorted by last message time
+      const recentConversations = conversations
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        .slice(0, 5)
+        .map(conv => ({
+          id: conv.id,
+          subject: conv.subject || 'Untitled Conversation',
+          status: conv.status,
+          lastMessageAt: conv.updatedAt,
+          unreadCount: 0, // Can implement unread tracking later
+        }));
+
+      res.json(recentConversations);
+    } catch (error) {
+      console.error('Get customer portal recent conversations error:', error);
+      res.status(500).json({ error: 'Failed to get conversations' });
+    }
+  });
+
+  // Update customer profile
+  app.put('/api/customer-portal/profile', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const profileData = z.object({
+        name: z.string().min(1),
+        email: z.string().email(),
+        phone: z.string().optional(),
+        company: z.string().optional(),
+      }).parse(req.body);
+
+      await storage.updateCustomerProfile(customerId, profileData);
+
+      res.json({ message: 'Profile updated successfully' });
+    } catch (error) {
+      console.error('Update customer profile error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid request data' });
+      }
+      res.status(500).json({ error: 'Failed to update profile' });
+    }
+  });
+
+  // Change customer password
+  app.post('/api/customer-portal/change-password', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const passwordData = z.object({
+        currentPassword: z.string(),
+        newPassword: z.string().min(6),
+      }).parse(req.body);
+
+      const customer = await storage.getCustomer(customerId);
+      
+      // Verify current password
+      const isValid = await compare(passwordData.currentPassword, customer.portalPassword || '');
+      if (!isValid) {
+        return res.status(400).json({ error: 'Current password is incorrect' });
+      }
+
+      // Hash and update new password
+      const hashedPassword = await hash(passwordData.newPassword, 10);
+      await storage.setCustomerPortalPassword(customerId, hashedPassword);
+
+      res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+      console.error('Change customer password error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid request data' });
+      }
+      res.status(500).json({ error: 'Failed to change password' });
+    }
+  });
+
+  // Get customer portal feedback
+  app.get('/api/customer-portal/feedback', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const feedbackList = await storage.getCustomerFeedback(customerId);
+
+      res.json(feedbackList);
+    } catch (error) {
+      console.error('Get customer portal feedback error:', error);
+      res.status(500).json({ error: 'Failed to get feedback' });
+    }
+  });
+
+  // Get all feedback for staff (admin and agents)
+  app.get('/api/staff/feedback', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const feedbackList = await storage.getAllFeedback();
+
+      res.json(feedbackList);
+    } catch (error) {
+      console.error('Get staff feedback error:', error);
+      res.status(500).json({ error: 'Failed to get feedback' });
+    }
+  });
+
   // User management routes (admin only)
   app.get('/api/users', requireAuth, requireRole(['admin']), async (req, res) => {
     try {

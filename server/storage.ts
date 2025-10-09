@@ -111,6 +111,7 @@ export interface IStorage {
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
   setCustomerPortalPassword(customerId: string, hashedPassword: string): Promise<void>;
   updateCustomerPortalLastLogin(customerId: string): Promise<void>;
+  updateCustomerProfile(customerId: string, profileData: { name: string; email: string; phone?: string; company?: string }): Promise<void>;
 
   // Conversation operations
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -317,6 +318,28 @@ export interface IStorage {
   getConversationRating(conversationId: string): Promise<ConversationRating | undefined>;
   getRatingsByAgent(agentId: string): Promise<ConversationRating[]>;
   getAverageRatingByAgent(agentId: string): Promise<number | null>;
+  getCustomerFeedback(customerId: string): Promise<Array<{
+    id: string;
+    conversationId: string;
+    conversationSubject: string;
+    rating: number;
+    feedback: string | null;
+    sentiment: number | null;
+    createdAt: string;
+  }>>;
+  getAllFeedback(): Promise<Array<{
+    id: string;
+    conversationId: string;
+    conversationSubject: string;
+    customerName: string;
+    customerEmail: string;
+    rating: number;
+    feedback: string | null;
+    sentiment: number | null;
+    customerTone: string | null;
+    resolutionQuality: string | null;
+    createdAt: string;
+  }>>;
 
   // Agent Performance Stats operations
   calculateAndStoreAgentStats(agentId: string, periodStart: Date, periodEnd: Date): Promise<AgentPerformanceStats>;
@@ -488,6 +511,16 @@ export class DatabaseStorage implements IStorage {
       .update(customers)
       .set({ 
         portalLastLogin: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(customers.id, customerId));
+  }
+
+  async updateCustomerProfile(customerId: string, profileData: { name: string; email: string; phone?: string; company?: string }): Promise<void> {
+    await db
+      .update(customers)
+      .set({ 
+        ...profileData,
         updatedAt: new Date()
       })
       .where(eq(customers.id, customerId));
@@ -2793,6 +2826,76 @@ export class DatabaseStorage implements IStorage {
       .where(eq(conversationRatings.primaryAgentId, agentId));
     
     return result?.avg ? Number(result.avg) : null;
+  }
+
+  async getCustomerFeedback(customerId: string): Promise<Array<{
+    id: string;
+    conversationId: string;
+    conversationSubject: string;
+    rating: number;
+    feedback: string | null;
+    sentiment: number | null;
+    createdAt: string;
+  }>> {
+    const results = await db
+      .select({
+        id: conversationRatings.id,
+        conversationId: conversationRatings.conversationId,
+        conversationSubject: conversations.subject,
+        rating: conversationRatings.rating,
+        feedback: conversationRatings.feedback,
+        sentiment: conversationRatings.aiSentimentScore,
+        createdAt: conversationRatings.createdAt,
+      })
+      .from(conversationRatings)
+      .innerJoin(conversations, eq(conversationRatings.conversationId, conversations.id))
+      .where(eq(conversations.customerId, customerId))
+      .orderBy(desc(conversationRatings.createdAt));
+
+    return results.map(r => ({
+      ...r,
+      conversationSubject: r.conversationSubject || 'Untitled Conversation',
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async getAllFeedback(): Promise<Array<{
+    id: string;
+    conversationId: string;
+    conversationSubject: string;
+    customerName: string;
+    customerEmail: string;
+    rating: number;
+    feedback: string | null;
+    sentiment: number | null;
+    customerTone: string | null;
+    resolutionQuality: string | null;
+    createdAt: string;
+  }>> {
+    const results = await db
+      .select({
+        id: conversationRatings.id,
+        conversationId: conversationRatings.conversationId,
+        conversationSubject: conversations.subject,
+        customerName: customers.name,
+        customerEmail: customers.email,
+        rating: conversationRatings.rating,
+        feedback: conversationRatings.feedback,
+        sentiment: conversationRatings.aiSentimentScore,
+        customerTone: conversationRatings.aiCustomerTone,
+        resolutionQuality: conversationRatings.aiResolutionQuality,
+        createdAt: conversationRatings.createdAt,
+      })
+      .from(conversationRatings)
+      .innerJoin(conversations, eq(conversationRatings.conversationId, conversations.id))
+      .innerJoin(customers, eq(conversations.customerId, customers.id))
+      .orderBy(desc(conversationRatings.createdAt));
+
+    return results.map(r => ({
+      ...r,
+      conversationSubject: r.conversationSubject || 'Untitled Conversation',
+      createdAt: r.createdAt.toISOString(),
+    }));
   }
 
   // Agent Performance Stats operations

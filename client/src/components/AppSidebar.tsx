@@ -105,6 +105,11 @@ const getNavigationItems = (unreadCount: number, activityCount: number) => [
     icon: TrendingUp
   },
   {
+    title: "Feedback",
+    url: "/feedback", 
+    icon: MessageSquare
+  },
+  {
     title: "Feed",
     url: "/feed", 
     icon: Rss

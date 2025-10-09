@@ -25,8 +25,10 @@ import FileManagementPage from "@/pages/FileManagementPage";
 import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
 import FeedPage from "@/pages/FeedPage";
 import ActivityPage from "@/pages/ActivityPage";
+import FeedbackEvaluationPage from "@/pages/FeedbackEvaluationPage";
 import CustomerPortalLogin from "@/pages/CustomerPortalLogin";
 import CustomerPortalFeed from "@/pages/CustomerPortalFeed";
+import { CustomerPortalRouter } from "@/components/CustomerPortalRouter";
 import PublicArticlePage from "@/pages/PublicArticlePage";
 import NotFound from "@/pages/not-found";
 
@@ -47,6 +49,7 @@ function Router() {
       <Route path="/knowledge" component={KnowledgeManagementPage} />
       <Route path="/files" component={FileManagementPage} />
       <Route path="/analytics" component={AgentAnalyticsPage} />
+      <Route path="/feedback" component={FeedbackEvaluationPage} />
       <Route path="/feed" component={FeedPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route component={NotFound} />
@@ -172,7 +175,7 @@ function AppContent() {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <CustomerPortalFeed />
+          <CustomerPortalRouter />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
