@@ -26,6 +26,15 @@ export interface ConversationAnalysis {
   suggestedActions: string[];
 }
 
+export interface ConversationSentimentAnalysis {
+  sentimentScore: number; // 0-100, 50 = neutral
+  sentimentLabel: 'very_negative' | 'negative' | 'neutral' | 'positive' | 'very_positive';
+  summary: string; // AI summary of conversation tone and customer sentiment
+  confidence: number; // AI confidence in sentiment analysis (0-100)
+  customerSatisfactionIndicators: string[]; // Positive/negative indicators found in conversation
+  recommendedFollowUp: string; // Suggested follow-up based on sentiment
+}
+
 export interface AIAgentResponse {
   response: string;
   confidence: number;
@@ -199,6 +208,78 @@ Provide a JSON response with:
         sentiment: 'neutral',
         keyIssues: [],
         suggestedActions: [],
+      };
+    }
+  }
+
+  /**
+   * Analyze conversation sentiment for customer satisfaction tracking
+   */
+  static async analyzeConversationSentiment(messages: Message[], customerName?: string): Promise<ConversationSentimentAnalysis> {
+    try {
+      const conversationText = messages
+        .map(msg => `${msg.senderType}: ${msg.content}`)
+        .join('\n');
+
+      const systemPrompt = `You are an AI assistant specialized in analyzing customer support conversations to understand customer sentiment and satisfaction. 
+Analyze the conversation tone, customer emotions, and overall satisfaction level throughout the interaction.`;
+
+      const userPrompt = `Analyze this customer support conversation for sentiment and satisfaction:
+
+Conversation:
+${conversationText}
+
+${customerName ? `Customer: ${customerName}` : ''}
+
+Provide a JSON response with:
+- sentimentScore: Number from 0-100 where 0 is very negative, 50 is neutral, 100 is very positive
+- sentimentLabel: One of "very_negative", "negative", "neutral", "positive", "very_positive"
+- summary: A detailed analysis (2-3 sentences) of the conversation tone, customer emotions, and how they felt about the support
+- confidence: Your confidence level in this analysis from 0-100
+- customerSatisfactionIndicators: Array of specific phrases or behaviors that indicate satisfaction or dissatisfaction
+- recommendedFollowUp: Suggested follow-up action based on the sentiment (e.g., "Send satisfaction survey", "Proactive check-in needed", "No follow-up needed")
+
+Focus on:
+- Customer's emotional tone throughout the conversation
+- Whether their issue was resolved to their satisfaction
+- Signs of frustration, confusion, or appreciation
+- Overall quality of the support experience from customer's perspective`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 1000,
+      });
+
+      // Parse AI response, handling markdown code blocks if present
+      let responseContent = completion.choices[0].message.content || '{}';
+      
+      // Remove markdown code blocks if present (```json ... ```)
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
+      
+      return {
+        sentimentScore: result.sentimentScore || 50,
+        sentimentLabel: result.sentimentLabel || 'neutral',
+        summary: result.summary || 'Unable to analyze conversation sentiment',
+        confidence: result.confidence || 50,
+        customerSatisfactionIndicators: result.customerSatisfactionIndicators || [],
+        recommendedFollowUp: result.recommendedFollowUp || 'No specific follow-up needed',
+      };
+    } catch (error) {
+      console.error('Error analyzing conversation sentiment:', error);
+      return {
+        sentimentScore: 50,
+        sentimentLabel: 'neutral',
+        summary: 'Unable to analyze conversation sentiment due to an error',
+        confidence: 0,
+        customerSatisfactionIndicators: [],
+        recommendedFollowUp: 'Manual review recommended',
       };
     }
   }
