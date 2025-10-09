@@ -81,7 +81,7 @@ export default function KnowledgeSearchDialog({
     
     if (onPasteArticle) {
       // Share link in chat
-      const linkMessage = `Here's a helpful article from our knowledge base:\n\n📚 ${article.title}\n${articleUrl}\n\nYou can view, print, or save this article for your reference.`;
+      const linkMessage = `Here's a helpful article from our knowledge base:\n\n${article.title}\n${articleUrl}\n\nYou can view, print, or save this article for your reference.`;
       onPasteArticle(linkMessage, article.title);
       onOpenChange(false);
       
