@@ -23,6 +23,8 @@ import {
   postLikes,
   postViews,
   postReads,
+  conversationRatings,
+  agentPerformanceStats,
   type User,
   type InsertUser,
   type Customer,
@@ -72,6 +74,10 @@ import {
   type InsertPostView,
   type PostRead,
   type InsertPostRead,
+  type ConversationRating,
+  type InsertConversationRating,
+  type AgentPerformanceStats,
+  type InsertAgentPerformanceStats,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray } from "drizzle-orm";
@@ -302,6 +308,17 @@ export interface IStorage {
   getUnreadPostsCount(userId: string): Promise<number>;
   getUnreadPosts(userId: string): Promise<Post[]>;
   hasUserReadPost(postId: string, userId: string): Promise<boolean>;
+
+  // Conversation Rating operations
+  createConversationRating(rating: InsertConversationRating): Promise<ConversationRating>;
+  getConversationRating(conversationId: string): Promise<ConversationRating | undefined>;
+  getRatingsByAgent(agentId: string): Promise<ConversationRating[]>;
+  getAverageRatingByAgent(agentId: string): Promise<number | null>;
+
+  // Agent Performance Stats operations
+  calculateAndStoreAgentStats(agentId: string, periodStart: Date, periodEnd: Date): Promise<AgentPerformanceStats>;
+  getAgentPerformanceStats(agentId: string, periodStart?: Date, periodEnd?: Date): Promise<AgentPerformanceStats[]>;
+  getAllAgentsPerformanceStats(periodStart?: Date, periodEnd?: Date): Promise<Array<{ agent: User; stats: AgentPerformanceStats }>>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -2731,6 +2748,191 @@ export class DatabaseStorage implements IStorage {
       .from(postReads)
       .where(and(eq(postReads.postId, postId), eq(postReads.userId, userId)));
     return !!read;
+  }
+
+  // Conversation Rating operations
+  async createConversationRating(rating: InsertConversationRating): Promise<ConversationRating> {
+    const [newRating] = await db
+      .insert(conversationRatings)
+      .values(rating)
+      .returning();
+    return newRating;
+  }
+
+  async getConversationRating(conversationId: string): Promise<ConversationRating | undefined> {
+    const [rating] = await db
+      .select()
+      .from(conversationRatings)
+      .where(eq(conversationRatings.conversationId, conversationId));
+    return rating || undefined;
+  }
+
+  async getRatingsByAgent(agentId: string): Promise<ConversationRating[]> {
+    return await db
+      .select()
+      .from(conversationRatings)
+      .where(eq(conversationRatings.primaryAgentId, agentId))
+      .orderBy(desc(conversationRatings.createdAt));
+  }
+
+  async getAverageRatingByAgent(agentId: string): Promise<number | null> {
+    const [result] = await db
+      .select({ avg: sql<number>`AVG(${conversationRatings.rating})` })
+      .from(conversationRatings)
+      .where(eq(conversationRatings.primaryAgentId, agentId));
+    
+    return result?.avg ? Number(result.avg) : null;
+  }
+
+  // Agent Performance Stats operations
+  async calculateAndStoreAgentStats(agentId: string, periodStart: Date, periodEnd: Date): Promise<AgentPerformanceStats> {
+    // Get all conversations where agent was involved
+    const agentConversations = await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          or(
+            eq(conversations.assignedAgentId, agentId),
+            sql`${conversations.id} IN (SELECT DISTINCT conversation_id FROM activity_logs WHERE agent_id = ${agentId})`
+          ),
+          sql`${conversations.createdAt} >= ${periodStart}`,
+          sql`${conversations.createdAt} < ${periodEnd}`
+        )
+      );
+
+    // Get ratings for this agent in the period
+    const ratings = await db
+      .select()
+      .from(conversationRatings)
+      .where(
+        and(
+          eq(conversationRatings.primaryAgentId, agentId),
+          sql`${conversationRatings.createdAt} >= ${periodStart}`,
+          sql`${conversationRatings.createdAt} < ${periodEnd}`
+        )
+      );
+
+    // Calculate metrics
+    const totalConversations = agentConversations.length;
+    const primaryConversations = agentConversations.filter(c => c.assignedAgentId === agentId).length;
+    const closedConversations = agentConversations.filter(c => c.status === 'closed' || c.status === 'resolved').length;
+    
+    const totalRatings = ratings.length;
+    const fiveStarCount = ratings.filter(r => r.rating === 5).length;
+    const fourStarCount = ratings.filter(r => r.rating === 4).length;
+    const threeStarCount = ratings.filter(r => r.rating === 3).length;
+    const twoStarCount = ratings.filter(r => r.rating === 2).length;
+    const oneStarCount = ratings.filter(r => r.rating === 1).length;
+    
+    const averageRating = totalRatings > 0 
+      ? Math.round((ratings.reduce((sum, r) => sum + r.rating, 0) / totalRatings) * 100) 
+      : null;
+    
+    const ratingsWithSentiment = ratings.filter(r => r.aiSentimentScore !== null);
+    const averageSentiment = ratingsWithSentiment.length > 0
+      ? Math.round(ratingsWithSentiment.reduce((sum, r) => sum + (r.aiSentimentScore || 50), 0) / ratingsWithSentiment.length)
+      : null;
+    
+    const positiveConversations = ratingsWithSentiment.filter(r => (r.aiSentimentScore || 50) >= 60).length;
+    const neutralConversations = ratingsWithSentiment.filter(r => {
+      const score = r.aiSentimentScore || 50;
+      return score >= 40 && score < 60;
+    }).length;
+    const negativeConversations = ratingsWithSentiment.filter(r => (r.aiSentimentScore || 50) < 40).length;
+
+    // Get message count for this agent in the period
+    const [messageResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.senderId, agentId),
+          sql`${messages.timestamp} >= ${periodStart}`,
+          sql`${messages.timestamp} < ${periodEnd}`
+        )
+      );
+    const totalMessages = Number(messageResult?.count || 0);
+
+    // Create or update stats record
+    const statsData: InsertAgentPerformanceStats = {
+      agentId,
+      periodStart,
+      periodEnd,
+      totalConversations,
+      primaryConversations,
+      contributedConversations: totalConversations - primaryConversations,
+      closedConversations,
+      averageRating,
+      totalRatings,
+      fiveStarCount,
+      fourStarCount,
+      threeStarCount,
+      twoStarCount,
+      oneStarCount,
+      averageSentiment,
+      positiveConversations,
+      neutralConversations,
+      negativeConversations,
+      totalMessages,
+    };
+
+    const [stats] = await db
+      .insert(agentPerformanceStats)
+      .values(statsData)
+      .returning();
+    
+    return stats;
+  }
+
+  async getAgentPerformanceStats(agentId: string, periodStart?: Date, periodEnd?: Date): Promise<AgentPerformanceStats[]> {
+    if (periodStart && periodEnd) {
+      return await db
+        .select()
+        .from(agentPerformanceStats)
+        .where(
+          and(
+            eq(agentPerformanceStats.agentId, agentId),
+            sql`${agentPerformanceStats.periodStart} >= ${periodStart}`,
+            sql`${agentPerformanceStats.periodEnd} <= ${periodEnd}`
+          )
+        )
+        .orderBy(desc(agentPerformanceStats.periodStart));
+    }
+
+    return await db
+      .select()
+      .from(agentPerformanceStats)
+      .where(eq(agentPerformanceStats.agentId, agentId))
+      .orderBy(desc(agentPerformanceStats.periodStart));
+  }
+
+  async getAllAgentsPerformanceStats(periodStart?: Date, periodEnd?: Date): Promise<Array<{ agent: User; stats: AgentPerformanceStats }>> {
+    if (periodStart && periodEnd) {
+      return await db
+        .select({
+          agent: users,
+          stats: agentPerformanceStats,
+        })
+        .from(agentPerformanceStats)
+        .innerJoin(users, eq(agentPerformanceStats.agentId, users.id))
+        .where(
+          and(
+            sql`${agentPerformanceStats.periodStart} >= ${periodStart}`,
+            sql`${agentPerformanceStats.periodEnd} <= ${periodEnd}`
+          )
+        )
+        .orderBy(desc(agentPerformanceStats.averageRating));
+    }
+
+    return await db
+      .select({
+        agent: users,
+        stats: agentPerformanceStats,
+      })
+      .from(agentPerformanceStats)
+      .innerJoin(users, eq(agentPerformanceStats.agentId, users.id))
+      .orderBy(desc(agentPerformanceStats.averageRating));
   }
 
 }
