@@ -145,9 +145,9 @@ export default function CustomerChatPage() {
     refetchInterval: chatStarted ? 3000 : false,
   });
 
-  // Fetch conversation details to check status
+  // Fetch conversation details to check status (using public endpoint)
   const { data: conversationDetails } = useQuery<ConversationDetails>({
-    queryKey: ['/api/conversations', chatState.conversationId],
+    queryKey: ['/api/customer-chat/conversation', chatState.conversationId, 'status'],
     enabled: !!chatState.conversationId && chatStarted,
     refetchInterval: chatStarted ? 5000 : false,
   });

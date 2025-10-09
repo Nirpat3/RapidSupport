@@ -1208,19 +1208,29 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
   app.patch('/api/conversations/:id/status', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      // Validate conversation ID
-      const conversationId = z.string().uuid().parse(req.params.id);
+      // Accept any string ID for backwards compatibility with old data
+      const conversationId = z.string().parse(req.params.id);
       
       // Validate request body
       const { status } = conversationStatusSchema.parse(req.body);
       
+      console.log(`[PATCH /api/conversations/:id/status] Updating conversation ${conversationId} to status: ${status}`);
+      
       // Check if conversation exists
       const conversation = await storage.getConversation(conversationId);
       if (!conversation) {
+        console.log(`[PATCH /api/conversations/:id/status] Conversation ${conversationId} not found`);
         return res.status(404).json({ error: 'Conversation not found' });
       }
       
+      console.log(`[PATCH /api/conversations/:id/status] Current status: ${conversation.status}, updating to: ${status}`);
+      
       await storage.updateConversationStatus(conversationId, status);
+      
+      // Verify the update
+      const updatedConversation = await storage.getConversation(conversationId);
+      console.log(`[PATCH /api/conversations/:id/status] Status after update: ${updatedConversation?.status}`);
+      
       res.json({ message: 'Conversation status updated successfully' });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -2129,6 +2139,36 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
   // REMOVED: /api/customer-chat/send-ai-message endpoint for security
   // AI messages are now created server-side in /api/ai/smart-response to prevent client spoofing
+
+  // Get conversation status for customer (public endpoint - no auth required)
+  app.get('/api/customer-chat/conversation/:id/status', async (req, res) => {
+    try {
+      const conversationId = z.string().uuid().parse(req.params.id);
+      
+      console.log(`[GET /api/customer-chat/conversation/:id/status] Fetching status for conversation ${conversationId}`);
+      
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        console.log(`[GET /api/customer-chat/conversation/:id/status] Conversation ${conversationId} not found`);
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      
+      console.log(`[GET /api/customer-chat/conversation/:id/status] Returning status: ${conversation.status} for conversation ${conversationId}`);
+      
+      // Return minimal info - just what customer needs to know
+      res.json({
+        id: conversation.id,
+        status: conversation.status,
+        assignedAgentId: conversation.assignedAgentId
+      });
+    } catch (error) {
+      console.error('[GET /api/customer-chat/conversation/:id/status] Error fetching conversation status:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid conversation ID' });
+      }
+      res.status(500).json({ error: 'Failed to fetch conversation status' });
+    }
+  });
 
   // Get activity logs for agent or conversation
   app.get('/api/activity-logs', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {

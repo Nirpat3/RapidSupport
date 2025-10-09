@@ -32,7 +32,7 @@ import NotFound from "@/pages/not-found";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={ConversationsPage} />
+      <Route path="/admin" component={ConversationsPage} />
       <Route path="/conversations" component={ConversationsPage} />
       <Route path="/conversations/:id" component={ConversationsPage} />
       <Route path="/dashboard" component={DashboardPage} />
@@ -105,7 +105,8 @@ function AuthenticatedApp() {
 function AppContent() {
   const { user, login, isLoading } = useAuth();
   
-  // Check if we're on public routes - ONLY customer-chat is public for anonymous users
+  // Check if we're on public routes
+  const isSupportPage = window.location.pathname === '/' || window.location.pathname === '/support';
   const isCustomerChatPage = window.location.pathname === '/customer-chat';
   
   // Knowledge base article public view
@@ -114,6 +115,18 @@ function AppContent() {
   // Customer portal pages (separate from staff portal - customers have their own login)
   const isPortalLoginPage = window.location.pathname === '/portal/login';
   const isPortalPage = window.location.pathname.startsWith('/portal') && window.location.pathname !== '/portal/login';
+  
+  // For support page (knowledge base search), render without authentication
+  if (isSupportPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <SupportPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
   
   // For customer chat page, render without authentication but with necessary providers
   if (isCustomerChatPage) {
