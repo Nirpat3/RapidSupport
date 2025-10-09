@@ -246,14 +246,8 @@ export default function CustomerChatPage() {
       return;
     }
 
-    // If has saved conversation but chat not started, direct to "Open Chat" button
-    if (chatState.conversationId || existingConversation?.conversationId) {
-      // User has existing conversation - they should click "Open Chat" to continue
-      // Hero input is only for starting NEW conversations
-      return;
-    }
-
-    // New customer - show info dialog and store pending message and files
+    // Hero "Ask" button always starts a NEW conversation
+    // Clear any existing conversation state and show info dialog
     setPendingMessage(question);
     setPendingFiles(selectedFiles);
     setShowInfoDialog(true);
