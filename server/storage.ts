@@ -25,6 +25,7 @@ import {
   postReads,
   conversationRatings,
   agentPerformanceStats,
+  activityNotifications,
   type User,
   type InsertUser,
   type Customer,
@@ -78,6 +79,8 @@ import {
   type InsertConversationRating,
   type AgentPerformanceStats,
   type InsertAgentPerformanceStats,
+  type ActivityNotification,
+  type InsertActivityNotification,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray } from "drizzle-orm";
@@ -319,6 +322,14 @@ export interface IStorage {
   calculateAndStoreAgentStats(agentId: string, periodStart: Date, periodEnd: Date): Promise<AgentPerformanceStats>;
   getAgentPerformanceStats(agentId: string, periodStart?: Date, periodEnd?: Date): Promise<AgentPerformanceStats[]>;
   getAllAgentsPerformanceStats(periodStart?: Date, periodEnd?: Date): Promise<Array<{ agent: User; stats: AgentPerformanceStats }>>;
+
+  // Activity Notification operations
+  createActivityNotification(notification: InsertActivityNotification): Promise<ActivityNotification>;
+  getActivityNotifications(userId: string, options?: { unreadOnly?: boolean; limit?: number; search?: string }): Promise<ActivityNotification[]>;
+  getUnreadActivityCount(userId: string): Promise<number>;
+  markActivityNotificationAsRead(id: string): Promise<void>;
+  markAllActivityNotificationsAsRead(userId: string): Promise<void>;
+  deleteActivityNotification(id: string): Promise<void>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -2933,6 +2944,77 @@ export class DatabaseStorage implements IStorage {
       .from(agentPerformanceStats)
       .innerJoin(users, eq(agentPerformanceStats.agentId, users.id))
       .orderBy(desc(agentPerformanceStats.averageRating));
+  }
+
+  // Activity Notification operations
+  async createActivityNotification(notification: InsertActivityNotification): Promise<ActivityNotification> {
+    const [result] = await db.insert(activityNotifications).values(notification).returning();
+    return result;
+  }
+
+  async getActivityNotifications(userId: string, options?: { unreadOnly?: boolean; limit?: number; search?: string }): Promise<ActivityNotification[]> {
+    const { unreadOnly = false, limit = 50, search } = options || {};
+    
+    const conditions = [eq(activityNotifications.userId, userId)];
+    
+    if (unreadOnly) {
+      conditions.push(eq(activityNotifications.isRead, false));
+    }
+    
+    if (search) {
+      conditions.push(
+        or(
+          sql`${activityNotifications.title} ILIKE ${`%${search}%`}`,
+          sql`${activityNotifications.message} ILIKE ${`%${search}%`}`
+        )!
+      );
+    }
+    
+    const results = await db
+      .select()
+      .from(activityNotifications)
+      .where(and(...conditions))
+      .orderBy(desc(activityNotifications.createdAt))
+      .limit(limit);
+    
+    return results;
+  }
+
+  async getUnreadActivityCount(userId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(activityNotifications)
+      .where(
+        and(
+          eq(activityNotifications.userId, userId),
+          eq(activityNotifications.isRead, false)
+        )
+      );
+    
+    return Number(result?.count || 0);
+  }
+
+  async markActivityNotificationAsRead(id: string): Promise<void> {
+    await db
+      .update(activityNotifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(eq(activityNotifications.id, id));
+  }
+
+  async markAllActivityNotificationsAsRead(userId: string): Promise<void> {
+    await db
+      .update(activityNotifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(
+        and(
+          eq(activityNotifications.userId, userId),
+          eq(activityNotifications.isRead, false)
+        )
+      );
+  }
+
+  async deleteActivityNotification(id: string): Promise<void> {
+    await db.delete(activityNotifications).where(eq(activityNotifications.id, id));
   }
 
 }
