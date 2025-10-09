@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -374,9 +375,11 @@ export default function ChatInterface({
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="font-semibold text-lg" data-testid="chat-customer-name">
-                  {customer?.name || 'Unknown Customer'}
-                </h3>
+                <Link href={`/customers/${customer.id}`} className="hover-elevate inline-block">
+                  <h3 className="font-semibold text-lg hover:text-primary transition-colors cursor-pointer" data-testid="chat-customer-name">
+                    {customer?.name || 'Unknown Customer'}
+                  </h3>
+                </Link>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Building className="w-3 h-3" />
                   <span>{customer?.company || 'No company provided'}</span>
