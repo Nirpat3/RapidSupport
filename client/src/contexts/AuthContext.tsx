@@ -64,6 +64,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           title: "Login successful",
           description: `Welcome back, ${data.user.name}!`
         });
+        // Redirect to main page after successful login
+        window.location.href = '/';
         return true;
       } else {
         const errorData = await response.json();
