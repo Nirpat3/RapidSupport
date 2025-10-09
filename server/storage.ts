@@ -26,6 +26,7 @@ import {
   conversationRatings,
   agentPerformanceStats,
   activityNotifications,
+  userPermissions,
   type User,
   type InsertUser,
   type Customer,
@@ -81,6 +82,8 @@ import {
   type InsertAgentPerformanceStats,
   type ActivityNotification,
   type InsertActivityNotification,
+  type UserPermission,
+  type InsertUserPermission,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray } from "drizzle-orm";
@@ -353,6 +356,13 @@ export interface IStorage {
   markActivityNotificationAsRead(id: string): Promise<void>;
   markAllActivityNotificationsAsRead(userId: string): Promise<void>;
   deleteActivityNotification(id: string): Promise<void>;
+
+  // User Permission operations
+  getUserPermissions(userId: string): Promise<UserPermission[]>;
+  setUserPermission(userId: string, feature: string, permission: string): Promise<UserPermission>;
+  deleteUserPermission(userId: string, feature: string): Promise<void>;
+  getUserPermissionForFeature(userId: string, feature: string): Promise<UserPermission | undefined>;
+  getAllUsersWithPermissions(): Promise<Array<{ user: User; permissions: UserPermission[] }>>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -3118,6 +3128,91 @@ export class DatabaseStorage implements IStorage {
 
   async deleteActivityNotification(id: string): Promise<void> {
     await db.delete(activityNotifications).where(eq(activityNotifications.id, id));
+  }
+
+  // User Permission operations
+  async getUserPermissions(userId: string): Promise<UserPermission[]> {
+    return await db
+      .select()
+      .from(userPermissions)
+      .where(eq(userPermissions.userId, userId));
+  }
+
+  async setUserPermission(userId: string, feature: string, permission: string): Promise<UserPermission> {
+    const existing = await db
+      .select()
+      .from(userPermissions)
+      .where(
+        and(
+          eq(userPermissions.userId, userId),
+          eq(userPermissions.feature, feature)
+        )
+      );
+
+    if (existing.length > 0) {
+      await db
+        .update(userPermissions)
+        .set({ permission, updatedAt: new Date() })
+        .where(
+          and(
+            eq(userPermissions.userId, userId),
+            eq(userPermissions.feature, feature)
+          )
+        );
+      
+      const [updated] = await db
+        .select()
+        .from(userPermissions)
+        .where(
+          and(
+            eq(userPermissions.userId, userId),
+            eq(userPermissions.feature, feature)
+          )
+        );
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(userPermissions)
+        .values({ userId, feature, permission })
+        .returning();
+      return created;
+    }
+  }
+
+  async deleteUserPermission(userId: string, feature: string): Promise<void> {
+    await db
+      .delete(userPermissions)
+      .where(
+        and(
+          eq(userPermissions.userId, userId),
+          eq(userPermissions.feature, feature)
+        )
+      );
+  }
+
+  async getUserPermissionForFeature(userId: string, feature: string): Promise<UserPermission | undefined> {
+    const [permission] = await db
+      .select()
+      .from(userPermissions)
+      .where(
+        and(
+          eq(userPermissions.userId, userId),
+          eq(userPermissions.feature, feature)
+        )
+      );
+    return permission;
+  }
+
+  async getAllUsersWithPermissions(): Promise<Array<{ user: User; permissions: UserPermission[] }>> {
+    const allUsers = await this.getAllUsers();
+    const result = [];
+
+    for (const user of allUsers) {
+      const permissions = await this.getUserPermissions(user.id);
+      result.push({ user, permissions });
+    }
+
+    return result;
   }
 
 }

@@ -805,6 +805,79 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // User Permission Management routes (admin only)
+  app.get('/api/permissions/users-with-permissions', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const usersWithPermissions = await storage.getAllUsersWithPermissions();
+      // Remove passwords from response
+      const safeData = usersWithPermissions.map(item => ({
+        user: (() => {
+          const { password, ...userWithoutPassword } = item.user;
+          return userWithoutPassword;
+        })(),
+        permissions: item.permissions
+      }));
+      res.json(safeData);
+    } catch (error) {
+      console.error('Failed to fetch users with permissions:', error);
+      res.status(500).json({ error: 'Failed to fetch users with permissions' });
+    }
+  });
+
+  app.get('/api/permissions/user/:userId', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const permissions = await storage.getUserPermissions(userId);
+      res.json(permissions);
+    } catch (error) {
+      console.error('Failed to fetch user permissions:', error);
+      res.status(500).json({ error: 'Failed to fetch user permissions' });
+    }
+  });
+
+  app.post('/api/permissions/set', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { userId, feature, permission } = z.object({
+        userId: z.string(),
+        feature: z.string(),
+        permission: z.enum(['hidden', 'view', 'edit'])
+      }).parse(req.body);
+
+      const result = await storage.setUserPermission(userId, feature, permission);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      console.error('Failed to set user permission:', error);
+      res.status(500).json({ error: 'Failed to set user permission' });
+    }
+  });
+
+  app.delete('/api/permissions/:userId/:feature', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { userId, feature } = req.params;
+      await storage.deleteUserPermission(userId, feature);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to delete user permission:', error);
+      res.status(500).json({ error: 'Failed to delete user permission' });
+    }
+  });
+
+  app.get('/api/permissions/my-permissions', requireAuth, async (req, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+      const permissions = await storage.getUserPermissions(req.user.id);
+      res.json(permissions);
+    } catch (error) {
+      console.error('Failed to fetch user permissions:', error);
+      res.status(500).json({ error: 'Failed to fetch user permissions' });
+    }
+  });
+
   // Customer management routes
   app.get('/api/customers', requireAuth, async (req, res) => {
     try {
