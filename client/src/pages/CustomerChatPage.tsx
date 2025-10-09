@@ -26,7 +26,8 @@ import {
   X,
   Image as ImageIcon,
   FileText,
-  MessageSquarePlus
+  MessageSquarePlus,
+  LogIn
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { CustomerInfoForm } from "@/components/CustomerInfoForm";
@@ -496,6 +497,16 @@ export default function CustomerChatPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.location.href = '/portal/login'}
+                  className="gap-2"
+                  data-testid="button-portal-login"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span className="hidden sm:inline">Portal</span>
+                </Button>
+                <Button
                   variant="outline"
                   size="sm"
                   onClick={handleStartNewConversation}
@@ -503,11 +514,11 @@ export default function CustomerChatPage() {
                   data-testid="button-new-conversation"
                 >
                   <MessageSquarePlus className="h-4 w-4" />
-                  New Chat
+                  <span className="hidden sm:inline">New Chat</span>
                 </Button>
                 <Badge variant="secondary" className="gap-1.5">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  Online
+                  <span className="hidden sm:inline">Online</span>
                 </Badge>
               </div>
             </div>
@@ -747,12 +758,27 @@ export default function CustomerChatPage() {
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Get instant answers from our AI-powered support or connect with our team
             </p>
-            {/* Show IP Address */}
-            {existingConversation?.ipAddress && (
-              <div className="mt-4 text-sm text-muted-foreground" data-testid="text-user-ip">
-                Your IP: {existingConversation.ipAddress}
-              </div>
-            )}
+            <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+              {/* Show IP Address */}
+              {existingConversation?.ipAddress && (
+                <>
+                  <span className="text-sm text-muted-foreground" data-testid="text-user-ip">
+                    Your IP: {existingConversation.ipAddress}
+                  </span>
+                  <Separator orientation="vertical" className="h-4" />
+                </>
+              )}
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => window.location.href = '/portal/login'}
+                className="text-sm h-auto p-0"
+                data-testid="link-portal-login"
+              >
+                <LogIn className="h-3 w-3 mr-1" />
+                Customer Portal
+              </Button>
+            </div>
           </div>
 
           {/* Continue Conversation Card - Shows when user has existing conversation */}
