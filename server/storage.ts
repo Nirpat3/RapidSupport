@@ -606,14 +606,11 @@ export class DatabaseStorage implements IStorage {
 
   // Message operations
   async getMessagesByConversation(conversationId: string): Promise<Message[]> {
-    // Default to public messages for backward compatibility
+    // Return ALL messages (both public and internal) for staff to see
     return await db
       .select()
       .from(messages)
-      .where(and(
-        eq(messages.conversationId, conversationId),
-        eq(messages.scope, 'public')
-      ))
+      .where(eq(messages.conversationId, conversationId))
       .orderBy(messages.timestamp);
   }
 
