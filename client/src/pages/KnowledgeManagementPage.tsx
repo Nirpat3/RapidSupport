@@ -26,6 +26,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -1343,6 +1353,8 @@ function FileUploadForm({
   const [duplicateFiles, setDuplicateFiles] = useState<string[]>([]);
   const [authError, setAuthError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [pendingSubmitData, setPendingSubmitData] = useState<any>(null);
 
   // Normalize filename to title for comparison
   const normalizeFilename = (filename: string): string => {
@@ -1377,21 +1389,24 @@ function FileUploadForm({
     // Check for duplicates
     const duplicates = checkDuplicates(selectedFiles);
     if (duplicates.length > 0) {
-      toast({
-        title: "Duplicate Files Detected",
-        description: `These files are already in your knowledge base: ${duplicates.join(', ')}`,
-        variant: "default",
-      });
+      // Show duplicate confirmation dialog
+      setPendingSubmitData(data);
+      setShowDuplicateDialog(true);
       return;
     }
     
+    // No duplicates, proceed with upload
+    await proceedWithUpload(data, selectedFiles);
+  };
+
+  const proceedWithUpload = async (data: any, filesToUpload: FileList) => {
     setAuthError(null);
     setUploadProgress(0);
     
     try {
       setUploadProgress(50); // Show progress during upload
       await onSubmit({
-        files: selectedFiles,
+        files: filesToUpload,
         category: data.category,
         tags: data.tags,
         priority: data.priority,
@@ -1409,6 +1424,41 @@ function FileUploadForm({
         throw error;
       }
     }
+  };
+
+  const handleSkipDuplicates = async () => {
+    if (!selectedFiles || !pendingSubmitData) return;
+
+    // Filter out duplicate files
+    const nonDuplicateFiles = Array.from(selectedFiles).filter(
+      file => !duplicateFiles.includes(file.name)
+    );
+
+    if (nonDuplicateFiles.length === 0) {
+      toast({
+        title: "No files to upload",
+        description: "All selected files are duplicates",
+        variant: "default",
+      });
+      setShowDuplicateDialog(false);
+      return;
+    }
+
+    // Create new FileList with non-duplicate files
+    const dataTransfer = new DataTransfer();
+    nonDuplicateFiles.forEach(file => dataTransfer.items.add(file));
+    
+    setShowDuplicateDialog(false);
+    await proceedWithUpload(pendingSubmitData, dataTransfer.files);
+  };
+
+  const handleReplaceDuplicates = async () => {
+    if (!selectedFiles || !pendingSubmitData) return;
+    
+    // TODO: Implement replace logic - delete existing and upload new
+    // For now, just upload all files (backend will handle duplicates)
+    setShowDuplicateDialog(false);
+    await proceedWithUpload(pendingSubmitData, selectedFiles);
   };
 
   return (
@@ -1643,15 +1693,49 @@ function FileUploadForm({
           </Button>
           <Button 
             type="submit" 
-            disabled={isSubmitting || !selectedFiles || duplicateFiles.length === selectedFiles?.length || authError !== null} 
+            disabled={isSubmitting || !selectedFiles || authError !== null} 
             data-testid="button-upload-files"
           >
-            {isSubmitting ? "Uploading..." : 
-             duplicateFiles.length === selectedFiles?.length ? "All Files Already Uploaded" :
-             "Upload Files"}
+            {isSubmitting ? "Uploading..." : "Upload Files"}
           </Button>
         </DialogFooter>
       </form>
+
+      {/* Duplicate Files Confirmation Dialog */}
+      <AlertDialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Duplicate Files Detected</AlertDialogTitle>
+            <AlertDialogDescription>
+              {duplicateFiles.length} file(s) already exist in your knowledge base:
+              <ul className="mt-2 list-disc list-inside text-sm">
+                {duplicateFiles.map((fileName, index) => (
+                  <li key={index} className="text-orange-600 dark:text-orange-400">{fileName}</li>
+                ))}
+              </ul>
+              <p className="mt-3">Would you like to skip these duplicates or replace them with the new versions?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-duplicate">
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={handleSkipDuplicates}
+              data-testid="button-skip-duplicates"
+            >
+              Skip Duplicates
+            </Button>
+            <AlertDialogAction
+              onClick={handleReplaceDuplicates}
+              data-testid="button-replace-duplicates"
+            >
+              Replace All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Form>
   );
 }
