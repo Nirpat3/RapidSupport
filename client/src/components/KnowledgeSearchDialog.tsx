@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, Copy, ExternalLink, BookOpen, Tag, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Search, Copy, ExternalLink, BookOpen, Tag, RefreshCw, AlertTriangle, Link2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { type KnowledgeBase } from '@shared/schema';
 
@@ -74,6 +74,29 @@ export default function KnowledgeSearchDialog({
       title: "Copied to Clipboard",
       description: `Content of "${article.title}" has been copied.`,
     });
+  };
+
+  const handleShareLink = (article: KnowledgeBase) => {
+    const articleUrl = `${window.location.origin}/kb/${article.id}`;
+    
+    if (onPasteArticle) {
+      // Share link in chat
+      const linkMessage = `Here's a helpful article from our knowledge base:\n\n📚 ${article.title}\n${articleUrl}\n\nYou can view, print, or save this article for your reference.`;
+      onPasteArticle(linkMessage, article.title);
+      onOpenChange(false);
+      
+      toast({
+        title: "Link Shared",
+        description: `Article link has been added to your message.`,
+      });
+    } else {
+      // Copy link to clipboard
+      navigator.clipboard.writeText(articleUrl);
+      toast({
+        title: "Link Copied",
+        description: `Article link has been copied to clipboard.`,
+      });
+    }
   };
 
   return (
@@ -225,17 +248,26 @@ export default function KnowledgeSearchDialog({
 
                 <div className="flex gap-2">
                   <Button
-                    onClick={() => handlePasteArticle(selectedArticle)}
+                    onClick={() => handleShareLink(selectedArticle)}
                     className="flex-1"
-                    data-testid="button-paste-article"
+                    data-testid="button-share-link"
                   >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Paste to Chat
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Share Link
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => handlePasteArticle(selectedArticle)}
+                    data-testid="button-paste-article"
+                    title="Paste full article content"
+                  >
+                    <ExternalLink className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => handleCopyContent(selectedArticle)}
                     data-testid="button-copy-content"
+                    title="Copy content to clipboard"
                   >
                     <Copy className="w-4 h-4" />
                   </Button>

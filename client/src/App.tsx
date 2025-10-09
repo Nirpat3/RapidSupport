@@ -26,6 +26,7 @@ import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
 import FeedPage from "@/pages/FeedPage";
 import CustomerPortalLogin from "@/pages/CustomerPortalLogin";
 import CustomerPortalFeed from "@/pages/CustomerPortalFeed";
+import PublicArticlePage from "@/pages/PublicArticlePage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -107,6 +108,9 @@ function AppContent() {
   // Check if we're on public routes - ONLY customer-chat is public for anonymous users
   const isCustomerChatPage = window.location.pathname === '/customer-chat';
   
+  // Knowledge base article public view
+  const isPublicArticlePage = window.location.pathname.startsWith('/kb/');
+  
   // Customer portal pages (separate from staff portal - customers have their own login)
   const isPortalLoginPage = window.location.pathname === '/portal/login';
   const isPortalPage = window.location.pathname.startsWith('/portal') && window.location.pathname !== '/portal/login';
@@ -117,6 +121,18 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <CustomerChatPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // For public knowledge base article viewing
+  if (isPublicArticlePage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <PublicArticlePage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
