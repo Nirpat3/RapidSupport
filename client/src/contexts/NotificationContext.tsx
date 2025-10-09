@@ -117,6 +117,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
             // Handle new message in unassigned conversations
             if (data.type === 'new_message' && data.message && data.conversation) {
               const { message, conversation, customer } = data;
+              
+              // Show notification for unassigned conversations
               if (!conversation.assignedAgentId && message.senderType === 'customer') {
                 addUnreadConversation(
                   conversation.id,
@@ -126,6 +128,16 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
                     message.content
                 );
               }
+              
+              // ALWAYS invalidate messages query to update conversation screen in real-time
+              queryClient.invalidateQueries({ 
+                queryKey: ['/api/conversations', conversation.id, 'messages'] 
+              });
+              
+              // Also invalidate conversations list to update last message
+              queryClient.invalidateQueries({ 
+                queryKey: ['/api/conversations'] 
+              });
             }
             
             // Handle unread count updates
