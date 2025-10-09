@@ -120,6 +120,59 @@ export const agentWorkload = pgTable("agent_workload", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Conversation Ratings table - ratings and feedback when conversations are closed
+export const conversationRatings = pgTable("conversation_ratings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  rating: integer("rating").notNull(), // 1-5 star rating
+  feedback: text("feedback"), // Optional text feedback from customer
+  tags: text("tags").array(), // Optional tags like "helpful", "slow response", "resolved quickly"
+  // AI-analyzed sentiment
+  aiSentimentScore: integer("ai_sentiment_score"), // AI-analyzed sentiment (0-100, 50 = neutral)
+  aiSentimentLabel: text("ai_sentiment_label"), // 'very_negative' | 'negative' | 'neutral' | 'positive' | 'very_positive'
+  aiAnalysisSummary: text("ai_analysis_summary"), // AI summary of conversation tone and customer sentiment
+  aiConfidence: integer("ai_confidence"), // AI confidence in sentiment analysis (0-100)
+  // Staff attribution
+  primaryAgentId: varchar("primary_agent_id").references(() => users.id), // Main agent who handled conversation
+  contributingAgentIds: text("contributing_agent_ids").array(), // All agents who participated
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Agent Performance Stats table - aggregated performance metrics per agent
+export const agentPerformanceStats = pgTable("agent_performance_stats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => users.id),
+  // Time period for these stats
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  // Conversation metrics
+  totalConversations: integer("total_conversations").notNull().default(0),
+  primaryConversations: integer("primary_conversations").notNull().default(0), // Where agent was primary handler
+  contributedConversations: integer("contributed_conversations").notNull().default(0), // Where agent participated
+  closedConversations: integer("closed_conversations").notNull().default(0),
+  // Rating metrics
+  averageRating: integer("average_rating"), // Average rating (multiplied by 100 for precision, e.g., 4.5 = 450)
+  totalRatings: integer("total_ratings").notNull().default(0),
+  fiveStarCount: integer("five_star_count").notNull().default(0),
+  fourStarCount: integer("four_star_count").notNull().default(0),
+  threeStarCount: integer("three_star_count").notNull().default(0),
+  twoStarCount: integer("two_star_count").notNull().default(0),
+  oneStarCount: integer("one_star_count").notNull().default(0),
+  // Sentiment metrics
+  averageSentiment: integer("average_sentiment"), // Average AI sentiment score (0-100)
+  positiveConversations: integer("positive_conversations").notNull().default(0),
+  neutralConversations: integer("neutral_conversations").notNull().default(0),
+  negativeConversations: integer("negative_conversations").notNull().default(0),
+  // Response time metrics (in seconds)
+  avgFirstResponseTime: integer("avg_first_response_time"),
+  avgResolutionTime: integer("avg_resolution_time"),
+  // Activity metrics
+  totalMessages: integer("total_messages").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // AI Agents table - for configuring different AI assistant personalities and capabilities
 export const aiAgents = pgTable("ai_agents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -625,6 +678,19 @@ export const updateAgentStatusSchema = z.object({
   status: z.enum(['online', 'away', 'busy', 'offline']),
 });
 
+// Conversation Rating schemas
+export const insertConversationRatingSchema = createInsertSchema(conversationRatings).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Agent Performance Stats schemas
+export const insertAgentPerformanceStatsSchema = createInsertSchema(agentPerformanceStats).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // AI Agent schemas
 export const insertAiAgentSchema = createInsertSchema(aiAgents).pick({
   name: true,
@@ -759,6 +825,10 @@ export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertAgentWorkload = z.infer<typeof insertAgentWorkloadSchema>;
 export type AgentWorkload = typeof agentWorkload.$inferSelect;
+export type InsertConversationRating = z.infer<typeof insertConversationRatingSchema>;
+export type ConversationRating = typeof conversationRatings.$inferSelect;
+export type InsertAgentPerformanceStats = z.infer<typeof insertAgentPerformanceStatsSchema>;
+export type AgentPerformanceStats = typeof agentPerformanceStats.$inferSelect;
 export type InsertAiAgent = z.infer<typeof insertAiAgentSchema>;
 export type AiAgent = typeof aiAgents.$inferSelect;
 export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
