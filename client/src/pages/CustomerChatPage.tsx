@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { CustomerInfoForm } from "@/components/CustomerInfoForm";
+import { ConversationRatingDialog } from "@/components/ConversationRatingDialog";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { AnonymousCustomer } from "@shared/schema";
@@ -70,6 +71,12 @@ interface ChatState {
   customerId: string | null;
   sessionId: string;
   customerInfo: AnonymousCustomer | null;
+}
+
+interface ConversationDetails {
+  id: string;
+  status: 'open' | 'in_progress' | 'closed' | 'resolved';
+  assignedAgentId: string | null;
 }
 
 export default function CustomerChatPage() {
@@ -117,6 +124,9 @@ export default function CustomerChatPage() {
 
   // Initialize chatStarted to false - let user choose to continue or start new
   const [chatStarted, setChatStarted] = useState(false);
+  
+  // Rating dialog state
+  const [showRatingDialog, setShowRatingDialog] = useState(false);
 
   // Save chat state to localStorage whenever it changes
   useEffect(() => {
@@ -134,6 +144,32 @@ export default function CustomerChatPage() {
     enabled: !!chatState.conversationId,
     refetchInterval: chatStarted ? 3000 : false,
   });
+
+  // Fetch conversation details to check status
+  const { data: conversationDetails } = useQuery<ConversationDetails>({
+    queryKey: ['/api/conversations', chatState.conversationId],
+    enabled: !!chatState.conversationId && chatStarted,
+    refetchInterval: chatStarted ? 5000 : false,
+  });
+
+  // Check if conversation is closed and show rating dialog
+  useEffect(() => {
+    if (conversationDetails?.status === 'closed' || conversationDetails?.status === 'resolved') {
+      // Check if rating already submitted for this conversation
+      const checkRating = async () => {
+        try {
+          await apiRequest(`/api/conversations/${chatState.conversationId}/rating`, 'GET');
+          // If rating exists, don't show dialog
+        } catch (error: any) {
+          // If 404 (no rating found), show the rating dialog
+          if (error.message?.includes('404') || error.message?.includes('No rating found')) {
+            setShowRatingDialog(true);
+          }
+        }
+      };
+      checkRating();
+    }
+  }, [conversationDetails?.status, chatState.conversationId]);
 
   // Create customer and conversation
   const createCustomerMutation = useMutation<CreateCustomerResponse, Error, AnonymousCustomer>({
@@ -930,6 +966,19 @@ export default function CustomerChatPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Conversation Rating Dialog */}
+      {chatState.conversationId && (
+        <ConversationRatingDialog
+          conversationId={chatState.conversationId}
+          isOpen={showRatingDialog}
+          onClose={() => setShowRatingDialog(false)}
+          onSubmit={() => {
+            // Rating submitted successfully
+            setShowRatingDialog(false);
+          }}
+        />
+      )}
     </div>
   );
 }
