@@ -41,6 +41,12 @@ A comprehensive unread tracking system monitors message read status per user, ut
 ### Feed Module
 A comprehensive feed module allows for post creation with form validation, visibility controls (internal/all_customers/targeted), urgent flags, optional links, and images. It includes database schemas for posts, comments, likes, and views, with a UI for post listing and filtering.
 
+### Conversation Rating & Feedback System
+The platform includes a comprehensive conversation rating and feedback system to track customer satisfaction and agent performance. When a conversation is closed by staff, customers are presented with a rating dialog where they can provide a 1-5 star rating, optional written feedback, and contact information for follow-up. The system uses AI-powered sentiment analysis via OpenAI to analyze conversation tone and customer satisfaction, generating scores for sentiment (0-100), customer tone assessment, and resolution quality. All ratings are stored in a dedicated `conversationRatings` table with support for anonymous submissions.
+
+### Staff Performance Tracking
+A robust staff performance analytics system tracks detailed agent metrics including total conversations handled, primary vs. contributed conversations, closure rates, average ratings (with distribution across 1-5 stars), AI sentiment analysis scores, and message counts. Performance stats are calculated for customizable time periods and stored in the `agentPerformanceStats` table. The system provides both individual agent performance views (accessible by agents for their own stats) and admin-only aggregate views showing all agents' performance metrics for comparison and management insights.
+
 ## External Dependencies
 
 - **Database**: PostgreSQL (Neon serverless)

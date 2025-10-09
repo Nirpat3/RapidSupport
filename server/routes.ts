@@ -1394,12 +1394,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Create the rating record
       const newRating = await storage.createConversationRating({
         conversationId,
+        customerId: conversation.customerId,
         rating,
         feedback: feedback || null,
         primaryAgentId: conversation.assignedAgentId,
         aiSentimentScore: sentimentAnalysis.sentimentScore,
-        aiCustomerTone: sentimentAnalysis.customerTone,
-        aiResolutionQuality: sentimentAnalysis.resolutionQuality,
+        aiSentimentLabel: sentimentAnalysis.sentimentLabel,
+        aiAnalysisSummary: sentimentAnalysis.summary,
+        aiConfidence: sentimentAnalysis.confidence,
         customerName: customerName || null,
         customerEmail: customerEmail || null,
       });

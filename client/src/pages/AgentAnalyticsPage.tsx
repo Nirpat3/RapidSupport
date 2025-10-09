@@ -63,6 +63,37 @@ interface WorkloadMetric {
   utilizationRate: number;
 }
 
+interface AgentPerformanceStats {
+  agent: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  stats: {
+    id: string;
+    agentId: string;
+    periodStart: string;
+    periodEnd: string;
+    totalConversations: number;
+    primaryConversations: number;
+    contributedConversations: number;
+    closedConversations: number;
+    averageRating: number | null;
+    totalRatings: number;
+    fiveStarCount: number;
+    fourStarCount: number;
+    threeStarCount: number;
+    twoStarCount: number;
+    oneStarCount: number;
+    averageSentiment: number | null;
+    positiveConversations: number;
+    neutralConversations: number;
+    negativeConversations: number;
+    totalMessages: number;
+  };
+}
+
 export default function AgentAnalyticsPage() {
   const [dateRange, setDateRange] = useState({
     from: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
@@ -82,6 +113,11 @@ export default function AgentAnalyticsPage() {
   // Fetch workload metrics
   const { data: workloadMetrics, isLoading: workloadLoading, isError: workloadError } = useQuery<WorkloadMetric[]>({
     queryKey: ['/api/analytics/workload'],
+  });
+
+  // Fetch staff performance statistics
+  const { data: performanceStats, isLoading: performanceLoading, isError: performanceError } = useQuery<AgentPerformanceStats[]>({
+    queryKey: ['/api/agents/performance/all', dateRange.from, dateRange.to],
   });
 
   const handleDateRangeUpdate = () => {
@@ -140,11 +176,12 @@ export default function AgentAnalyticsPage() {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
           <TabsTrigger value="agents" data-testid="tab-agents">Agents</TabsTrigger>
           <TabsTrigger value="knowledge" data-testid="tab-knowledge">Knowledge</TabsTrigger>
           <TabsTrigger value="workload" data-testid="tab-workload">Workload</TabsTrigger>
+          <TabsTrigger value="performance" data-testid="tab-performance">Performance</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -471,6 +508,119 @@ export default function AgentAnalyticsPage() {
                       </div>
                     </div>
                   )) || <p className="text-muted-foreground">No workload data available</p>}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="performance" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Staff Performance & Customer Ratings</CardTitle>
+              <CardDescription>
+                Track agent performance metrics, customer satisfaction ratings, and AI sentiment analysis
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {performanceLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-32 w-full" />
+                  ))}
+                </div>
+              ) : performanceError ? (
+                <p className="text-destructive">Failed to load performance data</p>
+              ) : !performanceStats || performanceStats.length === 0 ? (
+                <p className="text-muted-foreground">No performance data available for the selected period</p>
+              ) : (
+                <div className="space-y-6">
+                  {performanceStats.map((item, index) => (
+                    <div key={item.agent.id} className="border rounded-lg p-6 space-y-4" data-testid={`performance-${index}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold text-lg">{item.agent.name}</h3>
+                          <p className="text-sm text-muted-foreground">{item.agent.email}</p>
+                        </div>
+                        <Badge variant={item.stats.averageRating && item.stats.averageRating >= 400 ? "default" : "secondary"}>
+                          {item.agent.role}
+                        </Badge>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                        {/* Total Conversations */}
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">Total Conversations</p>
+                          <p className="text-2xl font-bold" data-testid={`total-conversations-${index}`}>
+                            {item.stats.totalConversations}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.stats.closedConversations} closed
+                          </p>
+                        </div>
+
+                        {/* Average Rating */}
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">Average Rating</p>
+                          <p className="text-2xl font-bold" data-testid={`avg-rating-${index}`}>
+                            {item.stats.averageRating ? (item.stats.averageRating / 100).toFixed(2) : 'N/A'}
+                            {item.stats.averageRating && <span className="text-sm text-muted-foreground">/5.0</span>}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.stats.totalRatings} rating{item.stats.totalRatings !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+
+                        {/* AI Sentiment */}
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">AI Sentiment Score</p>
+                          <p className="text-2xl font-bold" data-testid={`sentiment-${index}`}>
+                            {item.stats.averageSentiment !== null ? item.stats.averageSentiment : 'N/A'}
+                            {item.stats.averageSentiment !== null && <span className="text-sm text-muted-foreground">/100</span>}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.stats.positiveConversations} positive
+                          </p>
+                        </div>
+
+                        {/* Total Messages */}
+                        <div className="space-y-1">
+                          <p className="text-sm text-muted-foreground">Messages Sent</p>
+                          <p className="text-2xl font-bold" data-testid={`messages-${index}`}>
+                            {item.stats.totalMessages}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.stats.primaryConversations} primary
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Rating Distribution */}
+                      {item.stats.totalRatings > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Rating Distribution</p>
+                          <div className="space-y-1">
+                            {[
+                              { stars: 5, count: item.stats.fiveStarCount },
+                              { stars: 4, count: item.stats.fourStarCount },
+                              { stars: 3, count: item.stats.threeStarCount },
+                              { stars: 2, count: item.stats.twoStarCount },
+                              { stars: 1, count: item.stats.oneStarCount },
+                            ].map(({ stars, count }) => (
+                              <div key={stars} className="flex items-center gap-2">
+                                <span className="text-sm w-12">{stars} ⭐</span>
+                                <Progress 
+                                  value={(count / item.stats.totalRatings) * 100} 
+                                  className="flex-1 h-2"
+                                />
+                                <span className="text-sm text-muted-foreground w-12 text-right">{count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
