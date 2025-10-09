@@ -24,6 +24,7 @@ import KnowledgeManagementPage from "@/pages/KnowledgeManagementPage";
 import FileManagementPage from "@/pages/FileManagementPage";
 import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
 import FeedPage from "@/pages/FeedPage";
+import ActivityPage from "@/pages/ActivityPage";
 import CustomerPortalLogin from "@/pages/CustomerPortalLogin";
 import CustomerPortalFeed from "@/pages/CustomerPortalFeed";
 import PublicArticlePage from "@/pages/PublicArticlePage";
@@ -35,6 +36,7 @@ function Router() {
       <Route path="/admin" component={ConversationsPage} />
       <Route path="/conversations" component={ConversationsPage} />
       <Route path="/conversations/:id" component={ConversationsPage} />
+      <Route path="/activity" component={ActivityPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/customers" component={CustomersPage} />
       <Route path="/customers/:id" component={CustomerProfilePage} />

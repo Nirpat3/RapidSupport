@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { 
   Sidebar, 
   SidebarContent, 
@@ -29,10 +30,12 @@ import {
   HelpCircle, 
   LogOut,
   Shield,
-  TrendingUp
+  TrendingUp,
+  Bell
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
+import { apiRequest } from "@/lib/queryClient";
 
 interface AppSidebarProps {
   currentUser?: {
@@ -43,12 +46,18 @@ interface AppSidebarProps {
   };
 }
 
-const getNavigationItems = (unreadCount: number) => [
+const getNavigationItems = (unreadCount: number, activityCount: number) => [
   {
     title: "Conversations",
     url: "/",
     icon: MessageSquare,
     badge: unreadCount > 0 ? unreadCount : undefined
+  },
+  {
+    title: "Activity", 
+    url: "/activity",
+    icon: Bell,
+    badge: activityCount > 0 ? activityCount : undefined
   },
   {
     title: "Dashboard", 
@@ -126,7 +135,15 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
     role: 'admin' as const
   };
 
-  const navigationItems = getNavigationItems(totalUnreadCount);
+  // Fetch activity notification count
+  const { data: activityData } = useQuery<{ count: number }>({
+    queryKey: ['/api/activity/notifications/unread-count'],
+    queryFn: () => apiRequest('/api/activity/notifications/unread-count', 'GET'),
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  const activityCount = activityData?.count || 0;
+  const navigationItems = getNavigationItems(totalUnreadCount, activityCount);
 
   return (
     <Sidebar>
