@@ -20,6 +20,9 @@ PostgreSQL is used as the database, accessed via Drizzle ORM for type-safe opera
 ### Authentication & Authorization
 The platform uses session-based authentication with role-based access control (Admin, Agent, Customer) and anonymous customer support. Anonymous customer sessions are tracked via `sessionId`. Security measures include bcrypt for password hashing, secure session configuration, CSRF protection, and PII-safe logging.
 
+### User Permission System
+A comprehensive granular permission system allows administrators to control staff access at the feature level. Each user can have permissions set for individual features with three levels: Hidden (feature is completely hidden from user), View (read-only access), and Edit (full access). Admins have full access to all features by default. The system includes a User Management page accessible only to admins, where permissions can be assigned per user per feature. The sidebar dynamically shows/hides menu items based on user permissions. Permission checking is enforced both on the frontend (UI hiding) and backend (API authorization).
+
 ### Real-time Features
 A custom WebSocket server facilitates real-time chat for both staff and customers. It includes connection management, user presence tracking, conversation-based message routing, real-time message broadcasting with delivery status, and typing indicators. An anonymous customer widget supports information collection and session persistence.
 

@@ -30,28 +30,103 @@ import CustomerPortalLogin from "@/pages/CustomerPortalLogin";
 import CustomerPortalFeed from "@/pages/CustomerPortalFeed";
 import { CustomerPortalRouter } from "@/components/CustomerPortalRouter";
 import PublicArticlePage from "@/pages/PublicArticlePage";
+import UserManagementPage from "@/pages/UserManagementPage";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/admin" component={ConversationsPage} />
-      <Route path="/conversations" component={ConversationsPage} />
-      <Route path="/conversations/:id" component={ConversationsPage} />
-      <Route path="/activity" component={ActivityPage} />
-      <Route path="/dashboard" component={DashboardPage} />
-      <Route path="/customers" component={CustomersPage} />
-      <Route path="/customers/:id" component={CustomerProfilePage} />
-      <Route path="/ai-agents" component={AIAgentsPage} />
-      <Route path="/ai-dashboard" component={StaffAIDashboard} />
-      <Route path="/ai-training" component={AITrainingPage} />
-      <Route path="/ai-takeover" component={StaffTakeoverPage} />
-      <Route path="/knowledge" component={KnowledgeManagementPage} />
-      <Route path="/files" component={FileManagementPage} />
-      <Route path="/analytics" component={AgentAnalyticsPage} />
-      <Route path="/feedback" component={FeedbackEvaluationPage} />
-      <Route path="/feed" component={FeedPage} />
-      <Route path="/settings" component={SettingsPage} />
+      <Route path="/admin">
+        <PermissionGuard feature="conversations">
+          <ConversationsPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/conversations/:id">
+        <PermissionGuard feature="conversations">
+          <ConversationsPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/conversations">
+        <PermissionGuard feature="conversations">
+          <ConversationsPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/activity">
+        <PermissionGuard feature="activity">
+          <ActivityPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/dashboard">
+        <PermissionGuard feature="dashboard">
+          <DashboardPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/customers/:id">
+        <PermissionGuard feature="customers">
+          <CustomerProfilePage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/customers">
+        <PermissionGuard feature="customers">
+          <CustomersPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/ai-agents">
+        <PermissionGuard feature="ai-agents">
+          <AIAgentsPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/ai-dashboard">
+        <PermissionGuard feature="ai-dashboard">
+          <StaffAIDashboard />
+        </PermissionGuard>
+      </Route>
+      <Route path="/ai-training">
+        <PermissionGuard feature="ai-training">
+          <AITrainingPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/ai-takeover">
+        <PermissionGuard feature="ai-takeover">
+          <StaffTakeoverPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/knowledge">
+        <PermissionGuard feature="knowledge-base">
+          <KnowledgeManagementPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/files">
+        <PermissionGuard feature="file-management">
+          <FileManagementPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/analytics">
+        <PermissionGuard feature="analytics">
+          <AgentAnalyticsPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/feedback">
+        <PermissionGuard feature="feedback">
+          <FeedbackEvaluationPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/feed">
+        <PermissionGuard feature="feed">
+          <FeedPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/user-management">
+        <PermissionGuard feature="user-management">
+          <UserManagementPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/settings">
+        <PermissionGuard feature="settings">
+          <SettingsPage />
+        </PermissionGuard>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );

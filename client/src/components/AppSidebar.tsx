@@ -36,6 +36,7 @@ import {
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
 import { apiRequest } from "@/lib/queryClient";
+import { usePermissions } from "@/hooks/use-permissions";
 
 interface AppSidebarProps {
   currentUser?: {
@@ -115,6 +116,12 @@ const getNavigationItems = (unreadCount: number, activityCount: number) => [
     icon: Rss
   },
   {
+    title: "User Management",
+    url: "/user-management",
+    icon: Shield,
+    adminOnly: true
+  },
+  {
     title: "Settings",
     url: "/settings",
     icon: Settings
@@ -149,6 +156,20 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
 
   const activityCount = activityData?.count || 0;
   const navigationItems = getNavigationItems(totalUnreadCount, activityCount);
+  const { isUrlHidden } = usePermissions();
+  
+  // Filter navigation items based on user role and permissions
+  const filteredNavigationItems = navigationItems.filter((item) => {
+    // Hide admin-only items from non-admin users
+    if ('adminOnly' in item && item.adminOnly && user.role !== 'admin') {
+      return false;
+    }
+    // Hide items based on user permissions
+    if (isUrlHidden(item.url)) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <Sidebar>
@@ -169,12 +190,12 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navigationItems.map((item) => (
+              {filteredNavigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild
                     isActive={location === item.url}
-                    data-testid={`nav-${item.title.toLowerCase().replace(' ', '-')}`}
+                    data-testid={`nav-${item.title.toLowerCase().replace(/ /g, '-')}`}
                   >
                     <Link href={item.url}>
                       <item.icon className="w-4 h-4" />
