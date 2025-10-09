@@ -173,6 +173,22 @@ export const agentPerformanceStats = pgTable("agent_performance_stats", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Activity Notifications table - for user notifications (tags, reminders, mentions)
+export const activityNotifications = pgTable("activity_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id), // Who should see this notification
+  type: text("type").notNull(), // 'mention' | 'tag' | 'reminder' | 'assignment' | 'comment' | 'system'
+  title: text("title").notNull(), // Brief notification title
+  message: text("message").notNull(), // Notification message/description
+  link: text("link"), // URL to navigate to when clicked (e.g., /admin/conversations/123)
+  linkType: text("link_type"), // 'conversation' | 'post' | 'knowledge_base' | 'custom'
+  relatedId: varchar("related_id"), // ID of related entity (conversation, post, etc.)
+  triggeredBy: varchar("triggered_by").references(() => users.id), // User who triggered this notification
+  isRead: boolean("is_read").notNull().default(false),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // AI Agents table - for configuring different AI assistant personalities and capabilities
 export const aiAgents = pgTable("ai_agents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -691,6 +707,13 @@ export const insertAgentPerformanceStatsSchema = createInsertSchema(agentPerform
   updatedAt: true,
 });
 
+// Activity Notifications schemas
+export const insertActivityNotificationSchema = createInsertSchema(activityNotifications).omit({
+  id: true,
+  createdAt: true,
+  readAt: true,
+});
+
 // AI Agent schemas
 export const insertAiAgentSchema = createInsertSchema(aiAgents).pick({
   name: true,
@@ -829,6 +852,8 @@ export type InsertConversationRating = z.infer<typeof insertConversationRatingSc
 export type ConversationRating = typeof conversationRatings.$inferSelect;
 export type InsertAgentPerformanceStats = z.infer<typeof insertAgentPerformanceStatsSchema>;
 export type AgentPerformanceStats = typeof agentPerformanceStats.$inferSelect;
+export type InsertActivityNotification = z.infer<typeof insertActivityNotificationSchema>;
+export type ActivityNotification = typeof activityNotifications.$inferSelect;
 export type InsertAiAgent = z.infer<typeof insertAiAgentSchema>;
 export type AiAgent = typeof aiAgents.$inferSelect;
 export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
