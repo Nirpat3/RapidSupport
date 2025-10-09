@@ -127,6 +127,7 @@ export default function CustomerChatPage() {
   
   // Rating dialog state
   const [showRatingDialog, setShowRatingDialog] = useState(false);
+  const ratingCheckDone = useRef(false);
 
   // Save chat state to localStorage whenever it changes
   useEffect(() => {
@@ -154,16 +155,33 @@ export default function CustomerChatPage() {
 
   // Check if conversation is closed and show rating dialog
   useEffect(() => {
-    if (conversationDetails?.status === 'closed' || conversationDetails?.status === 'resolved') {
+    console.log('[CustomerChatPage] Conversation details:', conversationDetails);
+    console.log('[CustomerChatPage] Chat state conversationId:', chatState.conversationId);
+    
+    if ((conversationDetails?.status === 'closed' || conversationDetails?.status === 'resolved') && 
+        !ratingCheckDone.current && 
+        chatState.conversationId) {
+      
+      console.log('[CustomerChatPage] Conversation is closed/resolved, checking for existing rating...');
+      ratingCheckDone.current = true; // Mark as checked to prevent duplicate calls
+      
       // Check if rating already submitted for this conversation
       const checkRating = async () => {
         try {
-          await apiRequest(`/api/conversations/${chatState.conversationId}/rating`, 'GET');
+          const rating = await apiRequest(`/api/conversations/${chatState.conversationId}/rating`, 'GET');
+          console.log('[CustomerChatPage] Rating already exists:', rating);
           // If rating exists, don't show dialog
         } catch (error: any) {
+          console.log('[CustomerChatPage] Error checking rating:', error);
           // If 404 (no rating found), show the rating dialog
           if (error.message?.includes('404') || error.message?.includes('No rating found')) {
+            console.log('[CustomerChatPage] No rating found, showing dialog. chatState.conversationId:', chatState.conversationId);
+            console.log('[CustomerChatPage] Setting showRatingDialog to true');
             setShowRatingDialog(true);
+            console.log('[CustomerChatPage] showRatingDialog state should now be true');
+          } else {
+            console.log('[CustomerChatPage] Error is not 404, not showing dialog:', error.message);
+            ratingCheckDone.current = false; // Reset on error to allow retry
           }
         }
       };
@@ -968,7 +986,7 @@ export default function CustomerChatPage() {
       </Dialog>
 
       {/* Conversation Rating Dialog */}
-      {chatState.conversationId && (
+      {chatState.conversationId && showRatingDialog && (
         <ConversationRatingDialog
           conversationId={chatState.conversationId}
           isOpen={showRatingDialog}

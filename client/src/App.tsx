@@ -106,8 +106,9 @@ function AppContent() {
   const { user, login, isLoading } = useAuth();
   
   // Check if we're on public routes
-  const isSupportPage = window.location.pathname === '/' || window.location.pathname === '/support';
-  const isCustomerChatPage = window.location.pathname === '/customer-chat';
+  const pathname = window.location.pathname.replace(/\/$/, ''); // Remove trailing slash
+  const isSupportPage = pathname === '' || pathname === '/support';
+  const isCustomerChatPage = pathname === '/customer-chat';
   
   // Knowledge base article public view
   const isPublicArticlePage = window.location.pathname.startsWith('/kb/');

@@ -1398,8 +1398,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const messages = await storage.getMessagesByConversation(conversationId);
       
       // Perform AI sentiment analysis on the conversation
-      const aiService = AIService.getInstance();
-      const sentimentAnalysis = await aiService.analyzeConversationSentiment(messages);
+      const sentimentAnalysis = await AIService.analyzeConversationSentiment(messages);
       
       // Create the rating record
       const newRating = await storage.createConversationRating({
