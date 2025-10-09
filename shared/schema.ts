@@ -979,6 +979,26 @@ export const knowledgeBaseVersionsRelations = relations(knowledgeBaseVersions, (
   }),
 }));
 
+// User Permissions table - granular permission control per user per feature
+export const userPermissions = pgTable("user_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  feature: text("feature").notNull(), // 'conversations' | 'dashboard' | 'customers' | 'ai-agents' | etc.
+  permission: text("permission").notNull().default("view"), // 'hidden' | 'view' | 'edit'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueUserFeature: unique().on(table.userId, table.feature),
+}));
+
+// Relations for user permissions
+export const userPermissionsRelations = relations(userPermissions, ({ one }) => ({
+  user: one(users, {
+    fields: [userPermissions.userId],
+    references: [users.id],
+  }),
+}));
+
 // Feed module insert schemas
 export const insertPostSchema = createInsertSchema(posts).omit({
   id: true,
@@ -1062,3 +1082,35 @@ export const insertKnowledgeBaseVersionSchema = createInsertSchema(knowledgeBase
 
 export type InsertKnowledgeBaseVersion = z.infer<typeof insertKnowledgeBaseVersionSchema>;
 export type KnowledgeBaseVersion = typeof knowledgeBaseVersions.$inferSelect;
+
+// User Permissions insert schema and types
+export const insertUserPermissionSchema = createInsertSchema(userPermissions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertUserPermission = z.infer<typeof insertUserPermissionSchema>;
+export type UserPermission = typeof userPermissions.$inferSelect;
+
+// Available features for permissions
+export const PERMISSION_FEATURES = [
+  'conversations',
+  'activity',
+  'dashboard',
+  'customers',
+  'ai-agents',
+  'ai-dashboard',
+  'ai-training',
+  'ai-takeover',
+  'knowledge-base',
+  'file-management',
+  'analytics',
+  'feedback',
+  'feed',
+  'settings',
+  'user-management'
+] as const;
+
+export type PermissionFeature = typeof PERMISSION_FEATURES[number];
+export type PermissionLevel = 'hidden' | 'view' | 'edit';
