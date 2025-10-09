@@ -727,14 +727,36 @@ export default function CustomerChatPage() {
                         )}
                       </p>
                     )}
-                    <Button 
-                      onClick={() => setChatStarted(true)}
-                      className="gap-2"
-                      data-testid="button-continue-conversation"
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      Open Chat
-                    </Button>
+                    <div className="flex gap-2 flex-wrap">
+                      <Button 
+                        onClick={() => setChatStarted(true)}
+                        className="gap-2"
+                        data-testid="button-continue-conversation"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Open Chat
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          // Clear localStorage and reset state to start fresh
+                          localStorage.removeItem('customer-chat-state');
+                          setChatState({
+                            conversationId: null,
+                            customerId: null,
+                            sessionId: crypto.randomUUID(),
+                            customerInfo: null,
+                          });
+                          setQuestion("");
+                          setSelectedFiles([]);
+                        }}
+                        variant="outline"
+                        className="gap-2"
+                        data-testid="button-new-conversation"
+                      >
+                        <MessageSquarePlus className="h-4 w-4" />
+                        Start New Chat
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardContent>
