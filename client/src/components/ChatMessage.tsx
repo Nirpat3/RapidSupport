@@ -25,6 +25,29 @@ interface ChatMessageProps {
   viewerRole?: 'customer' | 'agent' | 'admin'; // Role of the person viewing the message
 }
 
+// Helper function to convert URLs in text to clickable links
+function linkifyText(text: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, index) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a 
+          key={index} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-primary underline hover:text-primary/80 transition-colors"
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 // Helper function to render formatted content with proper lists and line breaks
 function renderFormattedContent(content: string) {
   const lines = content.split('\n');
@@ -76,11 +99,11 @@ function renderFormattedContent(content: string) {
       currentList = null;
     }
     
-    // Add line with proper spacing
+    // Add line with proper spacing and linkified URLs
     if (trimmedLine) {
       elements.push(
         <p key={index} className="mb-2 last:mb-0">
-          {trimmedLine}
+          {linkifyText(trimmedLine)}
         </p>
       );
     } else if (index < lines.length - 1) {
@@ -107,7 +130,7 @@ function renderList(list: { type: 'ordered' | 'unordered'; items: string[] }, ke
             <span className="flex-shrink-0 w-5 h-5 bg-primary/20 text-primary text-xs font-medium rounded-full flex items-center justify-center">
               {index + 1}
             </span>
-            <span className="flex-1">{item}</span>
+            <span className="flex-1">{linkifyText(item)}</span>
           </li>
         ))}
       </ol>
@@ -118,7 +141,7 @@ function renderList(list: { type: 'ordered' | 'unordered'; items: string[] }, ke
         {list.items.map((item, index) => (
           <li key={index} className="flex gap-2" data-testid={`message-list-item-${index}`}>
             <span className="flex-shrink-0 w-1.5 h-1.5 bg-primary rounded-full mt-2" />
-            <span className="flex-1">{item}</span>
+            <span className="flex-1">{linkifyText(item)}</span>
           </li>
         ))}
       </ul>
