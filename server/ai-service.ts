@@ -285,6 +285,118 @@ Focus on:
   }
 
   /**
+   * Generate personalized suggested questions based on customer history
+   */
+  static async generatePersonalizedQuestions(customerId: string | null, sessionId: string, ipAddress: string): Promise<string[]> {
+    try {
+      const defaultQuestions = [
+        "How do I reset my password?",
+        "What are your pricing plans?",
+        "How can I upgrade my account?",
+        "I need help with billing",
+      ];
+
+      // If no customer ID or session ID, return default questions
+      if (!customerId && !sessionId) {
+        return defaultQuestions;
+      }
+
+      // Get customer's conversation history
+      let conversations: any[] = [];
+      
+      if (customerId) {
+        conversations = await storage.getConversationsByCustomer(customerId);
+      } else if (sessionId) {
+        const sessionConv = await storage.getConversationBySession(sessionId);
+        if (sessionConv) {
+          conversations = [sessionConv];
+        }
+      }
+
+      // If no previous conversations, check by IP
+      if (conversations.length === 0 && ipAddress) {
+        const ipConv = await storage.getConversationByIP(ipAddress);
+        if (!ipConv) {
+          return defaultQuestions;
+        }
+        conversations = [ipConv];
+      }
+
+      // If still no conversations, return defaults
+      if (conversations.length === 0) {
+        return defaultQuestions;
+      }
+
+      // Get messages from recent conversations (last 3)
+      const recentConversations = conversations.slice(-3);
+      let allMessages: Message[] = [];
+      
+      for (const conv of recentConversations) {
+        const messages = await storage.getMessagesByConversation(conv.id);
+        allMessages.push(...messages);
+      }
+
+      // Filter out internal messages
+      const publicMessages = allMessages.filter(msg => msg.scope !== 'internal');
+
+      if (publicMessages.length === 0) {
+        return defaultQuestions;
+      }
+
+      // Generate contextual questions using AI
+      const conversationText = publicMessages
+        .slice(-20) // Last 20 messages
+        .map(msg => `${msg.senderType}: ${msg.content}`)
+        .join('\n');
+
+      const systemPrompt = `You are an AI assistant that generates relevant, personalized support questions based on a customer's previous conversation history.`;
+
+      const userPrompt = `Based on this customer's previous conversation history, generate 4 relevant follow-up questions they might want to ask:
+
+Previous Conversations:
+${conversationText}
+
+Generate questions that:
+1. Relate to topics discussed in their previous conversations
+2. Address potential follow-up concerns or related issues
+3. Are specific and actionable
+4. Help them continue their support journey
+
+Provide ONLY an array of 4 question strings in JSON format:
+["Question 1", "Question 2", "Question 3", "Question 4"]`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 300,
+      });
+
+      let responseContent = completion.choices[0].message.content || '[]';
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const questions = JSON.parse(responseContent);
+      
+      if (Array.isArray(questions) && questions.length > 0) {
+        return questions.slice(0, 4);
+      }
+
+      return defaultQuestions;
+    } catch (error) {
+      console.error('Error generating personalized questions:', error);
+      return [
+        "How do I reset my password?",
+        "What are your pricing plans?",
+        "How can I upgrade my account?",
+        "I need help with billing",
+      ];
+    }
+  }
+
+  /**
    * Generate AI agent response for customer queries
    */
   static async generateAgentResponse(

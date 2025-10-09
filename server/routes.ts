@@ -2210,6 +2210,33 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get personalized suggested questions
+  app.get('/api/customer-chat/suggested-questions', async (req, res) => {
+    try {
+      const { customerId, sessionId } = req.query;
+      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+      
+      const questions = await AIService.generatePersonalizedQuestions(
+        customerId as string | null,
+        sessionId as string || '',
+        clientIP
+      );
+      
+      res.json({ questions });
+    } catch (error) {
+      console.error('Failed to generate personalized questions:', error);
+      res.status(500).json({ 
+        error: 'Failed to generate suggested questions',
+        questions: [
+          "How do I reset my password?",
+          "What are your pricing plans?",
+          "How can I upgrade my account?",
+          "I need help with billing",
+        ]
+      });
+    }
+  });
+
   // Create anonymous customer and conversation
   app.post('/api/customer-chat/create-customer', async (req, res) => {
     try {

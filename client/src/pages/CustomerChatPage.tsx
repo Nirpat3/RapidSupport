@@ -130,6 +130,10 @@ export default function CustomerChatPage() {
   const [showRatingDialog, setShowRatingDialog] = useState(false);
   const ratingCheckDone = useRef(false);
 
+  // AI response state
+  const [isAiResponding, setIsAiResponding] = useState(false);
+  const [aiTypingTimeout, setAiTypingTimeout] = useState<NodeJS.Timeout | null>(null);
+
   // Save chat state to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('customer-chat-state', JSON.stringify(chatState));
@@ -263,11 +267,74 @@ export default function CustomerChatPage() {
         customerId: custId,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       setQuestion("");
       refetchMessages();
+      
+      // Trigger AI agent response after customer message
+      if (variables.content) {
+        triggerAiResponse(variables.content);
+      }
     },
   });
+
+  // AI Agent Response mutation
+  const aiResponseMutation = useMutation({
+    mutationFn: async (customerMessage: string) => {
+      if (!chatState.conversationId) {
+        throw new Error("No active conversation");
+      }
+      
+      return await apiRequest('/api/ai/smart-response', 'POST', {
+        conversationId: chatState.conversationId,
+        customerMessage,
+        customerId: chatState.customerId,
+      });
+    },
+    onSuccess: (response) => {
+      console.log('AI response generated:', response);
+      
+      // AI message is now created server-side for security
+      // Just refresh messages to show the new AI response
+      refetchMessages();
+      
+      setIsAiResponding(false);
+      if (aiTypingTimeout) {
+        clearTimeout(aiTypingTimeout);
+        setAiTypingTimeout(null);
+      }
+    },
+    onError: (error) => {
+      console.error('Failed to generate AI response:', error);
+      setIsAiResponding(false);
+      if (aiTypingTimeout) {
+        clearTimeout(aiTypingTimeout);
+        setAiTypingTimeout(null);
+      }
+    },
+  });
+
+  // Trigger AI response with typing indicator
+  const triggerAiResponse = (customerMessage: string) => {
+    setIsAiResponding(true);
+    
+    // Add realistic typing delay (2-4 seconds)
+    const typingDelay = Math.random() * 2000 + 2000;
+    const timeout = setTimeout(() => {
+      aiResponseMutation.mutate(customerMessage);
+    }, typingDelay);
+    
+    setAiTypingTimeout(timeout);
+  };
+
+  // Cleanup AI typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (aiTypingTimeout) {
+        clearTimeout(aiTypingTimeout);
+      }
+    };
+  }, [aiTypingTimeout]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -464,7 +531,22 @@ export default function CustomerChatPage() {
     setSelectedFiles([]);
   };
 
-  const suggestedQuestions = [
+  // Fetch personalized suggested questions based on customer history
+  const { data: suggestedQuestionsData } = useQuery<{ questions: string[] }>({
+    queryKey: ['/api/customer-chat/suggested-questions', chatState.customerId, chatState.sessionId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (chatState.customerId) {
+        params.append('customerId', chatState.customerId);
+      }
+      if (chatState.sessionId) {
+        params.append('sessionId', chatState.sessionId);
+      }
+      return await apiRequest(`/api/customer-chat/suggested-questions?${params.toString()}`, 'GET');
+    },
+  });
+
+  const suggestedQuestions = suggestedQuestionsData?.questions || [
     "How do I reset my password?",
     "What are your pricing plans?",
     "How can I upgrade my account?",
@@ -603,6 +685,23 @@ export default function CustomerChatPage() {
                   )}
                 </div>
               ))}
+              
+              {/* AI Typing Indicator */}
+              {isAiResponding && (
+                <div className="flex gap-3 justify-start" data-testid="ai-typing-indicator">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="max-w-[80%] sm:max-w-[70%] rounded-2xl px-4 py-3 bg-muted">
+                    <div className="flex gap-1">
+                      <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div ref={messagesEndRef} />
             </div>
           </div>
