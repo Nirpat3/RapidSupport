@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -202,6 +202,10 @@ export function CustomerChatWidget() {
         clearTimeout(aiTypingTimeout);
         setAiTypingTimeout(null);
       }
+
+      // Mark processing as complete and process next message in queue
+      isProcessingQueueRef.current = false;
+      processNextAiResponse();
     },
     onError: (error) => {
       console.error('Failed to generate AI response:', error);
@@ -210,23 +214,48 @@ export function CustomerChatWidget() {
         clearTimeout(aiTypingTimeout);
         setAiTypingTimeout(null);
       }
+
+      // Mark processing as complete and process next message in queue
+      isProcessingQueueRef.current = false;
+      processNextAiResponse();
     },
   });
 
   // REMOVED: sendAiMessage function - AI messages now created server-side in /api/ai/smart-response
 
-  // Trigger AI response with typing indicator
-  const triggerAiResponse = (customerMessage: string) => {
+  // Queue system to ensure every message gets exactly one AI response
+  const aiMessageQueueRef = useRef<string[]>([]);
+  const isProcessingQueueRef = useRef(false);
+
+  // Process the next message in the queue
+  const processNextAiResponse = useCallback(() => {
+    if (isProcessingQueueRef.current || aiMessageQueueRef.current.length === 0) {
+      return;
+    }
+
+    isProcessingQueueRef.current = true;
+    const nextMessage = aiMessageQueueRef.current.shift()!;
+    
     setIsAiResponding(true);
     
     // Add realistic typing delay (2-4 seconds)
     const typingDelay = Math.random() * 2000 + 2000;
     const timeout = setTimeout(() => {
-      aiResponseMutation.mutate(customerMessage);
+      aiResponseMutation.mutate(nextMessage);
     }, typingDelay);
     
     setAiTypingTimeout(timeout);
-  };
+  }, [aiResponseMutation]);
+
+  // Trigger AI response with queueing to prevent duplicates while ensuring all messages get responses
+  const triggerAiResponse = useCallback((customerMessage: string) => {
+    // Add message to queue
+    aiMessageQueueRef.current.push(customerMessage);
+    console.log(`AI message queued. Queue length: ${aiMessageQueueRef.current.length}`);
+    
+    // Process if not already processing
+    processNextAiResponse();
+  }, [processNextAiResponse]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
