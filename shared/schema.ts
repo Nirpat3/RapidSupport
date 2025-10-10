@@ -249,6 +249,38 @@ export const knowledgeBaseImages = pgTable("knowledge_base_images", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Knowledge Base Videos table - stores videos (YouTube and internal) attached to knowledge articles
+export const knowledgeBaseVideos = pgTable("knowledge_base_videos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  knowledgeBaseId: varchar("knowledge_base_id").notNull().references(() => knowledgeBase.id),
+  
+  // Video source type
+  videoType: text("video_type").notNull(), // 'youtube' | 'internal'
+  
+  // YouTube videos
+  youtubeUrl: text("youtube_url"), // Full YouTube URL
+  youtubeId: text("youtube_id"), // Extracted YouTube video ID (e.g., 'dQw4w9WgXcQ')
+  
+  // Internal videos (uploaded files)
+  filename: text("filename"), // Generated filename
+  originalName: text("original_name"), // Original upload filename
+  mimeType: text("mime_type"), // video/mp4, video/webm, etc.
+  size: integer("size"), // File size in bytes
+  filePath: text("file_path"), // Path to stored video file
+  duration: integer("duration"), // Video duration in seconds
+  
+  // Common fields for all videos
+  title: text("title").notNull(), // Video title/label
+  description: text("description"), // Optional description
+  tags: text("tags").array(), // Video tags for search/categorization
+  thumbnailPath: text("thumbnail_path"), // Path to thumbnail image
+  displayOrder: integer("display_order").notNull().default(0), // Order of videos in the article
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // AI Agent Learning table - tracks AI interactions to improve responses over time
 export const aiAgentLearning = pgTable("ai_agent_learning", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -459,6 +491,7 @@ export const knowledgeBaseRelations = relations(knowledgeBase, ({ one, many }) =
     references: [users.id],
   }),
   images: many(knowledgeBaseImages),
+  videos: many(knowledgeBaseVideos),
   files: many(knowledgeBaseFiles),
 }));
 
@@ -466,6 +499,17 @@ export const knowledgeBaseImagesRelations = relations(knowledgeBaseImages, ({ on
   knowledgeBase: one(knowledgeBase, {
     fields: [knowledgeBaseImages.knowledgeBaseId],
     references: [knowledgeBase.id],
+  }),
+}));
+
+export const knowledgeBaseVideosRelations = relations(knowledgeBaseVideos, ({ one }) => ({
+  knowledgeBase: one(knowledgeBase, {
+    fields: [knowledgeBaseVideos.knowledgeBaseId],
+    references: [knowledgeBase.id],
+  }),
+  createdBy: one(users, {
+    fields: [knowledgeBaseVideos.createdBy],
+    references: [users.id],
   }),
 }));
 
@@ -751,6 +795,29 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick(
 });
 
 export const updateKnowledgeBaseSchema = insertKnowledgeBaseSchema.partial();
+
+// Knowledge Base Videos schemas
+export const insertKnowledgeBaseVideoSchema = createInsertSchema(knowledgeBaseVideos).pick({
+  knowledgeBaseId: true,
+  videoType: true,
+  youtubeUrl: true,
+  youtubeId: true,
+  filename: true,
+  originalName: true,
+  mimeType: true,
+  size: true,
+  filePath: true,
+  duration: true,
+  title: true,
+  description: true,
+  tags: true,
+  thumbnailPath: true,
+  displayOrder: true,
+  createdBy: true,
+});
+
+export type InsertKnowledgeBaseVideo = z.infer<typeof insertKnowledgeBaseVideoSchema>;
+export type KnowledgeBaseVideo = typeof knowledgeBaseVideos.$inferSelect;
 
 // File Management schemas
 export const insertUploadedFileSchema = createInsertSchema(uploadedFiles).pick({
