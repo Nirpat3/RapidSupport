@@ -86,6 +86,11 @@ const getNavigationItems = (unreadCount: number, activityCount: number) => [
     icon: Brain
   },
   {
+    title: "AI Learning",
+    url: "/ai-learning", 
+    icon: TrendingUp
+  },
+  {
     title: "AI Takeover",
     url: "/ai-takeover", 
     icon: UserCheck

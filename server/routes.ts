@@ -3253,6 +3253,107 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // AI Learning Dashboard API endpoints
+  app.get('/api/ai/learning-metrics', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { agent, intent, timeRange } = req.query;
+      
+      const filters: any = {};
+      if (agent && agent !== 'all') filters.agentId = agent as string;
+      if (intent && intent !== 'all') filters.intentCategory = intent as string;
+      
+      // Calculate date range
+      const now = new Date();
+      const timeRangeMap: Record<string, number> = {
+        '24h': 24 * 60 * 60 * 1000,
+        '7d': 7 * 24 * 60 * 60 * 1000,
+        '30d': 30 * 24 * 60 * 60 * 1000,
+        '90d': 90 * 24 * 60 * 60 * 1000
+      };
+      const millisecondsAgo = timeRangeMap[timeRange as string] || timeRangeMap['7d'];
+      const startDate = new Date(now.getTime() - millisecondsAgo);
+      
+      const learningEntries = await storage.getAiLearningEntriesFiltered(filters, startDate);
+      
+      // Enrich with agent names
+      const enrichedEntries = await Promise.all(learningEntries.map(async entry => {
+        const agent = await storage.getAiAgent(entry.agentId);
+        return {
+          ...entry,
+          agentName: agent?.name || 'Unknown Agent'
+        };
+      }));
+      
+      res.json(enrichedEntries);
+    } catch (error) {
+      console.error('Failed to fetch AI learning metrics:', error);
+      res.status(500).json({ error: 'Failed to fetch metrics' });
+    }
+  });
+
+  app.get('/api/ai/agent-stats', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { timeRange } = req.query;
+      
+      // Calculate date range
+      const now = new Date();
+      const timeRangeMap: Record<string, number> = {
+        '24h': 24 * 60 * 60 * 1000,
+        '7d': 7 * 24 * 60 * 60 * 1000,
+        '30d': 30 * 24 * 60 * 60 * 1000,
+        '90d': 90 * 24 * 60 * 60 * 1000
+      };
+      const millisecondsAgo = timeRangeMap[timeRange as string] || timeRangeMap['7d'];
+      const startDate = new Date(now.getTime() - millisecondsAgo);
+      
+      const learningEntries = await storage.getAiLearningEntriesFiltered({}, startDate);
+      
+      // Group by agent
+      const agentGroups = learningEntries.reduce((acc, entry) => {
+        if (!acc[entry.agentId]) {
+          acc[entry.agentId] = [];
+        }
+        acc[entry.agentId].push(entry);
+        return acc;
+      }, {} as Record<string, typeof learningEntries>);
+      
+      // Calculate stats for each agent
+      const stats = await Promise.all(Object.entries(agentGroups).map(async ([agentId, entries]) => {
+        const agent = await storage.getAiAgent(agentId);
+        const totalResponses = entries.length;
+        const avgQuality = Math.round(entries.reduce((sum, e) => sum + (e.qualityScore || 0), 0) / totalResponses);
+        const avgTone = Math.round(entries.reduce((sum, e) => sum + (e.toneScore || 0), 0) / totalResponses);
+        const avgRelevance = Math.round(entries.reduce((sum, e) => sum + (e.relevanceScore || 0), 0) / totalResponses);
+        const avgCompleteness = Math.round(entries.reduce((sum, e) => sum + (e.completenessScore || 0), 0) / totalResponses);
+        const avgConfidence = Math.round(entries.reduce((sum, e) => sum + (e.confidence || 0), 0) / totalResponses);
+        const humanTakeovers = entries.filter(e => e.humanTookOver).length;
+        const humanTakeoverRate = Math.round((humanTakeovers / totalResponses) * 100);
+        const satisfactionEntries = entries.filter(e => e.customerSatisfaction !== null);
+        const avgCustomerSatisfaction = satisfactionEntries.length > 0
+          ? satisfactionEntries.reduce((sum, e) => sum + (e.customerSatisfaction || 0), 0) / satisfactionEntries.length
+          : 0;
+        
+        return {
+          agentId,
+          agentName: agent?.name || 'Unknown Agent',
+          totalResponses,
+          avgQuality,
+          avgTone,
+          avgRelevance,
+          avgCompleteness,
+          avgConfidence,
+          humanTakeoverRate,
+          avgCustomerSatisfaction
+        };
+      }));
+      
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch agent stats:', error);
+      res.status(500).json({ error: 'Failed to fetch agent stats' });
+    }
+  });
+
   // File upload endpoint for chat attachments
   app.post('/api/upload-attachment', upload.array('files', 5), async (req, res) => {
     try {

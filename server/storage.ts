@@ -89,7 +89,7 @@ import {
   type InsertUserPermission,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, isNull, inArray } from "drizzle-orm";
+import { eq, desc, and, or, sql, isNull, inArray, gte } from "drizzle-orm";
 import { KnowledgeRetrievalService } from "./knowledge-retrieval";
 
 // Updated interface for all CRUD operations
@@ -238,6 +238,7 @@ export interface IStorage {
   
   // AI Training & Correction operations
   getAiLearningEntries(filters: { agentId?: string; limit?: number; offset?: number }): Promise<any[]>;
+  getAiLearningEntriesFiltered(filters: { agentId?: string; intentCategory?: string }, startDate: Date): Promise<any[]>;
   updateAiLearningFeedback(id: string, feedback: { wasHelpful?: boolean; improvementSuggestion?: string | null; customerSatisfaction?: number | null }): Promise<void>;
   createAiResponseCorrection(correction: { learningEntryId: string; improvedResponse: string; reasoning: string; knowledgeToAdd?: string | null; submittedBy: string }): Promise<void>;
 
@@ -1982,6 +1983,46 @@ export class DatabaseStorage implements IStorage {
       return results;
     } catch (error) {
       console.error('Error fetching AI learning entries:', error);
+      return [];
+    }
+  }
+
+  async getAiLearningEntriesFiltered(filters: { agentId?: string; intentCategory?: string }, startDate: Date): Promise<any[]> {
+    try {
+      let query = db
+        .select()
+        .from(aiAgentLearning)
+        .$dynamic();
+
+      // Build where conditions
+      const whereConditions: any[] = [];
+
+      // Filter by agentId if provided
+      if (filters.agentId) {
+        whereConditions.push(eq(aiAgentLearning.agentId, filters.agentId));
+      }
+
+      // Filter by intentCategory if provided
+      if (filters.intentCategory) {
+        whereConditions.push(eq(aiAgentLearning.intentCategory, filters.intentCategory));
+      }
+
+      // Filter by createdAt >= startDate
+      whereConditions.push(gte(aiAgentLearning.createdAt, startDate));
+
+      // Apply where conditions
+      if (whereConditions.length > 0) {
+        const whereClause = whereConditions.length === 1 ? whereConditions[0] : and(...whereConditions);
+        query = query.where(whereClause);
+      }
+
+      // Order by createdAt DESC
+      query = query.orderBy(desc(aiAgentLearning.createdAt));
+
+      const results = await query;
+      return results;
+    } catch (error) {
+      console.error('Error fetching filtered AI learning entries:', error);
       return [];
     }
   }
