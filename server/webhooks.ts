@@ -11,6 +11,23 @@ export function setupWebhooks(storage: IStorage): Router {
    */
   router.post('/webhooks/whatsapp', async (req: Request, res: Response) => {
     try {
+      // Verify webhook signature (Meta sends x-hub-signature-256 header)
+      const signature = req.headers['x-hub-signature-256'] as string;
+      const appSecret = process.env.WHATSAPP_APP_SECRET;
+      
+      if (appSecret && signature) {
+        const crypto = await import('crypto');
+        const expectedSignature = 'sha256=' + crypto
+          .createHmac('sha256', appSecret)
+          .update(JSON.stringify(req.body))
+          .digest('hex');
+        
+        if (signature !== expectedSignature) {
+          console.warn('WhatsApp webhook signature mismatch');
+          return res.sendStatus(403);
+        }
+      }
+
       const { object, entry } = req.body;
 
       // Verify it's a WhatsApp message
@@ -71,6 +88,15 @@ export function setupWebhooks(storage: IStorage): Router {
    */
   router.post('/webhooks/telegram', async (req: Request, res: Response) => {
     try {
+      // Verify Telegram webhook token (optional but recommended)
+      const secretToken = req.headers['x-telegram-bot-api-secret-token'] as string;
+      const expectedToken = process.env.TELEGRAM_SECRET_TOKEN;
+      
+      if (expectedToken && secretToken !== expectedToken) {
+        console.warn('Telegram webhook secret token mismatch');
+        return res.sendStatus(403);
+      }
+
       const { message, callback_query } = req.body;
 
       if (message) {
@@ -108,6 +134,23 @@ export function setupWebhooks(storage: IStorage): Router {
    */
   router.post('/webhooks/messenger', async (req: Request, res: Response) => {
     try {
+      // Verify Messenger webhook signature
+      const signature = req.headers['x-hub-signature-256'] as string;
+      const appSecret = process.env.MESSENGER_APP_SECRET;
+      
+      if (appSecret && signature) {
+        const crypto = await import('crypto');
+        const expectedSignature = 'sha256=' + crypto
+          .createHmac('sha256', appSecret)
+          .update(JSON.stringify(req.body))
+          .digest('hex');
+        
+        if (signature !== expectedSignature) {
+          console.warn('Messenger webhook signature mismatch');
+          return res.sendStatus(403);
+        }
+      }
+
       const { object, entry } = req.body;
 
       if (object !== 'page') {

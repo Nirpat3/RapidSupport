@@ -27,7 +27,33 @@ A comprehensive granular permission system allows administrators to control staf
 A custom WebSocket server facilitates real-time chat for both staff and customers. It includes connection management, user presence tracking, conversation-based message routing, real-time message broadcasting with delivery status, and typing indicators. An anonymous customer widget supports information collection and session persistence.
 
 ### AI Capabilities
-The system includes an AI response system for intelligent customer support, capable of detecting vague queries and generating knowledge-based solutions. Customer chat pages feature automatic AI response triggering - when a customer sends a message, the system automatically generates and displays an AI response with a realistic typing indicator (2-4 second delay). An AI Training Live Q&A feature allows staff to interactively train AI agents, submit corrections to knowledge base articles, and track version history. Public-facing knowledge base search is available with AI-powered article recommendations. Personalized suggested questions are dynamically generated based on customer conversation history, IP address, and sessionId, using AI to create contextual follow-up questions that relate to previously discussed topics.
+The system includes a sophisticated multi-agent AI response system powered by OpenAI GPT-4o-mini. Customer chat pages feature automatic AI response triggering with a realistic typing indicator (2-4 second delay).
+
+**Multi-Agent System:**
+- **Intent Classification**: Automatically categorizes customer messages as sales, technical, billing, or general with confidence scoring
+- **Specialized AI Agents**: 4 pre-configured agents with unique capabilities:
+  - Sales Assistant (conversational format, temperature 40)
+  - Technical Support Specialist (step-by-step format, temperature 20)
+  - Billing Specialist (bullet points format, temperature 10)
+  - General Support Assistant (conversational format, temperature 30)
+- **Smart Routing**: Automatically selects the best agent based on intent specialization
+- **Agent Handoff**: Seamlessly transfers conversations to specialized agents when intent changes (confidence > 70%)
+- **Response Formats**: 5 template types - conversational, step-by-step, FAQ, technical, bullet points
+
+**Quality Scoring & Learning:**
+- **4-Dimensional Quality Analysis**: Every AI response is scored on quality (grammar, accuracy), tone (empathy, professionalism), relevance (addresses query), and completeness (full vs partial answer)
+- **AI Learning Dashboard**: Comprehensive analytics showing quality metrics, agent performance, intent distribution, response format usage, and knowledge gaps
+- **Continuous Improvement**: All interactions stored in aiAgentLearning table for pattern analysis and performance optimization
+
+**Knowledge Base Integration:**
+- AI Training Live Q&A feature for staff to interactively train AI agents
+- Submit corrections to knowledge base articles with version history tracking
+- Public-facing knowledge base search with AI-powered article recommendations
+- Video support (YouTube embeds + internal uploads up to 100MB, MP4/WebM/MOV formats)
+
+**Personalization:**
+- Dynamically generated suggested questions based on conversation history, IP address, and sessionId
+- Contextual follow-up questions that relate to previously discussed topics
 
 ### Rich Media Input System
 The customer chat features a rich media input system supporting file attachments (drag-drop, multi-file upload up to 15 files/10MB each), universal camera capture (getUserMedia() with live preview, rear camera preference, proper error handling), an emoji picker, and voice-to-text via the Web Speech API. File attachments are stored in a dedicated `attachments` table.
@@ -55,6 +81,27 @@ A comprehensive activity notifications system enables staff to receive alerts fo
 
 ### Customer Portal
 A dedicated customer portal provides authenticated customers with self-service access to their support history and account management. The portal features a login system accessible from the customer chat page, session-based authentication with hasPortalAccess validation, and a comprehensive dashboard displaying conversation stats and recent activity. Customers can manage their profile information (name, email, company, phone) and change passwords. The conversations page shows complete conversation history with status filtering (open, closed, all) and the ability to start new conversations. The feedback page displays all submitted feedback on closed conversations with ratings and comments. The portal uses a dedicated layout with navigation between Dashboard, Profile, Conversations, Feedback, and Feed pages. Staff can review and analyze all customer feedback through the Feedback Evaluation page in the staff interface. All portal routes are protected with customer session validation, and the system includes backend API endpoints for stats retrieval, profile updates, password changes, and feedback management.
+
+### External Channel Integration
+The platform supports multi-channel customer support through webhook-based integrations with popular messaging platforms:
+
+**Supported Channels:**
+- **WhatsApp Business API**: Receives and responds to customer messages via Meta's Cloud API with HMAC signature verification
+- **Telegram Bot**: Handles messages and callback queries with secret token validation
+- **Facebook Messenger**: Processes messages from Facebook Page with signature verification
+
+**Security Features:**
+- HMAC-SHA256 signature verification for WhatsApp and Messenger webhooks
+- Secret token validation for Telegram webhooks
+- Automatic customer creation and conversation management for external channels
+- AI-powered responses sent back to customers on their preferred platform
+
+**Webhook Endpoints:**
+- GET/POST `/webhooks/whatsapp` - WhatsApp verification and message handling
+- GET/POST `/webhooks/telegram` - Telegram verification and message handling
+- GET/POST `/webhooks/messenger` - Messenger verification and message handling
+
+All external messages are processed through the same AI multi-agent system for consistent, intelligent responses across all channels.
 
 ## External Dependencies
 
