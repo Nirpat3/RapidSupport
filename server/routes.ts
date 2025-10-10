@@ -33,7 +33,9 @@ import {
   insertPostSchema,
   insertPostCommentSchema,
   insertPostLikeSchema,
-  insertPostViewSchema
+  insertPostViewSchema,
+  insertAiAgentSchema,
+  updateAiAgentSchema
 } from '@shared/schema';
 import { WebScraper } from './web-scraper';
 import { KnowledgeRetrievalService } from './knowledge-retrieval';
@@ -3019,6 +3021,64 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to fetch AI agents:', error);
       res.status(500).json({ error: 'Failed to fetch AI agents' });
+    }
+  });
+
+  // Create new AI agent (Admin only)
+  app.post('/api/ai/agents', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const data = insertAiAgentSchema.parse({
+        ...req.body,
+        createdBy: user.id
+      });
+      
+      const agent = await storage.createAiAgent(data);
+      res.status(201).json(agent);
+    } catch (error) {
+      console.error('Failed to create AI agent:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to create AI agent' });
+    }
+  });
+
+  // Update AI agent (Admin only)
+  app.put('/api/ai/agents/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = updateAiAgentSchema.parse(req.body);
+      
+      await storage.updateAiAgent(id, data);
+      const updatedAgent = await storage.getAiAgent(id);
+      
+      res.json(updatedAgent);
+    } catch (error) {
+      console.error('Failed to update AI agent:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to update AI agent' });
+    }
+  });
+
+  // Delete AI agent (Admin only)
+  app.delete('/api/ai/agents/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await storage.deleteAiAgent(id);
+      res.json({ message: 'AI agent deleted successfully' });
+    } catch (error) {
+      console.error('Failed to delete AI agent:', error);
+      res.status(500).json({ error: 'Failed to delete AI agent' });
     }
   });
 

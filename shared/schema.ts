@@ -201,6 +201,7 @@ export const aiAgents = pgTable("ai_agents", {
   knowledgeBaseIds: text("knowledge_base_ids").array(), // Which knowledge base articles this agent can access
   maxTokens: integer("max_tokens").notNull().default(1000),
   temperature: integer("temperature").notNull().default(30), // Stored as integer (0-100), divided by 100 for API
+  responseFormat: text("response_format").notNull().default('conversational'), // 'conversational' | 'step_by_step' | 'faq' | 'technical' | 'bullet_points'
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -777,6 +778,7 @@ export const insertAiAgentSchema = createInsertSchema(aiAgents).pick({
   knowledgeBaseIds: true,
   maxTokens: true,
   temperature: true,
+  responseFormat: true,
   createdBy: true,
 });
 

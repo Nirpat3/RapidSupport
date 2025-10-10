@@ -19,6 +19,7 @@ export async function seedSpecializedAgents(): Promise<void> {
         autoTakeoverThreshold: 60,
         temperature: 40,
         maxTokens: 1500,
+        responseFormat: 'conversational' as const,
         isActive: true,
       },
       {
@@ -29,6 +30,7 @@ export async function seedSpecializedAgents(): Promise<void> {
         autoTakeoverThreshold: 70,
         temperature: 20,
         maxTokens: 2000,
+        responseFormat: 'step_by_step' as const,
         isActive: true,
       },
       {
@@ -39,6 +41,7 @@ export async function seedSpecializedAgents(): Promise<void> {
         autoTakeoverThreshold: 80,
         temperature: 10,
         maxTokens: 2000,
+        responseFormat: 'bullet_points' as const,
         isActive: true,
       },
       {
@@ -49,6 +52,7 @@ export async function seedSpecializedAgents(): Promise<void> {
         autoTakeoverThreshold: 65,
         temperature: 30,
         maxTokens: 1500,
+        responseFormat: 'conversational' as const,
         isActive: true,
       },
     ];
