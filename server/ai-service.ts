@@ -65,7 +65,236 @@ interface EnhancedSearchResult extends SearchResult {
   contextRelevance?: string;
 }
 
+export interface IntentClassification {
+  intent: 'sales' | 'technical' | 'billing' | 'general';
+  confidence: number;
+  reasoning: string;
+}
+
+export interface QualityScores {
+  qualityScore: number;
+  toneScore: number;
+  relevanceScore: number;
+  completenessScore: number;
+}
+
+const RESPONSE_FORMATS = {
+  conversational: {
+    prompt: "Respond in a friendly, conversational tone. Be warm and personable while maintaining professionalism. Use natural language and avoid overly formal phrasing.",
+    example: "Hi there! I'd be happy to help you with that. Let me walk you through this..."
+  },
+  step_by_step: {
+    prompt: "Provide clear numbered steps in a logical sequence. Each step should be actionable and easy to follow. Use imperative language (e.g., 'Click', 'Open', 'Enter').",
+    example: "Here's how to do that:\n1. First, open the settings menu\n2. Navigate to account preferences\n3. Click on 'Update Password'"
+  },
+  faq: {
+    prompt: "Answer in FAQ format with clear Q&A pairs. Start with a question statement, then provide a concise answer. Be direct and informative.",
+    example: "Q: How do I reset my password?\nA: You can reset your password by clicking the 'Forgot Password' link on the login page."
+  },
+  technical: {
+    prompt: "Provide detailed technical explanations with accurate terminology. Include technical details, specifications, and precise information. Assume the user has technical knowledge.",
+    example: "The authentication system uses JWT tokens with RS256 encryption. The token expires after 24 hours and includes user claims..."
+  },
+  bullet_points: {
+    prompt: "Respond using concise bullet points. Each point should be brief and to the point. Use bullet points for lists, features, or key information.",
+    example: "Here are the key features:\n• Automatic backups every 24 hours\n• 256-bit encryption\n• Real-time sync across devices"
+  }
+} as const;
+
 export class AIService {
+  /**
+   * Classify customer message intent
+   */
+  static async classifyIntent(message: string): Promise<IntentClassification> {
+    try {
+      const systemPrompt = `You are an intent classification system for customer support. Analyze messages and classify them into one of these categories:
+
+- sales: Questions about pricing, plans, purchasing, upgrades, demos, trials, product features for buying decisions
+- technical: Technical issues, troubleshooting, setup help, configuration, errors, bugs, how-to questions
+- billing: Payment issues, invoices, subscription management, refunds, billing disputes
+- general: General inquiries, feedback, account questions, other topics not fitting above categories
+
+Provide accurate classification with high confidence.`;
+
+      const userPrompt = `Classify this customer message:
+
+"${message}"
+
+Provide a JSON response with:
+- intent: One of "sales", "technical", "billing", or "general"
+- confidence: Number from 0-100 indicating classification confidence
+- reasoning: Brief explanation (1-2 sentences) of why you chose this category`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 200,
+      });
+
+      let responseContent = completion.choices[0].message.content || '{}';
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
+      
+      return {
+        intent: result.intent || 'general',
+        confidence: result.confidence || 50,
+        reasoning: result.reasoning || 'Unable to determine specific intent',
+      };
+    } catch (error) {
+      console.error('Error classifying intent:', error);
+      return {
+        intent: 'general',
+        confidence: 30,
+        reasoning: 'Error occurred during classification, defaulting to general',
+      };
+    }
+  }
+
+  /**
+   * Score response quality across multiple dimensions
+   */
+  static async scoreResponseQuality(query: string, response: string): Promise<QualityScores> {
+    try {
+      const systemPrompt = `You are a response quality evaluator for customer support. Analyze AI responses and score them across multiple quality dimensions.`;
+
+      const userPrompt = `Evaluate this customer support interaction:
+
+Customer Query: "${query}"
+
+AI Response: "${response}"
+
+Score the response on these dimensions (0-100 for each):
+
+1. qualityScore: Grammar, spelling, clarity, coherence, accuracy, overall writing quality
+2. toneScore: Appropriate tone, empathy, professionalism, friendliness, not too formal or casual
+3. relevanceScore: How well the response addresses the specific query, stays on topic
+4. completenessScore: Provides a complete answer vs partial, includes all necessary information
+
+Provide a JSON response with all four scores:
+{
+  "qualityScore": 0-100,
+  "toneScore": 0-100,
+  "relevanceScore": 0-100,
+  "completenessScore": 0-100
+}`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 300,
+      });
+
+      let responseContent = completion.choices[0].message.content || '{}';
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
+      
+      return {
+        qualityScore: result.qualityScore || 50,
+        toneScore: result.toneScore || 50,
+        relevanceScore: result.relevanceScore || 50,
+        completenessScore: result.completenessScore || 50,
+      };
+    } catch (error) {
+      console.error('Error scoring response quality:', error);
+      return {
+        qualityScore: 50,
+        toneScore: 50,
+        relevanceScore: 50,
+        completenessScore: 50,
+      };
+    }
+  }
+
+  /**
+   * Select best agent for a given intent category
+   */
+  static async selectBestAgentForIntent(intent: string, message: string): Promise<AiAgent | null> {
+    try {
+      const agents = await storage.getActiveAiAgents?.() || [];
+      
+      if (agents.length === 0) {
+        return null;
+      }
+
+      // Filter agents by specialization matching the intent
+      const matchingAgents = agents.filter(agent => 
+        agent.specializations && 
+        agent.specializations.some(spec => 
+          spec.toLowerCase().includes(intent.toLowerCase())
+        )
+      );
+
+      if (matchingAgents.length === 0) {
+        // No specialized agent found, return first active agent as fallback
+        return agents[0];
+      }
+
+      // If multiple matches, prefer agents with higher effectiveness (if available)
+      // For now, return the first matching agent
+      // Future: Could add effectiveness scoring or load balancing
+      return matchingAgents[0];
+    } catch (error) {
+      console.error('Error selecting best agent for intent:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Handoff conversation to a different AI agent
+   */
+  static async handoffToAgent(
+    sessionId: string, 
+    newAgentId: string, 
+    reason: string
+  ): Promise<AiAgentSession> {
+    try {
+      const session = await storage.getAiAgentSession(sessionId);
+      
+      if (!session) {
+        throw new Error(`AI agent session ${sessionId} not found`);
+      }
+
+      const oldAgent = await storage.getAiAgent(session.agentId);
+      const newAgent = await storage.getAiAgent(newAgentId);
+
+      // Update session with new agent
+      await storage.updateAiAgentSession(sessionId, {
+        agentId: newAgentId,
+        handoverReason: reason,
+      });
+
+      // Log the handoff activity
+      await storage.createActivityLog({
+        conversationId: session.conversationId,
+        action: 'agent_handoff',
+        details: `AI Agent handoff: ${oldAgent?.name || 'Unknown'} → ${newAgent?.name || 'Unknown'}. Reason: ${reason}`,
+      });
+
+      console.log(`✅ Agent handoff completed: ${oldAgent?.name} → ${newAgent?.name} (Reason: ${reason})`);
+
+      // Return updated session
+      const updatedSession = await storage.getAiAgentSession(sessionId);
+      if (!updatedSession) {
+        throw new Error('Failed to retrieve updated session after handoff');
+      }
+      
+      return updatedSession;
+    } catch (error) {
+      console.error('Error during agent handoff:', error);
+      throw error;
+    }
+  }
+
   /**
    * Proofread a message for grammar, clarity, and tone
    */
@@ -643,13 +872,33 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
     agentId?: string
   ): Promise<SmartAgentResponse> {
     try {
+      // Classify intent to determine appropriate response format and agent routing
+      const intentClassification = await this.classifyIntent(customerMessage);
+      console.log(`Intent classification: ${intentClassification.intent} (confidence: ${intentClassification.confidence}%)`);
+      console.log(`Intent reasoning: ${intentClassification.reasoning}`);
+
       // Get or create AI agent session
       let session = await storage.getAiAgentSessionByConversation(conversationId);
       let agent: AiAgent | null = null;
 
       if (!session) {
-        // Find the best agent for this conversation or use default
-        agent = agentId ? (await storage.getAiAgent(agentId)) || null : await this.findBestAgent(customerMessage);
+        // If explicit agentId provided, use it
+        if (agentId) {
+          agent = (await storage.getAiAgent(agentId)) || null;
+          console.log(`Using explicitly provided agent: ${agent?.name || 'not found'}`);
+        }
+        
+        // Otherwise, select best agent based on intent
+        if (!agent) {
+          agent = await this.selectBestAgentForIntent(intentClassification.intent, customerMessage);
+          if (agent) {
+            console.log(`Selected specialized agent for ${intentClassification.intent} intent: ${agent.name}`);
+          } else {
+            // Fallback to any available agent
+            agent = await this.findBestAgent(customerMessage);
+            console.log(`Using fallback agent: ${agent?.name || 'not found'}`);
+          }
+        }
         
         if (agent) {
           session = await storage.createAiAgentSession({
@@ -659,9 +908,31 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
             messageCount: 0,
             avgConfidence: 0,
           });
+          console.log(`Created new AI agent session with ${agent.name}`);
         }
       } else {
+        // Session exists - check if we should handoff to a specialized agent
         agent = (await storage.getAiAgent(session.agentId)) || null;
+        
+        // If current agent doesn't specialize in this intent, consider handoff
+        const currentAgentSpecializations = agent?.specializations || [];
+        const isSpecializedForIntent = currentAgentSpecializations.some(spec => 
+          spec.toLowerCase().includes(intentClassification.intent.toLowerCase())
+        );
+        
+        if (!isSpecializedForIntent && intentClassification.confidence > 70) {
+          const specializedAgent = await this.selectBestAgentForIntent(intentClassification.intent, customerMessage);
+          
+          if (specializedAgent && specializedAgent.id !== agent?.id) {
+            console.log(`Handing off from ${agent?.name} to specialized agent: ${specializedAgent.name} for ${intentClassification.intent} intent`);
+            session = await this.handoffToAgent(
+              session.id, 
+              specializedAgent.id, 
+              `Intent changed to ${intentClassification.intent} (confidence: ${intentClassification.confidence}%)`
+            );
+            agent = specializedAgent;
+          }
+        }
       }
 
       if (!agent || !session) {
@@ -683,15 +954,28 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         .slice(-10)
         .map(msg => `${msg.senderType}: ${msg.content}`);
 
+      // Determine response format based on intent
+      let responseFormat: keyof typeof RESPONSE_FORMATS = 'conversational';
+      if (intentClassification.intent === 'technical') {
+        responseFormat = 'step_by_step';
+      } else if (intentClassification.intent === 'billing') {
+        responseFormat = 'bullet_points';
+      } else if (intentClassification.intent === 'sales') {
+        responseFormat = 'conversational';
+      } else {
+        responseFormat = 'conversational';
+      }
+
       // Get relevant knowledge base articles using enhanced retrieval
       const searchResults = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || []);
 
-      // Generate response using agent's configuration
+      // Generate response using agent's configuration with format guidance
       const response = await this.generateAgentResponseWithConfig(
         customerMessage,
         conversationHistory,
         searchResults,
-        agent
+        agent,
+        responseFormat
       );
 
       // Update session statistics
@@ -733,7 +1017,11 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         }
       }
 
-      // Record learning data
+      // Score response quality
+      const qualityScores = await this.scoreResponseQuality(customerMessage, response.response);
+      console.log('Response quality scores:', qualityScores);
+
+      // Record learning data with quality scores and intent
       const shouldLearn = newMessageCount <= 100; // Limit learning data collection
       if (shouldLearn) {
         await storage.createAiAgentLearning({
@@ -744,6 +1032,12 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
           confidence: response.confidence,
           humanTookOver: shouldTakeOver,
           knowledgeUsed: response.knowledgeUsed || [],
+          responseFormat: responseFormat,
+          intentCategory: intentClassification.intent,
+          qualityScore: qualityScores.qualityScore,
+          toneScore: qualityScores.toneScore,
+          relevanceScore: qualityScores.relevanceScore,
+          completenessScore: qualityScores.completenessScore,
         });
       }
 
@@ -780,7 +1074,8 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
     customerMessage: string,
     conversationHistory: string[],
     searchResults: SearchResult[],
-    agent: AiAgent
+    agent: AiAgent,
+    responseFormat: keyof typeof RESPONSE_FORMATS = 'conversational'
   ): Promise<AIAgentResponse> {
     try {
       // Enhanced knowledge context formatting with better structure
@@ -809,11 +1104,19 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         console.log('Top search result title:', searchResults[0].chunk.title);
       }
 
+      // Get the format template for this response
+      const formatTemplate = RESPONSE_FORMATS[responseFormat];
+
       const userPrompt = `${knowledgeContext}${conversationContext}
 Customer Message: "${customerMessage}"
 
 Agent Role: ${agent.name} - ${agent.description}
 Specializations: ${agent.specializations?.join(', ') || 'General Support'}
+
+RESPONSE FORMAT REQUIREMENT:
+Format: ${responseFormat}
+Instructions: ${formatTemplate.prompt}
+Example: ${formatTemplate.example}
 
 QUERY ANALYSIS:
 - Is vague/needs clarification: ${isVagueQuery ? 'YES' : 'NO'}

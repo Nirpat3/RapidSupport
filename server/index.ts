@@ -7,6 +7,7 @@ import passport from './auth';
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { ensureAdminExists } from './init-admin';
+import { setupWebhooks } from './webhooks';
 
 const app = express();
 
@@ -84,7 +85,11 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  const { server, wsServer } = await registerRoutes(app, sessionStore);
+  const { server, wsServer, storage } = await registerRoutes(app, sessionStore);
+
+  // Setup external channel webhooks
+  const webhookRouter = setupWebhooks(storage);
+  app.use(webhookRouter);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -104,9 +109,14 @@ app.use((req, res, next) => {
   }
   
   console.log('WebSocket server initialized for real-time chat');
+  console.log('External channel webhooks ready: /webhooks/whatsapp, /webhooks/telegram, /webhooks/messenger');
 
   // Ensure default admin user exists
   await ensureAdminExists();
+
+  // Seed specialized AI agents
+  const { seedSpecializedAgents } = await import('./seed-agents');
+  await seedSpecializedAgents();
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.

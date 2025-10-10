@@ -197,6 +197,7 @@ export interface IStorage {
   getAiAgent(id: string): Promise<AiAgent | undefined>;
   getActiveAiAgents(): Promise<AiAgent[]>;
   getAllAiAgents(): Promise<AiAgent[]>;
+  getAgentsBySpecialization(specialization: string): Promise<AiAgent[]>;
   createAiAgent(agent: InsertAiAgent): Promise<AiAgent>;
   updateAiAgent(id: string, updates: Partial<InsertAiAgent>): Promise<void>;
   deleteAiAgent(id: string): Promise<void>;
@@ -1600,6 +1601,21 @@ export class DatabaseStorage implements IStorage {
       return await db.select().from(aiAgents).orderBy(desc(aiAgents.createdAt));
     } catch (error) {
       console.error('Error fetching all AI agents:', error);
+      return [];
+    }
+  }
+
+  async getAgentsBySpecialization(specialization: string): Promise<AiAgent[]> {
+    try {
+      const agents = await db.select().from(aiAgents).where(eq(aiAgents.isActive, true));
+      return agents.filter(agent => 
+        agent.specializations && 
+        agent.specializations.some(spec => 
+          spec.toLowerCase().includes(specialization.toLowerCase())
+        )
+      );
+    } catch (error) {
+      console.error('Error fetching agents by specialization:', error);
       return [];
     }
   }

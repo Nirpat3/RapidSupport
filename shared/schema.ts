@@ -294,7 +294,15 @@ export const aiAgentLearning = pgTable("ai_agent_learning", {
   knowledgeUsed: text("knowledge_used").array(), // Which knowledge base articles were referenced
   improvementSuggestion: text("improvement_suggestion"), // Human feedback for improvement
   wasHelpful: boolean("was_helpful"), // Simple yes/no feedback
-  responseFormat: text("response_format").default('regular'), // Format type: 'regular' or 'steps'
+  
+  // Enhanced response tracking
+  responseFormat: text("response_format").default('conversational'), // 'conversational' | 'step_by_step' | 'faq' | 'technical' | 'bullet_points'
+  intentCategory: text("intent_category"), // Detected intent: 'sales', 'technical', 'billing', 'general'
+  qualityScore: integer("quality_score"), // Overall quality (0-100): grammar, completeness, relevance
+  toneScore: integer("tone_score"), // Tone appropriateness (0-100): friendly, professional, empathetic
+  relevanceScore: integer("relevance_score"), // How relevant to customer query (0-100)
+  completenessScore: integer("completeness_score"), // How complete the answer is (0-100)
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -876,6 +884,12 @@ export const insertAiAgentLearningSchema = createInsertSchema(aiAgentLearning).p
   knowledgeUsed: true,
   improvementSuggestion: true,
   wasHelpful: true,
+  responseFormat: true,
+  intentCategory: true,
+  qualityScore: true,
+  toneScore: true,
+  relevanceScore: true,
+  completenessScore: true,
 });
 
 // AI Agent Session schemas
