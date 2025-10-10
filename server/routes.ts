@@ -225,6 +225,38 @@ const imageUpload = multer({
   }
 });
 
+// Video-specific upload configuration for knowledge base
+const videoUploadDir = './uploads/knowledge-base-videos';
+if (!fs.existsSync(videoUploadDir)) {
+  fs.mkdirSync(videoUploadDir, { recursive: true });
+}
+
+const videoUploadStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, videoUploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+    cb(null, 'kb-video-' + uniqueSuffix + '-' + sanitizedName);
+  }
+});
+
+const videoUpload = multer({
+  storage: videoUploadStorage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedMimes = ['video/mp4', 'video/webm', 'video/quicktime'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files (mp4, webm, quicktime) are allowed'));
+    }
+  }
+});
+
 const upload = multer({
   storage: uploadStorage,
   limits: {
@@ -4215,6 +4247,223 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to serve image:', error);
       res.status(500).json({ error: 'Failed to serve image' });
+    }
+  });
+
+  // Knowledge Base Video routes
+
+  // Get videos for a knowledge base article
+  app.get('/api/knowledge-base/:id/videos', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(id);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      const videos = await storage.getKnowledgeBaseVideos(id);
+      res.json(videos);
+    } catch (error) {
+      console.error('Failed to get knowledge base videos:', error);
+      res.status(500).json({ error: 'Failed to get knowledge base videos' });
+    }
+  });
+
+  // Add YouTube video to knowledge base article
+  app.post('/api/knowledge-base/:id/videos/youtube', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { title, youtubeUrl, description, tags, displayOrder } = req.body;
+      const user = req.user as any;
+
+      // Validate required fields
+      if (!title || !youtubeUrl) {
+        return res.status(400).json({ error: 'Title and YouTube URL are required' });
+      }
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(id);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      // Extract YouTube video ID from URL
+      let youtubeId = '';
+      try {
+        const url = new URL(youtubeUrl);
+        if (url.hostname.includes('youtube.com') && url.searchParams.has('v')) {
+          // https://www.youtube.com/watch?v=VIDEO_ID
+          youtubeId = url.searchParams.get('v') || '';
+        } else if (url.hostname.includes('youtu.be')) {
+          // https://youtu.be/VIDEO_ID
+          youtubeId = url.pathname.slice(1);
+        }
+      } catch (err) {
+        return res.status(400).json({ error: 'Invalid YouTube URL' });
+      }
+
+      if (!youtubeId) {
+        return res.status(400).json({ error: 'Could not extract video ID from YouTube URL' });
+      }
+
+      const videoData = {
+        knowledgeBaseId: id,
+        videoType: 'youtube' as const,
+        youtubeUrl,
+        youtubeId,
+        title,
+        description: description || null,
+        tags: tags ? (Array.isArray(tags) ? tags : [tags]) : null,
+        displayOrder: displayOrder !== undefined ? displayOrder : 0,
+        createdBy: user.id,
+        filename: null,
+        originalName: null,
+        mimeType: null,
+        size: null,
+        filePath: null,
+        duration: null,
+        thumbnailPath: null,
+      };
+
+      const createdVideo = await storage.createKnowledgeBaseVideo(videoData);
+      res.json(createdVideo);
+    } catch (error) {
+      console.error('Failed to add YouTube video:', error);
+      res.status(500).json({ error: 'Failed to add YouTube video' });
+    }
+  });
+
+  // Upload internal video file to knowledge base article
+  app.post('/api/knowledge-base/:id/videos/upload', requireAuth, requireRole(['admin', 'agent']), videoUpload.single('video'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const file = req.file;
+      const user = req.user as any;
+
+      if (!file) {
+        return res.status(400).json({ error: 'No video file provided' });
+      }
+
+      const { title, description, tags, displayOrder } = req.body;
+
+      // Validate required fields
+      if (!title) {
+        return res.status(400).json({ error: 'Title is required' });
+      }
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(id);
+      if (!existingArticle) {
+        // Clean up uploaded file
+        try {
+          fs.unlinkSync(file.path);
+        } catch (err) {
+          console.error('Failed to clean up file:', err);
+        }
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      const videoData = {
+        knowledgeBaseId: id,
+        videoType: 'internal' as const,
+        filename: file.filename,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        filePath: file.path,
+        title,
+        description: description || null,
+        tags: tags ? (Array.isArray(tags) ? tags : [tags]) : null,
+        displayOrder: displayOrder !== undefined ? parseInt(displayOrder) : 0,
+        createdBy: user.id,
+        youtubeUrl: null,
+        youtubeId: null,
+        duration: null,
+        thumbnailPath: null,
+      };
+
+      const createdVideo = await storage.createKnowledgeBaseVideo(videoData);
+      res.json(createdVideo);
+    } catch (error) {
+      console.error('Failed to upload video:', error);
+      
+      // Clean up uploaded file if there was an error
+      if (req.file) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (err) {
+          console.error('Failed to clean up file:', err);
+        }
+      }
+      
+      res.status(500).json({ error: 'Failed to upload video' });
+    }
+  });
+
+  // Delete a video from knowledge base article
+  app.delete('/api/knowledge-base/:articleId/videos/:videoId', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { articleId, videoId } = req.params;
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(articleId);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      // Get video to check if it's internal (need to delete file)
+      const videos = await storage.getKnowledgeBaseVideos(articleId);
+      const video = videos.find(v => v.id === videoId);
+
+      if (!video) {
+        return res.status(404).json({ error: 'Video not found' });
+      }
+
+      // Delete the database record
+      await storage.deleteKnowledgeBaseVideo(videoId);
+
+      // If it's an internal video, delete the file
+      if (video.videoType === 'internal' && video.filePath) {
+        try {
+          if (fs.existsSync(video.filePath)) {
+            fs.unlinkSync(video.filePath);
+          }
+        } catch (err) {
+          console.error('Failed to delete video file:', err);
+          // Continue anyway - database record is deleted
+        }
+      }
+
+      res.json({ success: true, message: 'Video deleted successfully' });
+    } catch (error) {
+      console.error('Failed to delete knowledge base video:', error);
+      res.status(500).json({ error: 'Failed to delete knowledge base video' });
+    }
+  });
+
+  // Update video order
+  app.put('/api/knowledge-base/:articleId/videos/:videoId/order', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { articleId, videoId } = req.params;
+      const { displayOrder } = req.body;
+
+      if (typeof displayOrder !== 'number') {
+        return res.status(400).json({ error: 'Display order must be a number' });
+      }
+
+      // Check if article exists
+      const existingArticle = await storage.getKnowledgeBase(articleId);
+      if (!existingArticle) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+
+      await storage.updateKnowledgeBaseVideoOrder(videoId, displayOrder);
+      res.json({ success: true, message: 'Video order updated successfully' });
+    } catch (error) {
+      console.error('Failed to update video order:', error);
+      res.status(500).json({ error: 'Failed to update video order' });
     }
   });
 

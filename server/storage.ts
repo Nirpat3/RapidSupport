@@ -12,6 +12,7 @@ import {
   aiAgents,
   knowledgeBase,
   knowledgeBaseImages,
+  knowledgeBaseVideos,
   aiAgentLearning,
   aiAgentSessions,
   uploadedFiles,
@@ -54,6 +55,8 @@ import {
   type InsertKnowledgeBase,
   type KnowledgeBaseImage,
   type InsertKnowledgeBaseImage,
+  type KnowledgeBaseVideo,
+  type InsertKnowledgeBaseVideo,
   type AiAgentLearning,
   type InsertAiAgentLearning,
   type AiAgentSession,
@@ -218,6 +221,12 @@ export interface IStorage {
   deleteKnowledgeBaseImage(id: string): Promise<void>;
   updateKnowledgeBaseImageOrder(id: string, displayOrder: number): Promise<void>;
   updateKnowledgeBaseEffectiveness(id: string, adjustment: number): Promise<void>;
+
+  // Knowledge Base Video operations
+  getKnowledgeBaseVideos(knowledgeBaseId: string): Promise<KnowledgeBaseVideo[]>;
+  createKnowledgeBaseVideo(video: InsertKnowledgeBaseVideo): Promise<KnowledgeBaseVideo>;
+  deleteKnowledgeBaseVideo(id: string): Promise<void>;
+  updateKnowledgeBaseVideoOrder(id: string, displayOrder: number): Promise<void>;
 
   // AI Agent Learning operations
   getAiAgentLearning(id: string): Promise<AiAgentLearning | undefined>;
@@ -1822,6 +1831,46 @@ export class DatabaseStorage implements IStorage {
       }).where(eq(knowledgeBase.id, id));
     } catch (error) {
       console.error('Error updating knowledge base effectiveness:', error);
+    }
+  }
+
+  // Knowledge Base Video operations
+  async getKnowledgeBaseVideos(knowledgeBaseId: string): Promise<KnowledgeBaseVideo[]> {
+    try {
+      return await db.select().from(knowledgeBaseVideos)
+        .where(eq(knowledgeBaseVideos.knowledgeBaseId, knowledgeBaseId))
+        .orderBy(knowledgeBaseVideos.displayOrder, knowledgeBaseVideos.createdAt);
+    } catch (error) {
+      console.error('Error fetching knowledge base videos:', error);
+      return [];
+    }
+  }
+
+  async createKnowledgeBaseVideo(video: InsertKnowledgeBaseVideo): Promise<KnowledgeBaseVideo> {
+    try {
+      const [createdVideo] = await db.insert(knowledgeBaseVideos).values(video).returning();
+      return createdVideo;
+    } catch (error) {
+      console.error('Error creating knowledge base video:', error);
+      throw error;
+    }
+  }
+
+  async deleteKnowledgeBaseVideo(id: string): Promise<void> {
+    try {
+      await db.delete(knowledgeBaseVideos).where(eq(knowledgeBaseVideos.id, id));
+    } catch (error) {
+      console.error('Error deleting knowledge base video:', error);
+      throw error;
+    }
+  }
+
+  async updateKnowledgeBaseVideoOrder(id: string, displayOrder: number): Promise<void> {
+    try {
+      await db.update(knowledgeBaseVideos).set({ displayOrder }).where(eq(knowledgeBaseVideos.id, id));
+    } catch (error) {
+      console.error('Error updating knowledge base video order:', error);
+      throw error;
     }
   }
 

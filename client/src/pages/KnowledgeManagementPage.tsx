@@ -71,9 +71,13 @@ import {
   Globe,
   ImageIcon,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Video,
+  Youtube
 } from "lucide-react";
 import { ImageUpload } from "@/components/ImageUpload";
+import { VideoUpload } from "@/components/VideoUpload";
+import { YouTubeVideoInput } from "@/components/YouTubeVideoInput";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -97,6 +101,13 @@ const knowledgeArticleSchema = z.object({
   isActive: z.boolean().default(true),
   assignedAgentIds: z.array(z.string()).optional(),
   images: z.array(z.any()).optional(), // File objects for image uploads
+  videos: z.array(z.any()).optional(), // File objects for video uploads
+  youtubeVideos: z.array(z.object({
+    title: z.string(),
+    url: z.string(),
+    description: z.string().optional(),
+    tags: z.string().optional(),
+  })).optional(),
 });
 
 const urlKnowledgeSchema = z.object({
@@ -137,6 +148,9 @@ interface KnowledgeArticle {
   lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
+  images?: Array<{ url: string; filename: string }>;
+  videos?: Array<{ url: string; filename: string; size?: number; duration?: number }>;
+  youtubeVideos?: Array<{ title: string; url: string; description?: string; tags?: string; videoId: string }>;
 }
 
 interface Agent {
@@ -187,13 +201,14 @@ export default function KnowledgeManagementPage() {
         ...data,
         tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
       };
-      // Remove images from the payload for article creation
-      const { images, ...articlePayload } = payload;
+      // Remove images, videos, and youtubeVideos from the payload for article creation
+      const { images, videos, youtubeVideos, ...articlePayload } = payload;
       
       const createdArticle = await apiRequest('/api/knowledge-base', 'POST', articlePayload);
       
+      let uploadErrors: string[] = [];
+      
       // If there are images, upload them after article creation
-      let imageUploadErrors: string[] = [];
       if (images && images.length > 0) {
         const formData = new FormData();
         images.forEach((image: File) => {
@@ -204,21 +219,46 @@ export default function KnowledgeManagementPage() {
           await apiRequest(`/api/knowledge-base/${createdArticle.id}/images`, 'POST', formData);
         } catch (imageError) {
           console.error('Failed to upload images:', imageError);
-          imageUploadErrors.push(`Failed to upload ${images.length} image(s)`);
+          uploadErrors.push(`Failed to upload ${images.length} image(s)`);
         }
       }
       
-      return { article: createdArticle, imageUploadErrors };
+      // If there are videos, upload them after article creation
+      if (videos && videos.length > 0) {
+        const formData = new FormData();
+        videos.forEach((video: File) => {
+          formData.append('videos', video);
+        });
+        
+        try {
+          await apiRequest(`/api/knowledge-base/${createdArticle.id}/videos/upload`, 'POST', formData);
+        } catch (videoError) {
+          console.error('Failed to upload videos:', videoError);
+          uploadErrors.push(`Failed to upload ${videos.length} video(s)`);
+        }
+      }
+      
+      // If there are YouTube videos, submit them after article creation
+      if (youtubeVideos && youtubeVideos.length > 0) {
+        try {
+          await apiRequest(`/api/knowledge-base/${createdArticle.id}/videos/youtube`, 'POST', { videos: youtubeVideos });
+        } catch (youtubeError) {
+          console.error('Failed to add YouTube videos:', youtubeError);
+          uploadErrors.push(`Failed to add ${youtubeVideos.length} YouTube video(s)`);
+        }
+      }
+      
+      return { article: createdArticle, uploadErrors };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
       setIsCreateDialogOpen(false);
       
-      // Show appropriate success message based on image upload status
-      if (result.imageUploadErrors.length > 0) {
+      // Show appropriate success message based on upload status
+      if (result.uploadErrors.length > 0) {
         toast({
           title: "Article Created",
-          description: `Knowledge article created successfully. ${result.imageUploadErrors.join(', ')}`,
+          description: `Knowledge article created successfully. ${result.uploadErrors.join(', ')}`,
           variant: "default",
         });
       } else {
@@ -803,6 +843,79 @@ export default function KnowledgeManagementPage() {
                       </div>
                     )}
 
+                    {/* Videos Display */}
+                    {(article.videos && article.videos.length > 0) || (article.youtubeVideos && article.youtubeVideos.length > 0) ? (
+                      <div className="space-y-3 mb-3">
+                        {/* Internal Videos */}
+                        {article.videos && article.videos.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <Video className="w-4 h-4" />
+                              Internal Videos ({article.videos.length})
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {article.videos.map((video, index) => (
+                                <div key={index} className="relative aspect-video rounded-lg overflow-hidden border bg-black">
+                                  <video
+                                    src={video.url}
+                                    controls
+                                    className="w-full h-full object-contain"
+                                    data-testid={`video-player-${article.id}-${index}`}
+                                  >
+                                    Your browser does not support the video tag.
+                                  </video>
+                                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                                    <p className="text-white text-xs truncate">{video.filename}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* YouTube Videos */}
+                        {article.youtubeVideos && article.youtubeVideos.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              <Youtube className="w-4 h-4 text-red-600" />
+                              YouTube Videos ({article.youtubeVideos.length})
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {article.youtubeVideos.map((video, index) => (
+                                <div key={index} className="space-y-2">
+                                  <div className="relative aspect-video rounded-lg overflow-hidden border bg-black">
+                                    <iframe
+                                      src={`https://www.youtube.com/embed/${video.videoId}`}
+                                      title={video.title}
+                                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                      allowFullScreen
+                                      className="w-full h-full"
+                                      data-testid={`youtube-embed-${article.id}-${index}`}
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-medium line-clamp-1">{video.title}</p>
+                                    {video.description && (
+                                      <p className="text-xs text-muted-foreground line-clamp-2">{video.description}</p>
+                                    )}
+                                    {video.tags && (
+                                      <div className="flex gap-1 flex-wrap">
+                                        {video.tags.split(',').map((tag, tagIndex) => (
+                                          <Badge key={tagIndex} variant="outline" className="text-xs">
+                                            {tag.trim()}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
                     {article.tags && article.tags.length > 0 && (
                       <div className="flex gap-1 flex-wrap">
                         {article.tags.map((tag, index) => (
@@ -1047,6 +1160,8 @@ function KnowledgeArticleForm({
       priority: 50,
       isActive: true,
       images: [],
+      videos: [],
+      youtubeVideos: [],
       ...defaultValues,
     },
   });
@@ -1119,29 +1234,92 @@ function KnowledgeArticleForm({
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="images"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="flex items-center gap-2">
+        {/* Media Tabs - Images and Videos */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium">Media Attachments (Optional)</Label>
+          <Tabs defaultValue="images" className="w-full">
+            <TabsList className="grid grid-cols-3 w-full">
+              <TabsTrigger value="images" className="flex items-center gap-2">
                 <ImageIcon className="w-4 h-4" />
-                Images (Optional)
-              </FormLabel>
-              <FormControl>
-                <ImageUpload
-                  onImagesChange={(images) => field.onChange(images)}
-                  maxImages={5}
-                  className="w-full"
-                />
-              </FormControl>
-              <FormDescription>
-                Add images to help illustrate the knowledge content. Images will be attached to this article.
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                Images
+              </TabsTrigger>
+              <TabsTrigger value="videos" className="flex items-center gap-2">
+                <Video className="w-4 h-4" />
+                Internal Videos
+              </TabsTrigger>
+              <TabsTrigger value="youtube" className="flex items-center gap-2">
+                <Youtube className="w-4 h-4" />
+                YouTube Videos
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="images" className="mt-4">
+              <FormField
+                control={form.control}
+                name="images"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <ImageUpload
+                        onImagesChange={(images) => field.onChange(images)}
+                        maxImages={5}
+                        className="w-full"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Add images to help illustrate the knowledge content. Images will be attached to this article.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </TabsContent>
+
+            <TabsContent value="videos" className="mt-4">
+              <FormField
+                control={form.control}
+                name="videos"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <VideoUpload
+                        onVideosChange={(videos) => field.onChange(videos)}
+                        maxVideos={3}
+                        className="w-full"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Upload internal video files (MP4, WebM, MOV). Maximum 100MB per video.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </TabsContent>
+
+            <TabsContent value="youtube" className="mt-4">
+              <FormField
+                control={form.control}
+                name="youtubeVideos"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <YouTubeVideoInput
+                        onVideosChange={(videos) => field.onChange(videos)}
+                        maxVideos={5}
+                        className="w-full"
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Add YouTube videos by URL. Videos will be embedded in the article.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <FormField
