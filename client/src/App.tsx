@@ -21,6 +21,7 @@ import StaffAIDashboard from "@/pages/StaffAIDashboard";
 import AITrainingPage from "@/pages/AITrainingPage";
 import StaffTakeoverPage from "@/pages/StaffTakeoverPage";
 import AILearningDashboard from "@/pages/AILearningDashboard";
+import AgentManagement from "@/pages/AgentManagement";
 import KnowledgeManagementPage from "@/pages/KnowledgeManagementPage";
 import FileManagementPage from "@/pages/FileManagementPage";
 import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
@@ -91,6 +92,11 @@ function Router() {
       <Route path="/ai-learning">
         <PermissionGuard feature="ai-learning">
           <AILearningDashboard />
+        </PermissionGuard>
+      </Route>
+      <Route path="/agent-management">
+        <PermissionGuard feature="agent-management">
+          <AgentManagement />
         </PermissionGuard>
       </Route>
       <Route path="/ai-takeover">

@@ -91,6 +91,12 @@ const getNavigationItems = (unreadCount: number, activityCount: number) => [
     icon: TrendingUp
   },
   {
+    title: "Agent Management",
+    url: "/agent-management", 
+    icon: Settings,
+    adminOnly: true
+  },
+  {
     title: "AI Takeover",
     url: "/ai-takeover", 
     icon: UserCheck
