@@ -271,9 +271,9 @@ export default function CustomerChatPage() {
       setQuestion("");
       refetchMessages();
       
-      // Trigger AI agent response after customer message
-      if (variables.content) {
-        triggerAiResponse(variables.content);
+      // Trigger AI agent response after customer message using message ID
+      if (variables.content && data?.id) {
+        triggerAiResponse(data.id, variables.content);
       }
     },
   });
@@ -323,9 +323,10 @@ export default function CustomerChatPage() {
   });
 
   // Queue system to ensure every message gets exactly one AI response
-  const aiMessageQueueRef = useRef<string[]>([]);
+  // Track by message ID instead of content to allow repeated identical messages
+  const aiMessageQueueRef = useRef<{messageId: string, content: string}[]>([]);
   const isProcessingQueueRef = useRef(false);
-  const processedMessagesRef = useRef<Set<string>>(new Set());
+  const processedMessageIdsRef = useRef<Set<string>>(new Set());
 
   // Process the next message in the queue
   const processNextAiResponse = useCallback(() => {
@@ -334,46 +335,54 @@ export default function CustomerChatPage() {
     }
 
     isProcessingQueueRef.current = true;
-    const nextMessage = aiMessageQueueRef.current.shift()!;
+    const nextItem = aiMessageQueueRef.current.shift()!;
     
-    // Mark this message as processed to prevent future duplicates
-    processedMessagesRef.current.add(nextMessage);
-    console.log(`Processing AI response for: "${nextMessage}". Total processed: ${processedMessagesRef.current.size}`);
+    // Mark this message ID as processed to prevent future duplicates
+    processedMessageIdsRef.current.add(nextItem.messageId);
+    console.log(`Processing AI response for message ID: ${nextItem.messageId}. Content: "${nextItem.content}". Total processed: ${processedMessageIdsRef.current.size}`);
     
     setIsAiResponding(true);
     
     // Add realistic typing delay (2-4 seconds)
     const typingDelay = Math.random() * 2000 + 2000;
     const timeout = setTimeout(() => {
-      aiResponseMutation.mutate(nextMessage);
+      aiResponseMutation.mutate(nextItem.content);
     }, typingDelay);
     
     setAiTypingTimeout(timeout);
   }, [aiResponseMutation]);
 
   // Trigger AI response with queueing to prevent duplicates while ensuring all messages get responses
-  const triggerAiResponse = useCallback((customerMessage: string) => {
-    // Check if this message has already been processed
-    if (processedMessagesRef.current.has(customerMessage)) {
-      console.log(`AI response already processed for this message, skipping: "${customerMessage}"`);
+  const triggerAiResponse = useCallback((messageId: string, customerMessage: string) => {
+    // Check if this message ID has already been processed
+    if (processedMessageIdsRef.current.has(messageId)) {
+      console.log(`AI response already processed for message ID: ${messageId}, skipping`);
       return;
     }
     
-    // Check if this exact message is already in the queue to prevent duplicates
-    const isDuplicate = aiMessageQueueRef.current.includes(customerMessage);
+    // Check if this message ID is already in the queue
+    const isDuplicate = aiMessageQueueRef.current.some(item => item.messageId === messageId);
     
     if (isDuplicate) {
-      console.log(`AI message already in queue, skipping duplicate: "${customerMessage}"`);
+      console.log(`Message ID ${messageId} already in queue, skipping duplicate`);
       return;
     }
     
-    // Add message to queue
-    aiMessageQueueRef.current.push(customerMessage);
-    console.log(`AI message queued. Queue length: ${aiMessageQueueRef.current.length}`);
+    // Add message to queue with ID
+    aiMessageQueueRef.current.push({ messageId, content: customerMessage });
+    console.log(`AI message queued. Message ID: ${messageId}. Queue length: ${aiMessageQueueRef.current.length}`);
     
     // Process if not already processing
     processNextAiResponse();
   }, [processNextAiResponse]);
+
+  // Reset processed messages when conversation changes
+  useEffect(() => {
+    // Clear processed IDs when starting a new conversation
+    processedMessageIdsRef.current.clear();
+    aiMessageQueueRef.current = [];
+    console.log(`Conversation changed to: ${chatState.conversationId}. Reset processed messages.`);
+  }, [chatState.conversationId]);
 
   // Cleanup AI typing timeout on unmount
   useEffect(() => {
