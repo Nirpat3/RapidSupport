@@ -1,15 +1,27 @@
 /**
- * Support Board Chat Widget - Embeddable Script
- * Version: 1.0.0
+ * Support Board Support Center Widget - Embeddable Script
+ * Version: 2.0.0
  * 
  * Usage:
  * <script>
  *   window.SupportBoardConfig = {
  *     apiUrl: 'https://your-support-board.replit.app',
+ *     apiKey: 'your-api-key',  // Required for full support center features
+ *     customer: {
+ *       name: 'John Doe',
+ *       email: 'john@example.com',
+ *       phone: '+1234567890',
+ *       company: 'Acme Inc'
+ *     },
  *     contextData: {
  *       productId: 'abc123',
  *       planType: 'premium',
  *       userId: 'user456'
+ *     },
+ *     styles: {
+ *       buttonColor: '#3b82f6',
+ *       width: '450px',
+ *       height: '700px'
  *     }
  *   };
  * </script>
@@ -21,30 +33,65 @@
 
   const config = window.SupportBoardConfig || {};
   const apiUrl = config.apiUrl || window.location.origin;
+  const apiKey = config.apiKey || '';
+  const customer = config.customer || {};
   const contextData = config.contextData || {};
   const customStyles = config.styles || {};
 
-  // Generate unique session ID
-  function generateSessionId() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c == 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  }
+  let customerId = localStorage.getItem('support-board-customer-id');
+  let isFullscreen = false;
 
-  // Get or create session ID
-  function getSessionId() {
-    let sessionId = localStorage.getItem('support-board-session');
-    if (!sessionId) {
-      sessionId = generateSessionId();
-      localStorage.setItem('support-board-session', sessionId);
+  // Create or get customer via API
+  async function ensureCustomer() {
+    if (!apiKey) {
+      console.warn('Support Board: API key required for full support center features');
+      return null;
     }
-    return sessionId;
+
+    if (customerId) {
+      return customerId;
+    }
+
+    if (!customer.email) {
+      console.warn('Support Board: Customer email required');
+      return null;
+    }
+
+    try {
+      const response = await fetch(`${apiUrl}/api/widget/customer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey
+        },
+        body: JSON.stringify({
+          name: customer.name || 'Anonymous',
+          email: customer.email,
+          phone: customer.phone || '',
+          company: customer.company || '',
+          contextData: contextData
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create customer');
+      }
+
+      const data = await response.json();
+      customerId = data.data.id;
+      localStorage.setItem('support-board-customer-id', customerId);
+      return customerId;
+    } catch (error) {
+      console.error('Support Board: Failed to create customer', error);
+      return null;
+    }
   }
 
   // Create widget container
-  function createWidget() {
+  async function createWidget() {
+    // Ensure customer is created
+    await ensureCustomer();
+
     const container = document.createElement('div');
     container.id = 'support-board-widget';
     container.style.cssText = `
@@ -96,29 +143,26 @@
       position: fixed;
       bottom: 90px;
       right: 20px;
-      width: ${customStyles.width || '400px'};
-      height: ${customStyles.height || '600px'};
+      width: ${customStyles.width || '450px'};
+      height: ${customStyles.height || '700px'};
       max-width: calc(100vw - 40px);
       max-height: calc(100vh - 120px);
       border: none;
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.15);
       z-index: 999998;
+      transition: all 0.3s ease;
     `;
 
-    // Store session data and context
-    const sessionData = {
-      sessionId: getSessionId(),
-      contextData: contextData,
-      timestamp: new Date().toISOString()
-    };
-
-    // Build iframe URL with session data
-    // Use UTF-8 safe encoding for context data
-    const iframeUrl = new URL('/chat', apiUrl);
-    iframeUrl.searchParams.set('session', sessionData.sessionId);
+    // Build iframe URL with API key and customer ID
+    const iframeUrl = new URL('/support-widget', apiUrl);
+    if (apiKey) {
+      iframeUrl.searchParams.set('apiKey', apiKey);
+    }
+    if (customerId) {
+      iframeUrl.searchParams.set('customerId', customerId);
+    }
     if (Object.keys(contextData).length > 0) {
-      // UTF-8 safe encoding: encode to URI component then base64
       iframeUrl.searchParams.set('context', encodeURIComponent(JSON.stringify(contextData)));
     }
     
@@ -126,7 +170,8 @@
 
     // Toggle widget
     let isOpen = false;
-    button.addEventListener('click', () => {
+    
+    function toggleWidget() {
       isOpen = !isOpen;
       iframe.style.display = isOpen ? 'block' : 'none';
       
@@ -144,29 +189,64 @@
           </svg>
         `;
       }
-    });
+    }
+
+    button.addEventListener('click', toggleWidget);
 
     // Handle messages from iframe
     window.addEventListener('message', (event) => {
       if (event.origin !== apiUrl) return;
       
       if (event.data.type === 'CLOSE_WIDGET') {
-        isOpen = false;
-        iframe.style.display = 'none';
-        button.innerHTML = `
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-        `;
+        if (isOpen) {
+          toggleWidget();
+        }
       }
-    });
 
-    // Send context data to iframe when it's ready
-    iframe.addEventListener('load', () => {
-      iframe.contentWindow.postMessage({
-        type: 'INIT_CONTEXT',
-        contextData: contextData
-      }, apiUrl);
+      // Handle fullscreen toggle
+      if (event.data.type === 'SUPPORT_BOARD_FULLSCREEN') {
+        isFullscreen = event.data.isFullscreen;
+        
+        if (isFullscreen) {
+          // Fullscreen mode
+          iframe.style.cssText = `
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            max-width: 100vw;
+            max-height: 100vh;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            z-index: 999999;
+            transition: all 0.3s ease;
+          `;
+          button.style.display = 'none';
+        } else {
+          // Normal mode
+          iframe.style.cssText = `
+            display: ${isOpen ? 'block' : 'none'};
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: ${customStyles.width || '450px'};
+            height: ${customStyles.height || '700px'};
+            max-width: calc(100vw - 40px);
+            max-height: calc(100vh - 120px);
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+            z-index: 999998;
+            transition: all 0.3s ease;
+          `;
+          button.style.display = 'flex';
+        }
+      }
     });
 
     container.appendChild(button);
@@ -184,12 +264,17 @@
   // Export API for programmatic control
   window.SupportBoard = {
     open: function() {
-      document.getElementById('support-board-button')?.click();
+      const button = document.getElementById('support-board-button');
+      const iframe = document.getElementById('support-board-iframe');
+      if (button && iframe && iframe.style.display === 'none') {
+        button.click();
+      }
     },
     close: function() {
+      const button = document.getElementById('support-board-button');
       const iframe = document.getElementById('support-board-iframe');
-      if (iframe && iframe.style.display !== 'none') {
-        document.getElementById('support-board-button')?.click();
+      if (button && iframe && iframe.style.display !== 'none' && !isFullscreen) {
+        button.click();
       }
     },
     updateContext: function(newContext) {
@@ -200,6 +285,9 @@
           contextData: newContext
         }, apiUrl);
       }
+    },
+    getCustomerId: function() {
+      return customerId;
     }
   };
 })();
