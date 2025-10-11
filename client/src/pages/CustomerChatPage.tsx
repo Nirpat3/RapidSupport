@@ -285,15 +285,23 @@ export default function CustomerChatPage() {
   // AI Agent Response mutation
   const aiResponseMutation = useMutation({
     mutationFn: async (customerMessage: string) => {
+      const mutationId = `mut-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      console.log(`[${mutationId}] ===== AI MUTATION CALLED =====`);
+      console.log(`[${mutationId}] Message: "${customerMessage.substring(0, 50)}..."`);
+      console.log(`[${mutationId}] ConvID: ${chatState.conversationId}`);
+      
       if (!chatState.conversationId) {
         throw new Error("No active conversation");
       }
       
-      return await apiRequest('/api/ai/smart-response', 'POST', {
+      const result = await apiRequest('/api/ai/smart-response', 'POST', {
         conversationId: chatState.conversationId,
         customerMessage,
         customerId: chatState.customerId,
       });
+      
+      console.log(`[${mutationId}] ===== AI MUTATION RESPONSE RECEIVED =====`);
+      return result;
     },
     onSuccess: (response) => {
       console.log('AI response generated:', response);

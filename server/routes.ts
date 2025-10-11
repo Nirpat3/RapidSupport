@@ -2745,6 +2745,10 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
   // Generate smart AI agent response for customer chat and persist message
   app.post('/api/ai/smart-response', async (req, res) => {
+    const requestId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`[${requestId}] ===== AI SMART RESPONSE REQUEST START =====`);
+    console.log(`[${requestId}] Request body:`, JSON.stringify(req.body, null, 2));
+    
     try {
       // Validate request data with proper schema
       const smartResponseSchema = z.object({
@@ -2755,24 +2759,29 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       });
 
       const { conversationId, customerMessage, customerId, agentId } = smartResponseSchema.parse(req.body);
+      console.log(`[${requestId}] Validated - ConvID: ${conversationId}, Message: "${customerMessage.substring(0, 50)}..."`);
 
       // Check if conversation exists
       const conversation = await storage.getConversationWithCustomer(conversationId);
       if (!conversation) {
+        console.log(`[${requestId}] ERROR: Conversation not found`);
         return res.status(404).json({ error: 'Conversation not found' });
       }
 
       // Security: Verify customer owns this conversation
       if (conversation.customerId !== customerId) {
+        console.log(`[${requestId}] ERROR: Access denied - customer mismatch`);
         return res.status(403).json({ error: 'Access denied to this conversation' });
       }
 
+      console.log(`[${requestId}] Generating AI response...`);
       // Generate AI response
       const aiResponse = await AIService.generateSmartAgentResponse(
         customerMessage,
         conversationId,
         agentId
       );
+      console.log(`[${requestId}] AI response generated. Length: ${aiResponse.response?.length || 0} chars`);
 
       // Server-side: Create and persist AI message to prevent client spoofing
       if (aiResponse.response) {
@@ -2787,7 +2796,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           senderType: 'agent' as const
         };
 
+        console.log(`[${requestId}] Creating AI message in database...`);
         const message = await storage.createMessage(messageData);
+        console.log(`[${requestId}] AI message created. Message ID: ${message.id}`);
         
         // Broadcast AI message to conversation participants
         if (conversation.customer) {
@@ -2834,11 +2845,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         }
       }
 
+      console.log(`[${requestId}] ===== AI SMART RESPONSE REQUEST END (SUCCESS) =====`);
       res.json({
         success: true,
         data: aiResponse
       });
     } catch (error) {
+      console.log(`[${requestId}] ===== AI SMART RESPONSE REQUEST END (ERROR) =====`);
+      console.error(`[${requestId}] Error:`, error);
       if (error instanceof z.ZodError) {
         return res.status(400).json({ 
           error: 'Invalid AI response request', 
