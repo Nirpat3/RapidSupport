@@ -325,6 +325,7 @@ export default function CustomerChatPage() {
   // Queue system to ensure every message gets exactly one AI response
   const aiMessageQueueRef = useRef<string[]>([]);
   const isProcessingQueueRef = useRef(false);
+  const processedMessagesRef = useRef<Set<string>>(new Set());
 
   // Process the next message in the queue
   const processNextAiResponse = useCallback(() => {
@@ -334,6 +335,10 @@ export default function CustomerChatPage() {
 
     isProcessingQueueRef.current = true;
     const nextMessage = aiMessageQueueRef.current.shift()!;
+    
+    // Mark this message as processed to prevent future duplicates
+    processedMessagesRef.current.add(nextMessage);
+    console.log(`Processing AI response for: "${nextMessage}". Total processed: ${processedMessagesRef.current.size}`);
     
     setIsAiResponding(true);
     
@@ -348,6 +353,20 @@ export default function CustomerChatPage() {
 
   // Trigger AI response with queueing to prevent duplicates while ensuring all messages get responses
   const triggerAiResponse = useCallback((customerMessage: string) => {
+    // Check if this message has already been processed
+    if (processedMessagesRef.current.has(customerMessage)) {
+      console.log(`AI response already processed for this message, skipping: "${customerMessage}"`);
+      return;
+    }
+    
+    // Check if this exact message is already in the queue to prevent duplicates
+    const isDuplicate = aiMessageQueueRef.current.includes(customerMessage);
+    
+    if (isDuplicate) {
+      console.log(`AI message already in queue, skipping duplicate: "${customerMessage}"`);
+      return;
+    }
+    
     // Add message to queue
     aiMessageQueueRef.current.push(customerMessage);
     console.log(`AI message queued. Queue length: ${aiMessageQueueRef.current.length}`);
