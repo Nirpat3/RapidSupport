@@ -21,6 +21,29 @@ interface ChatMessage {
   timestamp: string;
 }
 
+// Helper function to convert URLs in text to clickable links
+function linkifyText(text: string) {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, index) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a 
+          key={index} 
+          href={part} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="underline hover:opacity-80 transition-opacity"
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 interface ExistingConversationResponse {
   conversationId: string;
   customerId: string;
@@ -495,7 +518,7 @@ export function CustomerChatWidget() {
                           </Badge>
                         </div>
                         <div className="space-y-2">
-                          <p className="whitespace-pre-wrap">{message.content}</p>
+                          <p className="whitespace-pre-wrap">{linkifyText(message.content)}</p>
                           {/* TODO: Add attachment display when message attachments are loaded */}
                         </div>
                         <p className="text-xs opacity-70 mt-1">

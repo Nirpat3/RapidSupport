@@ -142,13 +142,24 @@ export default function ConversationList({
                           {formatDistanceToNow(conversation.lastMessage.timestamp, { addSuffix: true })}
                         </span>
                       </div>
-                      <Badge 
-                        variant={conversation.status === 'open' ? 'default' : 'secondary'} 
-                        className="text-xs flex-shrink-0"
-                        data-testid={`status-${conversation.id}`}
-                      >
-                        {conversation.status}
-                      </Badge>
+                      <div className="flex items-center gap-1">
+                        {conversation.followupDate && (
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs flex-shrink-0 bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800"
+                            data-testid={`followup-badge-${conversation.id}`}
+                          >
+                            Follow-up: {new Date(conversation.followupDate).toLocaleDateString()}
+                          </Badge>
+                        )}
+                        <Badge 
+                          variant={conversation.status === 'open' ? 'default' : 'secondary'} 
+                          className="text-xs flex-shrink-0"
+                          data-testid={`status-${conversation.id}`}
+                        >
+                          {conversation.status}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 </div>

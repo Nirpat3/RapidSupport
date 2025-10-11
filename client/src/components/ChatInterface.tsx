@@ -271,6 +271,35 @@ export default function ChatInterface({
     }
   };
 
+  // Handle clearing follow-up
+  const handleClearFollowup = async () => {
+    if (!conversationId) return;
+    
+    setIsSchedulingFollowup(true);
+    try {
+      await apiRequest(`/api/conversations/${conversationId}/followup`, 'PUT', {
+        followupDate: null
+      });
+      
+      toast({
+        title: "Follow-up cleared",
+        description: "Follow-up reminder has been removed",
+      });
+      
+      setIsFollowupOpen(false);
+      setFollowupDate(undefined);
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    } catch (error: any) {
+      toast({
+        title: "Failed to clear follow-up",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSchedulingFollowup(false);
+    }
+  };
+
   const handleGenerateAITicket = async () => {
     if (!conversationId) return;
     
@@ -783,6 +812,18 @@ export default function ChatInterface({
                       Cancel
                     </Button>
                   </div>
+                  <Separator />
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleClearFollowup}
+                    disabled={isSchedulingFollowup}
+                    size="sm"
+                    className="w-full"
+                    data-testid="button-clear-followup"
+                  >
+                    <X className="w-3 h-3 mr-2" />
+                    Clear Follow-up
+                  </Button>
                 </div>
               </PopoverContent>
             </Popover>

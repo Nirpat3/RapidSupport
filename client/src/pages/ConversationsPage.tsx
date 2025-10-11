@@ -208,9 +208,30 @@ export default function ConversationsPage() {
   const currentUserId = user?.id;
   
   // Filter conversations for each tab
-  const newConversations = formattedConversations.filter(conv => 
-    !conv.isAssigned && conv.status === 'open'
-  );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Start of today
+  
+  const followupConversations = formattedConversations.filter(conv => {
+    // Show conversations that have a follow-up date scheduled AND it's not due yet
+    if (!conv.followupDate) return false;
+    const followupDate = new Date(conv.followupDate);
+    followupDate.setHours(0, 0, 0, 0);
+    return followupDate > today; // Only show if follow-up is in the future
+  });
+  
+  const newConversations = formattedConversations.filter(conv => {
+    // Include unassigned open conversations
+    const isUnassignedOpen = !conv.isAssigned && conv.status === 'open';
+    
+    // Also include conversations with follow-up due today or overdue
+    const hasFollowupDueToday = conv.followupDate && (() => {
+      const followupDate = new Date(conv.followupDate);
+      followupDate.setHours(0, 0, 0, 0);
+      return followupDate <= today;
+    })();
+    
+    return isUnassignedOpen || hasFollowupDueToday;
+  });
   
   // Active: ALL conversations (open and pending), regardless of assignment
   const activeConversations = formattedConversations.filter(conv => 
@@ -221,11 +242,6 @@ export default function ConversationsPage() {
   const assignedToMeConversations = formattedConversations.filter(conv => 
     conv.assignedAgentId === currentUserId
   );
-  
-  const followupConversations = formattedConversations.filter(conv => {
-    // Show conversations that have a follow-up date scheduled
-    return conv.followupDate !== undefined;
-  });
   
   const historyConversations = formattedConversations.filter(conv => 
     ['resolved', 'closed'].includes(conv.status)
