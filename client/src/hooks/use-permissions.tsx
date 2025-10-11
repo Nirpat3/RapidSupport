@@ -18,6 +18,8 @@ const FEATURE_MAP: Record<string, string> = {
   '/ai-agents': 'ai-agents',
   '/ai-dashboard': 'ai-dashboard',
   '/ai-training': 'ai-training',
+  '/ai-learning': 'ai-learning',
+  '/agent-management': 'agent-management',
   '/ai-takeover': 'ai-takeover',
   '/knowledge': 'knowledge-base',
   '/files': 'file-management',

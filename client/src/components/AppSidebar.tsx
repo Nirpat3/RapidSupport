@@ -47,7 +47,7 @@ interface AppSidebarProps {
   };
 }
 
-const getNavigationItems = (unreadCount: number, activityCount: number) => [
+const getNavigationItems = (unreadCount: number, activityCount: number, feedCount: number) => [
   {
     title: "Conversations",
     url: "/conversations",
@@ -124,7 +124,8 @@ const getNavigationItems = (unreadCount: number, activityCount: number) => [
   {
     title: "Feed",
     url: "/feed", 
-    icon: Rss
+    icon: Rss,
+    badge: feedCount > 0 ? feedCount : undefined
   },
   {
     title: "User Management",
@@ -165,8 +166,16 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
+  // Fetch feed unread count
+  const { data: feedData } = useQuery<{ count: number }>({
+    queryKey: ['/api/feed/unread-count'],
+    queryFn: () => apiRequest('/api/feed/unread-count', 'GET'),
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
   const activityCount = activityData?.count || 0;
-  const navigationItems = getNavigationItems(totalUnreadCount, activityCount);
+  const feedCount = feedData?.count || 0;
+  const navigationItems = getNavigationItems(totalUnreadCount, activityCount, feedCount);
   const { isUrlHidden } = usePermissions();
   
   // Filter navigation items based on user role and permissions
