@@ -106,6 +106,7 @@ export default function StaffAIDashboard() {
     },
     onSuccess: (result) => {
       setTestResult(result);
+      setTestMessage(""); // Clear the message box after successful test
       toast({
         title: "AI Response Generated",
         description: `Response confidence: ${result.confidence}%`,
