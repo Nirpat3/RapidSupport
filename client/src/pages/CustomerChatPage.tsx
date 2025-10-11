@@ -261,6 +261,7 @@ export default function CustomerChatPage() {
       if (!convId) {
         throw new Error("No active conversation");
       }
+      console.log(`[SEND MESSAGE] Sending message: "${content}"`);
       return await apiRequest('/api/customer-chat/send-message', 'POST', {
         conversationId: convId,
         content,
@@ -268,6 +269,9 @@ export default function CustomerChatPage() {
       });
     },
     onSuccess: (data, variables) => {
+      console.log(`[SEND MESSAGE SUCCESS] Message sent successfully. ID: ${data?.id}`);
+      console.log(`[SEND MESSAGE SUCCESS] Calling triggerAiResponse with message ID: ${data?.id}`);
+      
       setQuestion("");
       refetchMessages();
       
@@ -413,11 +417,14 @@ export default function CustomerChatPage() {
   }, [existingConversation]);
 
   const handleAskQuestion = async () => {
+    console.log(`[HANDLE ASK QUESTION] Called. Question: "${question}", chatStarted: ${chatStarted}`);
+    
     if (!question.trim() && selectedFiles.length === 0) return;
 
     // If chat already started (in chat interface), send message
     if (chatStarted && chatState.conversationId) {
       const messageContent = question.trim() || (selectedFiles.length > 0 ? '[Attachment]' : '');
+      console.log(`[HANDLE ASK QUESTION] Sending message via mutation: "${messageContent}"`);
       const response = await sendMessageMutation.mutateAsync({ content: messageContent });
       if (selectedFiles.length > 0 && response?.id) {
         await uploadFiles(response.id);
@@ -427,6 +434,7 @@ export default function CustomerChatPage() {
 
     // Hero "Ask" button always starts a NEW conversation
     // Clear any existing conversation state and show info dialog
+    console.log(`[HANDLE ASK QUESTION] Opening info dialog for new conversation`);
     setPendingMessage(question);
     setPendingFiles(selectedFiles);
     setShowInfoDialog(true);
