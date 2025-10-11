@@ -1226,6 +1226,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }, wsServer?: any): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }> {
+    console.log('=== createAnonymousCustomer called ===');
+    console.log('customerData received:', JSON.stringify(customerData, null, 2));
+    console.log('customerData.contextData:', customerData.contextData);
+    console.log('customerData.contextData type:', typeof customerData.contextData);
+    
     // First check if customer already exists
     const existingCustomer = await this.findExistingCustomer(
       customerData.email,
@@ -1264,18 +1269,28 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Create new conversation
+    const contextDataToStore = customerData.contextData ? JSON.stringify(customerData.contextData) : null;
+    console.log('=== Creating conversation ===');
+    console.log('contextData to store:', contextDataToStore);
+    console.log('contextData to store type:', typeof contextDataToStore);
+    
+    const conversationValues = {
+      customerId: customer.id,
+      title: `Chat with ${customerData.name}`,
+      isAnonymous: true,
+      sessionId: customerData.sessionId,
+      status: 'open',
+      priority: 'medium',
+      contextData: contextDataToStore,
+    };
+    console.log('Conversation values:', JSON.stringify(conversationValues, null, 2));
+    
     const [conversation] = await db
       .insert(conversations)
-      .values({
-        customerId: customer.id,
-        title: `Chat with ${customerData.name}`,
-        isAnonymous: true,
-        sessionId: customerData.sessionId,
-        status: 'open',
-        priority: 'medium',
-        contextData: customerData.contextData ? JSON.stringify(customerData.contextData) : null,
-      })
+      .values(conversationValues)
       .returning();
+    
+    console.log('Conversation created - context_data field:', conversation.contextData);
 
     // Try to auto-assign conversation to an available agent
     const assignedAgent = await this.autoAssignConversation(conversation.id);

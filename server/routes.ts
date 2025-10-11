@@ -2364,13 +2364,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       console.log('Validating customer data with schema...');
       const customerData = createAnonymousCustomerSchema.parse(req.body);
       console.log('Schema validation passed:', JSON.stringify(customerData, null, 2));
+      console.log('contextData from customerData:', customerData.contextData);
+      console.log('contextData type:', typeof customerData.contextData);
       
       console.log('Calling storage.createAnonymousCustomer...');
       const wsServer = (app as any).wsServer;
-      const result = await storage.createAnonymousCustomer({
+      const dataToPass = {
         ...customerData,
         sessionId: req.body.sessionId
-      }, wsServer);
+      };
+      console.log('Data being passed to storage:', JSON.stringify(dataToPass, null, 2));
+      console.log('contextData in dataToPass:', dataToPass.contextData);
+      const result = await storage.createAnonymousCustomer(dataToPass, wsServer);
       
       console.log('Customer created successfully - ID:', result.customerId);
       console.log('=== Customer Creation Request Completed ===');

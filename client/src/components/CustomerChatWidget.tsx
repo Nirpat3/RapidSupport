@@ -66,9 +66,36 @@ interface ChatState {
   customerInfo: AnonymousCustomer | null;
 }
 
-export function CustomerChatWidget() {
+interface CustomerChatWidgetProps {
+  contextData?: Record<string, any>;
+}
+
+export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}) {
+  console.log('[CustomerChatWidget] Initialized with contextData:', contextData);
+  
   // Initialize chat state with localStorage persistence
+  // Note: When contextData is provided, we skip localStorage to ensure a fresh conversation with context
   const [chatState, setChatState] = useState<ChatState>(() => {
+    console.log('[CustomerChatWidget] Initializing chat state. Has contextData:', !!contextData);
+    
+    // If contextData is provided, clear localStorage and start fresh
+    if (contextData) {
+      console.log('[CustomerChatWidget] Clearing localStorage due to contextData');
+      localStorage.removeItem('customer-chat-state');
+      const freshState = {
+        isOpen: false,
+        isMinimized: false,
+        showInfoForm: false,
+        conversationId: null,
+        customerId: null,
+        sessionId: crypto.randomUUID(),
+        customerInfo: null,
+      };
+      console.log('[CustomerChatWidget] Fresh state created:', freshState);
+      return freshState;
+    }
+    
+    // Otherwise, try to restore from localStorage
     const savedState = localStorage.getItem('customer-chat-state');
     if (savedState) {
       try {
@@ -98,7 +125,12 @@ export function CustomerChatWidget() {
   });
 
   // Save chat state to localStorage whenever it changes
+  // Skip localStorage when contextData is provided (each embed should be independent)
   useEffect(() => {
+    if (contextData) {
+      return; // Don't save to localStorage when using contextData
+    }
+    
     const stateToSave = {
       conversationId: chatState.conversationId,
       customerId: chatState.customerId,
@@ -106,7 +138,7 @@ export function CustomerChatWidget() {
       customerInfo: chatState.customerInfo,
     };
     localStorage.setItem('customer-chat-state', JSON.stringify(stateToSave));
-  }, [chatState.conversationId, chatState.customerId, chatState.sessionId, chatState.customerInfo]);
+  }, [chatState.conversationId, chatState.customerId, chatState.sessionId, chatState.customerInfo, contextData]);
 
   const [messageInput, setMessageInput] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -129,9 +161,10 @@ export function CustomerChatWidget() {
   };
 
   // Check for existing conversation based on session/IP
-  const { data: existingConversation, refetch: checkExistingConversation } = useQuery<ExistingConversationResponse | null>({
+  // Skip checking for existing conversation if we have contextData (always create new conversation with context)
+  const { data: existingConversation, refetch: checkExistingConversation} = useQuery<ExistingConversationResponse | null>({
     queryKey: ['/api/customer-chat/check-session', chatState.sessionId],
-    enabled: chatState.isOpen && !chatState.conversationId,
+    enabled: chatState.isOpen && !chatState.conversationId && !contextData,
   });
 
   // Fetch messages for active conversation
@@ -149,6 +182,7 @@ export function CustomerChatWidget() {
         ...customerData,
         ipAddress,
         sessionId: chatState.sessionId,
+        contextData: contextData,
       };
       const response = await apiRequest('/api/customer-chat/create-customer', 'POST', requestData);
       return response;
