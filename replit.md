@@ -11,6 +11,11 @@ Preferred communication style: Simple, everyday language.
 ### UI/UX Decisions
 The frontend utilizes React 18, TypeScript, and Vite. It employs Radix UI components styled with Tailwind CSS, following a shadcn/ui pattern for a custom design system that supports light/dark themes. The customer chat features a Perplexity-style redesign with a prominent hero input, progressive disclosure of customer information, suggested questions, and visual feature cards.
 
+**Recent UI/UX Improvements:**
+- Support page Ask AI button repositioned from overlapping to adjacent layout for better mobile/tablet/desktop responsiveness
+- Hero search: Button stacks below input on mobile, aligns horizontally on tablet/desktop
+- Header search: Button positioned next to input with icon-only display on mobile, icon+text on desktop
+
 ### Technical Implementations
 The backend is a Node.js Express.js application in TypeScript, offering a RESTful API with Zod validation and rate limiting. Authentication is session-based using Passport.js (local strategy, bcrypt for hashing) and Express sessions with a PostgreSQL store. A custom WebSocket server enables real-time communication. PostgreSQL is the database, accessed via Drizzle ORM, with Neon serverless for connection pooling. Authentication includes role-based access control (Admin, Agent, Customer) and anonymous customer support via `sessionId` and IP tracking. A granular permission system allows admins to control staff access at the feature level (Hidden, View, Edit).
 
