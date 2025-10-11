@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, FileText, ExternalLink, Sparkles, BookOpen, HelpCircle } from "lucide-react";
+import { Search, FileText, ExternalLink, Sparkles, BookOpen, HelpCircle, MessageCircleQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -94,7 +94,7 @@ export default function SupportPage() {
                 How can we help you?
               </h2>
               <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Search our comprehensive knowledge base for instant answers to your questions
+                Ask our AI assistant anything - it will search our knowledge base and provide detailed answers with helpful document links
               </p>
             </div>
 
@@ -119,9 +119,10 @@ export default function SupportPage() {
                 onClick={handleSearch}
                 disabled={!searchQuery.trim()}
                 className="absolute right-2 top-1/2 -translate-y-1/2 h-10 rounded-lg"
-                data-testid="button-search"
+                data-testid="button-ask-ai"
               >
-                Search
+                <MessageCircleQuestion className="h-4 w-4 mr-2" />
+                Ask AI
               </Button>
             </div>
 
@@ -224,9 +225,10 @@ export default function SupportPage() {
                 onClick={handleSearch}
                 size="sm"
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-8"
-                data-testid="button-search-header"
+                data-testid="button-ask-ai-header"
               >
-                Search
+                <MessageCircleQuestion className="h-3 w-3 mr-1" />
+                Ask AI
               </Button>
             </div>
           </div>
