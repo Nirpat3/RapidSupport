@@ -26,6 +26,7 @@ export const customers = pgTable("customers", {
   ipAddress: text("ip_address"), // Track IP for session management
   tags: text("tags").array(), // Array of tags for categorization
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
+  organizationId: varchar("organization_id"), // For API key multi-tenant scoping
   // Portal access fields
   portalPassword: text("portal_password"), // Hashed password for portal login (nullable - not all customers have portal access)
   hasPortalAccess: boolean("has_portal_access").notNull().default(false), // Whether customer can access portal
@@ -52,6 +53,7 @@ export const conversations = pgTable("conversations", {
   followupDate: timestamp("followup_date"), // When this conversation needs follow-up (nullable)
   aiAssistanceEnabled: boolean("ai_assistance_enabled").notNull().default(true), // Toggle AI auto-response
   contextData: text("context_data"), // JSON string for custom context from 3rd party integrations (product info, page context, etc.)
+  organizationId: varchar("organization_id"), // For API key multi-tenant scoping
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -334,6 +336,7 @@ export const tickets = pgTable("tickets", {
   customerId: varchar("customer_id").notNull().references(() => customers.id),
   assignedAgentId: varchar("assigned_agent_id").references(() => users.id),
   conversationId: varchar("conversation_id").references(() => conversations.id), // Link to conversation if escalated
+  organizationId: varchar("organization_id"), // For API key multi-tenant scoping
   // AI-related fields for automated ticket generation
   isAiGenerated: boolean("is_ai_generated").notNull().default(false), // Track if AI generated title/description
   aiConfidenceScore: integer("ai_confidence_score"), // AI confidence in generated content (0-100)

@@ -5673,11 +5673,29 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.get('/api/widget/conversations/:customerId', validateApiKey, hasPermission('history'), async (req, res) => {
     try {
       const { customerId } = req.params;
+      const organizationId = req.apiKey.organizationId;
+      
+      // Verify customer belongs to this organization
+      const customer = await db
+        .select()
+        .from(customers)
+        .where(and(
+          eq(customers.id, customerId),
+          eq(customers.organizationId, organizationId)
+        ))
+        .limit(1);
+
+      if (customer.length === 0) {
+        return res.status(404).json({ error: 'Customer not found or access denied' });
+      }
       
       const customerConversations = await db
         .select()
         .from(conversations)
-        .where(eq(conversations.customerId, customerId))
+        .where(and(
+          eq(conversations.customerId, customerId),
+          eq(conversations.organizationId, organizationId)
+        ))
         .orderBy(desc(conversations.createdAt));
 
       res.json({ success: true, data: customerConversations });
@@ -5691,6 +5709,21 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.get('/api/widget/conversations/:conversationId/messages', validateApiKey, hasPermission('history'), async (req, res) => {
     try {
       const { conversationId } = req.params;
+      const organizationId = req.apiKey.organizationId;
+      
+      // Verify conversation belongs to this organization
+      const conversation = await db
+        .select()
+        .from(conversations)
+        .where(and(
+          eq(conversations.id, conversationId),
+          eq(conversations.organizationId, organizationId)
+        ))
+        .limit(1);
+
+      if (conversation.length === 0) {
+        return res.status(404).json({ error: 'Conversation not found or access denied' });
+      }
       
       const conversationMessages = await storage.getCustomerChatMessages(conversationId);
       
@@ -5705,11 +5738,29 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.get('/api/widget/tickets/:customerId', validateApiKey, hasPermission('tickets'), async (req, res) => {
     try {
       const { customerId } = req.params;
+      const organizationId = req.apiKey.organizationId;
+      
+      // Verify customer belongs to this organization
+      const customer = await db
+        .select()
+        .from(customers)
+        .where(and(
+          eq(customers.id, customerId),
+          eq(customers.organizationId, organizationId)
+        ))
+        .limit(1);
+
+      if (customer.length === 0) {
+        return res.status(404).json({ error: 'Customer not found or access denied' });
+      }
       
       const customerTickets = await db
         .select()
         .from(tickets)
-        .where(eq(tickets.customerId, customerId))
+        .where(and(
+          eq(tickets.customerId, customerId),
+          eq(tickets.organizationId, organizationId)
+        ))
         .orderBy(desc(tickets.createdAt));
 
       res.json({ success: true, data: customerTickets });
@@ -5757,11 +5808,19 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.post('/api/widget/customer', validateApiKey, hasPermission('chat'), async (req, res) => {
     try {
       const { name, email, phone, company, contextData } = req.body;
+      const organizationId = req.apiKey.organizationId;
       
-      // Find or create customer
-      let customer = await storage.findExistingCustomer(email, phone || '', company || '');
+      // Find or create customer scoped to this organization
+      let customer = await db
+        .select()
+        .from(customers)
+        .where(and(
+          eq(customers.email, email),
+          eq(customers.organizationId, organizationId)
+        ))
+        .limit(1);
       
-      if (!customer) {
+      if (customer.length === 0) {
         const [newCustomer] = await db
           .insert(customers)
           .values({
@@ -5770,12 +5829,13 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             phone: phone || '',
             company: company || '',
             status: 'online',
+            organizationId,
           })
           .returning();
-        customer = newCustomer;
+        customer = [newCustomer];
       }
 
-      res.json({ success: true, data: customer });
+      res.json({ success: true, data: customer[0] });
     } catch (error) {
       console.error('Failed to create/get customer:', error);
       res.status(500).json({ error: 'Failed to process customer' });
