@@ -1,0 +1,34 @@
+Conversation changed to: null. Reset processed messages.
+api/auth/me:1  Failed to load resource: the server responded with a status of 401 ()Understand this error
+index-B4GxqoUj.js:665 [CustomerChatPage] Conversation details: undefined
+index-B4GxqoUj.js:665 [CustomerChatPage] Chat state conversationId: a2b8d16b-df27-47dc-9430-e6e51c101594
+index-B4GxqoUj.js:665 Conversation changed to: a2b8d16b-df27-47dc-9430-e6e51c101594. Reset processed messages.
+index-B4GxqoUj.js:665 [CustomerChatPage] Conversation details: Object
+index-B4GxqoUj.js:665 [CustomerChatPage] Chat state conversationId: a2b8d16b-df27-47dc-9430-e6e51c101594
+index-B4GxqoUj.js:665 [CustomerChatPage] Conversation is closed/resolved, checking for existing rating...
+api/conversations/a2b8d16b-df27-47dc-9430-e6e51c101594/rating:1  Failed to load resource: the server responded with a status of 404 ()Understand this error
+index-B4GxqoUj.js:665 [CustomerChatPage] Error checking rating: ApiError: 404: {"error":"No rating found for this conversation"}
+    at TS (index-B4GxqoUj.js:48:42917)
+    at async Me (index-B4GxqoUj.js:48:43199)
+    at async index-B4GxqoUj.js:665:418962
+index-B4GxqoUj.js:665 [CustomerChatPage] No rating found, showing dialog. chatState.conversationId: a2b8d16b-df27-47dc-9430-e6e51c101594
+index-B4GxqoUj.js:665 [CustomerChatPage] Setting showRatingDialog to true
+index-B4GxqoUj.js:665 [CustomerChatPage] showRatingDialog state should now be true
+index-B4GxqoUj.js:665 AI message queued. Message ID: 02808fa8-1246-4bb7-8cc3-dfc135f52be1. Queue length: 1
+index-B4GxqoUj.js:665 Processing AI response for message ID: 02808fa8-1246-4bb7-8cc3-dfc135f52be1. Content: "test 123". Total processed: 1
+smart-response:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+smart-response:1  Failed to load resource: the server responded with a status of 500 ()Understand this error
+index-B4GxqoUj.js:48  POST https://rapidsupport.replit.app/api/ai/smart-response 500 (Internal Server Error)
+Me @ index-B4GxqoUj.js:48
+mutationFn @ index-B4GxqoUj.js:665
+fn @ index-B4GxqoUj.js:48
+y @ index-B4GxqoUj.js:48
+(anonymous) @ index-B4GxqoUj.js:48
+Promise.then
+(anonymous) @ index-B4GxqoUj.js:48Understand this error
+index-B4GxqoUj.js:665 Failed to generate AI response: ApiError: 500: {"error":"Failed to generate smart AI response"}
+    at TS (index-B4GxqoUj.js:48:42917)
+    at async Me (index-B4GxqoUj.js:48:43199)
+    at async Object.mutationFn (index-B4GxqoUj.js:665:420833)
+onError @ index-B4GxqoUj.js:665
+execute @ index-B4GxqoUj.js:48Understand this error
