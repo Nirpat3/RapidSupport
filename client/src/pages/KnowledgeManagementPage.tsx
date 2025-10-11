@@ -180,6 +180,7 @@ export default function KnowledgeManagementPage() {
   const [selectedAgent, setSelectedAgent] = useState<string>("all");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<KnowledgeArticle | null>(null);
+  const [viewingArticle, setViewingArticle] = useState<KnowledgeArticle | null>(null);
   const [activeTab, setActiveTab] = useState("manual");
   const [managementView, setManagementView] = useState<"articles" | "agents">("articles");
 
@@ -931,6 +932,14 @@ export default function KnowledgeManagementPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => setViewingArticle(article)}
+                      data-testid={`button-view-${article.id}`}
+                    >
+                      <BookOpen className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setEditingArticle(article)}
                       data-testid={`button-edit-${article.id}`}
                     >
@@ -1103,6 +1112,185 @@ export default function KnowledgeManagementPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* View Article Dialog */}
+      {viewingArticle && (
+        <Dialog open={true} onOpenChange={() => setViewingArticle(null)}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{viewingArticle.title}</DialogTitle>
+              <DialogDescription>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <Badge variant="outline">
+                    <Tag className="w-3 h-3 mr-1" />
+                    {viewingArticle.category}
+                  </Badge>
+                  {viewingArticle.sourceType === 'file' && (
+                    <Badge variant="outline">
+                      <File className="w-3 h-3 mr-1" />
+                      File
+                    </Badge>
+                  )}
+                  {viewingArticle.sourceType === 'url' && (
+                    <Badge variant="outline">
+                      <Globe className="w-3 h-3 mr-1" />
+                      URL
+                    </Badge>
+                  )}
+                  <Badge variant="outline">
+                    Priority: {viewingArticle.priority}
+                  </Badge>
+                  <Badge variant="outline">
+                    {viewingArticle.effectiveness}% Effective
+                  </Badge>
+                </div>
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Content */}
+              <div className="prose dark:prose-invert max-w-none">
+                <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                  {viewingArticle.content}
+                </div>
+              </div>
+
+              {/* File Info */}
+              {viewingArticle.sourceType === 'file' && viewingArticle.fileName && (
+                <div className="p-3 bg-muted rounded-md">
+                  <div className="text-sm font-medium mb-1">File Information</div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div className="flex items-center gap-2">
+                      <File className="w-3 h-3" />
+                      <span>{viewingArticle.fileName}</span>
+                    </div>
+                    {viewingArticle.fileType && (
+                      <div>Type: {viewingArticle.fileType}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* URL Info */}
+              {viewingArticle.sourceType === 'url' && viewingArticle.sourceUrl && (
+                <div className="p-3 bg-muted rounded-md">
+                  <div className="text-sm font-medium mb-1">Source URL</div>
+                  <a 
+                    href={viewingArticle.sourceUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    <Globe className="w-3 h-3" />
+                    {viewingArticle.sourceUrl}
+                  </a>
+                </div>
+              )}
+
+              {/* Videos */}
+              {((viewingArticle.videos && viewingArticle.videos.length > 0) || (viewingArticle.youtubeVideos && viewingArticle.youtubeVideos.length > 0)) && (
+                <div className="space-y-3">
+                  {/* Internal Videos */}
+                  {viewingArticle.videos && viewingArticle.videos.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium mb-2 flex items-center gap-2">
+                        <Video className="w-4 h-4" />
+                        Internal Videos
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {viewingArticle.videos.map((video, index) => (
+                          <div key={index} className="relative aspect-video rounded-lg overflow-hidden border bg-black">
+                            <video
+                              src={video.url}
+                              controls
+                              className="w-full h-full object-contain"
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* YouTube Videos */}
+                  {viewingArticle.youtubeVideos && viewingArticle.youtubeVideos.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium mb-2 flex items-center gap-2">
+                        <Youtube className="w-4 h-4 text-red-600" />
+                        YouTube Videos
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {viewingArticle.youtubeVideos.map((video, index) => (
+                          <div key={index} className="space-y-2">
+                            <div className="relative aspect-video rounded-lg overflow-hidden border bg-black">
+                              <iframe
+                                src={`https://www.youtube.com/embed/${video.videoId}`}
+                                title={video.title}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                className="w-full h-full"
+                              />
+                            </div>
+                            {video.title && (
+                              <p className="text-sm font-medium">{video.title}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tags */}
+              {viewingArticle.tags && viewingArticle.tags.length > 0 && (
+                <div>
+                  <div className="text-sm font-medium mb-2">Tags</div>
+                  <div className="flex gap-1 flex-wrap">
+                    {viewingArticle.tags.map((tag, index) => (
+                      <Badge key={index} variant="secondary">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Assigned Agents */}
+              {viewingArticle.assignedAgentIds && viewingArticle.assignedAgentIds.length > 0 && (
+                <div>
+                  <div className="text-sm font-medium mb-2">Assigned Agents</div>
+                  <div className="flex gap-2 flex-wrap">
+                    {viewingArticle.assignedAgentIds.map((agentId) => {
+                      const agent = agents.find(a => a.id === agentId);
+                      return (
+                        <Badge key={agentId} variant="outline">
+                          <User className="w-3 h-3 mr-1" />
+                          {agent?.name || 'Unknown Agent'}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setViewingArticle(null)}>
+                Close
+              </Button>
+              <Button onClick={() => {
+                setViewingArticle(null);
+                setEditingArticle(viewingArticle);
+              }}>
+                <Edit3 className="w-4 h-4 mr-2" />
+                Edit Article
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Edit Dialog */}
