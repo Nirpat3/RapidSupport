@@ -5612,6 +5612,176 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================
+  // WIDGET API - FOR 3RD PARTY EMBEDS WITH API KEY AUTH
+  // ============================================
+
+  // Enhanced API Key validation middleware using database
+  const validateApiKey = async (req: any, res: any, next: any) => {
+    try {
+      const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
+      
+      if (!apiKey) {
+        return res.status(401).json({ error: 'API key required' });
+      }
+
+      // Query API key from database
+      const [keyRecord] = await db
+        .select()
+        .from(apiKeys)
+        .where(eq(apiKeys.key, apiKey))
+        .limit(1);
+
+      if (!keyRecord) {
+        return res.status(401).json({ error: 'Invalid API key' });
+      }
+
+      if (!keyRecord.isActive) {
+        return res.status(403).json({ error: 'API key is inactive' });
+      }
+
+      if (keyRecord.expiresAt && new Date(keyRecord.expiresAt) < new Date()) {
+        return res.status(403).json({ error: 'API key has expired' });
+      }
+
+      // Update last used timestamp
+      await db
+        .update(apiKeys)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(apiKeys.id, keyRecord.id));
+
+      // Attach API key info to request for use in routes
+      req.apiKey = keyRecord;
+      next();
+    } catch (error) {
+      console.error('API key validation error:', error);
+      res.status(500).json({ error: 'Authentication failed' });
+    }
+  };
+
+  // Check if API key has specific permission
+  const hasPermission = (permission: string) => {
+    return (req: any, res: any, next: any) => {
+      if (!req.apiKey.permissions.includes(permission)) {
+        return res.status(403).json({ error: `Missing permission: ${permission}` });
+      }
+      next();
+    };
+  };
+
+  // Get conversation history for a customer (requires 'history' permission)
+  app.get('/api/widget/conversations/:customerId', validateApiKey, hasPermission('history'), async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      const customerConversations = await db
+        .select()
+        .from(conversations)
+        .where(eq(conversations.customerId, customerId))
+        .orderBy(desc(conversations.createdAt));
+
+      res.json({ success: true, data: customerConversations });
+    } catch (error) {
+      console.error('Failed to fetch conversations:', error);
+      res.status(500).json({ error: 'Failed to fetch conversations' });
+    }
+  });
+
+  // Get messages for a specific conversation (requires 'history' permission)
+  app.get('/api/widget/conversations/:conversationId/messages', validateApiKey, hasPermission('history'), async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      
+      const conversationMessages = await storage.getCustomerChatMessages(conversationId);
+      
+      res.json({ success: true, data: conversationMessages });
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+      res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+  });
+
+  // Get support tickets for a customer (requires 'tickets' permission)
+  app.get('/api/widget/tickets/:customerId', validateApiKey, hasPermission('tickets'), async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      const customerTickets = await db
+        .select()
+        .from(tickets)
+        .where(eq(tickets.customerId, customerId))
+        .orderBy(desc(tickets.createdAt));
+
+      res.json({ success: true, data: customerTickets });
+    } catch (error) {
+      console.error('Failed to fetch tickets:', error);
+      res.status(500).json({ error: 'Failed to fetch tickets' });
+    }
+  });
+
+  // Get feed posts visible to customers (requires 'feed' permission)
+  app.get('/api/widget/feed', validateApiKey, hasPermission('feed'), async (req, res) => {
+    try {
+      // Get posts visible to all customers or public
+      const feedPosts = await db
+        .select()
+        .from(posts)
+        .where(
+          or(
+            eq(posts.visibility, 'all_customers'),
+            eq(posts.visibility, 'public')
+          )
+        )
+        .orderBy(desc(posts.createdAt))
+        .limit(20);
+
+      // Enrich with author names
+      const postsWithAuthors = await Promise.all(
+        feedPosts.map(async (post) => {
+          const author = await storage.getUser(post.authorId);
+          return {
+            ...post,
+            authorName: author?.name || 'Unknown'
+          };
+        })
+      );
+
+      res.json({ success: true, data: postsWithAuthors });
+    } catch (error) {
+      console.error('Failed to fetch feed:', error);
+      res.status(500).json({ error: 'Failed to fetch feed' });
+    }
+  });
+
+  // Create or get customer with API key (requires 'chat' permission)
+  app.post('/api/widget/customer', validateApiKey, hasPermission('chat'), async (req, res) => {
+    try {
+      const { name, email, phone, company, contextData } = req.body;
+      
+      // Find or create customer
+      let customer = await storage.findExistingCustomer(email, phone || '', company || '');
+      
+      if (!customer) {
+        const [newCustomer] = await db
+          .insert(customers)
+          .values({
+            name,
+            email,
+            phone: phone || '',
+            company: company || '',
+            status: 'online',
+          })
+          .returning();
+        customer = newCustomer;
+      }
+
+      res.json({ success: true, data: customer });
+    } catch (error) {
+      console.error('Failed to create/get customer:', error);
+      res.status(500).json({ error: 'Failed to process customer' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat

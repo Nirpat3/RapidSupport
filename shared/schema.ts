@@ -404,6 +404,23 @@ export const knowledgeBaseVersions = pgTable("knowledge_base_versions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// API Keys table - for 3rd party integrations and widget authentication
+export const apiKeys = pgTable("api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // Descriptive name for the API key (e.g., "Production Website Widget")
+  key: text("key").notNull().unique(), // The actual API key
+  customerId: varchar("customer_id").references(() => customers.id), // Optional: link to a specific customer
+  organizationName: text("organization_name"), // Name of the organization using this key
+  allowedDomains: text("allowed_domains").array(), // Whitelist of domains that can use this key
+  permissions: text("permissions").array().notNull().default(sql`ARRAY['chat']::text[]`), // Permissions: 'chat', 'history', 'tickets', 'feed'
+  isActive: boolean("is_active").notNull().default(true),
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"), // Optional expiration date
+  createdBy: varchar("created_by").references(() => users.id), // Admin who created the key
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   assignedConversations: many(conversations),
@@ -769,6 +786,21 @@ export const insertActivityNotificationSchema = createInsertSchema(activityNotif
   readAt: true,
 });
 
+// API Keys schemas
+export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
+  name: true,
+  key: true,
+  customerId: true,
+  organizationName: true,
+  allowedDomains: true,
+  permissions: true,
+  isActive: true,
+  expiresAt: true,
+  createdBy: true,
+});
+
+export const updateApiKeySchema = insertApiKeySchema.partial();
+
 // AI Agent schemas
 export const insertAiAgentSchema = createInsertSchema(aiAgents).pick({
   name: true,
@@ -939,6 +971,8 @@ export type InsertAgentPerformanceStats = z.infer<typeof insertAgentPerformanceS
 export type AgentPerformanceStats = typeof agentPerformanceStats.$inferSelect;
 export type InsertActivityNotification = z.infer<typeof insertActivityNotificationSchema>;
 export type ActivityNotification = typeof activityNotifications.$inferSelect;
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+export type ApiKey = typeof apiKeys.$inferSelect;
 export type InsertAiAgent = z.infer<typeof insertAiAgentSchema>;
 export type AiAgent = typeof aiAgents.$inferSelect;
 export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
