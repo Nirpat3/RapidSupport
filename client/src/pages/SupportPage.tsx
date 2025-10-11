@@ -255,9 +255,9 @@ export default function SupportPage() {
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">AI Answer</span>
-                    {searchResult.confidence && (
+                    {searchResult.confidence !== undefined && (
                       <Badge variant="secondary" className="text-xs">
-                        {Math.round(searchResult.confidence * 100)}% confidence
+                        {Math.round(searchResult.confidence)}% confidence
                       </Badge>
                     )}
                   </div>

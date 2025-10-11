@@ -4047,15 +4047,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(503).json({ error: 'Support service temporarily unavailable' });
       }
 
-      // Generate AI response with source tracking
-      const aiResponse = await AIService.generateSmartAgentResponse(
+      // Get relevant knowledge base articles
+      const searchResults = await AIService.getRelevantKnowledge(
         question,
-        'public-support-query',
-        publicAgent.id
+        publicAgent.knowledgeBaseIds || []
       );
 
-      // Get detailed knowledge base articles used (only active/published ones)
-      const knowledgeBaseIds = aiResponse.knowledgeUsed || [];
+      // Get full article data for sources
+      const knowledgeBaseIds = searchResults.map(r => r.id);
       const allSources = knowledgeBaseIds.length > 0 
         ? await storage.getKnowledgeBaseArticles(knowledgeBaseIds)
         : [];
@@ -4063,14 +4062,26 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Filter to only return active/published articles
       const sources = allSources.filter(kb => kb.isActive);
 
+      // Format knowledge base content for AI
+      const knowledgeContent = searchResults.map(r => 
+        `[${r.title}]\n${r.content}`
+      );
+
+      // Generate AI response without creating sessions
+      const aiResponse = await AIService.generateAgentResponse(
+        question,
+        [], // Empty conversation history for public searches
+        knowledgeContent
+      );
+
       res.json({
         response: aiResponse.response,
         confidence: aiResponse.confidence,
-        sources: sources.map(kb => ({
+        sources: sources.map((kb, idx) => ({
           id: kb.id,
           title: kb.title,
           category: kb.category,
-          relevanceScore: 0.8 // Default relevance score for public display
+          relevanceScore: searchResults.find(r => r.id === kb.id)?.score || 0.8
         }))
       });
     } catch (error) {
