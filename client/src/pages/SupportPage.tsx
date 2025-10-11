@@ -99,26 +99,28 @@ export default function SupportPage() {
             </div>
 
             {/* Search Input */}
-            <div className="relative">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
-                <Search className="h-5 w-5 text-muted-foreground" />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 z-10">
+                  <Search className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearch();
+                    }
+                  }}
+                  placeholder="Ask a question or search for help..."
+                  className="pl-12 h-14 text-base sm:text-lg border-2 rounded-xl"
+                  data-testid="input-support-search"
+                />
               </div>
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSearch();
-                  }
-                }}
-                placeholder="Ask a question or search for help..."
-                className="pl-12 pr-28 h-14 text-lg border-2 rounded-xl"
-                data-testid="input-support-search"
-              />
               <Button
                 onClick={handleSearch}
                 disabled={!searchQuery.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-10 rounded-lg"
+                className="h-14 px-6 rounded-xl shrink-0"
                 data-testid="button-ask-ai"
               >
                 <MessageCircleQuestion className="h-4 w-4 mr-2" />
@@ -205,30 +207,32 @@ export default function SupportPage() {
               <BookOpen className="h-4 w-4 mr-2" />
               Support
             </Button>
-            <div className="flex-1 relative">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                <Search className="h-4 w-4 text-muted-foreground" />
+            <div className="flex-1 flex gap-2">
+              <div className="relative flex-1">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSearch();
+                    }
+                  }}
+                  placeholder="Search..."
+                  className="pl-10 h-10"
+                  data-testid="input-search-header"
+                />
               </div>
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSearch();
-                  }
-                }}
-                placeholder="Search..."
-                className="pl-10 pr-24 h-10"
-                data-testid="input-search-header"
-              />
               <Button
                 onClick={handleSearch}
                 size="sm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 h-8"
+                className="h-10 shrink-0"
                 data-testid="button-ask-ai-header"
               >
-                <MessageCircleQuestion className="h-3 w-3 mr-1" />
-                Ask AI
+                <MessageCircleQuestion className="h-3 w-3 sm:mr-1" />
+                <span className="hidden sm:inline">Ask AI</span>
               </Button>
             </div>
           </div>
