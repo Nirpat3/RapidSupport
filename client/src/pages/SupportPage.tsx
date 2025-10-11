@@ -112,7 +112,7 @@ export default function SupportPage() {
                   }
                 }}
                 placeholder="Ask a question or search for help..."
-                className="pl-12 pr-24 h-14 text-lg border-2 rounded-xl"
+                className="pl-12 pr-28 h-14 text-lg border-2 rounded-xl"
                 data-testid="input-support-search"
               />
               <Button
@@ -218,7 +218,7 @@ export default function SupportPage() {
                   }
                 }}
                 placeholder="Search..."
-                className="pl-10 pr-20 h-10"
+                className="pl-10 pr-24 h-10"
                 data-testid="input-search-header"
               />
               <Button
