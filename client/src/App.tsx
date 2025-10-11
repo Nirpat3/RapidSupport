@@ -16,6 +16,7 @@ import CustomerProfilePage from "@/pages/CustomerProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import CustomerChatPage from "@/pages/CustomerChatPage";
 import SupportPage from "@/pages/SupportPage";
+import EmbedChatWidget from "@/pages/EmbedChatWidget";
 import AIAgentsPage from "@/pages/AIAgentsPage";
 import StaffAIDashboard from "@/pages/StaffAIDashboard";
 import AITrainingPage from "@/pages/AITrainingPage";
@@ -201,6 +202,7 @@ function AppContent() {
   const pathname = window.location.pathname.replace(/\/$/, ''); // Remove trailing slash
   const isSupportPage = pathname === '' || pathname === '/support';
   const isCustomerChatPage = pathname === '/customer-chat';
+  const isChatEmbedPage = pathname === '/chat'; // Embeddable chat widget
   
   // Knowledge base article public view
   const isPublicArticlePage = window.location.pathname.startsWith('/kb/');
@@ -227,6 +229,18 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <CustomerChatPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // For embeddable chat widget (used in iframes)
+  if (isChatEmbedPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <EmbedChatWidget />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
