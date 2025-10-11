@@ -31,7 +31,8 @@ import {
   LogOut,
   Shield,
   TrendingUp,
-  Bell
+  Bell,
+  FileText
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -141,6 +142,11 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
 ];
 
 const supportItems = [
+  {
+    title: "Documentation",
+    url: "/documentation",
+    icon: FileText
+  },
   {
     title: "Help Center",
     url: "/help",

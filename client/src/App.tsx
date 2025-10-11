@@ -35,6 +35,7 @@ import CustomerPortalFeed from "@/pages/CustomerPortalFeed";
 import { CustomerPortalRouter } from "@/components/CustomerPortalRouter";
 import PublicArticlePage from "@/pages/PublicArticlePage";
 import UserManagementPage from "@/pages/UserManagementPage";
+import DocumentationPage from "@/pages/DocumentationPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import NotFound from "@/pages/not-found";
 
@@ -140,6 +141,9 @@ function Router() {
         <PermissionGuard feature="settings">
           <SettingsPage />
         </PermissionGuard>
+      </Route>
+      <Route path="/documentation">
+        <DocumentationPage />
       </Route>
       <Route component={NotFound} />
     </Switch>
