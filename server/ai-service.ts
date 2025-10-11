@@ -947,6 +947,17 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         };
       }
 
+      // Get conversation details including context data
+      const conversation = await storage.getConversation(conversationId);
+      let contextData: any = null;
+      if (conversation?.contextData) {
+        try {
+          contextData = JSON.parse(conversation.contextData);
+        } catch (e) {
+          console.error('Failed to parse context data:', e);
+        }
+      }
+
       // Get conversation history
       const messages = await storage.getMessagesByConversation(conversationId);
       const conversationHistory = messages
@@ -975,7 +986,8 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         conversationHistory,
         searchResults,
         agent,
-        responseFormat
+        responseFormat,
+        contextData
       );
 
       // Update session statistics
@@ -1075,7 +1087,8 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
     conversationHistory: string[],
     searchResults: SearchResult[],
     agent: AiAgent,
-    responseFormat: keyof typeof RESPONSE_FORMATS = 'conversational'
+    responseFormat: keyof typeof RESPONSE_FORMATS = 'conversational',
+    contextData?: any
   ): Promise<AIAgentResponse> {
     try {
       // Enhanced knowledge context formatting with better structure
@@ -1085,6 +1098,11 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
 
       const conversationContext = conversationHistory.length 
         ? `\nConversation History:\n${conversationHistory.join('\n')}\n`
+        : '';
+
+      // Add custom context data if provided
+      const customContext = contextData 
+        ? `\nCustom Context Data:\n${JSON.stringify(contextData, null, 2)}\n(Use this information to provide personalized, context-aware responses)\n`
         : '';
 
       // Calculate knowledge quality score for confidence adjustment
@@ -1107,7 +1125,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       // Get the format template for this response
       const formatTemplate = RESPONSE_FORMATS[responseFormat];
 
-      const userPrompt = `${knowledgeContext}${conversationContext}
+      const userPrompt = `${knowledgeContext}${conversationContext}${customContext}
 Customer Message: "${customerMessage}"
 
 Agent Role: ${agent.name} - ${agent.description}

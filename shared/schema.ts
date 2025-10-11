@@ -51,6 +51,7 @@ export const conversations = pgTable("conversations", {
   sessionId: text("session_id"), // Track anonymous sessions before customer info collected
   followupDate: timestamp("followup_date"), // When this conversation needs follow-up (nullable)
   aiAssistanceEnabled: boolean("ai_assistance_enabled").notNull().default(true), // Toggle AI auto-response
+  contextData: text("context_data"), // JSON string for custom context from 3rd party integrations (product info, page context, etc.)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -608,6 +609,7 @@ export const anonymousCustomerSchema = z.object({
   phone: z.string().min(1, "Phone is required"),
   company: z.string().min(1, "Business name is required"),
   ipAddress: z.string().optional(),
+  contextData: z.record(z.any()).optional(), // Custom context data from 3rd party integrations
 });
 
 // Customer portal login schema

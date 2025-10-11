@@ -1273,6 +1273,7 @@ export class DatabaseStorage implements IStorage {
         sessionId: customerData.sessionId,
         status: 'open',
         priority: 'medium',
+        contextData: customerData.contextData ? JSON.stringify(customerData.contextData) : null,
       })
       .returning();
 
