@@ -4016,6 +4016,46 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get all active knowledge base articles (public access)
+  app.get('/api/public/knowledge-base', async (req, res) => {
+    try {
+      const { category, tag } = req.query;
+      const allArticles = await storage.getAllKnowledgeBase();
+      
+      // Filter to only return active articles
+      let publicArticles = allArticles.filter(article => article.isActive);
+      
+      // Filter by category if specified
+      if (category && typeof category === 'string') {
+        publicArticles = publicArticles.filter(article => 
+          article.category.toLowerCase() === category.toLowerCase()
+        );
+      }
+      
+      // Filter by tag if specified
+      if (tag && typeof tag === 'string') {
+        publicArticles = publicArticles.filter(article => 
+          article.tags?.some(t => t.toLowerCase() === tag.toLowerCase())
+        );
+      }
+      
+      // Return only necessary fields for public viewing
+      const sanitizedArticles = publicArticles.map(article => ({
+        id: article.id,
+        title: article.title,
+        category: article.category,
+        tags: article.tags || [],
+        createdAt: article.createdAt,
+        updatedAt: article.updatedAt
+      }));
+      
+      res.json(sanitizedArticles);
+    } catch (error) {
+      console.error('Failed to fetch public knowledge base articles:', error);
+      res.status(500).json({ error: 'Failed to fetch knowledge base articles' });
+    }
+  });
+
   // Get specific knowledge base article (public access for shared articles)
   app.get('/api/public/knowledge-base/:id', async (req, res) => {
     try {

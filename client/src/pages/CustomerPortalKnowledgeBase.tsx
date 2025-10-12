@@ -1,0 +1,391 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Search, FileText, BookOpen, Tag, Filter, X, Printer, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import CustomerPortalLayout from "@/components/CustomerPortalLayout";
+
+interface KnowledgeBaseArticle {
+  id: string;
+  title: string;
+  content?: string;
+  category: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export default function CustomerPortalKnowledgeBase() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedArticle, setSelectedArticle] = useState<KnowledgeBaseArticle | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Fetch all articles
+  const { data: articles = [], isLoading } = useQuery<KnowledgeBaseArticle[]>({
+    queryKey: ['/api/public/knowledge-base', selectedCategory, selectedTag],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedCategory) params.append('category', selectedCategory);
+      if (selectedTag) params.append('tag', selectedTag);
+      const url = `/api/public/knowledge-base${params.toString() ? `?${params.toString()}` : ''}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to fetch articles');
+      return response.json();
+    },
+  });
+
+  // Fetch full article content when selected
+  const { data: fullArticle } = useQuery<KnowledgeBaseArticle>({
+    queryKey: ['/api/public/knowledge-base', selectedArticle?.id],
+    enabled: !!selectedArticle?.id,
+  });
+
+  // Get unique categories and tags for filtering
+  const { categories, allTags } = useMemo(() => {
+    const categoriesSet = new Set<string>();
+    const tagsSet = new Set<string>();
+    
+    articles.forEach(article => {
+      categoriesSet.add(article.category);
+      article.tags?.forEach(tag => tagsSet.add(tag));
+    });
+    
+    return {
+      categories: Array.from(categoriesSet).sort(),
+      allTags: Array.from(tagsSet).sort()
+    };
+  }, [articles]);
+
+  // Filter articles by search query
+  const filteredArticles = useMemo(() => {
+    if (!searchQuery.trim()) return articles;
+    
+    const query = searchQuery.toLowerCase();
+    return articles.filter(article =>
+      article.title.toLowerCase().includes(query) ||
+      article.category.toLowerCase().includes(query) ||
+      article.tags?.some(tag => tag.toLowerCase().includes(query))
+    );
+  }, [articles, searchQuery]);
+
+  const handlePrint = () => {
+    if (fullArticle) {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>${fullArticle.title}</title>
+              <style>
+                body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+                h1 { color: #333; margin-bottom: 10px; }
+                .meta { color: #666; font-size: 14px; margin-bottom: 20px; }
+                .content { line-height: 1.6; }
+                @media print {
+                  body { padding: 0; }
+                }
+              </style>
+            </head>
+            <body>
+              <h1>${fullArticle.title}</h1>
+              <div class="meta">
+                <strong>Category:</strong> ${fullArticle.category}
+                ${fullArticle.tags?.length ? `<br><strong>Tags:</strong> ${fullArticle.tags.join(', ')}` : ''}
+              </div>
+              <div class="content">${fullArticle.content}</div>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    }
+  };
+
+  const clearFilters = () => {
+    setSelectedCategory(null);
+    setSelectedTag(null);
+    setSearchQuery("");
+  };
+
+  return (
+    <CustomerPortalLayout>
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-6xl">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <BookOpen className="h-5 w-5 text-primary" />
+            </div>
+            <h1 className="text-3xl font-bold" data-testid="title-knowledge-base">Knowledge Base</h1>
+          </div>
+          <p className="text-muted-foreground">
+            Browse our comprehensive collection of help articles and guides
+          </p>
+        </div>
+
+        {/* Search and Filters */}
+        <div className="mb-6 space-y-4">
+          {/* Search Bar */}
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2">
+                <Search className="h-4 w-4 text-muted-foreground" />
+              </div>
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search articles..."
+                className="pl-11"
+                data-testid="input-search-articles"
+              />
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className="gap-2"
+              data-testid="button-toggle-filters"
+            >
+              <Filter className="h-4 w-4" />
+              Filters
+              {(selectedCategory || selectedTag) && (
+                <Badge variant="secondary" className="ml-1">
+                  {(selectedCategory ? 1 : 0) + (selectedTag ? 1 : 0)}
+                </Badge>
+              )}
+            </Button>
+          </div>
+
+          {/* Active Filters Display */}
+          {(selectedCategory || selectedTag || searchQuery) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground">Active filters:</span>
+              {selectedCategory && (
+                <Badge variant="secondary" className="gap-1">
+                  Category: {selectedCategory}
+                  <button
+                    onClick={() => setSelectedCategory(null)}
+                    className="ml-1 hover-elevate rounded-full"
+                    data-testid="button-clear-category"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+              {selectedTag && (
+                <Badge variant="secondary" className="gap-1">
+                  Tag: {selectedTag}
+                  <button
+                    onClick={() => setSelectedTag(null)}
+                    className="ml-1 hover-elevate rounded-full"
+                    data-testid="button-clear-tag"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+              {searchQuery && (
+                <Badge variant="secondary" className="gap-1">
+                  Search: "{searchQuery}"
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="ml-1 hover-elevate rounded-full"
+                    data-testid="button-clear-search"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-6 text-xs"
+                data-testid="button-clear-all-filters"
+              >
+                Clear all
+              </Button>
+            </div>
+          )}
+
+          {/* Filters Panel */}
+          {showFilters && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Categories */}
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Categories
+                    </h3>
+                    <div className="space-y-2">
+                      {categories.length > 0 ? (
+                        categories.map((category) => (
+                          <button
+                            key={category}
+                            onClick={() => setSelectedCategory(selectedCategory === category ? null : category)}
+                            className={cn(
+                              "w-full text-left px-3 py-2 rounded-md text-sm transition-colors hover-elevate",
+                              selectedCategory === category
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "hover:bg-muted"
+                            )}
+                            data-testid={`button-category-${category}`}
+                          >
+                            {category}
+                          </button>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No categories available</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tags */}
+                  <div>
+                    <h3 className="font-semibold mb-3 flex items-center gap-2">
+                      <Tag className="h-4 w-4" />
+                      Tags
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {allTags.length > 0 ? (
+                        allTags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant={selectedTag === tag ? "default" : "outline"}
+                            className={cn(
+                              "cursor-pointer",
+                              selectedTag !== tag && "hover-elevate"
+                            )}
+                            onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                            data-testid={`badge-tag-${tag}`}
+                          >
+                            {tag}
+                          </Badge>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No tags available</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* Articles List */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center space-y-3">
+              <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm text-muted-foreground">Loading articles...</p>
+            </div>
+          </div>
+        ) : filteredArticles.length > 0 ? (
+          <div className="grid gap-4">
+            {filteredArticles.map((article) => (
+              <Card
+                key={article.id}
+                className="hover-elevate cursor-pointer"
+                onClick={() => setSelectedArticle(article)}
+                data-testid={`card-article-${article.id}`}
+              >
+                <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-4">
+                  <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg mb-2">{article.title}</CardTitle>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline">{article.category}</Badge>
+                      {article.tags?.slice(0, 3).map((tag, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">
+                          {tag}
+                        </Badge>
+                      ))}
+                      {article.tags && article.tags.length > 3 && (
+                        <span className="text-xs text-muted-foreground">
+                          +{article.tags.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card className="p-12">
+            <div className="text-center">
+              <BookOpen className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No articles found</h3>
+              <p className="text-muted-foreground mb-4">
+                {searchQuery || selectedCategory || selectedTag
+                  ? "Try adjusting your filters or search query"
+                  : "No articles are currently available"}
+              </p>
+              {(searchQuery || selectedCategory || selectedTag) && (
+                <Button variant="outline" onClick={clearFilters} data-testid="button-clear-filters">
+                  Clear filters
+                </Button>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* Article View Dialog */}
+        {selectedArticle && fullArticle && (
+          <Dialog open={!!selectedArticle} onOpenChange={() => setSelectedArticle(null)}>
+            <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+              <DialogHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <DialogTitle className="text-2xl mb-3" data-testid="title-article-view">
+                      {fullArticle.title}
+                    </DialogTitle>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline">{fullArticle.category}</Badge>
+                      {fullArticle.tags?.map((tag, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-xs">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePrint}
+                    className="gap-2 flex-shrink-0"
+                    data-testid="button-print-article"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print
+                  </Button>
+                </div>
+              </DialogHeader>
+              <ScrollArea className="flex-1 pr-4">
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: fullArticle.content || '' }}
+                  data-testid="content-article-view"
+                />
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+    </CustomerPortalLayout>
+  );
+}
