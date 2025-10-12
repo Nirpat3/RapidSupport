@@ -5,15 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
   Send, 
-  Sparkles, 
+  Sparkles,
   MessageCircle, 
-  Clock,
-  Shield,
-  Zap,
   ArrowRight,
   User,
   Building2,
@@ -27,8 +23,7 @@ import {
   Image as ImageIcon,
   FileText,
   MessageSquarePlus,
-  LogIn,
-  BookOpen
+  LogIn
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { CustomerInfoForm } from "@/components/CustomerInfoForm";
@@ -923,44 +918,26 @@ export default function CustomerChatPage() {
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <div className="inline-flex h-16 w-16 bg-primary/10 rounded-2xl items-center justify-center mb-6">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent" data-testid="title-hero">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-6" data-testid="title-hero">
               How can we help you today?
             </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Get instant answers from our AI-powered support or connect with our team
-            </p>
-            <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
-              {/* Show IP Address */}
-              {existingConversation?.ipAddress && (
-                <>
-                  <span className="text-sm text-muted-foreground" data-testid="text-user-ip">
-                    Your IP: {existingConversation.ipAddress}
-                  </span>
-                  <Separator orientation="vertical" className="h-4" />
-                </>
-              )}
+            <div className="flex items-center justify-center gap-4">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => window.location.href = '/knowledge-base'}
-                className="text-sm h-auto p-0"
+                className="text-sm text-muted-foreground hover:text-foreground"
                 data-testid="link-knowledge-base"
               >
-                <BookOpen className="h-3 w-3 mr-1" />
                 Browse Knowledge Base
               </Button>
-              <Separator orientation="vertical" className="h-4" />
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => window.location.href = '/portal/login'}
-                className="text-sm h-auto p-0"
+                className="text-sm text-muted-foreground hover:text-foreground"
                 data-testid="link-portal-login"
               >
-                <LogIn className="h-3 w-3 mr-1" />
                 Customer Portal
               </Button>
             </div>
@@ -968,55 +945,39 @@ export default function CustomerChatPage() {
 
           {/* Continue Conversation Card - Shows when user has existing conversation */}
           {(chatState.conversationId || existingConversation?.conversationId) && (
-            <Card className="mb-8 border-2 border-primary/20 bg-primary/5">
+            <Card className="mb-8">
               <CardContent className="pt-6">
-                <div className="flex items-start gap-4">
-                  <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <MessageCircle className="h-6 w-6 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold mb-1">Continue your conversation</h3>
-                    {(chatState.customerInfo || existingConversation?.customerInfo) && (
-                      <p className="text-sm text-muted-foreground mb-3">
-                        Welcome back, {chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
-                        {existingConversation?.conversationId && !chatState.conversationId && (
-                          <span className="text-xs block mt-1">
-                            (Identified by IP address)
-                          </span>
-                        )}
-                      </p>
-                    )}
-                    <div className="flex gap-2 flex-wrap">
-                      <Button 
-                        onClick={() => setChatStarted(true)}
-                        className="gap-2"
-                        data-testid="button-continue-conversation"
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        Open Chat
-                      </Button>
-                      <Button 
-                        onClick={() => {
-                          // Clear localStorage and reset state to start fresh
-                          localStorage.removeItem('customer-chat-state');
-                          setChatState({
-                            conversationId: null,
-                            customerId: null,
-                            sessionId: crypto.randomUUID(),
-                            customerInfo: null,
-                          });
-                          setQuestion("");
-                          setSelectedFiles([]);
-                        }}
-                        variant="outline"
-                        className="gap-2"
-                        data-testid="button-new-conversation"
-                      >
-                        <MessageSquarePlus className="h-4 w-4" />
-                        Start New Chat
-                      </Button>
-                    </div>
-                  </div>
+                <h3 className="font-semibold mb-2">Continue your conversation</h3>
+                {(chatState.customerInfo || existingConversation?.customerInfo) && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Welcome back, {chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
+                  </p>
+                )}
+                <div className="flex gap-2 flex-wrap">
+                  <Button 
+                    onClick={() => setChatStarted(true)}
+                    data-testid="button-continue-conversation"
+                  >
+                    Open Chat
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      // Clear localStorage and reset state to start fresh
+                      localStorage.removeItem('customer-chat-state');
+                      setChatState({
+                        conversationId: null,
+                        customerId: null,
+                        sessionId: crypto.randomUUID(),
+                        customerInfo: null,
+                      });
+                      setQuestion("");
+                      setSelectedFiles([]);
+                    }}
+                    variant="outline"
+                    data-testid="button-new-conversation"
+                  >
+                    Start New Chat
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -1026,7 +987,7 @@ export default function CustomerChatPage() {
           <div className="mb-8 space-y-3">
             <div className="relative">
               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <MessageCircle className="h-5 w-5" />
+                <MessageCircle className="h-4 w-4" />
               </div>
               <Input
                 value={question}
@@ -1037,15 +998,15 @@ export default function CustomerChatPage() {
                     handleAskQuestion();
                   }
                 }}
-                placeholder="Ask a question or describe your issue..."
-                className="pl-12 pr-4 h-14 text-base rounded-2xl shadow-lg border-2 focus-visible:ring-2"
+                placeholder="Ask a question..."
+                className="pl-11 pr-4 h-12 text-base rounded-lg"
                 data-testid="input-hero-question"
               />
             </div>
             <Button
               onClick={handleAskQuestion}
               disabled={!question.trim() || sendMessageMutation.isPending || createCustomerMutation.isPending}
-              className="w-full rounded-xl h-12"
+              className="w-full rounded-lg h-12"
               data-testid="button-ask-question"
             >
               {sendMessageMutation.isPending || createCustomerMutation.isPending ? (
@@ -1059,74 +1020,20 @@ export default function CustomerChatPage() {
           </div>
 
           {/* Suggested Questions */}
-          <div className="mb-16">
-            <p className="text-sm text-muted-foreground mb-4 text-center">Popular questions:</p>
+          <div>
             <div className="flex flex-wrap gap-2 justify-center">
               {suggestedQuestions.map((q, idx) => (
                 <Button
                   key={idx}
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => setQuestion(q)}
-                  className="rounded-full hover-elevate"
+                  className="text-muted-foreground hover:text-foreground"
                   data-testid={`button-suggested-${idx}`}
                 >
                   {q}
                 </Button>
               ))}
-            </div>
-          </div>
-
-          {/* Features Grid */}
-          <div className="grid sm:grid-cols-3 gap-6 mb-16">
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4">
-                  <Zap className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="font-semibold mb-2">Instant Answers</h3>
-                <p className="text-sm text-muted-foreground">
-                  Get AI-powered responses in seconds, 24/7
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4">
-                  <Shield className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="font-semibold mb-2">Secure & Private</h3>
-                <p className="text-sm text-muted-foreground">
-                  Your data is encrypted and protected
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="h-12 w-12 bg-primary/10 rounded-xl flex items-center justify-center mb-4">
-                  <Clock className="h-6 w-6 text-primary" />
-                </div>
-                <h3 className="font-semibold mb-2">Fast Response</h3>
-                <p className="text-sm text-muted-foreground">
-                  Average response time under 2 minutes
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Trust Indicators */}
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
-                Support Online
-              </div>
-              <Separator orientation="vertical" className="h-4" />
-              <span>Available 24/7</span>
-              <Separator orientation="vertical" className="h-4" />
-              <span>No account required</span>
             </div>
           </div>
         </div>
