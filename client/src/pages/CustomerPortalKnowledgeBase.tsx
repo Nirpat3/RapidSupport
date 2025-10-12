@@ -10,6 +10,7 @@ import { Search, FileText, BookOpen, Tag, Filter, X, Printer, ChevronRight } fro
 import { cn } from "@/lib/utils";
 import { CustomerPortalLayout } from "@/components/CustomerPortalLayout";
 import { apiRequest } from "@/lib/queryClient";
+import ChatWidget from "@/components/ChatWidget";
 
 interface KnowledgeBaseArticle {
   id: string;
@@ -388,6 +389,9 @@ export default function CustomerPortalKnowledgeBase() {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Floating Support Chat Widget - Responsive positioning */}
+        <ChatWidget className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 !max-w-[min(28rem,calc(100vw-2rem))] max-h-[80vh]" />
       </div>
     </CustomerPortalLayout>
   );
