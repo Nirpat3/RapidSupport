@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import crypto from "crypto";
 import rateLimit from 'express-rate-limit';
 import { DocumentProcessor } from './document-processor';
+import { AIDocumentAnalyzer } from './ai-document-analyzer';
 import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 import { hash, compare } from 'bcryptjs';
@@ -4758,7 +4759,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Create knowledge base articles from file uploads
+  // Create knowledge base articles from file uploads with AI analysis
   app.post('/api/knowledge-base/from-files', requireAuth, requireRole(['admin', 'agent']), upload.array('files', 10), async (req, res) => {
     try {
       const user = req.user as any;
@@ -4768,11 +4769,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(400).json({ error: 'No files provided' });
       }
 
-      const { category, tags, priority, assignedAgentIds } = req.body;
-      
-      // Validate required fields
-      if (!category) {
-        return res.status(400).json({ error: 'Category is required' });
+      const { category, tags, priority, assignedAgentIds, useAiAnalysis = 'true' } = req.body;
+      const shouldUseAI = useAiAnalysis === 'true' || useAiAnalysis === true;
+
+      // If AI analysis is disabled, category is required
+      if (!shouldUseAI && !category) {
+        return res.status(400).json({ error: 'Category is required when AI analysis is disabled' });
       }
 
       const articles = [];
@@ -4795,11 +4797,68 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           
           console.log(`Successfully extracted text from ${file.originalname}: ${documentContent.metadata?.wordCount || 0} words`);
 
+          let aiAnalysis = null;
+          let finalCategory = category || 'General'; // Default to General if not provided
+          let finalTags: string[] = tags ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [];
+          let finalTitle = file.originalname.replace(/\.[^/.]+$/, '');
+          let finalAgentIds: string[] = [];
+          
+          // Safely parse assignedAgentIds
+          if (assignedAgentIds) {
+            try {
+              finalAgentIds = JSON.parse(assignedAgentIds);
+            } catch (parseError) {
+              console.warn('Failed to parse assignedAgentIds, using empty array');
+              finalAgentIds = [];
+            }
+          }
+
+          // Use AI to analyze document if enabled
+          if (shouldUseAI) {
+            try {
+              console.log(`[AI Analysis] Analyzing document: ${file.originalname}`);
+              aiAnalysis = await AIDocumentAnalyzer.analyzeDocument(content, finalTitle);
+              
+              // Use AI suggestions if manual inputs not provided
+              if (!category && aiAnalysis.category) {
+                finalCategory = aiAnalysis.category;
+                console.log(`[AI Analysis] Using AI-suggested category: ${finalCategory}`);
+              }
+              
+              if ((!tags || tags.length === 0) && aiAnalysis.tags.length > 0) {
+                finalTags = aiAnalysis.tags;
+                console.log(`[AI Analysis] Using AI-suggested tags: ${finalTags.join(', ')}`);
+              } else if (tags && aiAnalysis.tags.length > 0) {
+                // Merge manual tags with AI tags, removing duplicates
+                finalTags = Array.from(new Set([...finalTags, ...aiAnalysis.tags]));
+                console.log(`[AI Analysis] Merged tags: ${finalTags.join(', ')}`);
+              }
+              
+              if (aiAnalysis.suggestedTitle) {
+                finalTitle = aiAnalysis.suggestedTitle;
+                console.log(`[AI Analysis] Using AI-suggested title: ${finalTitle}`);
+              }
+
+              // Auto-assign to AI agents based on category if not manually assigned
+              if ((!assignedAgentIds || finalAgentIds.length === 0) && aiAnalysis) {
+                const agentSuggestion = AIDocumentAnalyzer.suggestAgentAssignment(aiAnalysis);
+                const allAgents = await storage.getAllAiAgents();
+                const matchingAgents = allAgents.filter(agent => 
+                  agentSuggestion.suggestedAgentNames.includes(agent.name)
+                );
+                finalAgentIds = matchingAgents.map(agent => agent.id);
+                console.log(`[AI Analysis] Auto-assigned to agents: ${agentSuggestion.suggestedAgentNames.join(', ')}`);
+              }
+            } catch (aiError) {
+              console.error(`[AI Analysis] Error analyzing document, proceeding with manual inputs:`, aiError);
+            }
+          }
+
           const articleData = {
-            title: file.originalname.replace(/\.[^/.]+$/, ''), // Remove file extension
+            title: finalTitle,
             content,
-            category,
-            tags: tags ? tags.split(',').map((tag: string) => tag.trim()).filter(Boolean) : [],
+            category: finalCategory || 'General',
+            tags: finalTags,
             priority: priority ? parseInt(priority) : 50,
             isActive: true,
             sourceType: 'file' as const,
@@ -4807,12 +4866,58 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             fileType: file.mimetype,
             fileSize: file.size,
             filePath: file.path,
-            assignedAgentIds: assignedAgentIds ? JSON.parse(assignedAgentIds) : [],
+            assignedAgentIds: finalAgentIds,
             createdBy: user.id,
           };
 
           const article = await storage.createKnowledgeBase(articleData);
-          articles.push(article);
+          
+          // Create FAQs if AI analysis generated them
+          if (aiAnalysis && aiAnalysis.faqs && aiAnalysis.faqs.length > 0) {
+            console.log(`[AI Analysis] Creating ${aiAnalysis.faqs.length} FAQs for article: ${article.title}`);
+            const faqData = aiAnalysis.faqs.map((faq, index) => ({
+              knowledgeBaseId: article.id,
+              question: faq.question,
+              answer: faq.answer,
+              displayOrder: index,
+              isAiGenerated: true,
+              usageCount: 0,
+              helpful: 0,
+              notHelpful: 0,
+            }));
+            
+            await storage.createKnowledgeBaseFaqsBatch(faqData);
+          }
+
+          // Update AI agents to include this article in their knowledge base
+          if (finalAgentIds.length > 0) {
+            for (const agentId of finalAgentIds) {
+              try {
+                const agent = await storage.getAiAgent(agentId);
+                if (agent) {
+                  const currentKbIds = agent.knowledgeBaseIds || [];
+                  if (!currentKbIds.includes(article.id)) {
+                    await storage.updateAiAgent(agentId, {
+                      knowledgeBaseIds: [...currentKbIds, article.id]
+                    });
+                  }
+                }
+              } catch (agentError) {
+                console.error(`Error updating agent ${agentId} with knowledge base:`, agentError);
+              }
+            }
+          }
+
+          articles.push({
+            ...article,
+            aiAnalysis: aiAnalysis ? {
+              category: aiAnalysis.category,
+              tags: aiAnalysis.tags,
+              keywords: aiAnalysis.keywords,
+              summary: aiAnalysis.summary,
+              faqCount: aiAnalysis.faqs.length
+            } : null
+          });
         } catch (fileError) {
           console.error(`Error processing file ${file.originalname}:`, fileError);
           errors.push({
