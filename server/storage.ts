@@ -1209,19 +1209,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async findExistingCustomer(email: string, phone: string, company: string): Promise<Customer | undefined> {
-    // Try to find existing customer by email and company, or email and phone
+    // Since email is unique in the database, we can find existing customer by email alone
+    // This prevents unique constraint violations when user changes company/phone
     const [customer] = await db
       .select()
       .from(customers)
-      .where(
-        and(
-          eq(customers.email, email),
-          or(
-            eq(customers.company, company),
-            eq(customers.phone, phone)
-          )
-        )
-      );
+      .where(eq(customers.email, email));
     return customer || undefined;
   }
 
