@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning } from '@shared/schema';
 import { storage } from './storage';
 import { knowledgeRetrieval, type SearchResult, type RetrievalOptions } from './knowledge-retrieval';
+import { conversationLogger } from './conversation-logger';
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -878,7 +879,12 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
     conversationId: string,
     agentId?: string
   ): Promise<SmartAgentResponse> {
+    const startTime = Date.now();
+    
     try {
+      // Log customer message
+      conversationLogger.logCustomerMessage(conversationId, customerMessage);
+      
       // Classify intent to determine appropriate response format and agent routing
       const intentClassification = await this.classifyIntent(customerMessage);
       console.log(`Intent classification: ${intentClassification.intent} (confidence: ${intentClassification.confidence}%)`);
@@ -986,6 +992,26 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
 
       // Get relevant knowledge base articles using enhanced retrieval
       const searchResults = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || []);
+      
+      // Log AI processing details
+      conversationLogger.logAIProcessing(conversationId, {
+        customerMessage,
+        intentClassification,
+        knowledgeSearch: {
+          query: customerMessage,
+          resultsCount: searchResults.length,
+          topResults: searchResults.slice(0, 3).map(r => ({
+            title: r.chunk.title,
+            score: r.score,
+            relevance: r.score
+          }))
+        },
+        agentSelected: {
+          agentId: agent.id,
+          agentName: agent.name,
+          specializations: agent.specializations || []
+        }
+      });
 
       // Generate response using agent's configuration with format guidance
       const response = await this.generateAgentResponseWithConfig(
@@ -1039,6 +1065,17 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       // Score response quality
       const qualityScores = await this.scoreResponseQuality(customerMessage, response.response);
       console.log('Response quality scores:', qualityScores);
+      
+      // Log AI response with duration
+      const duration = Date.now() - startTime;
+      conversationLogger.logAIResponse(conversationId, {
+        response: response.response,
+        confidence: response.confidence,
+        requiresHumanTakeover: response.requiresHumanTakeover,
+        suggestedActions: response.suggestedActions,
+        knowledgeUsed: response.knowledgeUsed,
+        format: response.format || 'regular'
+      }, duration);
 
       // Record learning data with quality scores and intent
       const shouldLearn = newMessageCount <= 100; // Limit learning data collection
