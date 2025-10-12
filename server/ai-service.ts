@@ -1380,8 +1380,13 @@ The more details you can share, the better I can help you resolve this quickly!"
    */
   private static async getRelevantKnowledge(query: string, knowledgeBaseIds: string[]): Promise<SearchResult[]> {
     try {
-      if (knowledgeBaseIds.length === 0) {
-        return [];
+      // If no KB IDs assigned to agent, search ALL available KB articles instead of returning empty
+      const shouldExpandScope = knowledgeBaseIds.length === 0;
+      
+      if (shouldExpandScope) {
+        console.log('⚠️  Agent has no KB articles assigned - searching ALL available knowledge base articles');
+      } else {
+        console.log(`🔍 Searching ${knowledgeBaseIds.length} assigned KB articles for agent: ${knowledgeBaseIds.join(', ')}`);
       }
 
       // Enhanced query analysis for better search optimization
@@ -1390,10 +1395,21 @@ The more details you can share, the better I can help you resolve this quickly!"
       // Dynamic search parameters based on query characteristics
       const searchOptions = this.getOptimalSearchOptions(queryAnalysis);
       
+      // CRITICAL FIX: Enable expandScope if agent has no assigned KB IDs
+      // This ensures we search ALL knowledge base articles instead of returning empty results
+      if (shouldExpandScope) {
+        searchOptions.expandScope = true;
+        searchOptions.maxResults = 10; // Get more results when searching all articles
+        console.log('✅ expandScope ENABLED - will search all KB articles');
+      }
+      
       console.log(`Query analysis - Type: ${queryAnalysis.type}, Intent: ${queryAnalysis.intent}, Complexity: ${queryAnalysis.complexity}`);
+      console.log(`Search options - expandScope: ${searchOptions.expandScope}, maxResults: ${searchOptions.maxResults}, minScore: ${searchOptions.minScore}`);
       
       // Multi-tiered search strategy
       let searchResults = await knowledgeRetrieval.search(query, knowledgeBaseIds, searchOptions);
+      
+      console.log(`📊 Initial search returned ${searchResults.length} results`);
       
       // If insufficient results for complex queries, try broader search
       if (searchResults.length < 2 && queryAnalysis.complexity === 'high') {
@@ -1405,6 +1421,7 @@ The more details you can share, the better I can help you resolve this quickly!"
           expandScope: true,
         };
         searchResults = await knowledgeRetrieval.search(query, knowledgeBaseIds, broadSearchOptions);
+        console.log(`📊 Expanded search returned ${searchResults.length} results`);
       }
       
       // Enhanced context filtering and ranking
