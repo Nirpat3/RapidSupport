@@ -49,20 +49,38 @@
   --chart-4: 280 70% 55%;
   --chart-5: 15 85% 55%;
 
-  --font-sans: Inter, sans-serif;
-  --font-serif: Georgia, serif;
-  --font-mono: Menlo, monospace;
-  --radius: .5rem; /* 8px */
-  --shadow-2xs: 0px 2px 0px 0px hsl(220 15% 15% / 0.05);
-  --shadow-xs: 0px 2px 0px 0px hsl(220 15% 15% / 0.05);
-  --shadow-sm: 0px 2px 0px 0px hsl(220 15% 15% / 0.05), 0px 1px 2px -1px hsl(220 15% 15% / 0.1);
-  --shadow: 0px 2px 0px 0px hsl(220 15% 15% / 0.05), 0px 1px 2px -1px hsl(220 15% 15% / 0.1);
-  --shadow-md: 0px 2px 0px 0px hsl(220 15% 15% / 0.05), 0px 2px 4px -1px hsl(220 15% 15% / 0.12);
-  --shadow-lg: 0px 2px 0px 0px hsl(220 15% 15% / 0.05), 0px 4px 6px -1px hsl(220 15% 15% / 0.15);
-  --shadow-xl: 0px 2px 0px 0px hsl(220 15% 15% / 0.05), 0px 8px 10px -1px hsl(220 15% 15% / 0.18);
-  --shadow-2xl: 0px 2px 0px 0px hsl(220 15% 15% / 0.25);
-  --tracking-normal: 0em;
+  /* Apple/Stripe-like Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+  
+  /* Refined Border Radius (Apple-like) */
+  --radius: 0.75rem; /* 12px - more pronounced but still elegant */
+  --radius-sm: 0.5rem; /* 8px */
+  --radius-lg: 1rem; /* 16px */
+  
+  /* Apple/Stripe-like Shadows - Layered and subtle */
+  --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-xs: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-sm: 0 2px 4px -2px rgb(0 0 0 / 0.1), 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --shadow-2xl: 0 30px 60px -15px rgb(0 0 0 / 0.3);
+  
+  /* Apple-like Typography Settings */
+  --tracking-tight: -0.015em; /* Tighter for headlines */
+  --tracking-normal: -0.011em; /* Slight negative tracking like SF Pro */
+  --tracking-wide: 0.015em; /* For buttons and labels */
+  
+  /* Refined Spacing */
   --spacing: 0.25rem;
+  --spacing-xs: 0.5rem;
+  --spacing-sm: 0.75rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
 
   /* Automatically computed borders - intensity can be controlled by the user by the --opaque-button-border-intensity setting */
 
@@ -140,14 +158,15 @@
   --chart-4: 280 70% 75%;
   --chart-5: 15 85% 75%;
 
-  --shadow-2xs: 0px 2px 0px 0px hsl(220 15% 5% / 0.3);
-  --shadow-xs: 0px 2px 0px 0px hsl(220 15% 5% / 0.3);
-  --shadow-sm: 0px 2px 0px 0px hsl(220 15% 5% / 0.3), 0px 1px 2px -1px hsl(220 15% 5% / 0.4);
-  --shadow: 0px 2px 0px 0px hsl(220 15% 5% / 0.3), 0px 1px 2px -1px hsl(220 15% 5% / 0.4);
-  --shadow-md: 0px 2px 0px 0px hsl(220 15% 5% / 0.3), 0px 2px 4px -1px hsl(220 15% 5% / 0.5);
-  --shadow-lg: 0px 2px 0px 0px hsl(220 15% 5% / 0.3), 0px 4px 6px -1px hsl(220 15% 5% / 0.6);
-  --shadow-xl: 0px 2px 0px 0px hsl(220 15% 5% / 0.3), 0px 8px 10px -1px hsl(220 15% 5% / 0.7);
-  --shadow-2xl: 0px 2px 0px 0px hsl(220 15% 5% / 0.8);
+  /* Dark Mode Shadows - More pronounced for contrast */
+  --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-xs: 0 1px 3px 0 rgb(0 0 0 / 0.4), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 2px 4px -2px rgb(0 0 0 / 0.4), 0 4px 6px -1px rgb(0 0 0 / 0.4);
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.6);
+  --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.7);
+  --shadow-2xl: 0 30px 60px -15px rgb(0 0 0 / 0.8);
 
 }
 
@@ -270,5 +289,45 @@
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
+  }
+
+  /* Apple-style Typography Utilities */
+  .text-display {
+    @apply text-4xl font-semibold;
+    letter-spacing: var(--tracking-tight);
+  }
+  
+  .text-headline {
+    @apply text-2xl font-semibold;
+    letter-spacing: var(--tracking-tight);
+  }
+  
+  .text-title {
+    @apply text-xl font-semibold;
+    letter-spacing: var(--tracking-normal);
+  }
+  
+  .text-body {
+    @apply text-base font-normal;
+    letter-spacing: var(--tracking-normal);
+  }
+  
+  .text-caption {
+    @apply text-sm font-normal;
+    letter-spacing: var(--tracking-normal);
+  }
+  
+  .text-label {
+    @apply text-xs font-medium uppercase;
+    letter-spacing: var(--tracking-wide);
+  }
+
+  /* Smooth Transitions */
+  .transition-smooth {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .transition-smooth-slow {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }
