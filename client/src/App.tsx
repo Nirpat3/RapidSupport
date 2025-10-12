@@ -205,8 +205,8 @@ function AppContent() {
   
   // Check if we're on public routes
   const pathname = window.location.pathname.replace(/\/$/, ''); // Remove trailing slash
-  const isSupportPage = pathname === '' || pathname === '/support';
-  const isCustomerChatPage = pathname === '/customer-chat';
+  const isCustomerChatPage = pathname === '' || pathname === '/customer-chat';
+  const isKnowledgeBasePage = pathname === '/knowledge-base';
   const isChatEmbedPage = pathname === '/chat'; // Embeddable chat widget
   const isSupportCenterWidget = pathname === '/support-widget'; // Enhanced support center widget
   
@@ -217,24 +217,24 @@ function AppContent() {
   const isPortalLoginPage = window.location.pathname === '/portal/login';
   const isPortalPage = window.location.pathname.startsWith('/portal') && window.location.pathname !== '/portal/login';
   
-  // For support page (knowledge base search), render without authentication
-  if (isSupportPage) {
+  // For customer chat page (now the landing page), render without authentication
+  if (isCustomerChatPage) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <SupportPage />
+          <CustomerChatPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
     );
   }
   
-  // For customer chat page, render without authentication but with necessary providers
-  if (isCustomerChatPage) {
+  // For knowledge base page, render without authentication
+  if (isKnowledgeBasePage) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <CustomerChatPage />
+          <SupportPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
