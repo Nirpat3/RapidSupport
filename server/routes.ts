@@ -4109,6 +4109,66 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Public support chat - AI-powered conversational support without authentication
+  app.post('/api/public/support/chat', async (req, res) => {
+    try {
+      const { message, sessionId } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+
+      // Get a default AI agent for public support (first active agent)
+      const agents = await storage.getAllAiAgents();
+      const publicAgent = agents.find(a => a.isActive) || agents[0];
+      
+      if (!publicAgent) {
+        return res.status(503).json({ error: 'Support service temporarily unavailable' });
+      }
+
+      // Get relevant knowledge base articles
+      const searchResults = await AIService.getRelevantKnowledge(
+        message,
+        publicAgent.knowledgeBaseIds || []
+      );
+
+      // Format knowledge base content for AI
+      const knowledgeContent = searchResults.map(r => 
+        `[${r.title}]\n${r.content}`
+      );
+
+      // Generate AI response without creating sessions
+      const aiResponse = await AIService.generateAgentResponse(
+        message,
+        [], // Empty conversation history for now (future: load from sessionId)
+        knowledgeContent
+      );
+
+      // Get sources
+      const knowledgeBaseIds = searchResults.map(r => r.id);
+      const allSources = knowledgeBaseIds.length > 0 
+        ? await storage.getKnowledgeBaseArticles(knowledgeBaseIds)
+        : [];
+      
+      const sources = allSources.filter(kb => kb.isActive);
+
+      res.json({
+        response: aiResponse.response,
+        confidence: aiResponse.confidence,
+        sources: sources.map((kb) => ({
+          id: kb.id,
+          title: kb.title,
+          category: kb.category,
+          relevanceScore: searchResults.find(r => r.id === kb.id)?.score || 0.8
+        })),
+        sessionId: sessionId || `session_${Date.now()}`
+      });
+    } catch (error) {
+      console.error('Failed to process chat message:', error);
+      res.status(500).json({ error: 'Failed to process message' });
+    }
+  });
+
   // Get specific knowledge base article (authenticated access)
   app.get('/api/knowledge-base/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {

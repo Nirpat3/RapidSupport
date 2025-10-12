@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, FileText, ExternalLink, Sparkles, BookOpen, HelpCircle, MessageCircleQuestion } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
+import ChatWidget from "@/components/ChatWidget";
 
 interface KnowledgeBaseArticle {
   id: string;
@@ -183,6 +184,9 @@ export default function SupportPage() {
             </div>
           </div>
         </div>
+
+        {/* Chat Widget - Fixed position bottom-right */}
+        <ChatWidget className="fixed bottom-6 right-6 z-50" />
       </div>
     );
   }
