@@ -191,6 +191,7 @@ export default function SupportPage() {
               </div>
               <Button
                 onClick={handleSearch}
+                disabled={!searchQuery.trim()}
                 size="sm"
                 className="h-10 shrink-0"
                 data-testid="button-ask-ai-header"
