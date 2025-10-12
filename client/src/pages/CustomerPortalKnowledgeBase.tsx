@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, FileText, BookOpen, Tag, Filter, X, Printer, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import CustomerPortalLayout from "@/components/CustomerPortalLayout";
+import { CustomerPortalLayout } from "@/components/CustomerPortalLayout";
+import { apiRequest } from "@/lib/queryClient";
 
 interface KnowledgeBaseArticle {
   id: string;
@@ -35,9 +36,7 @@ export default function CustomerPortalKnowledgeBase() {
       if (selectedCategory) params.append('category', selectedCategory);
       if (selectedTag) params.append('tag', selectedTag);
       const url = `/api/public/knowledge-base${params.toString() ? `?${params.toString()}` : ''}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to fetch articles');
-      return response.json();
+      return apiRequest(url, 'GET');
     },
   });
 
@@ -45,6 +44,10 @@ export default function CustomerPortalKnowledgeBase() {
   const { data: fullArticle } = useQuery<KnowledgeBaseArticle>({
     queryKey: ['/api/public/knowledge-base', selectedArticle?.id],
     enabled: !!selectedArticle?.id,
+    queryFn: async () => {
+      if (!selectedArticle?.id) throw new Error('No article selected');
+      return apiRequest(`/api/public/knowledge-base/${selectedArticle.id}`, 'GET');
+    },
   });
 
   // Get unique categories and tags for filtering

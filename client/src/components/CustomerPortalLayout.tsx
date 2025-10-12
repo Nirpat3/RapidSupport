@@ -82,7 +82,7 @@ export function CustomerPortalLayout({ children }: CustomerPortalLayoutProps) {
                       "gap-2 rounded-none border-b-2 border-transparent",
                       isActive && "border-b-primary"
                     )}
-                    data-testid={`nav-${item.label.toLowerCase()}`}
+                    data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                   >
                     <Icon className="h-4 w-4" />
                     <span className="hidden sm:inline">{item.label}</span>
