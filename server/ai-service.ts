@@ -80,24 +80,24 @@ export interface QualityScores {
 
 const RESPONSE_FORMATS = {
   conversational: {
-    prompt: "Respond in a friendly, conversational tone. Be warm and personable while maintaining professionalism. Use natural language and avoid overly formal phrasing.",
-    example: "Hi there! I'd be happy to help you with that. Let me walk you through this..."
+    prompt: "Respond in a friendly, conversational tone. Be warm and personable while maintaining professionalism. Use natural language and avoid overly formal phrasing. Structure with intro, details, and next steps.",
+    example: "Hi there! I'd be happy to help you with that.\n\nLet me walk you through this process. Here's what you need to know:\n\n1. First, you'll need to access your account settings\n2. Then, locate the section you're looking for\n3. Finally, make your changes and save\n\nLet me know if you need any clarification on these steps!"
   },
   step_by_step: {
-    prompt: "Provide clear numbered steps in a logical sequence. Each step should be actionable and easy to follow. Use imperative language (e.g., 'Click', 'Open', 'Enter').",
-    example: "Here's how to do that:\n1. First, open the settings menu\n2. Navigate to account preferences\n3. Click on 'Update Password'"
+    prompt: "Provide clear numbered steps in a logical sequence. Each step should be actionable and easy to follow. Use imperative language (e.g., 'Click', 'Open', 'Enter'). Include context before steps and summary after.",
+    example: "I'll guide you through this process step by step:\n\n1. Open the settings menu by clicking the gear icon in the top right\n2. Navigate to account preferences from the left sidebar\n3. Click on 'Update Password' in the security section\n4. Enter your new password and confirm it\n5. Click 'Save Changes' to apply\n\nYour password is now updated and you're all set!"
   },
   faq: {
-    prompt: "Answer in FAQ format with clear Q&A pairs. Start with a question statement, then provide a concise answer. Be direct and informative.",
-    example: "Q: How do I reset my password?\nA: You can reset your password by clicking the 'Forgot Password' link on the login page."
+    prompt: "Answer in FAQ format with clear Q&A pairs. Start with a question statement, then provide a concise answer with supporting details. Be direct and informative.",
+    example: "Q: How do I reset my password?\n\nA: You can reset your password by following these steps:\n\n1. Click the 'Forgot Password' link on the login page\n2. Enter your email address\n3. Check your email for a reset link\n4. Follow the link and create a new password\n\nThe reset link expires after 24 hours for security."
   },
   technical: {
-    prompt: "Provide detailed technical explanations with accurate terminology. Include technical details, specifications, and precise information. Assume the user has technical knowledge.",
-    example: "The authentication system uses JWT tokens with RS256 encryption. The token expires after 24 hours and includes user claims..."
+    prompt: "Provide detailed technical explanations with accurate terminology. Include technical details, specifications, and precise information. Assume the user has technical knowledge. Use lists for specifications.",
+    example: "The authentication system implements the following:\n\n• JWT tokens with RS256 encryption\n• Token expiration: 24 hours\n• User claims: userId, email, roles\n• Refresh token rotation with secure storage\n\nFor implementation details, see: https://docs.example.com/auth"
   },
   bullet_points: {
-    prompt: "Respond using concise bullet points. Each point should be brief and to the point. Use bullet points for lists, features, or key information.",
-    example: "Here are the key features:\n• Automatic backups every 24 hours\n• 256-bit encryption\n• Real-time sync across devices"
+    prompt: "Respond using concise bullet points. Each point should be brief and to the point. Use bullet points for lists, features, or key information. Group related points together.",
+    example: "Here are the key features:\n\n• Automatic backups every 24 hours\n• 256-bit AES encryption for data security\n• Real-time sync across all your devices\n• 99.9% uptime guarantee\n\nPricing starts at $9.99/month with a 30-day free trial."
   }
 } as const;
 
@@ -646,7 +646,14 @@ CRITICAL GUIDELINES:
 - If the knowledge base doesn't contain relevant information, use the colleague consultation phrase and require human takeover
 - NEVER provide answers from general AI knowledge
 - If confidence is low or no relevant knowledge base content exists, use human-like language and require human takeover
-- Always respond as if you're a human agent who sometimes needs to check with colleagues`;
+- Always respond as if you're a human agent who sometimes needs to check with colleagues
+
+FORMATTING BEST PRACTICES (Important for clarity and readability):
+- For instructional content, ALWAYS use numbered lists: "1. First step\n2. Second step\n3. Third step"
+- For feature lists or options, use bullet points: "• First option\n• Second option\n• Third option" 
+- When mentioning resources, include full URLs when available from knowledge base
+- Use clear paragraph breaks (double newlines) to separate different topics
+- Structure complex answers with intro → details → summary/next steps`;
 
       const contextInfo = knowledgeBase?.length 
         ? `\nKnowledge Base:\n${knowledgeBase.join('\n')}\n`
@@ -1148,6 +1155,15 @@ Respond according to your role and training. Provide a JSON response with:
 - requiresHumanTakeover: Boolean if human agent should take over
 - suggestedActions: Array of recommended next steps
 - format: Either "regular" or "steps" (use "steps" for instruction-based queries)
+
+FORMATTING EXCELLENCE (Critical for customer understanding):
+- For step-by-step instructions: Use numbered lists: "1. First step\n2. Second step\n3. Third step"
+- For feature lists or options: Use bullet points: "• First option\n• Second option\n• Third option"
+- For alternatives or choices: Use dashes: "- Option A: description\n- Option B: description"
+- Include full URLs when referencing knowledge base articles or resources
+- Use paragraph breaks (double newlines "\n\n") to separate distinct topics
+- Start with context, provide details, end with next steps or summary
+- Make content scannable and easy to follow
 
 MANDATORY RESPONSE STRATEGY - FOLLOW EXACTLY:
 

@@ -15,6 +15,7 @@ The frontend utilizes React 18, TypeScript, and Vite. It employs Radix UI compon
 - Support page Ask AI button repositioned from overlapping to adjacent layout for better mobile/tablet/desktop responsiveness
 - Hero search: Button stacks below input on mobile, aligns horizontally on tablet/desktop
 - Header search: Button positioned next to input with icon-only display on mobile, icon+text on desktop
+- **Formatting Consistency (Latest)**: Customer chat and staff UI now use unified message formatting. Both interfaces display AI responses with rich formatting including numbered lists, bullet points, clickable URLs, and proper paragraph spacing via shared `renderFormattedContent` utility.
 
 ### Technical Implementations
 The backend is a Node.js Express.js application in TypeScript, offering a RESTful API with Zod validation and rate limiting. Authentication is session-based using Passport.js (local strategy, bcrypt for hashing) and Express sessions with a PostgreSQL store. A custom WebSocket server enables real-time communication. PostgreSQL is the database, accessed via Drizzle ORM, with Neon serverless for connection pooling. Authentication includes role-based access control (Admin, Agent, Customer) and anonymous customer support via `sessionId` and IP tracking. A granular permission system allows admins to control staff access at the feature level (Hidden, View, Edit).
@@ -22,6 +23,7 @@ The backend is a Node.js Express.js application in TypeScript, offering a RESTfu
 ### Feature Specifications
 - **Real-time Communication**: Custom WebSocket server for chat, user presence, conversation routing, message broadcasting, and typing indicators.
 - **AI Capabilities**: Multi-agent AI response system (OpenAI GPT-4o-mini) for intent classification (sales, technical, billing, general), smart routing to specialized agents (Sales, Technical, Billing, General Support), and agent handoff based on confidence scores. It includes 4-dimensional quality analysis for AI responses, an AI Learning Dashboard for analytics, and continuous improvement mechanisms.
+  - **Enhanced AI Intelligence (Latest)**: Improved system prompts with explicit formatting guidelines for numbered lists, bullet points, URLs, and paragraph breaks. Response format templates enriched with structured examples showing intro → details → summary pattern. Formatting instructions ensure AI responses are scannable, well-organized, and customer-friendly.
 - **Knowledge Base Integration**: AI performs intelligent query analysis, multi-tiered search (keyword, semantic), context-aware responses prioritizing knowledge base content, and transparent handoff to human agents when confidence is low.
 - **Rich Media Input**: Supports file attachments (drag-drop, multi-file), universal camera capture, emoji picker, and voice-to-text.
 - **User Identification**: IP-based customer identification for returning users, coupled with `sessionId` tracking, for displaying "Continue Conversation" cards.
