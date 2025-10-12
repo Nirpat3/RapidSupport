@@ -13,6 +13,7 @@ import {
   knowledgeBase,
   knowledgeBaseImages,
   knowledgeBaseVideos,
+  knowledgeBaseFaqs,
   aiAgentLearning,
   aiAgentSessions,
   uploadedFiles,
@@ -57,6 +58,8 @@ import {
   type InsertKnowledgeBaseImage,
   type KnowledgeBaseVideo,
   type InsertKnowledgeBaseVideo,
+  type KnowledgeBaseFaq,
+  type InsertKnowledgeBaseFaq,
   type AiAgentLearning,
   type InsertAiAgentLearning,
   type AiAgentSession,
@@ -228,6 +231,14 @@ export interface IStorage {
   createKnowledgeBaseVideo(video: InsertKnowledgeBaseVideo): Promise<KnowledgeBaseVideo>;
   deleteKnowledgeBaseVideo(id: string): Promise<void>;
   updateKnowledgeBaseVideoOrder(id: string, displayOrder: number): Promise<void>;
+
+  // Knowledge Base FAQ operations
+  getKnowledgeBaseFaqs(knowledgeBaseId: string): Promise<KnowledgeBaseFaq[]>;
+  createKnowledgeBaseFaq(faq: InsertKnowledgeBaseFaq): Promise<KnowledgeBaseFaq>;
+  createKnowledgeBaseFaqsBatch(faqs: InsertKnowledgeBaseFaq[]): Promise<KnowledgeBaseFaq[]>;
+  deleteKnowledgeBaseFaq(id: string): Promise<void>;
+  updateKnowledgeBaseFaqOrder(id: string, displayOrder: number): Promise<void>;
+  updateKnowledgeBaseFaqFeedback(id: string, helpful: boolean): Promise<void>;
 
   // AI Agent Learning operations
   getAiAgentLearning(id: string): Promise<AiAgentLearning | undefined>;
@@ -1896,6 +1907,74 @@ export class DatabaseStorage implements IStorage {
       await db.update(knowledgeBaseVideos).set({ displayOrder }).where(eq(knowledgeBaseVideos.id, id));
     } catch (error) {
       console.error('Error updating knowledge base video order:', error);
+      throw error;
+    }
+  }
+
+  // Knowledge Base FAQ operations
+  async getKnowledgeBaseFaqs(knowledgeBaseId: string): Promise<KnowledgeBaseFaq[]> {
+    try {
+      return await db.select().from(knowledgeBaseFaqs)
+        .where(eq(knowledgeBaseFaqs.knowledgeBaseId, knowledgeBaseId))
+        .orderBy(knowledgeBaseFaqs.displayOrder, knowledgeBaseFaqs.createdAt);
+    } catch (error) {
+      console.error('Error fetching knowledge base FAQs:', error);
+      return [];
+    }
+  }
+
+  async createKnowledgeBaseFaq(faq: InsertKnowledgeBaseFaq): Promise<KnowledgeBaseFaq> {
+    try {
+      const [createdFaq] = await db.insert(knowledgeBaseFaqs).values(faq).returning();
+      return createdFaq;
+    } catch (error) {
+      console.error('Error creating knowledge base FAQ:', error);
+      throw error;
+    }
+  }
+
+  async createKnowledgeBaseFaqsBatch(faqs: InsertKnowledgeBaseFaq[]): Promise<KnowledgeBaseFaq[]> {
+    try {
+      if (faqs.length === 0) return [];
+      const createdFaqs = await db.insert(knowledgeBaseFaqs).values(faqs).returning();
+      return createdFaqs;
+    } catch (error) {
+      console.error('Error creating knowledge base FAQs batch:', error);
+      throw error;
+    }
+  }
+
+  async deleteKnowledgeBaseFaq(id: string): Promise<void> {
+    try {
+      await db.delete(knowledgeBaseFaqs).where(eq(knowledgeBaseFaqs.id, id));
+    } catch (error) {
+      console.error('Error deleting knowledge base FAQ:', error);
+      throw error;
+    }
+  }
+
+  async updateKnowledgeBaseFaqOrder(id: string, displayOrder: number): Promise<void> {
+    try {
+      await db.update(knowledgeBaseFaqs).set({ displayOrder }).where(eq(knowledgeBaseFaqs.id, id));
+    } catch (error) {
+      console.error('Error updating knowledge base FAQ order:', error);
+      throw error;
+    }
+  }
+
+  async updateKnowledgeBaseFaqFeedback(id: string, helpful: boolean): Promise<void> {
+    try {
+      if (helpful) {
+        await db.update(knowledgeBaseFaqs)
+          .set({ helpful: sql`${knowledgeBaseFaqs.helpful} + 1` })
+          .where(eq(knowledgeBaseFaqs.id, id));
+      } else {
+        await db.update(knowledgeBaseFaqs)
+          .set({ notHelpful: sql`${knowledgeBaseFaqs.notHelpful} + 1` })
+          .where(eq(knowledgeBaseFaqs.id, id));
+      }
+    } catch (error) {
+      console.error('Error updating knowledge base FAQ feedback:', error);
       throw error;
     }
   }

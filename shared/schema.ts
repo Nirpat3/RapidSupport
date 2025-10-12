@@ -285,6 +285,21 @@ export const knowledgeBaseVideos = pgTable("knowledge_base_videos", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Knowledge Base FAQs table - AI-generated frequently asked questions for knowledge articles
+export const knowledgeBaseFaqs = pgTable("knowledge_base_faqs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  knowledgeBaseId: varchar("knowledge_base_id").notNull().references(() => knowledgeBase.id),
+  question: text("question").notNull(), // AI-generated question
+  answer: text("answer").notNull(), // AI-generated answer based on article content
+  displayOrder: integer("display_order").notNull().default(0), // Order of FAQs in the article
+  isAiGenerated: boolean("is_ai_generated").notNull().default(true), // Track if AI generated this FAQ
+  usageCount: integer("usage_count").notNull().default(0), // How often this FAQ is viewed/used
+  helpful: integer("helpful").notNull().default(0), // Positive feedback count
+  notHelpful: integer("not_helpful").notNull().default(0), // Negative feedback count
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // AI Agent Learning table - tracks AI interactions to improve responses over time
 export const aiAgentLearning = pgTable("ai_agent_learning", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -865,6 +880,21 @@ export const insertKnowledgeBaseVideoSchema = createInsertSchema(knowledgeBaseVi
 
 export type InsertKnowledgeBaseVideo = z.infer<typeof insertKnowledgeBaseVideoSchema>;
 export type KnowledgeBaseVideo = typeof knowledgeBaseVideos.$inferSelect;
+
+// Knowledge Base FAQs schemas
+export const insertKnowledgeBaseFaqSchema = createInsertSchema(knowledgeBaseFaqs).pick({
+  knowledgeBaseId: true,
+  question: true,
+  answer: true,
+  displayOrder: true,
+  isAiGenerated: true,
+  usageCount: true,
+  helpful: true,
+  notHelpful: true,
+});
+
+export type InsertKnowledgeBaseFaq = z.infer<typeof insertKnowledgeBaseFaqSchema>;
+export type KnowledgeBaseFaq = typeof knowledgeBaseFaqs.$inferSelect;
 
 // File Management schemas
 export const insertUploadedFileSchema = createInsertSchema(uploadedFiles).pick({
