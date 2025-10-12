@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MessageSquare, Send, X, Sparkles, ChevronRight } from "lucide-react";
+import { MessageSquare, Send, X, Sparkles, ChevronRight, FileText, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -7,10 +7,18 @@ import { cn } from "@/lib/utils";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
+interface Source {
+  id: string;
+  title: string;
+  category: string;
+  relevanceScore: number;
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  sources?: Source[];
 }
 
 interface ChatWidgetProps {
@@ -53,6 +61,7 @@ export default function ChatWidget({ className }: ChatWidgetProps) {
           role: "assistant",
           content: data.response,
           timestamp: new Date(),
+          sources: data.sources || [],
         }]);
       }
     },
@@ -185,8 +194,8 @@ export default function ChatWidget({ className }: ChatWidgetProps) {
                   <div
                     key={idx}
                     className={cn(
-                      "flex",
-                      msg.role === "user" ? "justify-end" : "justify-start"
+                      "flex flex-col",
+                      msg.role === "user" ? "items-end" : "items-start"
                     )}
                   >
                     <div
@@ -200,6 +209,30 @@ export default function ChatWidget({ className }: ChatWidgetProps) {
                     >
                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     </div>
+                    
+                    {/* Display sources for assistant messages */}
+                    {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+                      <div className="mt-2 max-w-[80%] space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium">Related articles:</p>
+                        {msg.sources.slice(0, 3).map((source, sourceIdx) => (
+                          <button
+                            key={sourceIdx}
+                            onClick={() => window.open(`/knowledge-base/${source.id}`, '_blank')}
+                            className="w-full text-left p-2 rounded-lg border bg-card hover-elevate transition-smooth group"
+                            data-testid={`source-${idx}-${sourceIdx}`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <FileText className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium truncate">{source.title}</p>
+                                <p className="text-xs text-muted-foreground">{source.category}</p>
+                              </div>
+                              <ExternalLink className="h-3 w-3 text-muted-foreground group-hover:text-foreground transition-smooth shrink-0" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {sendMessageMutation.isPending && (
