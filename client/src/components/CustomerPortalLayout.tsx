@@ -7,7 +7,8 @@ import {
   MessageSquare, 
   MessageCircle, 
   LogOut,
-  Rss
+  Rss,
+  BookOpen
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -34,6 +35,7 @@ export function CustomerPortalLayout({ children }: CustomerPortalLayoutProps) {
     { path: '/portal/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/portal/profile', icon: User, label: 'Profile' },
     { path: '/portal/conversations', icon: MessageSquare, label: 'Conversations' },
+    { path: '/portal/knowledge-base', icon: BookOpen, label: 'Knowledge Base' },
     { path: '/portal/feedback', icon: MessageCircle, label: 'Feedback' },
     { path: '/portal/feeds', icon: Rss, label: 'Feeds' },
   ];
