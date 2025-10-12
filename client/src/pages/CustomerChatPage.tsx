@@ -27,7 +27,8 @@ import {
   Image as ImageIcon,
   FileText,
   MessageSquarePlus,
-  LogIn
+  LogIn,
+  BookOpen
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { CustomerInfoForm } from "@/components/CustomerInfoForm";
@@ -941,6 +942,17 @@ export default function CustomerChatPage() {
                   <Separator orientation="vertical" className="h-4" />
                 </>
               )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.location.href = '/knowledge-base'}
+                className="text-sm h-auto p-0"
+                data-testid="link-knowledge-base"
+              >
+                <BookOpen className="h-3 w-3 mr-1" />
+                Browse Knowledge Base
+              </Button>
+              <Separator orientation="vertical" className="h-4" />
               <Button
                 variant="ghost"
                 size="sm"
