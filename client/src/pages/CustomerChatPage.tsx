@@ -35,6 +35,7 @@ import { ConversationRatingDialog } from "@/components/ConversationRatingDialog"
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { AnonymousCustomer } from "@shared/schema";
+import { renderFormattedContent } from "@/components/ChatMessage";
 
 interface Attachment {
   id: string;
@@ -707,7 +708,7 @@ export default function CustomerChatPage() {
                     )}
                   >
                     {message.content && (
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                      <div className="text-sm leading-relaxed">{renderFormattedContent(message.content)}</div>
                     )}
                     
                     {/* Display attachments */}

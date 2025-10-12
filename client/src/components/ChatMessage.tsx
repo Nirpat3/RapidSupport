@@ -26,7 +26,7 @@ interface ChatMessageProps {
 }
 
 // Helper function to convert URLs in text to clickable links
-function linkifyText(text: string) {
+export function linkifyText(text: string) {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
   
@@ -49,7 +49,7 @@ function linkifyText(text: string) {
 }
 
 // Helper function to render formatted content with proper lists and line breaks
-function renderFormattedContent(content: string) {
+export function renderFormattedContent(content: string) {
   const lines = content.split('\n');
   const elements: JSX.Element[] = [];
   let currentList: { type: 'ordered' | 'unordered'; items: string[] } | null = null;
@@ -121,7 +121,7 @@ function renderFormattedContent(content: string) {
 }
 
 // Helper to render a list
-function renderList(list: { type: 'ordered' | 'unordered'; items: string[] }, key: number) {
+export function renderList(list: { type: 'ordered' | 'unordered'; items: string[] }, key: number) {
   if (list.type === 'ordered') {
     return (
       <ol key={key} className="space-y-2 my-2" data-testid="message-ordered-list">
