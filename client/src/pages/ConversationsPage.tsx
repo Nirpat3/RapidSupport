@@ -146,7 +146,7 @@ const sampleMessages: { [key: string]: Message[] } = {
 export default function ConversationsPage() {
   const params = useParams<{ id?: string }>();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(params.id || null);
-  const [activeTab, setActiveTab] = useState("new");
+  const [activeTab, setActiveTab] = useState("active");
   const { markAsRead } = useNotifications();
   
   // Update activeConversationId when URL parameter changes
@@ -250,12 +250,11 @@ export default function ConversationsPage() {
   // Get conversations for current tab
   const getCurrentTabConversations = () => {
     switch (activeTab) {
-      case "new": return newConversations;
       case "active": return activeConversations;
       case "assigned": return assignedToMeConversations;
       case "followup": return followupConversations;
       case "history": return historyConversations;
-      default: return newConversations;
+      default: return activeConversations;
     }
   };
 
@@ -384,16 +383,7 @@ export default function ConversationsPage() {
 
         {/* Conversation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-5 mx-3 mt-3">
-            <TabsTrigger value="new" className="text-xs" data-testid="tab-new">
-              <AlertCircle className="h-3 w-3 mr-1" />
-              New
-              {newConversations.length > 0 && (
-                <Badge variant="destructive" className="ml-1 text-xs px-1">
-                  {newConversations.length}
-                </Badge>
-              )}
-            </TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 mx-3 mt-3">
             <TabsTrigger value="active" className="text-xs" data-testid="tab-active">
               <MessageSquare className="h-3 w-3 mr-1" />
               Active
@@ -431,69 +421,6 @@ export default function ConversationsPage() {
               )}
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="new" className="flex-1 mt-0">
-            <div className="p-3">
-              <p className="text-sm text-muted-foreground mb-3">
-                New conversations waiting to be assigned
-              </p>
-              {newConversations.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No new conversations</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {newConversations.map(conv => (
-                    <div 
-                      key={conv.id} 
-                      className="p-3 rounded border bg-background hover-elevate cursor-pointer"
-                      onClick={() => setActiveConversationId(conv.id)}
-                      data-testid={`new-conversation-${conv.id}`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{conv.customer.name}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {conv.priority}
-                          </Badge>
-                        </div>
-                        <Badge variant="destructive" className="text-xs">
-                          Unassigned
-                        </Badge>
-                      </div>
-                      
-                      <p className="text-xs text-muted-foreground mb-2 truncate">
-                        {conv.lastMessage.content}
-                      </p>
-                      
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <Select 
-                          onValueChange={(agentId) => handleAssign(conv.id, agentId)}
-                          disabled={assignMutation.isPending}
-                        >
-                          <SelectTrigger 
-                            className="w-full h-9"
-                            data-testid={`select-assign-${conv.id}`}
-                          >
-                            <UserPlus className="h-3 w-3 mr-1" />
-                            <SelectValue placeholder="Assign to..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {staffMembers.map(staff => (
-                              <SelectItem key={staff.id} value={staff.id}>
-                                {staff.name} {staff.id === currentUserId && '(Me)'}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </TabsContent>
 
           <TabsContent value="active" className="flex-1 mt-0">
             <div className="p-3">
