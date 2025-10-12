@@ -8,14 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import ChatMessage, { type Message } from "./ChatMessage";
 import InternalChatPanel from "./InternalChatPanel";
 import KnowledgeSearchDialog from "./KnowledgeSearchDialog";
@@ -503,16 +503,87 @@ export default function ChatInterface({
           </div>
         </div>
 
-        {/* Action Buttons Row */}
+        {/* Action Buttons Row - Cleaned Up */}
         <div className="px-4 pb-3">
-          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-            <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="text-xs sm:text-sm" data-testid="button-create-ticket-from-chat">
-                  <Ticket className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Create Ticket</span>
+          <div className="flex items-center justify-between gap-2">
+            {/* AI Toggle - Keep visible as it's frequently used */}
+            <Button 
+              variant={aiAssistanceEnabled ? "default" : "outline"}
+              size="sm"
+              className="text-xs sm:text-sm"
+              onClick={handleToggleAI}
+              disabled={isTogglingAi}
+              data-testid="button-toggle-ai"
+              aria-label={`${aiAssistanceEnabled ? 'Disable' : 'Enable'} AI assistance`}
+            >
+              <Sparkles className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">{aiAssistanceEnabled ? 'AI On' : 'AI Off'}</span>
+            </Button>
+
+            {/* Actions Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" data-testid="button-more-actions">
+                  <MoreHorizontal className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Actions</span>
                 </Button>
-              </DialogTrigger>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Quick Actions</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                
+                <DropdownMenuItem onClick={() => setIsCreateTicketOpen(true)} data-testid="dropdown-create-ticket">
+                  <Ticket className="w-4 h-4 mr-2" />
+                  Create Ticket
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem onClick={() => setIsInternalChatOpen(true)} data-testid="dropdown-team-chat">
+                  <MessageSquareText className="w-4 h-4 mr-2" />
+                  Team Chat
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem onClick={() => setIsKnowledgeSearchOpen(true)} data-testid="dropdown-knowledge-base">
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  Knowledge Base
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Conversation</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                
+                <DropdownMenuItem onClick={() => setIsFollowupOpen(true)} data-testid="dropdown-schedule-followup">
+                  <Clock className="w-4 h-4 mr-2" />
+                  Schedule Follow-up
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem onClick={handleTakeOver} disabled={isTakingOver} data-testid="dropdown-assign-agent">
+                  <UserCheck className="w-4 h-4 mr-2" />
+                  {isTakingOver ? 'Assigning...' : 'Assign to Me'}
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem onClick={() => setIsCloseDialogOpen(true)} data-testid="dropdown-close-conversation">
+                  <X className="w-4 h-4 mr-2" />
+                  Close Conversation
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Contact</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                
+                <DropdownMenuItem data-testid="dropdown-call-customer">
+                  <Phone className="w-4 h-4 mr-2" />
+                  Call Customer
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem data-testid="dropdown-video-call">
+                  <Video className="w-4 h-4 mr-2" />
+                  Video Call
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Hidden Dialogs and Popovers - Triggered from dropdown */}
+            <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
               <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create Ticket from Conversation</DialogTitle>
@@ -721,69 +792,23 @@ export default function ChatInterface({
                 </div>
               </DialogContent>
             </Dialog>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="text-xs sm:text-sm"
-              onClick={() => setIsInternalChatOpen(true)}
-              data-testid="button-open-internal-chat"
-            >
-              <MessageSquareText className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Team Chat</span>
-            </Button>
 
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="text-xs sm:text-sm"
-              onClick={() => setIsKnowledgeSearchOpen(true)}
-              data-testid="button-knowledge-search"
-              aria-label="Open Knowledge Base search"
-            >
-              <BookOpen className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Knowledge Base</span>
-            </Button>
-
-            <Button 
-              variant={aiAssistanceEnabled ? "default" : "outline"}
-              size="sm"
-              className="text-xs sm:text-sm"
-              onClick={handleToggleAI}
-              disabled={isTogglingAi}
-              data-testid="button-toggle-ai"
-              aria-label={`${aiAssistanceEnabled ? 'Disable' : 'Enable'} AI assistance`}
-            >
-              <Sparkles className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">{aiAssistanceEnabled ? 'AI On' : 'AI Off'}</span>
-            </Button>
-
-            <Popover open={isFollowupOpen} onOpenChange={setIsFollowupOpen}>
-              <PopoverTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="text-xs sm:text-sm"
-                  data-testid="button-schedule-followup"
-                >
-                  <Clock className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Follow-up</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-4 space-y-4">
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Schedule Follow-up</h4>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Set a reminder to follow up on this conversation
-                    </p>
-                  </div>
+            <Dialog open={isFollowupOpen} onOpenChange={setIsFollowupOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Schedule Follow-up</DialogTitle>
+                  <DialogDescription>
+                    Set a reminder to follow up on this conversation
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
                   <CalendarComponent
                     mode="single"
                     selected={followupDate}
                     onSelect={setFollowupDate}
                     disabled={(date) => date < new Date()}
                     initialFocus
+                    className="mx-auto"
                   />
                   <div className="flex gap-2">
                     <Button 
@@ -825,55 +850,8 @@ export default function ChatInterface({
                     Clear Follow-up
                   </Button>
                 </div>
-              </PopoverContent>
-            </Popover>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="text-xs sm:text-sm"
-              onClick={handleTakeOver}
-              disabled={isTakingOver}
-              data-testid="button-assign-agent"
-            >
-              <UserCheck className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">{isTakingOver ? 'Assigning...' : 'Assign Agent'}</span>
-            </Button>
-
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="text-xs sm:text-sm"
-              onClick={() => setIsCloseDialogOpen(true)}
-              data-testid="button-close-conversation"
-            >
-              <X className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Close</span>
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="text-xs sm:text-sm"
-              data-testid="button-call-customer"
-            >
-              <Phone className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Call</span>
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="text-xs sm:text-sm"
-              data-testid="button-video-call"
-            >
-              <Video className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Video</span>
-            </Button>
-
-            <Button variant="ghost" size="icon" data-testid="button-more">
-              <MoreVertical className="w-4 h-4" />
-            </Button>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </div>
