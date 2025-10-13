@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, FileText, BookOpen, Tag, Filter, X, Printer, ChevronRight } from "lucide-react";
+import { Search, FileText, BookOpen, Tag, Filter, X, Printer, ChevronRight, TrendingUp, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CustomerPortalLayout } from "@/components/CustomerPortalLayout";
 import { apiRequest } from "@/lib/queryClient";
@@ -18,6 +18,8 @@ interface KnowledgeBaseArticle {
   content?: string;
   category: string;
   tags: string[];
+  usageCount?: number;
+  lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,16 +69,29 @@ export default function CustomerPortalKnowledgeBase() {
     };
   }, [articles]);
 
-  // Filter articles by search query
+  // Filter and sort articles by search query and usage count
   const filteredArticles = useMemo(() => {
-    if (!searchQuery.trim()) return articles;
+    let filtered = articles;
     
-    const query = searchQuery.toLowerCase();
-    return articles.filter(article =>
-      article.title.toLowerCase().includes(query) ||
-      article.category.toLowerCase().includes(query) ||
-      article.tags?.some(tag => tag.toLowerCase().includes(query))
-    );
+    // Apply search filter if query exists
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = articles.filter(article =>
+        article.title.toLowerCase().includes(query) ||
+        article.category.toLowerCase().includes(query) ||
+        article.tags?.some(tag => tag.toLowerCase().includes(query))
+      );
+    }
+    
+    // Sort by usageCount (most used first), then by title
+    return filtered.sort((a, b) => {
+      const usageA = a.usageCount || 0;
+      const usageB = b.usageCount || 0;
+      if (usageB !== usageA) {
+        return usageB - usageA; // Descending by usage
+      }
+      return a.title.localeCompare(b.title); // Alphabetical as tiebreaker
+    });
   }, [articles, searchQuery]);
 
   const handlePrint = () => {
@@ -122,51 +137,60 @@ export default function CustomerPortalKnowledgeBase() {
 
   return (
     <CustomerPortalLayout>
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-6xl">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center">
-              <BookOpen className="h-5 w-5 text-primary" />
-            </div>
-            <h1 className="text-3xl font-bold" data-testid="title-knowledge-base">Knowledge Base</h1>
+      {/* Hero Section with Dark Background */}
+      <div className="bg-gradient-to-b from-muted/80 to-muted/40 border-b">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20 max-w-4xl text-center">
+          {/* Icon */}
+          <div className="inline-flex h-16 w-16 sm:h-20 sm:w-20 bg-primary/10 rounded-2xl items-center justify-center mb-6">
+            <BookOpen className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
           </div>
-          <p className="text-muted-foreground">
-            Browse our comprehensive collection of help articles and guides
+          
+          {/* Heading */}
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4" data-testid="title-knowledge-base">
+            Knowledge Base
+          </h1>
+          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Find answers, browse guides, and explore our comprehensive help center
           </p>
-        </div>
 
-        {/* Search and Filters */}
-        <div className="mb-6 space-y-4">
           {/* Search Bar */}
-          <div className="flex gap-3">
-            <div className="relative flex-1">
+          <div className="max-w-2xl mx-auto mb-6">
+            <div className="relative">
               <div className="absolute left-4 top-1/2 -translate-y-1/2">
-                <Search className="h-4 w-4 text-muted-foreground" />
+                <Search className="h-5 w-5 text-muted-foreground" />
               </div>
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search articles..."
-                className="pl-11"
+                placeholder="Search for articles, guides, and help..."
+                className="pl-12 h-14 text-base shadow-sm"
                 data-testid="input-search-articles"
               />
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className="gap-2"
-              data-testid="button-toggle-filters"
-            >
-              <Filter className="h-4 w-4" />
-              Filters
-              {(selectedCategory || selectedTag) && (
-                <Badge variant="secondary" className="ml-1">
-                  {(selectedCategory ? 1 : 0) + (selectedTag ? 1 : 0)}
-                </Badge>
-              )}
-            </Button>
           </div>
+
+          {/* Filter Button */}
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters(!showFilters)}
+            className="gap-2"
+            data-testid="button-toggle-filters"
+          >
+            <Filter className="h-4 w-4" />
+            Filter by Category or Tag
+            {(selectedCategory || selectedTag) && (
+              <Badge variant="secondary" className="ml-1">
+                {(selectedCategory ? 1 : 0) + (selectedTag ? 1 : 0)}
+              </Badge>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-6xl">
+        {/* Search and Filters Panel (moved below hero) */}
+        <div className="mb-8 space-y-4">
 
           {/* Active Filters Display */}
           {(selectedCategory || selectedTag || searchQuery) && (
@@ -296,38 +320,63 @@ export default function CustomerPortalKnowledgeBase() {
             </div>
           </div>
         ) : filteredArticles.length > 0 ? (
-          <div className="grid gap-4">
-            {filteredArticles.map((article) => (
-              <Card
-                key={article.id}
-                className="hover-elevate cursor-pointer"
-                onClick={() => setSelectedArticle(article)}
-                data-testid={`card-article-${article.id}`}
-              >
-                <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-4">
-                  <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <FileText className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg mb-2">{article.title}</CardTitle>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline">{article.category}</Badge>
-                      {article.tags?.slice(0, 3).map((tag, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                      {article.tags && article.tags.length > 3 && (
-                        <span className="text-xs text-muted-foreground">
-                          +{article.tags.length - 3} more
-                        </span>
-                      )}
+          <div className="space-y-6">
+            {/* Section Header */}
+            <div className="flex items-center gap-3">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              <h2 className="text-2xl font-semibold">
+                {searchQuery || selectedCategory || selectedTag 
+                  ? "Search Results" 
+                  : "Popular Articles"}
+              </h2>
+              {!searchQuery && !selectedCategory && !selectedTag && (
+                <Badge variant="secondary" className="gap-1.5">
+                  <Sparkles className="h-3 w-3" />
+                  Frequently used by AI
+                </Badge>
+              )}
+            </div>
+            
+            {/* Articles Grid */}
+            <div className="grid gap-4">
+              {filteredArticles.map((article) => (
+                <Card
+                  key={article.id}
+                  className="hover-elevate cursor-pointer"
+                  onClick={() => setSelectedArticle(article)}
+                  data-testid={`card-article-${article.id}`}
+                >
+                  <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-4">
+                    <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-5 w-5 text-primary" />
                     </div>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                </CardHeader>
-              </Card>
-            ))}
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg mb-2">{article.title}</CardTitle>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline">{article.category}</Badge>
+                        {article.usageCount && article.usageCount > 0 && (
+                          <Badge variant="secondary" className="gap-1 text-xs">
+                            <Sparkles className="h-3 w-3" />
+                            {article.usageCount} {article.usageCount === 1 ? 'use' : 'uses'}
+                          </Badge>
+                        )}
+                        {article.tags?.slice(0, 3).map((tag, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {tag}
+                          </Badge>
+                        ))}
+                        {article.tags && article.tags.length > 3 && (
+                          <span className="text-xs text-muted-foreground">
+                            +{article.tags.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
           </div>
         ) : (
           <Card className="p-12">
