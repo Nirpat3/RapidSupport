@@ -1506,6 +1506,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       // Validate request body
       const { status } = conversationStatusSchema.parse(req.body);
+      const user = req.user as any;
       
       console.log(`[PATCH /api/conversations/:id/status] Updating conversation ${conversationId} to status: ${status}`);
       
@@ -1516,13 +1517,52 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(404).json({ error: 'Conversation not found' });
       }
       
-      console.log(`[PATCH /api/conversations/:id/status] Current status: ${conversation.status}, updating to: ${status}`);
+      const previousStatus = conversation.status;
+      console.log(`[PATCH /api/conversations/:id/status] Current status: ${previousStatus}, updating to: ${status}`);
       
       await storage.updateConversationStatus(conversationId, status);
       
       // Verify the update
       const updatedConversation = await storage.getConversation(conversationId);
       console.log(`[PATCH /api/conversations/:id/status] Status after update: ${updatedConversation?.status}`);
+      
+      // Create system message for status change
+      let systemMessageContent = '';
+      if (status === 'closed') {
+        systemMessageContent = `Conversation closed by ${user.name}`;
+      } else if (status === 'resolved') {
+        systemMessageContent = `Conversation marked as resolved by ${user.name}`;
+      } else if (status === 'open') {
+        systemMessageContent = `Conversation reopened by ${user.name}`;
+      } else if (status === 'pending') {
+        systemMessageContent = `Conversation status changed to pending by ${user.name}`;
+      }
+      
+      // Only create system message if status actually changed
+      if (systemMessageContent && previousStatus !== status) {
+        const systemMessage = await storage.createMessage({
+          conversationId,
+          senderId: 'system',
+          senderType: 'system',
+          content: systemMessageContent,
+          scope: 'public'
+        });
+        
+        // Broadcast system message via WebSocket
+        const wsServer = (req.app as any).wsServer;
+        if (wsServer) {
+          wsServer.broadcastNewMessage(conversationId, {
+            messageId: systemMessage.id,
+            conversationId: systemMessage.conversationId,
+            content: systemMessage.content,
+            senderId: systemMessage.senderId,
+            senderType: systemMessage.senderType,
+            scope: systemMessage.scope,
+            timestamp: systemMessage.timestamp,
+            status: systemMessage.status
+          });
+        }
+      }
       
       res.json({ message: 'Conversation status updated successfully' });
     } catch (error) {
@@ -1634,6 +1674,29 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         details
       });
       
+      // Create system message for follow-up change
+      let systemMessageContent = '';
+      if (followupDate) {
+        const followupDateFormatted = new Date(followupDate).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        systemMessageContent = `Conversation moved to follow-up by ${user.name}. Scheduled for ${followupDateFormatted}`;
+      } else {
+        systemMessageContent = `Follow-up cleared by ${user.name}`;
+      }
+      
+      const systemMessage = await storage.createMessage({
+        conversationId,
+        senderId: 'system',
+        senderType: 'system',
+        content: systemMessageContent,
+        scope: 'public'
+      });
+      
       // Broadcast follow-up update via WebSocket
       const wsServer = (req.app as any).wsServer;
       if (wsServer) {
@@ -1641,6 +1704,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           id: conversationId,
           followupDate: followupDate,
           updatedAt: new Date().toISOString()
+        });
+        
+        // Broadcast system message
+        wsServer.broadcastNewMessage(conversationId, {
+          messageId: systemMessage.id,
+          conversationId: systemMessage.conversationId,
+          content: systemMessage.content,
+          senderId: systemMessage.senderId,
+          senderType: systemMessage.senderType,
+          scope: systemMessage.scope,
+          timestamp: systemMessage.timestamp,
+          status: systemMessage.status
         });
       }
       

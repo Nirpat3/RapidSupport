@@ -63,7 +63,7 @@ export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
   senderId: varchar("sender_id").notNull(),
-  senderType: text("sender_type").notNull(), // 'customer' | 'agent' | 'admin'
+  senderType: text("sender_type").notNull(), // 'customer' | 'agent' | 'admin' | 'system' | 'ai'
   content: text("content").notNull(),
   scope: text("scope").notNull().default("public"), // 'public' | 'internal' - internal messages are staff-only
   timestamp: timestamp("timestamp").notNull().defaultNow(),

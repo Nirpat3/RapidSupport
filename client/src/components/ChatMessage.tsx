@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
-import { Sparkles, Lock } from "lucide-react";
+import { Sparkles, Lock, Info } from "lucide-react";
 
 export interface Message {
   id: string;
@@ -10,13 +10,13 @@ export interface Message {
     id: string;
     name: string;
     avatar?: string;
-    role: 'customer' | 'agent' | 'admin' | 'ai';
+    role: 'customer' | 'agent' | 'admin' | 'ai' | 'system';
   };
   timestamp: Date;
   status?: 'sent' | 'delivered' | 'read';
   format?: 'regular' | 'steps'; // AI response format
   scope?: 'public' | 'internal'; // Internal messages only visible to staff
-  senderType?: 'customer' | 'agent' | 'admin' | 'ai'; // Actual sender type (AI vs human agent)
+  senderType?: 'customer' | 'agent' | 'admin' | 'ai' | 'system'; // Actual sender type (AI vs human agent or system)
 }
 
 interface ChatMessageProps {
@@ -153,10 +153,31 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
   const isAgent = message.sender.role === 'agent' || message.sender.role === 'admin';
   const isAI = message.senderType === 'ai' || message.sender.role === 'ai';
   const isInternal = message.scope === 'internal';
+  const isSystem = message.senderType === 'system';
   const shouldRenderAsSteps = message.format === 'steps' && (isAgent || isAI);
   
   // Staff (agents and admins) can see all indicators, customers cannot
   const isStaffViewer = viewerRole === 'agent' || viewerRole === 'admin';
+  
+  // System messages have special centered layout
+  if (isSystem) {
+    return (
+      <div 
+        className="flex items-center justify-center my-4"
+        data-testid={`message-${message.id}`}
+      >
+        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-muted/50 border border-border/50">
+          <Info className="w-3 h-3 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground" data-testid={`system-message-${message.id}`}>
+            {message.content}
+          </span>
+          <span className="text-xs text-muted-foreground/70" data-testid={`timestamp-${message.id}`}>
+            {formatDistanceToNow(message.timestamp, { addSuffix: true })}
+          </span>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div 
