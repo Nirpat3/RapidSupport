@@ -83,8 +83,11 @@ export default function CustomerPortalKnowledgeBase() {
       );
     }
     
+    // Clone array before sorting to avoid mutating React Query cache
+    const sorted = [...filtered];
+    
     // Sort by usageCount (most used first), then by title
-    return filtered.sort((a, b) => {
+    sorted.sort((a, b) => {
       const usageA = a.usageCount || 0;
       const usageB = b.usageCount || 0;
       if (usageB !== usageA) {
@@ -92,7 +95,9 @@ export default function CustomerPortalKnowledgeBase() {
       }
       return a.title.localeCompare(b.title); // Alphabetical as tiebreaker
     });
-  }, [articles, searchQuery]);
+    
+    return sorted;
+  }, [articles, searchQuery, selectedCategory, selectedTag]);
 
   const handlePrint = () => {
     if (fullArticle) {
