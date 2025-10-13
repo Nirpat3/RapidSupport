@@ -364,9 +364,9 @@ export default function ConversationsPage() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row h-full" data-testid="conversations-page">
+    <div className="flex flex-col lg:flex-row h-screen overflow-hidden" data-testid="conversations-page">
       {/* Mobile: Show conversation list OR chat interface, Desktop: Side by side */}
-      <div className={`${activeConversationId ? 'hidden lg:flex' : 'flex'} flex-col lg:w-96 lg:flex-shrink-0 w-full h-full lg:h-full bg-card lg:border-r`}>
+      <div className={`${activeConversationId ? 'hidden lg:flex' : 'flex'} flex-col lg:w-96 lg:flex-shrink-0 w-full h-full overflow-hidden bg-card lg:border-r`}>
         {/* Header */}
         <div className="p-3 lg:p-4 border-b bg-background/50">
           <div className="flex items-center gap-2 mb-3">
@@ -384,8 +384,8 @@ export default function ConversationsPage() {
         </div>
 
         {/* Conversation Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-4 mx-3 mt-3">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="grid w-full grid-cols-4 mx-3 mt-3 flex-shrink-0">
             <TabsTrigger value="active" className="text-xs" data-testid="tab-active">
               <MessageSquare className="h-3 w-3 mr-1" />
               Active
@@ -424,8 +424,8 @@ export default function ConversationsPage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="active" className="flex-1 mt-0">
-            <div className="p-3">
+          <TabsContent value="active" className="flex-1 mt-0 overflow-hidden">
+            <div className="h-full overflow-y-auto p-3">
               <p className="text-sm text-muted-foreground mb-3">
                 All active conversations
               </p>
@@ -444,8 +444,8 @@ export default function ConversationsPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="assigned" className="flex-1 mt-0">
-            <div className="p-3">
+          <TabsContent value="assigned" className="flex-1 mt-0 overflow-hidden">
+            <div className="h-full overflow-y-auto p-3">
               <p className="text-sm text-muted-foreground mb-3">
                 Conversations assigned to you
               </p>
@@ -464,8 +464,8 @@ export default function ConversationsPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="followup" className="flex-1 mt-0">
-            <div className="p-3">
+          <TabsContent value="followup" className="flex-1 mt-0 overflow-hidden">
+            <div className="h-full overflow-y-auto p-3">
               <p className="text-sm text-muted-foreground mb-3">
                 Conversations scheduled for follow-up
               </p>
@@ -484,8 +484,8 @@ export default function ConversationsPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="history" className="flex-1 mt-0">
-            <div className="p-3">
+          <TabsContent value="history" className="flex-1 mt-0 overflow-hidden">
+            <div className="h-full overflow-y-auto p-3">
               <p className="text-sm text-muted-foreground mb-3">
                 Resolved and closed conversations
               </p>
@@ -507,7 +507,7 @@ export default function ConversationsPage() {
       </div>
       
       {/* Chat interface - Mobile: Full screen when active, Desktop: Side panel */}
-      <div className={`${activeConversationId ? 'flex' : 'hidden lg:flex'} flex-col flex-1 min-w-0 h-full`}>
+      <div className={`${activeConversationId ? 'flex' : 'hidden lg:flex'} flex-col flex-1 min-w-0 h-full overflow-hidden`}>
         {/* Mobile Back Button */}
         {activeConversationId && (
           <div className="lg:hidden flex items-center gap-2 p-3 border-b bg-background/50">
