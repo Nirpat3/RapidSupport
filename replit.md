@@ -36,6 +36,7 @@ The backend is a Node.js Express.js application in TypeScript, offering a RESTfu
 - **Rich Media Input**: Supports file attachments (drag-drop, multi-file), universal camera capture, emoji picker, and voice-to-text.
 - **User Identification**: IP-based customer identification for returning users, coupled with `sessionId` tracking, for displaying "Continue Conversation" cards.
 - **Unread Tracking & Notifications**: Comprehensive system for tracking message read status, providing unread counts, and real-time notifications via WebSockets.
+  - **Conversation Count Display (Latest)**: Sidebar header displays "New - X unread vs Y total" showing total unread messages vs total active conversations. Tab badges show unread/total format (e.g., "2/5") for Active, Mine, and Followup tabs, with History tab showing total count only. Counts automatically update when conversations are marked as read via query invalidation and refetch. Includes proper test IDs for automated testing.
 - **Feed Module**: Allows post creation with visibility controls, urgent flags, links, images, and supports comments, likes, and views.
 - **Conversation Rating & Feedback**: Enables customers to provide 1-5 star ratings and feedback, with AI-powered sentiment analysis and tracking of quality, tone, relevance, and completeness.
 - **Staff Performance Tracking**: Tracks agent metrics (conversations handled, closure rates, ratings, AI sentiment scores) for individual and aggregate views.
