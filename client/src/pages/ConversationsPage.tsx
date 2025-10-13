@@ -323,6 +323,8 @@ export default function ConversationsPage() {
     onSuccess: () => {
       // Invalidate and refetch messages after sending
       queryClient.invalidateQueries({ queryKey: ['/api/conversations', activeConversationId, 'messages'] });
+      // Also invalidate conversations list to reflect status changes (e.g., closed → open)
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
     },
     onError: (error: any) => {
       console.error('Send message mutation failed:', error);
