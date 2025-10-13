@@ -1926,6 +1926,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(403).json({ error: 'You can only send messages to conversations assigned to you' });
       }
       
+      // Reopen conversation if it was closed
+      if (conversation.status === 'closed') {
+        console.log(`[messages] Reopening closed conversation: ${conversationId}`);
+        await storage.updateConversationStatus(conversationId, 'open');
+      }
+      
       // Determine sender type from user role
       const senderType = user.role === 'admin' ? 'admin' : 'agent';
       
@@ -2416,6 +2422,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.post('/api/customer-chat/send-message', async (req, res) => {
     try {
       const messageData = sendCustomerMessageSchema.parse(req.body);
+      
+      // Check if conversation exists and reopen if closed
+      const existingConversation = await storage.getConversation(messageData.conversationId);
+      if (existingConversation && existingConversation.status === 'closed') {
+        console.log(`[send-message] Reopening closed conversation: ${messageData.conversationId}`);
+        await storage.updateConversationStatus(messageData.conversationId, 'open');
+      }
+      
       const message = await storage.createCustomerMessage(messageData);
       
       // Get conversation and customer details for notifications
