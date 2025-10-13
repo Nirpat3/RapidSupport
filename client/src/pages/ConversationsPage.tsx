@@ -247,6 +247,19 @@ export default function ConversationsPage() {
     ['resolved', 'closed'].includes(conv.status)
   );
 
+  // Calculate unread and total counts for each tab
+  const activeUnreadCount = activeConversations.filter(conv => conv.unreadCount > 0).length;
+  const assignedUnreadCount = assignedToMeConversations.filter(conv => conv.unreadCount > 0).length;
+  const followupUnreadCount = followupConversations.filter(conv => conv.unreadCount > 0).length;
+  
+  // Calculate total active conversations (combining active, assigned, and followup without duplicates)
+  const allActiveConversations = formattedConversations.filter(conv => 
+    ['open', 'pending'].includes(conv.status) || 
+    (conv.followupDate && new Date(conv.followupDate) > today)
+  );
+  const totalActiveCount = allActiveConversations.length;
+  const totalActiveUnreadCount = allActiveConversations.filter(conv => conv.unreadCount > 0).length;
+
   // Get conversations for current tab
   const getCurrentTabConversations = () => {
     switch (activeTab) {
@@ -306,8 +319,9 @@ export default function ConversationsPage() {
       // Mark all messages in the conversation as read using new message-level tracking API
       apiRequest(`/api/conversations/${activeConversationId}/mark-read`, 'PUT', {})
         .then(() => {
-          // Invalidate unread counts query to update UI
+          // Invalidate and refetch unread counts query immediately to update UI
           queryClient.invalidateQueries({ queryKey: ['/api/unread-counts'] });
+          queryClient.refetchQueries({ queryKey: ['/api/unread-counts'] });
         })
         .catch((error) => {
           console.log('Note: Could not mark conversation as read:', error);
@@ -369,9 +383,14 @@ export default function ConversationsPage() {
       <div className={`${activeConversationId ? 'hidden lg:flex' : 'flex'} flex-col lg:w-96 lg:flex-shrink-0 w-full h-full overflow-hidden bg-card lg:border-r`}>
         {/* Header */}
         <div className="p-3 lg:p-4 border-b bg-background/50">
-          <div className="flex items-center gap-2 mb-3">
-            <MessageSquare className="w-5 h-5 text-primary" />
-            <h2 className="font-semibold text-base lg:text-lg">Conversations</h2>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-primary" />
+              <h2 className="font-semibold text-base lg:text-lg">Conversations</h2>
+            </div>
+            <div className="text-xs text-muted-foreground" data-testid="conversation-counts">
+              New - <span className="font-semibold text-primary">{totalActiveUnreadCount}</span> unread vs <span className="font-semibold">{totalActiveCount}</span> total
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -389,35 +408,29 @@ export default function ConversationsPage() {
             <TabsTrigger value="active" className="text-xs" data-testid="tab-active">
               <MessageSquare className="h-3 w-3 mr-1" />
               Active
-              {activeConversations.length > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs px-1">
-                  {activeConversations.length}
-                </Badge>
-              )}
+              <Badge variant="secondary" className="ml-1 text-xs px-1" data-testid="badge-active">
+                {activeUnreadCount}/{activeConversations.length}
+              </Badge>
             </TabsTrigger>
             <TabsTrigger value="assigned" className="text-xs" data-testid="tab-assigned">
               <Users className="h-3 w-3 mr-1" />
               Mine
-              {assignedToMeConversations.length > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs px-1">
-                  {assignedToMeConversations.length}
-                </Badge>
-              )}
+              <Badge variant="secondary" className="ml-1 text-xs px-1" data-testid="badge-assigned">
+                {assignedUnreadCount}/{assignedToMeConversations.length}
+              </Badge>
             </TabsTrigger>
             <TabsTrigger value="followup" className="text-xs" data-testid="tab-followup">
               <Clock className="h-3 w-3 mr-1" />
               Follow-up
-              {followupConversations.length > 0 && (
-                <Badge variant="outline" className="ml-1 text-xs px-1">
-                  {followupConversations.length}
-                </Badge>
-              )}
+              <Badge variant="outline" className="ml-1 text-xs px-1" data-testid="badge-followup">
+                {followupUnreadCount}/{followupConversations.length}
+              </Badge>
             </TabsTrigger>
             <TabsTrigger value="history" className="text-xs" data-testid="tab-history">
               <CheckCircle className="h-3 w-3 mr-1" />
               History
               {historyConversations.length > 0 && (
-                <Badge variant="outline" className="ml-1 text-xs px-1">
+                <Badge variant="outline" className="ml-1 text-xs px-1" data-testid="badge-history">
                   {historyConversations.length}
                 </Badge>
               )}
