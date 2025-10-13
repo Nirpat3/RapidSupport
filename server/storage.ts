@@ -732,10 +732,13 @@ export class DatabaseStorage implements IStorage {
     
     // Automatically mark the message as read for the sender
     // (users shouldn't see their own messages as unread)
-    await db.insert(messageReads).values({
-      messageId: message.id,
-      userId: insertMessage.senderId
-    });
+    // Skip this for system messages as 'system' is not a real user
+    if (insertMessage.senderType !== 'system') {
+      await db.insert(messageReads).values({
+        messageId: message.id,
+        userId: insertMessage.senderId
+      });
+    }
     
     // Only update conversation timestamp for public messages (customer-facing activity)
     if (messageData.scope === 'public') {

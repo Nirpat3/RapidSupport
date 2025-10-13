@@ -1382,7 +1382,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         messages.map(async (message) => {
           let sender;
           
-          if (message.senderType === 'customer') {
+          if (message.senderType === 'system') {
+            // System messages have a special sender
+            sender = {
+              id: 'system',
+              name: 'System',
+              role: 'system'
+            };
+          } else if (message.senderType === 'customer') {
             // Get customer data
             const customer = await storage.getCustomer(message.senderId);
             sender = {
