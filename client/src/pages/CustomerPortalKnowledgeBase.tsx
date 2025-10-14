@@ -6,7 +6,13 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, FileText, BookOpen, Tag, Filter, X, Printer, ChevronRight, TrendingUp, Sparkles } from "lucide-react";
+import { 
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Search, FileText, BookOpen, Tag, Filter, X, Printer, ChevronRight, TrendingUp, Sparkles, LayoutList, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CustomerPortalLayout } from "@/components/CustomerPortalLayout";
 import { apiRequest } from "@/lib/queryClient";
@@ -30,6 +36,7 @@ export default function CustomerPortalKnowledgeBase() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [selectedArticle, setSelectedArticle] = useState<KnowledgeBaseArticle | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'category'>('list');
 
   // Fetch all articles
   const { data: articles = [], isLoading } = useQuery<KnowledgeBaseArticle[]>({
@@ -98,6 +105,20 @@ export default function CustomerPortalKnowledgeBase() {
     
     return sorted;
   }, [articles, searchQuery, selectedCategory, selectedTag]);
+
+  // Group articles by category for category view
+  const articlesByCategory = useMemo(() => {
+    const grouped: Record<string, KnowledgeBaseArticle[]> = {};
+    
+    filteredArticles.forEach(article => {
+      if (!grouped[article.category]) {
+        grouped[article.category] = [];
+      }
+      grouped[article.category].push(article);
+    });
+    
+    return grouped;
+  }, [filteredArticles]);
 
   const handlePrint = () => {
     if (fullArticle) {
@@ -174,21 +195,47 @@ export default function CustomerPortalKnowledgeBase() {
             </div>
           </div>
 
-          {/* Filter Button */}
-          <Button
-            variant="outline"
-            onClick={() => setShowFilters(!showFilters)}
-            className="gap-2"
-            data-testid="button-toggle-filters"
-          >
-            <Filter className="h-4 w-4" />
-            Filter by Category or Tag
-            {(selectedCategory || selectedTag) && (
-              <Badge variant="secondary" className="ml-1">
-                {(selectedCategory ? 1 : 0) + (selectedTag ? 1 : 0)}
-              </Badge>
-            )}
-          </Button>
+          {/* Filter and View Toggle Buttons */}
+          <div className="flex items-center gap-2 flex-wrap justify-center">
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className="gap-2"
+              data-testid="button-toggle-filters"
+            >
+              <Filter className="h-4 w-4" />
+              Filter by Category or Tag
+              {(selectedCategory || selectedTag) && (
+                <Badge variant="secondary" className="ml-1">
+                  {(selectedCategory ? 1 : 0) + (selectedTag ? 1 : 0)}
+                </Badge>
+              )}
+            </Button>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center gap-1 border rounded-md p-1">
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className="gap-1 h-8"
+                data-testid="button-view-list"
+              >
+                <LayoutList className="h-4 w-4" />
+                <span className="hidden sm:inline">List</span>
+              </Button>
+              <Button
+                variant={viewMode === 'category' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('category')}
+                className="gap-1 h-8"
+                data-testid="button-view-category"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span className="hidden sm:inline">Categories</span>
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -316,7 +363,7 @@ export default function CustomerPortalKnowledgeBase() {
           )}
         </div>
 
-        {/* Articles List */}
+        {/* Articles List or Category View */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center space-y-3">
@@ -332,9 +379,9 @@ export default function CustomerPortalKnowledgeBase() {
               <h2 className="text-2xl font-semibold">
                 {searchQuery || selectedCategory || selectedTag 
                   ? "Search Results" 
-                  : "Popular Articles"}
+                  : viewMode === 'category' ? 'Browse by Category' : "Popular Articles"}
               </h2>
-              {!searchQuery && !selectedCategory && !selectedTag && (
+              {!searchQuery && !selectedCategory && !selectedTag && viewMode === 'list' && (
                 <Badge variant="secondary" className="gap-1.5">
                   <Sparkles className="h-3 w-3" />
                   Frequently used by AI
@@ -342,46 +389,113 @@ export default function CustomerPortalKnowledgeBase() {
               )}
             </div>
             
-            {/* Articles Grid */}
-            <div className="grid gap-4">
-              {filteredArticles.map((article) => (
-                <Card
-                  key={article.id}
-                  className="hover-elevate cursor-pointer"
-                  onClick={() => setSelectedArticle(article)}
-                  data-testid={`card-article-${article.id}`}
-                >
-                  <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-4">
-                    <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <FileText className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg mb-2">{article.title}</CardTitle>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline">{article.category}</Badge>
-                        {article.usageCount && article.usageCount > 0 && (
-                          <Badge variant="secondary" className="gap-1 text-xs">
-                            <Sparkles className="h-3 w-3" />
-                            {article.usageCount} {article.usageCount === 1 ? 'use' : 'uses'}
-                          </Badge>
-                        )}
-                        {article.tags?.slice(0, 3).map((tag, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {article.tags && article.tags.length > 3 && (
-                          <span className="text-xs text-muted-foreground">
-                            +{article.tags.length - 3} more
-                          </span>
-                        )}
+            {/* List View */}
+            {viewMode === 'list' && (
+              <div className="grid gap-4">
+                {filteredArticles.map((article) => (
+                  <Card
+                    key={article.id}
+                    className="hover-elevate cursor-pointer"
+                    onClick={() => setSelectedArticle(article)}
+                    data-testid={`card-article-${article.id}`}
+                  >
+                    <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-4">
+                      <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <FileText className="h-5 w-5 text-primary" />
                       </div>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  </CardHeader>
-                </Card>
-              ))}
-            </div>
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg mb-2">{article.title}</CardTitle>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline">{article.category}</Badge>
+                          {article.usageCount && article.usageCount > 0 && (
+                            <Badge variant="secondary" className="gap-1 text-xs">
+                              <Sparkles className="h-3 w-3" />
+                              {article.usageCount} {article.usageCount === 1 ? 'use' : 'uses'}
+                            </Badge>
+                          )}
+                          {article.tags?.slice(0, 3).map((tag, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
+                          {article.tags && article.tags.length > 3 && (
+                            <span className="text-xs text-muted-foreground">
+                              +{article.tags.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    </CardHeader>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Category View */}
+            {viewMode === 'category' && (
+              <Accordion type="multiple" className="space-y-4" defaultValue={Object.keys(articlesByCategory)}>
+                {Object.entries(articlesByCategory).map(([category, categoryArticles]) => (
+                  <AccordionItem 
+                    key={category} 
+                    value={category}
+                    className="border rounded-lg px-4"
+                    data-testid={`accordion-category-${category}`}
+                  >
+                    <AccordionTrigger className="hover:no-underline py-4">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <FileText className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="font-semibold text-lg">{category}</span>
+                          <Badge variant="secondary" className="ml-2">
+                            {categoryArticles.length} {categoryArticles.length === 1 ? 'article' : 'articles'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-4 pt-2">
+                      <div className="space-y-2">
+                        {categoryArticles.map((article) => (
+                          <div
+                            key={article.id}
+                            onClick={() => setSelectedArticle(article)}
+                            className="flex items-start gap-3 p-3 rounded-md hover-elevate cursor-pointer group"
+                            data-testid={`category-article-${article.id}`}
+                          >
+                            <ChevronRight className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0 group-hover:text-primary transition-colors" />
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium mb-1 group-hover:text-primary transition-colors">
+                                {article.title}
+                              </h4>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {article.usageCount && article.usageCount > 0 && (
+                                  <Badge variant="secondary" className="gap-1 text-xs">
+                                    <Sparkles className="h-3 w-3" />
+                                    {article.usageCount} {article.usageCount === 1 ? 'use' : 'uses'}
+                                  </Badge>
+                                )}
+                                {article.tags?.slice(0, 2).map((tag, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                                {article.tags && article.tags.length > 2 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    +{article.tags.length - 2} more
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            )}
           </div>
         ) : (
           <Card className="p-12">
