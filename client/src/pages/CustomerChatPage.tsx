@@ -805,9 +805,9 @@ export default function CustomerChatPage() {
               </div>
             )}
             
-            <div className="flex gap-2 items-end">
+            <div className="flex gap-1 sm:gap-2 items-end">
               {/* Action Buttons */}
-              <div className="flex gap-1">
+              <div className="flex gap-0.5 sm:gap-1">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -888,8 +888,8 @@ export default function CustomerChatPage() {
                       handleAskQuestion();
                     }
                   }}
-                  placeholder="Type your message..."
-                  className="pr-12 min-h-[48px] resize-none"
+                  placeholder="Type message..."
+                  className="pr-3 sm:pr-12"
                   disabled={sendMessageMutation.isPending}
                   data-testid="input-message"
                 />
@@ -898,7 +898,7 @@ export default function CustomerChatPage() {
                 onClick={handleAskQuestion}
                 disabled={(!question.trim() && selectedFiles.length === 0) || sendMessageMutation.isPending}
                 size="icon"
-                className="h-12 w-12 rounded-xl"
+                className="rounded-xl"
                 data-testid="button-send-message"
               >
                 <Send className="h-5 w-5" />
