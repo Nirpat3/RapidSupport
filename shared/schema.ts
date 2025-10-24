@@ -234,6 +234,10 @@ export const knowledgeBase = pgTable("knowledge_base", {
   // Agent assignment
   assignedAgentIds: text("assigned_agent_ids").array(), // Which specific agents can access this knowledge
   createdBy: varchar("created_by").references(() => users.id),
+  // Indexing status tracking
+  indexingStatus: text("indexing_status").notNull().default("pending"), // 'pending' | 'indexing' | 'indexed' | 'failed'
+  indexedAt: timestamp("indexed_at"), // When indexing completed successfully
+  indexingError: text("indexing_error"), // Error message if indexing failed
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
