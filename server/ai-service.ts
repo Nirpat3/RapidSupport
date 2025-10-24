@@ -993,6 +993,43 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       // Get relevant knowledge base articles using enhanced retrieval
       const searchResults = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || []);
       
+      // ✅ PHASE 1 IMPROVEMENT: Enhanced Retrieval Logging
+      // Log detailed retrieval information for debugging "AI not using docs" issues
+      console.log('╔═══════════════════════════════════════════════════════════════════╗');
+      console.log('║                   📚 RETRIEVAL LOG - DEBUG INFO                   ║');
+      console.log('╚═══════════════════════════════════════════════════════════════════╝');
+      console.log(`\n🔍 Query: "${customerMessage}"\n`);
+      console.log(`📊 Results Retrieved: ${searchResults.length} chunks\n`);
+      
+      if (searchResults.length > 0) {
+        console.log('📋 Top Retrieved Chunks:\n');
+        searchResults.slice(0, 5).forEach((result, idx) => {
+          console.log(`  ${idx + 1}. [Score: ${result.score.toFixed(3)}] [${result.matchType.toUpperCase()}]`);
+          console.log(`     📄 Article: "${result.chunk.metadata.sourceTitle}"`);
+          console.log(`     📌 Section: "${result.chunk.title || result.chunk.metadata.chunkTitle || 'N/A'}"`);
+          console.log(`     🏷️  Category: ${result.chunk.category}`);
+          console.log(`     🔖 Tags: ${result.chunk.tags.join(', ') || 'none'}`);
+          console.log(`     📝 Content Preview: ${result.chunk.content.substring(0, 100).replace(/\n/g, ' ')}...`);
+          if (result.matchedTerms && result.matchedTerms.length > 0) {
+            console.log(`     🎯 Matched Terms: ${result.matchedTerms.slice(0, 5).join(', ')}`);
+          }
+          console.log('');
+        });
+        
+        // ✅ Check if best score meets confidence threshold
+        const bestScore = searchResults[0].score;
+        console.log(`\n🎯 Best Retrieval Score: ${bestScore.toFixed(3)}`);
+        if (bestScore < 0.3) {
+          console.log(`⚠️  WARNING: Best score (${bestScore.toFixed(3)}) below confidence threshold (0.3)`);
+          console.log('   → AI should abstain and suggest human agent\n');
+        } else {
+          console.log(`✅ Score above threshold - AI can provide grounded answer\n`);
+        }
+      } else {
+        console.log('❌ No chunks retrieved - AI will escalate to human agent\n');
+      }
+      console.log('═══════════════════════════════════════════════════════════════════\n');
+      
       // Log AI processing details
       conversationLogger.logAIProcessing(conversationId, {
         customerMessage,
@@ -1003,7 +1040,11 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
           topResults: searchResults.slice(0, 3).map(r => ({
             title: r.chunk.title,
             score: r.score,
-            relevance: r.score
+            relevance: r.score,
+            article: r.chunk.metadata.sourceTitle,
+            section: r.chunk.metadata.chunkTitle,
+            category: r.chunk.category,
+            matchType: r.matchType
           }))
         },
         agentSelected: {
@@ -1155,12 +1196,20 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       // Detect if customer message is too vague to provide helpful assistance
       const isVagueQuery = this.detectVagueQuery(customerMessage);
       
+      // ✅ PHASE 1 IMPROVEMENT: Confidence Threshold Check
+      // If best retrieval score is below 0.3, AI should abstain and suggest human help
+      const bestRetrievalScore = searchResults.length > 0 ? searchResults[0].score : 0;
+      const meetsConfidenceThreshold = bestRetrievalScore >= 0.3;
+      const shouldAbstain = !meetsConfidenceThreshold && searchResults.length > 0;
+      
       console.log('=== AI Query Analysis Debug ===');
       console.log('Customer message:', customerMessage);
       console.log('Detected as vague query:', isVagueQuery);
       console.log('Knowledge context available:', searchResults.length > 0);
       console.log('Knowledge quality score:', knowledgeQuality.toFixed(2));
       console.log('Search results count:', searchResults.length);
+      console.log('Confidence threshold check:', meetsConfidenceThreshold ? '✅ PASS' : '❌ FAIL');
+      console.log('Should abstain from answering:', shouldAbstain ? 'YES (low retrieval score)' : 'NO');
       if (searchResults.length > 0) {
         console.log('Top search result score:', searchResults[0].score);
         console.log('Top search result title:', searchResults[0].chunk.title);
@@ -1218,23 +1267,43 @@ VAGUE QUERY RESPONSE (only when query analysis shows vague = YES):
 - Set requiresHumanTakeover to false
 
 SPECIFIC QUERY RESPONSE (only when query analysis shows vague = NO):
-- If knowledge base results > 0 and quality score > 3.0 → PROVIDE KNOWLEDGE-BASED SOLUTION
+
+✅ CONFIDENCE THRESHOLD CHECK (NEW):
+- Best retrieval score: ${bestRetrievalScore.toFixed(3)}
+- Meets confidence threshold (≥0.3): ${meetsConfidenceThreshold ? 'YES' : 'NO'}
+- Should abstain from answering: ${shouldAbstain ? 'YES' : 'NO'}
+
+IF shouldAbstain = YES (retrieval score < 0.3):
+- DO NOT attempt to answer the question
+- Politely explain: "I don't have enough information in my knowledge base to provide an accurate answer to your specific question."
+- Suggest: "Let me connect you with one of our specialists who can help you with this. Would that work for you?"
+- Set requiresHumanTakeover to true
+- Set confidence to 20-30
+
+IF knowledge base results > 0 and quality score ≥ 3.0 and meetsConfidenceThreshold = YES:
+→ PROVIDE KNOWLEDGE-BASED SOLUTION WITH CITATIONS
 - Use format: "steps" for how-to questions, tutorials, troubleshooting, setup instructions
 - Use format: "regular" for simple answers, information requests, or general inquiries
-- Reference specific knowledge base articles when appropriate
+- ✅ MANDATORY: CITE sources using [Article → Section] format
+- Example: "According to [PAX Terminal Setup → Bluetooth Connection], you should first..."
 - Provide comprehensive solutions using ONLY the provided knowledge base information
+- Quote exact config names, settings, or labels from the knowledge base when possible
 - Set confidence to 70-95 based on knowledge quality
 - Set requiresHumanTakeover to false
 
-- If knowledge base results = 0 or quality score < 3.0 → ESCALATE TO HUMAN
+IF knowledge base results = 0 or quality score < 3.0:
+→ ESCALATE TO HUMAN
 - Set requiresHumanTakeover to true
 - Explain you need to connect them with a specialist
+- Suggest relevant knowledge base articles if available
 
 CRITICAL RULES:
 - NEVER ask clarifying questions when query analysis shows vague = NO
 - NEVER provide knowledge-based solutions when query analysis shows vague = YES
 - ONLY use information from the provided Knowledge Base chunks for solutions
 - NEVER provide answers from general knowledge when giving solutions
+- ✅ ALWAYS cite sources using [Article → Section] when providing solutions
+- ✅ ABSTAIN from answering if retrieval score < 0.3 (low confidence threshold)
 
 Confidence scoring:
 - For clarifying questions on vague queries: 70-85
@@ -1517,6 +1586,7 @@ The more details you can share, the better I can help you resolve this quickly!"
 
   /**
    * Get optimal search options based on query analysis
+   * ✅ PHASE 1 IMPROVEMENT: Increased top-k and min score thresholds per RAG best practices
    */
   private static getOptimalSearchOptions(analysis: QueryAnalysis): RetrievalOptions {
     const baseOptions: RetrievalOptions = {
@@ -1528,8 +1598,8 @@ The more details you can share, the better I can help you resolve this quickly!"
       case 'instructional':
         return {
           ...baseOptions,
-          maxResults: 6, // More results for learning
-          minScore: 0.12, // Slightly lower threshold for comprehensive steps
+          maxResults: 10, // ✅ Increased from 6 to 10 (RAG guide recommends 8-12)
+          minScore: 0.2, // ✅ Increased from 0.12 to 0.2 for better quality
           requireSteps: true,
           expandScope: true, // Instructional content might be in various articles
         };
@@ -1537,8 +1607,8 @@ The more details you can share, the better I can help you resolve this quickly!"
       case 'troubleshooting':
         return {
           ...baseOptions,
-          maxResults: 5,
-          minScore: 0.2, // Higher threshold for problem-solving accuracy
+          maxResults: 10, // ✅ Increased from 5 to 10
+          minScore: 0.25, // ✅ Increased from 0.2 to 0.25 for accuracy
           requireSteps: true, // Troubleshooting often involves steps
           expandScope: true, // Issues might span multiple topics
         };
@@ -1546,16 +1616,16 @@ The more details you can share, the better I can help you resolve this quickly!"
       case 'specific':
         return {
           ...baseOptions,
-          maxResults: 3, // Fewer, more precise results
-          minScore: 0.25, // High threshold for specific answers
+          maxResults: 8, // ✅ Increased from 3 to 8 for better coverage
+          minScore: 0.3, // ✅ Increased from 0.25 to 0.3 for precision
           expandScope: false, // Keep search focused
         };
         
       default: // informational
         return {
           ...baseOptions,
-          maxResults: analysis.complexity === 'high' ? 6 : 4,
-          minScore: analysis.complexity === 'high' ? 0.15 : 0.18,
+          maxResults: analysis.complexity === 'high' ? 10 : 8, // ✅ Increased from 6/4 to 10/8
+          minScore: analysis.complexity === 'high' ? 0.2 : 0.25, // ✅ Increased thresholds
           expandScope: analysis.complexity === 'high',
         };
     }
@@ -1563,6 +1633,7 @@ The more details you can share, the better I can help you resolve this quickly!"
 
   /**
    * Filter and rank search results based on query analysis
+   * ✅ PHASE 1 IMPROVEMENT: Metadata-aware filtering and better thresholds
    */
   private static filterAndRankResults(results: SearchResult[], analysis: QueryAnalysis): EnhancedSearchResult[] {
     // Add context relevance scoring
@@ -1588,6 +1659,11 @@ The more details you can share, the better I can help you resolve this quickly!"
         adjustedScore *= 1.1;
       }
       
+      // ✅ Boost high-priority articles
+      if (result.chunk.priority > 75) {
+        adjustedScore *= 1.05;
+      }
+      
       return {
         ...result,
         score: adjustedScore,
@@ -1599,17 +1675,18 @@ The more details you can share, the better I can help you resolve this quickly!"
     return enhancedResults
       .sort((a, b) => b.score - a.score)
       .filter(result => {
-        // More stringent filtering for complex queries
+        // ✅ More stringent filtering thresholds
         if (analysis.complexity === 'high') {
-          return result.score > 0.2;
+          return result.score > 0.25; // ✅ Increased from 0.2
         }
-        return result.score > 0.15;
+        return result.score > 0.2; // ✅ Increased from 0.15
       })
-      .slice(0, analysis.complexity === 'high' ? 6 : 5); // Limit results appropriately
+      .slice(0, analysis.complexity === 'high' ? 10 : 8); // ✅ Increased from 6/5 to 10/8
   }
 
   /**
    * Format knowledge context for better AI consumption
+   * ✅ PHASE 1 IMPROVEMENT: Enhanced formatting with source IDs for citations
    */
   private static formatKnowledgeContext(searchResults: SearchResult[]): string {
     if (searchResults.length === 0) {
@@ -1620,17 +1697,25 @@ The more details you can share, the better I can help you resolve this quickly!"
       const relevanceLabel = result.score > 0.8 ? 'High' : 
                             result.score > 0.5 ? 'Medium' : 'Low';
       
+      const sourceId = `SOURCE_${index + 1}`;
+      const articleTitle = result.chunk.metadata.sourceTitle;
+      const sectionTitle = result.chunk.title || result.chunk.metadata.chunkTitle || 'General';
+      
       return `
---- Knowledge Source ${index + 1}: ${result.chunk.title} ---
+--- ${sourceId}: [${articleTitle} → ${sectionTitle}] ---
 Relevance: ${relevanceLabel} (${result.score.toFixed(2)})
 Match Type: ${result.matchType}
+Category: ${result.chunk.category}
+Tags: ${result.chunk.tags.join(', ') || 'none'}
 Content:
 ${result.chunk.content}
 ${result.chunk.metadata.hasStructure ? '[Well-structured content]' : '[Unstructured content]'}
 ---`;
     });
 
-    return `\nKnowledge Base Sources:\n${sections.join('\n')}\n`;
+    return `\nKnowledge Base Sources (CITE THESE IN YOUR RESPONSE):\n${sections.join('\n')}\n
+IMPORTANT: When using information from these sources, cite them as [Article → Section] in your response.
+For example: "According to [PAX Terminal Setup → Bluetooth Connection], you should..."`;
   }
 
   /**

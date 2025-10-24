@@ -439,6 +439,9 @@ export class KnowledgeRetrievalService {
   /**
    * Perform semantic search using embeddings
    */
+  /**
+   * ✅ PHASE 1 IMPROVEMENT: Increased semantic similarity threshold for quality
+   */
   private async semanticSearch(chunks: KnowledgeChunk[], query: string): Promise<SearchResult[]> {
     try {
       // Generate query embedding
@@ -452,7 +455,7 @@ export class KnowledgeRetrievalService {
         if (!chunk.embedding || chunk.embedding.length === 0) continue;
         
         const similarity = this.cosineSimilarity(queryEmbedding, chunk.embedding);
-        if (similarity > 0.1) { // Minimum threshold
+        if (similarity > 0.15) { // ✅ Increased from 0.1 to 0.15 for better quality
           const priorityBoost = (chunk.priority / 100) * 0.2;
           const finalScore = similarity + priorityBoost;
           
@@ -542,6 +545,7 @@ export class KnowledgeRetrievalService {
 
   /**
    * Main search method combining all techniques
+   * ✅ PHASE 1 IMPROVEMENT: Updated defaults per RAG best practices
    */
   async search(
     query: string, 
@@ -550,8 +554,8 @@ export class KnowledgeRetrievalService {
   ): Promise<SearchResult[]> {
     try {
       const {
-        maxResults = 5,
-        minScore = 0.1,
+        maxResults = 10, // ✅ Increased from 5 to 10 (RAG guide recommends 8-12)
+        minScore = 0.2, // ✅ Increased from 0.1 to 0.2 for better quality filtering
         useSemanticSearch = true,
         expandScope = false,
         requireSteps = false,
