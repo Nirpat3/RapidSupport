@@ -4323,10 +4323,22 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Get all knowledge base articles
+  // Get all knowledge base articles (with optional filtering)
   app.get('/api/knowledge-base', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      const articles = await storage.getAllKnowledgeBase();
+      const { indexingStatus, category } = req.query;
+      let articles = await storage.getAllKnowledgeBase();
+      
+      // Filter by indexing status if provided
+      if (indexingStatus && typeof indexingStatus === 'string') {
+        articles = articles.filter(article => article.indexingStatus === indexingStatus);
+      }
+      
+      // Filter by category if provided
+      if (category && typeof category === 'string') {
+        articles = articles.filter(article => article.category === category);
+      }
+      
       res.json(articles);
     } catch (error) {
       console.error('Failed to fetch knowledge base articles:', error);

@@ -145,6 +145,9 @@ interface KnowledgeArticle {
   sourceUrl?: string;
   assignedAgentIds?: string[];
   createdBy?: string;
+  indexingStatus: 'pending' | 'indexing' | 'indexed' | 'failed';
+  indexedAt?: string;
+  indexingError?: string;
   lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -178,6 +181,10 @@ export default function KnowledgeManagementPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedSourceType, setSelectedSourceType] = useState<string>("all");
   const [selectedAgent, setSelectedAgent] = useState<string>("all");
+  const [selectedIndexingStatus, setSelectedIndexingStatus] = useState<string>("all");
+  const [semanticSearchQuery, setSemanticSearchQuery] = useState("");
+  const [semanticSearchResults, setSemanticSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<KnowledgeArticle | null>(null);
   const [viewingArticle, setViewingArticle] = useState<KnowledgeArticle | null>(null);
@@ -437,7 +444,7 @@ export default function KnowledgeManagementPage() {
     },
   });
 
-  // Filter articles based on search, category, source type, and agent
+  // Filter articles based on search, category, source type, agent, and indexing status
   const filteredArticles = articles.filter(article => {
     const matchesSearch = searchQuery === "" || 
       article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -448,9 +455,35 @@ export default function KnowledgeManagementPage() {
     const matchesSourceType = selectedSourceType === "all" || article.sourceType === selectedSourceType;
     const matchesAgent = selectedAgent === "all" || 
       (article.assignedAgentIds && article.assignedAgentIds.includes(selectedAgent));
+    const matchesIndexingStatus = selectedIndexingStatus === "all" || article.indexingStatus === selectedIndexingStatus;
     
-    return matchesSearch && matchesCategory && matchesSourceType && matchesAgent;
+    return matchesSearch && matchesCategory && matchesSourceType && matchesAgent && matchesIndexingStatus;
   });
+  
+  // Semantic search function
+  const handleSemanticSearch = async () => {
+    if (!semanticSearchQuery.trim()) {
+      setSemanticSearchResults([]);
+      return;
+    }
+    
+    setIsSearching(true);
+    try {
+      const response = await fetch(`/api/search/articles?query=${encodeURIComponent(semanticSearchQuery)}&maxResults=10`);
+      if (!response.ok) throw new Error('Search failed');
+      const results = await response.json();
+      setSemanticSearchResults(results);
+    } catch (error) {
+      console.error('Semantic search failed:', error);
+      toast({
+        title: "Search Failed",
+        description: "Failed to search knowledge base articles",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   // Calculate summary statistics
   const totalArticles = articles.length;
@@ -671,9 +704,9 @@ export default function KnowledgeManagementPage() {
               />
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:flex sm:gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 sm:flex sm:gap-2">
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-category">
+                <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-category">
                   <SelectValue placeholder="All Categories" />
                 </SelectTrigger>
                 <SelectContent>
@@ -698,8 +731,21 @@ export default function KnowledgeManagementPage() {
               </SelectContent>
             </Select>
             
+            <Select value={selectedIndexingStatus} onValueChange={setSelectedIndexingStatus}>
+              <SelectTrigger className="w-full sm:w-[150px]" data-testid="select-indexing-status">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="indexed">Indexed</SelectItem>
+                <SelectItem value="indexing">Indexing</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+            
             <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-              <SelectTrigger className="w-full sm:w-[200px]" data-testid="select-agent">
+              <SelectTrigger className="w-full sm:w-[180px]" data-testid="select-agent">
                 <SelectValue placeholder="All Agents" />
               </SelectTrigger>
               <SelectContent>
@@ -713,6 +759,81 @@ export default function KnowledgeManagementPage() {
             </Select>
             </div>
           </div>
+          
+          {/* Semantic Search Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                AI-Powered Search
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    placeholder="Ask a question to find related articles..."
+                    value={semanticSearchQuery}
+                    onChange={(e) => setSemanticSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSemanticSearch();
+                      }
+                    }}
+                    data-testid="input-semantic-search"
+                  />
+                </div>
+                <Button 
+                  onClick={handleSemanticSearch} 
+                  disabled={isSearching || !semanticSearchQuery.trim()}
+                  data-testid="button-search"
+                >
+                  {isSearching ? 'Searching...' : 'Search'}
+                </Button>
+              </div>
+              
+              {semanticSearchResults.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <h4 className="text-sm font-medium">Search Results ({semanticSearchResults.length})</h4>
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {semanticSearchResults.map((result, index) => (
+                      <Card key={index} className="hover-elevate">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <h5 className="font-medium">{result.title}</h5>
+                              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                {result.content}
+                              </p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {result.matchType}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  Score: {(result.score * 100).toFixed(0)}%
+                                </span>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                const article = articles.find(a => a.id === result.id);
+                                if (article) setViewingArticle(article);
+                              }}
+                              data-testid={`button-view-result-${index}`}
+                            >
+                              View
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
       {/* Articles List */}
       {isLoading ? (
@@ -775,6 +896,31 @@ export default function KnowledgeManagementPage() {
                           <><Globe className="w-3 h-3 mr-1" />URL</>
                         )}
                       </Badge>
+                      {/* Indexing Status Badge */}
+                      {article.indexingStatus === 'indexed' && (
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Indexed
+                        </Badge>
+                      )}
+                      {article.indexingStatus === 'indexing' && (
+                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Indexing
+                        </Badge>
+                      )}
+                      {article.indexingStatus === 'pending' && (
+                        <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Pending
+                        </Badge>
+                      )}
+                      {article.indexingStatus === 'failed' && (
+                        <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                          <AlertCircle className="w-3 h-3 mr-1" />
+                          Failed
+                        </Badge>
+                      )}
                     </div>
                     
                     <p className="text-muted-foreground mb-4 line-clamp-2">
