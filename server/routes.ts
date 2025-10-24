@@ -397,6 +397,17 @@ async function processFileForAITraining(
     const knowledgeArticle = await storage.createKnowledgeBase(articleData);
     console.log(`Created knowledge base article ${knowledgeArticle.id} for file ${uploadedFile.originalName}`);
 
+    // ✅ AUTOMATIC INDEXING: Index the article asynchronously (non-blocking)
+    setImmediate(async () => {
+      try {
+        const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
+        await knowledgeRetrieval.reindexArticle(knowledgeArticle.id);
+        console.log(`✅ Successfully indexed article ${knowledgeArticle.id} for AI search`);
+      } catch (indexError) {
+        console.error(`⚠️ Warning: Failed to index article ${knowledgeArticle.id}:`, indexError);
+      }
+    });
+
     // Link the uploaded file to the knowledge base article
     await storage.linkFileToKnowledgeBase(uploadedFile.id, knowledgeArticle.id);
 
@@ -4541,6 +4552,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       const newArticle = await storage.createKnowledgeBase(validationResult.data);
       
+      // ✅ AUTOMATIC INDEXING: Index the article asynchronously (non-blocking)
+      setImmediate(async () => {
+        try {
+          const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
+          await knowledgeRetrieval.reindexArticle(newArticle.id);
+          console.log(`✅ Successfully indexed manually created article ${newArticle.id} for AI search`);
+        } catch (indexError) {
+          console.error(`⚠️ Warning: Failed to index article ${newArticle.id}:`, indexError);
+        }
+      });
+      
       // Sync agent assignments
       if (validationResult.data.assignedAgentIds) {
         await syncAgentKnowledgeAssignments(newArticle.id, validationResult.data.assignedAgentIds);
@@ -4577,6 +4599,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
 
       await storage.updateKnowledgeBase(id, validationResult.data);
+      
+      // ✅ AUTOMATIC RE-INDEXING: Re-index the article asynchronously (non-blocking)
+      setImmediate(async () => {
+        try {
+          const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
+          await knowledgeRetrieval.reindexArticle(id);
+          console.log(`✅ Successfully re-indexed updated article ${id} for AI search`);
+        } catch (indexError) {
+          console.error(`⚠️ Warning: Failed to re-index article ${id}:`, indexError);
+        }
+      });
       
       // Sync agent assignments if they changed
       if (validationResult.data.assignedAgentIds !== undefined) {
@@ -5164,6 +5197,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
           const article = await storage.createKnowledgeBase(articleData);
           
+          // ✅ AUTOMATIC INDEXING: Index the article asynchronously (non-blocking)
+          setImmediate(async () => {
+            try {
+              const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
+              await knowledgeRetrieval.reindexArticle(article.id);
+              console.log(`✅ Successfully indexed uploaded document ${article.id} for AI search`);
+            } catch (indexError) {
+              console.error(`⚠️ Warning: Failed to index article ${article.id}:`, indexError);
+            }
+          });
+          
           // Create FAQs if AI analysis generated them
           if (aiAnalysis && aiAnalysis.faqs && aiAnalysis.faqs.length > 0) {
             console.log(`[AI Analysis] Creating ${aiAnalysis.faqs.length} FAQs for article: ${article.title}`);
@@ -5290,6 +5334,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       };
 
       const article = await storage.createKnowledgeBase(articleData);
+      
+      // ✅ AUTOMATIC INDEXING: Index the article asynchronously (non-blocking)
+      setImmediate(async () => {
+        try {
+          const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
+          await knowledgeRetrieval.reindexArticle(article.id);
+          console.log(`✅ Successfully indexed URL-imported article ${article.id} for AI search`);
+        } catch (indexError) {
+          console.error(`⚠️ Warning: Failed to index article ${article.id}:`, indexError);
+        }
+      });
       
       console.log(`Successfully created knowledge base article from URL: ${url}, Article ID: ${article.id}`);
       
