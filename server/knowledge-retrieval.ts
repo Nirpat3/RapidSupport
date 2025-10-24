@@ -111,12 +111,13 @@ export class KnowledgeRetrievalService {
 
   /**
    * Break knowledge article into smaller, focused chunks with intelligent splitting
+   * ✅ PHASE 2 IMPROVEMENT: Optimized chunk size per RAG best practices (300-500 tokens ≈ 225-375 words)
    */
   private chunkDocument(article: KnowledgeBase): KnowledgeChunk[] {
     const chunks: KnowledgeChunk[] = [];
-    const maxChunkSize = 500; // words - slightly smaller for better semantic units
-    const minChunkSize = 100; // words - minimum chunk size
-    const overlapSize = 75; // words - reduced overlap
+    const maxChunkSize = 400; // ✅ Reduced from 500 to 400 words (closer to optimal 300-500 tokens)
+    const minChunkSize = 80; // ✅ Reduced from 100 to 80 words for better granularity
+    const overlapSize = 60; // ✅ Reduced from 75 to 60 words (still ~15% overlap)
     
     // Clean and normalize content while preserving paragraph structure
     const cleanContent = article.content

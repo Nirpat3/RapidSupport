@@ -991,7 +991,8 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       }
 
       // Get relevant knowledge base articles using enhanced retrieval
-      const searchResults = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || []);
+      // ✅ PHASE 2: Pass conversation history for query rewriting
+      const searchResults = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || [], conversationHistory);
       
       // ✅ PHASE 1 IMPROVEMENT: Enhanced Retrieval Logging
       // Log detailed retrieval information for debugging "AI not using docs" issues
@@ -1413,6 +1414,156 @@ The more details you can share, the better I can help you resolve this quickly!"
   }
 
   /**
+   * ✅ PHASE 2: Query Rewriting - Extract entities and build enhanced search query
+   * Combines user query with conversation context for better retrieval
+   */
+  private static rewriteQuery(query: string, conversationHistory: string[]): string {
+    const lowerQuery = query.toLowerCase();
+    const context = conversationHistory.slice(-3).join(' ').toLowerCase(); // Last 3 messages
+    
+    // Extract entities from query and context
+    const entities = {
+      products: [] as string[],
+      features: [] as string[],
+      actions: [] as string[],
+      errorCodes: [] as string[],
+      issues: [] as string[]
+    };
+    
+    // Common product patterns
+    const productPatterns = /\b(pax|ipad|iphone|terminal|device|tablet|phone|app|application)\b/gi;
+    const productMatches = [...query.matchAll(productPatterns), ...context.matchAll(productPatterns)];
+    entities.products = [...new Set(productMatches.map(m => m[0].toLowerCase()))];
+    
+    // Feature patterns
+    const featurePatterns = /\b(bluetooth|wifi|payment|sync|connection|settings|config|setup)\b/gi;
+    const featureMatches = [...query.matchAll(featurePatterns), ...context.matchAll(featurePatterns)];
+    entities.features = [...new Set(featureMatches.map(m => m[0].toLowerCase()))];
+    
+    // Action patterns
+    const actionPatterns = /\b(connect|pair|setup|install|configure|fix|reset|troubleshoot|update)\b/gi;
+    const actionMatches = [...query.matchAll(actionPatterns), ...context.matchAll(actionPatterns)];
+    entities.actions = [...new Set(actionMatches.map(m => m[0].toLowerCase()))];
+    
+    // Error code patterns
+    const errorPatterns = /\b(error|code|message|warning|alert)\s*:?\s*(\d+|[A-Z0-9]+)\b/gi;
+    const errorMatches = [...query.matchAll(errorPatterns)];
+    entities.errorCodes = [...new Set(errorMatches.map(m => `${m[1]} ${m[2]}`))];
+    
+    // Issue patterns
+    const issuePatterns = /\b(not working|failed|broken|issue|problem|error|won't|can't|unable)\b/gi;
+    const issueMatches = [...query.matchAll(issuePatterns)];
+    entities.issues = [...new Set(issueMatches.map(m => m[0].toLowerCase()))];
+    
+    // Build enhanced query
+    let enhancedQuery = query;
+    
+    // Add contextual entities if they're not already in the query
+    const queryLower = query.toLowerCase();
+    
+    // Add products from context if relevant
+    if (entities.products.length > 0 && !entities.products.some(p => queryLower.includes(p))) {
+      const contextProducts = entities.products.filter(p => context.includes(p) && !queryLower.includes(p));
+      if (contextProducts.length > 0) {
+        enhancedQuery += ` ${contextProducts.join(' ')}`;
+      }
+    }
+    
+    // Add features from context if relevant to the action
+    if (entities.actions.length > 0 && entities.features.length > 0) {
+      const contextFeatures = entities.features.filter(f => context.includes(f) && !queryLower.includes(f));
+      if (contextFeatures.length > 0 && contextFeatures.length <= 2) {
+        enhancedQuery += ` ${contextFeatures.join(' ')}`;
+      }
+    }
+    
+    // Add error codes if found
+    if (entities.errorCodes.length > 0) {
+      enhancedQuery += ` ${entities.errorCodes.join(' ')}`;
+    }
+    
+    return enhancedQuery.trim();
+  }
+  
+  /**
+   * ✅ PHASE 2: MMR (Maximal Marginal Relevance) - Promote diversity in search results
+   * Avoids returning 10 near-identical chunks from the same article section
+   */
+  private static applyMMR(results: SearchResult[], lambda: number = 0.7): SearchResult[] {
+    if (results.length <= 3) return results; // Too few to filter
+    
+    const selected: SearchResult[] = [];
+    const remaining = [...results];
+    
+    // Always select the highest-scoring result first
+    if (remaining.length > 0) {
+      selected.push(remaining.shift()!);
+    }
+    
+    // Iteratively select results that balance relevance and diversity
+    while (remaining.length > 0 && selected.length < 10) {
+      let bestScore = -Infinity;
+      let bestIndex = -1;
+      
+      for (let i = 0; i < remaining.length; i++) {
+        const candidate = remaining[i];
+        
+        // Calculate diversity score (how different is this from selected results?)
+        let maxSimilarity = 0;
+        for (const selectedResult of selected) {
+          const similarity = this.calculateChunkSimilarity(candidate, selectedResult);
+          maxSimilarity = Math.max(maxSimilarity, similarity);
+        }
+        
+        // MMR formula: lambda * relevance - (1 - lambda) * max_similarity
+        const mmrScore = lambda * candidate.score - (1 - lambda) * maxSimilarity;
+        
+        if (mmrScore > bestScore) {
+          bestScore = mmrScore;
+          bestIndex = i;
+        }
+      }
+      
+      if (bestIndex >= 0) {
+        selected.push(remaining.splice(bestIndex, 1)[0]);
+      } else {
+        break;
+      }
+    }
+    
+    return selected;
+  }
+  
+  /**
+   * Calculate similarity between two chunks for MMR diversity
+   */
+  private static calculateChunkSimilarity(chunk1: SearchResult, chunk2: SearchResult): number {
+    // Same article and close chunk indices = high similarity
+    if (chunk1.chunk.knowledgeBaseId === chunk2.chunk.knowledgeBaseId) {
+      const indexDiff = Math.abs(chunk1.chunk.chunkIndex - chunk2.chunk.chunkIndex);
+      if (indexDiff === 0) return 1.0; // Same chunk
+      if (indexDiff === 1) return 0.8; // Adjacent chunks
+      if (indexDiff <= 2) return 0.6; // Close chunks
+      return 0.3; // Same article, distant chunks
+    }
+    
+    // Same category = moderate similarity
+    if (chunk1.chunk.category === chunk2.chunk.category) {
+      // Check tag overlap
+      const tags1 = new Set(chunk1.chunk.tags);
+      const tags2 = new Set(chunk2.chunk.tags);
+      const overlap = [...tags1].filter(t => tags2.has(t)).length;
+      const total = Math.max(tags1.size, tags2.size);
+      
+      if (total === 0) return 0.2;
+      return 0.2 + (overlap / total) * 0.3; // 0.2-0.5 range
+    }
+    
+    // Different articles and categories = low similarity
+    return 0.1;
+  }
+
+  /**
    * Find the best AI agent for a customer query
    */
   private static async findBestAgent(customerMessage: string): Promise<AiAgent | null> {
@@ -1446,8 +1597,9 @@ The more details you can share, the better I can help you resolve this quickly!"
 
   /**
    * Get relevant knowledge base articles using enhanced retrieval system
+   * ✅ PHASE 2 IMPROVEMENT: Added query rewriting for better context understanding
    */
-  private static async getRelevantKnowledge(query: string, knowledgeBaseIds: string[]): Promise<SearchResult[]> {
+  private static async getRelevantKnowledge(query: string, knowledgeBaseIds: string[], conversationHistory?: string[]): Promise<SearchResult[]> {
     try {
       // If no KB IDs assigned to agent, search ALL available KB articles instead of returning empty
       const shouldExpandScope = knowledgeBaseIds.length === 0;
@@ -1458,8 +1610,17 @@ The more details you can share, the better I can help you resolve this quickly!"
         console.log(`🔍 Searching ${knowledgeBaseIds.length} assigned KB articles for agent: ${knowledgeBaseIds.join(', ')}`);
       }
 
+      // ✅ PHASE 2: Query Rewriting - Extract entities and build enhanced search query
+      const rewrittenQuery = this.rewriteQuery(query, conversationHistory || []);
+      console.log(`\n🔄 Query Rewriting:`);
+      console.log(`   Original: "${query}"`);
+      console.log(`   Rewritten: "${rewrittenQuery}"`);
+      
+      // Use rewritten query for search
+      const searchQuery = rewrittenQuery;
+
       // Enhanced query analysis for better search optimization
-      const queryAnalysis = this.analyzeQuery(query);
+      const queryAnalysis = this.analyzeQuery(searchQuery);
       
       // Dynamic search parameters based on query characteristics
       const searchOptions = this.getOptimalSearchOptions(queryAnalysis);
@@ -1476,7 +1637,7 @@ The more details you can share, the better I can help you resolve this quickly!"
       console.log(`Search options - expandScope: ${searchOptions.expandScope}, maxResults: ${searchOptions.maxResults}, minScore: ${searchOptions.minScore}`);
       
       // Multi-tiered search strategy
-      let searchResults = await knowledgeRetrieval.search(query, knowledgeBaseIds, searchOptions);
+      let searchResults = await knowledgeRetrieval.search(searchQuery, knowledgeBaseIds, searchOptions);
       
       console.log(`📊 Initial search returned ${searchResults.length} results`);
       
@@ -1489,12 +1650,16 @@ The more details you can share, the better I can help you resolve this quickly!"
           maxResults: 8,
           expandScope: true,
         };
-        searchResults = await knowledgeRetrieval.search(query, knowledgeBaseIds, broadSearchOptions);
+        searchResults = await knowledgeRetrieval.search(searchQuery, knowledgeBaseIds, broadSearchOptions);
         console.log(`📊 Expanded search returned ${searchResults.length} results`);
       }
       
+      // ✅ PHASE 2: Apply MMR (Maximal Marginal Relevance) for diversity
+      const diverseResults = this.applyMMR(searchResults, 0.7); // Lambda = 0.7 balances relevance vs diversity
+      console.log(`🎯 MMR applied: ${searchResults.length} → ${diverseResults.length} diverse results`);
+      
       // Enhanced context filtering and ranking
-      const filteredResults = this.filterAndRankResults(searchResults, queryAnalysis);
+      const filteredResults = this.filterAndRankResults(diverseResults, queryAnalysis);
       
       console.log(`Knowledge retrieval for "${query}": found ${filteredResults.length} relevant chunks`);
       filteredResults.forEach((result, i) => {
