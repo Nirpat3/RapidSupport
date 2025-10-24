@@ -16,6 +16,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { AIService } from './ai-service';
+import { db } from './db';
+import { eq } from 'drizzle-orm';
 import { 
   insertCustomerSchema, 
   insertConversationSchema,
@@ -36,7 +38,9 @@ import {
   insertPostLikeSchema,
   insertPostViewSchema,
   insertAiAgentSchema,
-  updateAiAgentSchema
+  updateAiAgentSchema,
+  customers,
+  conversations
 } from '@shared/schema';
 import { WebScraper } from './web-scraper';
 import { KnowledgeRetrievalService } from './knowledge-retrieval';
@@ -317,6 +321,20 @@ const sendCustomerMessageSchema = z.object({
   conversationId: z.string().uuid('Invalid conversation ID'),
   customerId: z.string().uuid('Invalid customer ID'),
   content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
+});
+
+// Third-party integration API schema
+const startConversationSchema = z.object({
+  customer: z.object({
+    name: z.string().min(1, 'Customer name is required'),
+    email: z.string().email('Valid email is required'),
+    phone: z.string().optional(),
+    company: z.string().optional(),
+  }),
+  contextData: z.record(z.any()).optional(), // Custom context from 3rd party (product info, page URL, etc.)
+  organizationId: z.string().optional(), // For multi-tenant support
+  initialMessage: z.string().optional(), // Optional first message to start the conversation
+  aiEnabled: z.boolean().optional().default(true), // Whether AI should respond automatically
 });
 
 /**
@@ -3617,6 +3635,184 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // ============================================
   // EXTERNAL SYNC API ENDPOINTS FOR 3RD PARTY SYSTEMS
   // ============================================
+
+  /**
+   * Start Conversation API - For Third-Party Integration
+   * 
+   * Allows external applications to create conversations with pre-filled customer data,
+   * bypassing the customer information form. Perfect for embedding support chat in 
+   * your app with customer context already known.
+   * 
+   * @endpoint POST /api/integrations/start-conversation
+   * @auth API Key required (X-API-Key header or Authorization: Bearer <key>)
+   * @body {
+   *   customer: { name, email, phone?, company? },
+   *   contextData?: { productId, pageUrl, customFields, etc. },
+   *   organizationId?: string,
+   *   initialMessage?: string,
+   *   aiEnabled?: boolean
+   * }
+   * @returns {
+   *   conversationId: string,
+   *   customerId: string,
+   *   sessionId: string,
+   *   websocketUrl: string,
+   *   chatUrl: string
+   * }
+   */
+  app.post('/api/integrations/start-conversation', requireApiKey, externalApiLimiter, async (req, res) => {
+    try {
+      console.log('=== Third-Party Conversation Start Request ===');
+      console.log('Request body:', JSON.stringify(req.body, null, 2));
+      
+      // Validate request data
+      const data = startConversationSchema.parse(req.body);
+      console.log('Validation passed');
+      
+      // Step 1: Find or create customer
+      let customer = await storage.getCustomerByEmail(data.customer.email);
+      
+      if (!customer) {
+        console.log('Customer not found, creating new customer');
+        // Create new customer with provided data
+        customer = await storage.createCustomer({
+          name: data.customer.name,
+          email: data.customer.email,
+          phone: data.customer.phone || null,
+          company: data.customer.company || null,
+          ipAddress: req.ip || req.connection.remoteAddress || 'unknown',
+          tags: null,
+        } as any); // Cast to allow organizationId field
+        
+        // Update organizationId if provided (since it's not in the insert schema)
+        if (data.organizationId) {
+          await db
+            .update(customers)
+            .set({ organizationId: data.organizationId, updatedAt: new Date() })
+            .where(eq(customers.id, customer.id));
+        }
+        
+        console.log('Customer created:', customer.id);
+      } else {
+        console.log('Existing customer found:', customer.id);
+        // Update customer info if provided and different
+        if (data.customer.name || data.customer.phone || data.customer.company) {
+          const updates = {
+            name: data.customer.name || customer.name,
+            email: customer.email,
+            phone: data.customer.phone || customer.phone || undefined,
+            company: data.customer.company || customer.company || undefined,
+          };
+          console.log('Updating customer with:', updates);
+          await storage.updateCustomerProfile(customer.id, updates);
+        }
+      }
+      
+      // Step 2: Create conversation with context data
+      const sessionId = randomUUID();
+      console.log('Creating conversation for customer:', customer.id);
+      
+      const conversation = await storage.createConversation({
+        customerId: customer.id,
+        title: `Support Request from ${customer.name}`,
+        status: 'open',
+        priority: 'medium',
+        isAnonymous: false,
+        sessionId: sessionId,
+      });
+      
+      // Update additional fields that aren't in the insert schema
+      await db
+        .update(conversations)
+        .set({
+          aiAssistanceEnabled: data.aiEnabled ?? true,
+          contextData: data.contextData ? JSON.stringify(data.contextData) : null,
+          organizationId: data.organizationId || null,
+          updatedAt: new Date()
+        })
+        .where(eq(conversations.id, conversation.id));
+      
+      console.log('Conversation created:', conversation.id);
+      
+      // Step 3: Send initial message if provided
+      if (data.initialMessage) {
+        console.log('Sending initial message');
+        const message = await storage.createMessage({
+          conversationId: conversation.id,
+          senderId: customer.id,
+          senderType: 'customer',
+          content: data.initialMessage,
+          scope: 'public',
+        });
+        
+        // Broadcast initial message via WebSocket
+        const wsServer = (app as any).wsServer;
+        if (wsServer && wsServer.broadcastNewMessage) {
+          wsServer.broadcastNewMessage(conversation.id, {
+            messageId: message.id,
+            conversationId: message.conversationId,
+            content: message.content,
+            userId: message.senderId,
+            userName: customer.name,
+            userRole: 'customer',
+            senderType: message.senderType,
+            timestamp: message.timestamp,
+            status: message.status
+          });
+        }
+        
+        // Broadcast to staff
+        if (wsServer && wsServer.broadcastNewMessageToStaff) {
+          wsServer.broadcastNewMessageToStaff(conversation, customer, {
+            id: message.id,
+            content: message.content,
+            senderType: message.senderType,
+            timestamp: message.timestamp
+          });
+        }
+        
+        // Create notifications for staff
+        await storage.createNotificationsForAllStaff(conversation.id);
+        console.log('Initial message sent and notifications created');
+      }
+      
+      // Step 4: Return conversation details for integration
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}` 
+        : `http://localhost:${process.env.PORT || 5000}`;
+      
+      const response = {
+        success: true,
+        conversationId: conversation.id,
+        customerId: customer.id,
+        sessionId: sessionId,
+        websocketUrl: baseUrl.replace('http', 'ws'),
+        chatUrl: `${baseUrl}/customer-chat/${conversation.id}?sessionId=${sessionId}`,
+        message: 'Conversation started successfully'
+      };
+      
+      console.log('=== Conversation Start Response ===');
+      console.log(JSON.stringify(response, null, 2));
+      
+      res.status(201).json(response);
+    } catch (error) {
+      console.error('=== Conversation Start Error ===');
+      console.error('Error details:', error);
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString()
+        });
+      }
+      res.status(500).json({ 
+        success: false,
+        error: 'Failed to start conversation',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
 
   // External Customer Sync API
   app.get('/api/external/customers', requireApiKey, externalApiLimiter, async (req, res) => {
