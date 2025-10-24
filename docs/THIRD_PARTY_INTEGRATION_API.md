@@ -19,10 +19,26 @@ Authorization: Bearer your_api_key_here
 ```
 
 **Setting up API Key:**
+
+For Replit Deployment:
+1. Go to your Replit project
+2. Open the "Secrets" tab (lock icon in the left sidebar)
+3. Add a new secret:
+   - Key: `EXTERNAL_API_KEY`
+   - Value: Your secure random key (e.g., `sk_live_abc123xyz789`)
+4. Restart your application
+
+For Local Development:
 Set the `EXTERNAL_API_KEY` environment variable in your `.env` file:
 
 ```env
 EXTERNAL_API_KEY=your_secure_random_key_here
+```
+
+**Generating a Secure API Key:**
+```bash
+# Generate a random 32-character key
+node -e "console.log('sk_' + require('crypto').randomBytes(24).toString('hex'))"
 ```
 
 ## Rate Limiting
