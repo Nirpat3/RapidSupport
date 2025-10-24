@@ -400,10 +400,24 @@ async function processFileForAITraining(
     // ✅ AUTOMATIC INDEXING: Index the article asynchronously (non-blocking)
     setImmediate(async () => {
       try {
+        // Mark as indexing
+        await storage.updateKnowledgeBase(knowledgeArticle.id, { indexingStatus: 'indexing' });
+        
         const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
         await knowledgeRetrieval.reindexArticle(knowledgeArticle.id);
+        
+        // Mark as indexed with timestamp
+        await storage.updateKnowledgeBase(knowledgeArticle.id, { 
+          indexingStatus: 'indexed',
+          indexedAt: new Date()
+        });
         console.log(`✅ Successfully indexed article ${knowledgeArticle.id} for AI search`);
       } catch (indexError) {
+        // Mark as failed with error message
+        await storage.updateKnowledgeBase(knowledgeArticle.id, { 
+          indexingStatus: 'failed',
+          indexingError: indexError instanceof Error ? indexError.message : String(indexError)
+        });
         console.error(`⚠️ Warning: Failed to index article ${knowledgeArticle.id}:`, indexError);
       }
     });
@@ -4555,10 +4569,24 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // ✅ AUTOMATIC INDEXING: Index the article asynchronously (non-blocking)
       setImmediate(async () => {
         try {
+          // Mark as indexing
+          await storage.updateKnowledgeBase(newArticle.id, { indexingStatus: 'indexing' });
+          
           const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
           await knowledgeRetrieval.reindexArticle(newArticle.id);
+          
+          // Mark as indexed with timestamp
+          await storage.updateKnowledgeBase(newArticle.id, { 
+            indexingStatus: 'indexed',
+            indexedAt: new Date()
+          });
           console.log(`✅ Successfully indexed manually created article ${newArticle.id} for AI search`);
         } catch (indexError) {
+          // Mark as failed with error message
+          await storage.updateKnowledgeBase(newArticle.id, { 
+            indexingStatus: 'failed',
+            indexingError: indexError instanceof Error ? indexError.message : String(indexError)
+          });
           console.error(`⚠️ Warning: Failed to index article ${newArticle.id}:`, indexError);
         }
       });
@@ -4603,10 +4631,24 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // ✅ AUTOMATIC RE-INDEXING: Re-index the article asynchronously (non-blocking)
       setImmediate(async () => {
         try {
+          // Mark as indexing
+          await storage.updateKnowledgeBase(id, { indexingStatus: 'indexing' });
+          
           const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
           await knowledgeRetrieval.reindexArticle(id);
+          
+          // Mark as indexed with timestamp
+          await storage.updateKnowledgeBase(id, { 
+            indexingStatus: 'indexed',
+            indexedAt: new Date()
+          });
           console.log(`✅ Successfully re-indexed updated article ${id} for AI search`);
         } catch (indexError) {
+          // Mark as failed with error message
+          await storage.updateKnowledgeBase(id, { 
+            indexingStatus: 'failed',
+            indexingError: indexError instanceof Error ? indexError.message : String(indexError)
+          });
           console.error(`⚠️ Warning: Failed to re-index article ${id}:`, indexError);
         }
       });
@@ -5200,10 +5242,24 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           // ✅ AUTOMATIC INDEXING: Index the article asynchronously (non-blocking)
           setImmediate(async () => {
             try {
+              // Mark as indexing
+              await storage.updateKnowledgeBase(article.id, { indexingStatus: 'indexing' });
+              
               const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
               await knowledgeRetrieval.reindexArticle(article.id);
+              
+              // Mark as indexed with timestamp
+              await storage.updateKnowledgeBase(article.id, { 
+                indexingStatus: 'indexed',
+                indexedAt: new Date()
+              });
               console.log(`✅ Successfully indexed uploaded document ${article.id} for AI search`);
             } catch (indexError) {
+              // Mark as failed with error message
+              await storage.updateKnowledgeBase(article.id, { 
+                indexingStatus: 'failed',
+                indexingError: indexError instanceof Error ? indexError.message : String(indexError)
+              });
               console.error(`⚠️ Warning: Failed to index article ${article.id}:`, indexError);
             }
           });
@@ -5338,10 +5394,24 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // ✅ AUTOMATIC INDEXING: Index the article asynchronously (non-blocking)
       setImmediate(async () => {
         try {
+          // Mark as indexing
+          await storage.updateKnowledgeBase(article.id, { indexingStatus: 'indexing' });
+          
           const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
           await knowledgeRetrieval.reindexArticle(article.id);
+          
+          // Mark as indexed with timestamp
+          await storage.updateKnowledgeBase(article.id, { 
+            indexingStatus: 'indexed',
+            indexedAt: new Date()
+          });
           console.log(`✅ Successfully indexed URL-imported article ${article.id} for AI search`);
         } catch (indexError) {
+          // Mark as failed with error message
+          await storage.updateKnowledgeBase(article.id, { 
+            indexingStatus: 'failed',
+            indexingError: indexError instanceof Error ? indexError.message : String(indexError)
+          });
           console.error(`⚠️ Warning: Failed to index article ${article.id}:`, indexError);
         }
       });
