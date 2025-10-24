@@ -1,0 +1,111 @@
+Gotcha—this is almost always a retrieval/ingestion issue, not “the model.” Here’s a tight checklist to get your Support AI pulling the right facts from your docs.
+
+1) Quick triage (do these first)
+	•	Log what was retrieved. For every answer, print the top-k chunks (title, section, score). If they look wrong, the issue is upstream of the model.
+	•	Single-doc sanity test. Point your retriever at one small doc and ask a question with an exact phrase from it. If it still fails, your chunking/embeddings/index wiring is off.
+	•	Needle test. Insert a known sentence (“Blue fox code 739.”) into one doc and query it. If it’s not in the top 3 results, fix ingestion/retrieval before anything else.
+
+2) Ingestion & indexing (most common source of failure)
+	•	Parse cleanly.
+	•	PDFs: use a robust parser (e.g., PyMuPDF or PDFPlumber) + OCR for scans; drop headers/footers/page numbers; keep reading order.
+	•	HTML/Docs: keep headings and lists; remove nav/menus.
+	•	Chunk smartly.
+	•	Support KBs like 300–500 tokens per chunk with ~50-token overlap.
+	•	Preserve hierarchy: store h1/h2/h3 path and section title in each chunk.
+	•	Keep tables as CSV/markdown blocks if possible (don’t let them fragment).
+	•	Metadata is gold.
+	•	Include: doc_id, title, section, product, feature, version, audience (agent/customer), updated_at, and any tags.
+	•	You’ll use these to filter & boost later.
+	•	Embeddings.
+	•	Use a modern, high-dimensional embedding model. Re-embed after parser or chunking changes.
+	•	Normalize text: Unicode NFC, lowercase (optional), strip extra whitespace.
+	•	Deduplicate.
+	•	Hash chunks; drop near-duplicates to avoid swamping the index.
+
+3) Retrieval settings that actually work
+	•	Hybrid search wins. Combine BM25 (keyword) + dense vector. Weighted sum or two-stage (keyword candidate set → dense re-rank).
+	•	Top-k & diversity.
+	•	Start with top_k = 8–12.
+	•	Use MMR (diversity) or a cross-encoder re-ranker to avoid 10 near-identical chunks.
+	•	Filters.
+	•	Apply metadata filters when the user context hints at them: e.g., product=RapidRMS, version=v3, audience=customer.
+	•	Add a date decay or updated_at sort so fresh policy beats stale docs.
+	•	Score threshold.
+	•	If best score < threshold, abstain and ask for clarification or surface helpful links instead of hallucinating.
+
+4) Conversation → search query (query rewriting)
+	•	Build a search query from the last user turn plus conversation state and any detected entities (product, feature, OS, error code).
+	•	Add synonyms from a domain glossary (“forecourt” ≈ “FCC controller”, “pump controller”, etc.).
+	•	Example (pseudo):
+	•	user: “Why won’t pump auth on iXPay?”
+	•	search query: product:"RapidRMS" feature:"fuel dispenser" device:"Wayne iXPay" action:"authorization" status:"failed" error_code:*
+
+5) Answering prompt (make it grounded)
+
+Use an instruction like this for the LLM:
+	•	“Use only the provided context snippets. Cite the source and section for every fact. If the answer isn’t in the snippets, say you don’t know and suggest the most relevant doc/section to check. Prefer the most recent policy (by updated_at). If steps vary by version, ask which version or present both.”
+
+Add guardrails:
+	•	Penalize content not in context.
+	•	Ask the model to quote the exact config names/labels from context when possible.
+
+6) Debugging playbook (what to check when it’s “not pulling data”)
+	•	Chunk size too big/small? If too big, the right sentence is buried; too small, context splits across chunks. Try 400 ± 100 with overlap.
+	•	Missing headings? If the index doesn’t store the section titles, results look generic and re-rankers underperform.
+	•	Wrong field boosted. Make sure title and section get boost, not just the body.
+	•	Tables/images. If answers live in tables/screenshots, ensure you:
+	•	Run table extraction (tabular → CSV/markdown).
+	•	Run OCR on images and link the extracted text back to the chunk.
+	•	Stale index. After doc updates, are you re-parsing, re-chunking, and re-embedding? Set up incremental re-index jobs.
+	•	Encoding issues. Check for weird quotes, bullets, or non-ASCII that break tokenization.
+	•	Over-aggressive filters. If you filter product=POS, you may hide cross-product policies. Log the active filters per query.
+	•	Re-ranker missing. Add a cross-encoder or ColBERT-style re-rank stage; it often doubles perceived relevance.
+
+7) Minimal reference implementation (pseudo)
+
+# ingest
+docs = parse_files(paths)                  # preserve headings, extract tables
+chunks = chunk(docs, size=450, overlap=60, keep_headings=True)
+embeds = embed(chunks.text)                # modern embedding model
+index.upsert(ids=chunks.ids, vectors=embeds, metadata=chunks.meta)
+
+# retrieval
+def retrieve(user_msg, convo):
+    query = rewrite_query(user_msg, convo, glossary=domain_glossary)
+    cand_kw = bm25.search(query, k=50, filters=metadata_from_context(convo))
+    cand_vec = vectordb.search(query, k=50, filters=…)
+    cands = merge(cand_kw, cand_vec, weights=(0.4, 0.6))
+    reranked = cross_encoder_rerank(query, cands)  # or MMR
+    return reranked[:10]
+
+# generate
+ctx = retrieve(user_msg, convo)
+answer = llm("""
+You are a support agent. Use ONLY these snippets. 
+For each claim, cite [title → section]. 
+If unsure, say you don't know and suggest a doc to check.
+""", context=ctx)
+
+8) Evaluation (fast and useful)
+	•	Build a golden set of ~30 real tickets → expected doc/section and a short ideal answer.
+	•	Track:
+	•	Recall@k (did the right chunk appear in top-k?),
+	•	Answer groundedness (binary, human-graded on 10 samples),
+	•	Time-to-first-correct (how many retrieval iterations).
+	•	Run the suite after any change to parser, chunker, embeddings, or re-ranker.
+
+9) Common “gotchas” cheat sheet
+	•	Scanned PDFs without OCR → zero hits.
+	•	Multi-version docs without version metadata → contradictory answers.
+	•	Policies hidden in appendices or footnotes → increase top-k and keep overlap.
+	•	Overlapping brand/product names → require disambiguation in the query rewriter.
+	•	Long FAQs with repeated Qs → enable MMR or deduplicate by semantic similarity post-retrieval.
+
+⸻
+
+If you want, tell me:
+	•	your stack (e.g., Pinecone/Weaviate/Elasticsearch, LangChain/LlamaIndex/custom),
+	•	sample doc types, and
+	•	one query that failed (plus what it should have returned),
+
+…and I’ll map these settings to exact code and defaults for your setup.
