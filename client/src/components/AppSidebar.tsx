@@ -32,7 +32,8 @@ import {
   Shield,
   TrendingUp,
   Bell,
-  FileText
+  FileText,
+  Code
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -126,6 +127,11 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
 ];
 
 const supportItems = [
+  {
+    title: "Widget Setup",
+    url: "/widget-setup",
+    icon: Code
+  },
   {
     title: "Documentation",
     url: "/documentation",
