@@ -5,6 +5,7 @@ import {
   messages,
   notifications,
   messageReads,
+  messageRatings,
   tickets,
   attachments,
   activityLogs,
@@ -90,6 +91,8 @@ import {
   type InsertActivityNotification,
   type UserPermission,
   type InsertUserPermission,
+  type MessageRating,
+  type InsertMessageRating,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte } from "drizzle-orm";
@@ -365,6 +368,11 @@ export interface IStorage {
     resolutionQuality: string | null;
     createdAt: string;
   }>>;
+
+  // Message Rating operations
+  rateMessage(messageId: string, userId: string | null, customerId: string | null, rating: 'like' | 'dislike'): Promise<MessageRating>;
+  getMessageRating(messageId: string, userId: string | null, customerId: string | null): Promise<MessageRating | undefined>;
+  getMessageRatingSummary(messageId: string): Promise<{ likes: number; dislikes: number; userRating: 'like' | 'dislike' | null }>;
 
   // Agent Performance Stats operations
   calculateAndStoreAgentStats(agentId: string, periodStart: Date, periodEnd: Date): Promise<AgentPerformanceStats>;
@@ -3103,6 +3111,67 @@ export class DatabaseStorage implements IStorage {
       conversationSubject: r.conversationSubject || 'Untitled Conversation',
       createdAt: r.createdAt.toISOString(),
     }));
+  }
+
+  // Message Rating operations
+  async rateMessage(messageId: string, userId: string | null, customerId: string | null, rating: 'like' | 'dislike'): Promise<MessageRating> {
+    // Check if a rating already exists for this message and user/customer
+    const existingRating = await this.getMessageRating(messageId, userId, customerId);
+
+    if (existingRating) {
+      // Update existing rating
+      const [updatedRating] = await db
+        .update(messageRatings)
+        .set({ rating })
+        .where(eq(messageRatings.id, existingRating.id))
+        .returning();
+      return updatedRating;
+    }
+
+    // Create new rating
+    const [newRating] = await db
+      .insert(messageRatings)
+      .values({
+        messageId,
+        userId,
+        customerId,
+        rating,
+      })
+      .returning();
+    return newRating;
+  }
+
+  async getMessageRating(messageId: string, userId: string | null, customerId: string | null): Promise<MessageRating | undefined> {
+    let conditions = [eq(messageRatings.messageId, messageId)];
+    
+    if (userId) {
+      conditions.push(eq(messageRatings.userId, userId));
+    }
+    if (customerId) {
+      conditions.push(eq(messageRatings.customerId, customerId));
+    }
+
+    const [rating] = await db
+      .select()
+      .from(messageRatings)
+      .where(and(...conditions));
+    return rating || undefined;
+  }
+
+  async getMessageRatingSummary(messageId: string): Promise<{ likes: number; dislikes: number; userRating: 'like' | 'dislike' | null }> {
+    const allRatings = await db
+      .select()
+      .from(messageRatings)
+      .where(eq(messageRatings.messageId, messageId));
+
+    const likes = allRatings.filter(r => r.rating === 'like').length;
+    const dislikes = allRatings.filter(r => r.rating === 'dislike').length;
+
+    return {
+      likes,
+      dislikes,
+      userRating: null, // This will be determined by the API endpoint based on the current user
+    };
   }
 
   // Agent Performance Stats operations

@@ -2275,6 +2275,55 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Message Rating Routes
+  // Rate a message (like/dislike)
+  app.post('/api/messages/:messageId/rate', async (req, res) => {
+    try {
+      const { messageId } = req.params;
+      const { rating } = req.body;
+
+      // Validate rating
+      if (rating !== 'like' && rating !== 'dislike') {
+        return res.status(400).json({ error: 'Rating must be either "like" or "dislike"' });
+      }
+
+      // Determine user/customer from session
+      const user = req.user as any;
+      const userId = user?.id || null;
+      const customerId = req.body.customerId || null; // For customer ratings
+
+      // Rate the message
+      const messageRating = await storage.rateMessage(messageId, userId, customerId, rating);
+
+      res.status(200).json(messageRating);
+    } catch (error) {
+      console.error('Message rating error:', error);
+      res.status(500).json({ error: 'Failed to rate message' });
+    }
+  });
+
+  // Get rating summary for a message
+  app.get('/api/messages/:messageId/rating', async (req, res) => {
+    try {
+      const { messageId } = req.params;
+
+      // Get the rating summary
+      const summary = await storage.getMessageRatingSummary(messageId);
+
+      // Determine user rating if authenticated
+      const user = req.user as any;
+      if (user) {
+        const userRating = await storage.getMessageRating(messageId, user.id, null);
+        summary.userRating = userRating?.rating || null;
+      }
+
+      res.status(200).json(summary);
+    } catch (error) {
+      console.error('Get message rating error:', error);
+      res.status(500).json({ error: 'Failed to get message rating' });
+    }
+  });
+
   // Dashboard and analytics routes
   app.get('/api/dashboard/stats', requireAuth, async (req, res) => {
     try {
