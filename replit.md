@@ -29,7 +29,9 @@ The backend is a Node.js Express.js application in TypeScript, providing a RESTf
 - **Customer Portal**: Provides authenticated customers with self-service access to support history, profile management, and feedback.
 - **External Channel Integration**: Supports WhatsApp Business API, Telegram Bot, and Facebook Messenger via webhooks.
 - **Third-Party Integration API**: A RESTful API endpoint enables external applications to embed support chat with pre-filled customer data, custom context data, and multi-tenant support using API key authentication and rate limiting.
-- **Agent Management System**: Admin interface for creating, editing, and deleting AI agents, configuring system prompts, temperature, max tokens, and monitoring performance.
+- **AI Configuration**: Consolidated interface for creating, editing, and deleting AI agents, configuring system prompts, temperature, max tokens, response formats, and monitoring performance (replaces separate AI Agents and Agent Management pages).
+- **AI Performance Insights**: Unified dashboard for monitoring AI performance metrics, testing agents, and reviewing learning analytics (consolidates Staff AI Dashboard, AI Training, and AI Learning pages into one comprehensive view).
+- **Human Oversight**: Monitor active AI conversations and take control when needed (formerly AI Takeover, renamed for clarity).
 
 ## External Dependencies
 

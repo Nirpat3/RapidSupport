@@ -72,34 +72,18 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     icon: Users
   },
   {
-    title: "AI Agents",
-    url: "/ai-agents", 
+    title: "AI Configuration",
+    url: "/ai-configuration", 
     icon: Bot
   },
   {
-    title: "Staff AI Dashboard",
-    url: "/ai-dashboard", 
-    icon: Activity
-  },
-  {
-    title: "AI Training",
-    url: "/ai-training", 
-    icon: Brain
-  },
-  {
-    title: "AI Learning",
-    url: "/ai-learning", 
+    title: "AI Performance",
+    url: "/ai-performance", 
     icon: TrendingUp
   },
   {
-    title: "Agent Management",
-    url: "/agent-management", 
-    icon: Settings,
-    adminOnly: true
-  },
-  {
-    title: "AI Takeover",
-    url: "/ai-takeover", 
+    title: "Human Oversight",
+    url: "/human-oversight", 
     icon: UserCheck
   },
   {

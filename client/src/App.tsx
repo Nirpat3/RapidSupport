@@ -18,12 +18,9 @@ import CustomerChatPage from "@/pages/CustomerChatPage";
 import SupportPage from "@/pages/SupportPage";
 import EmbedChatWidget from "@/pages/EmbedChatWidget";
 import SupportCenterWidget from "@/pages/SupportCenterWidget";
-import AIAgentsPage from "@/pages/AIAgentsPage";
-import StaffAIDashboard from "@/pages/StaffAIDashboard";
-import AITrainingPage from "@/pages/AITrainingPage";
-import StaffTakeoverPage from "@/pages/StaffTakeoverPage";
-import AILearningDashboard from "@/pages/AILearningDashboard";
-import AgentManagement from "@/pages/AgentManagement";
+import AIConfigurationPage from "@/pages/AIConfigurationPage";
+import AIPerformanceInsightsPage from "@/pages/AIPerformanceInsightsPage";
+import HumanOversightPage from "@/pages/HumanOversightPage";
 import KnowledgeManagementPage from "@/pages/KnowledgeManagementPage";
 import FileManagementPage from "@/pages/FileManagementPage";
 import AgentAnalyticsPage from "@/pages/AgentAnalyticsPage";
@@ -77,34 +74,19 @@ function Router() {
           <CustomersPage />
         </PermissionGuard>
       </Route>
-      <Route path="/ai-agents">
+      <Route path="/ai-configuration">
         <PermissionGuard feature="ai-agents">
-          <AIAgentsPage />
+          <AIConfigurationPage />
         </PermissionGuard>
       </Route>
-      <Route path="/ai-dashboard">
+      <Route path="/ai-performance">
         <PermissionGuard feature="ai-dashboard">
-          <StaffAIDashboard />
+          <AIPerformanceInsightsPage />
         </PermissionGuard>
       </Route>
-      <Route path="/ai-training">
-        <PermissionGuard feature="ai-training">
-          <AITrainingPage />
-        </PermissionGuard>
-      </Route>
-      <Route path="/ai-learning">
-        <PermissionGuard feature="ai-learning">
-          <AILearningDashboard />
-        </PermissionGuard>
-      </Route>
-      <Route path="/agent-management">
-        <PermissionGuard feature="agent-management">
-          <AgentManagement />
-        </PermissionGuard>
-      </Route>
-      <Route path="/ai-takeover">
+      <Route path="/human-oversight">
         <PermissionGuard feature="ai-takeover">
-          <StaffTakeoverPage />
+          <HumanOversightPage />
         </PermissionGuard>
       </Route>
       <Route path="/knowledge">
