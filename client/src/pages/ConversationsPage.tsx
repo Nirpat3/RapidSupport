@@ -520,7 +520,7 @@ export default function ConversationsPage() {
       </div>
       
       {/* Chat interface - Mobile: Full screen when active, Desktop: Side panel */}
-      <div className={`${activeConversationId ? 'flex' : 'hidden lg:flex'} flex-col flex-1 min-w-0 h-full overflow-hidden`}>
+      <div className={`${activeConversationId ? 'flex' : 'hidden lg:flex'} flex-col flex-1 min-w-0 h-full`}>
         {/* Mobile Back Button */}
         {activeConversationId && (
           <div className="lg:hidden flex items-center gap-2 p-3 border-b bg-background/50">
