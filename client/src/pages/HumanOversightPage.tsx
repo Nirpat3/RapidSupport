@@ -141,7 +141,7 @@ export default function HumanOversightPage() {
   }
 
   return (
-    <div className="p-6 space-y-6" data-testid="page-staff-takeover">
+    <div className="p-6 space-y-6" data-testid="page-human-oversight">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Bot className="w-6 h-6" />

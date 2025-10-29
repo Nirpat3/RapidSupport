@@ -6,6 +6,17 @@ Support Board is a full-stack customer support platform designed for real-time c
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Navigation Structure
+
+### AI Management (Consolidated)
+The platform features a streamlined AI management interface with three focused sections:
+
+1. **AI Configuration** (`/ai-configuration`): Central hub for creating, editing, and deleting AI agents. Configure system prompts, temperature settings, max tokens, response formats, and monitor individual agent performance. Consolidates the former "AI Agents" and "Agent Management" pages.
+
+2. **AI Performance Insights** (`/ai-performance`): Unified analytics dashboard for monitoring AI performance metrics across all agents. View conversation statistics, test agent responses, track learning analytics, and review quality scores. Consolidates the former "Staff AI Dashboard", "AI Training", and "AI Learning" pages.
+
+3. **Human Oversight** (`/human-oversight`): Real-time monitoring of active AI conversations with the ability to intervene and take manual control when needed. View confidence scores, message counts, and initiate handoffs. Formerly known as "AI Takeover", renamed for clarity.
+
 ## System Architecture
 
 ### UI/UX Decisions
