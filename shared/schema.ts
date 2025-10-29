@@ -91,6 +91,19 @@ export const messageReads = pgTable("message_reads", {
   uniqueMessageUser: unique().on(table.messageId, table.userId),
 }));
 
+// Message Ratings table - tracks like/dislike ratings on messages
+export const messageRatings = pgTable("message_ratings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull().references(() => messages.id),
+  userId: varchar("user_id").references(() => users.id), // Can be null for anonymous ratings
+  customerId: varchar("customer_id").references(() => customers.id), // For customer ratings
+  rating: text("rating").notNull(), // 'like' | 'dislike'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  // Ensure each user/customer can only rate a message once
+  uniqueMessageRating: unique().on(table.messageId, table.userId, table.customerId),
+}));
+
 // Attachments table - for file uploads in messages
 export const attachments = pgTable("attachments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1270,3 +1283,12 @@ export const PERMISSION_FEATURES = [
 
 export type PermissionFeature = typeof PERMISSION_FEATURES[number];
 export type PermissionLevel = 'hidden' | 'view' | 'edit';
+
+// Message Ratings insert schema and types
+export const insertMessageRatingSchema = createInsertSchema(messageRatings).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMessageRating = z.infer<typeof insertMessageRatingSchema>;
+export type MessageRating = typeof messageRatings.$inferSelect;
