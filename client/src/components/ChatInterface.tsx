@@ -863,7 +863,7 @@ export default function ChatInterface({
             <ChatMessage 
               key={message.id}
               message={message}
-              isCurrentUser={message.sender.role !== 'customer'}
+              isCurrentUser={message.sender.id === user?.id}
               viewerRole={user?.role}
             />
           ))}
