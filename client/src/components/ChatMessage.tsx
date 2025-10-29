@@ -1,7 +1,11 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
-import { Sparkles, Lock, Info } from "lucide-react";
+import { Sparkles, Lock, Info, ThumbsUp, ThumbsDown } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useState } from "react";
 
 export interface Message {
   id: string;
@@ -158,6 +162,37 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
   
   // Staff (agents and admins) can see all indicators, customers cannot
   const isStaffViewer = viewerRole === 'agent' || viewerRole === 'admin';
+
+  // Message rating state
+  const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
+
+  // Fetch message rating
+  const { data: ratingData } = useQuery<{
+    likes: number;
+    dislikes: number;
+    userRating: 'like' | 'dislike' | null;
+  }>({
+    queryKey: [`/api/messages/${message.id}/rating`],
+    enabled: !isCurrentUser && !isSystem, // Don't show ratings for own messages or system messages
+  });
+
+  // Rating mutation
+  const rateMutation = useMutation({
+    mutationFn: (rating: 'like' | 'dislike') =>
+      apiRequest(`/api/messages/${message.id}/rate`, 'POST', { rating }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/messages/${message.id}/rating`] });
+    },
+  });
+
+  const handleRating = (rating: 'like' | 'dislike') => {
+    if (userRating === rating) {
+      // If clicking the same rating, do nothing
+      return;
+    }
+    setUserRating(rating);
+    rateMutation.mutate(rating);
+  };
   
   // System messages have special centered layout
   if (isSystem) {
@@ -241,6 +276,47 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
         >
           {renderFormattedContent(message.content)}
         </div>
+
+        {/* Message Rating Buttons - Show for agent/AI messages (not for customer's own messages or system messages) */}
+        {!isCurrentUser && !isSystem && (isAgent || isAI) && (
+          <div className="flex items-center gap-1 mt-2">
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`h-6 w-6 ${(ratingData?.userRating === 'like' || userRating === 'like') ? 'text-green-600' : 'text-muted-foreground'}`}
+              onClick={() => handleRating('like')}
+              data-testid={`button-like-${message.id}`}
+            >
+              <ThumbsUp className="h-3 w-3" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`h-6 w-6 ${(ratingData?.userRating === 'dislike' || userRating === 'dislike') ? 'text-red-600' : 'text-muted-foreground'}`}
+              onClick={() => handleRating('dislike')}
+              data-testid={`button-dislike-${message.id}`}
+            >
+              <ThumbsDown className="h-3 w-3" />
+            </Button>
+            {ratingData && (ratingData.likes > 0 || ratingData.dislikes > 0) && (
+              <span className="text-xs text-muted-foreground ml-1 flex items-center gap-1" data-testid={`rating-count-${message.id}`}>
+                {ratingData.likes > 0 && (
+                  <span className="flex items-center">
+                    <ThumbsUp className="h-3 w-3 mr-0.5" />
+                    {ratingData.likes}
+                  </span>
+                )}
+                {ratingData.likes > 0 && ratingData.dislikes > 0 && <span>·</span>}
+                {ratingData.dislikes > 0 && (
+                  <span className="flex items-center">
+                    <ThumbsDown className="h-3 w-3 mr-0.5" />
+                    {ratingData.dislikes}
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+        )}
         
         {message.status && isCurrentUser && (
           <span className="text-xs text-muted-foreground mt-1" data-testid={`status-${message.id}`}>
