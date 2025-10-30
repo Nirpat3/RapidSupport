@@ -21,6 +21,7 @@ export interface Message {
   format?: 'regular' | 'steps'; // AI response format
   scope?: 'public' | 'internal'; // Internal messages only visible to staff
   senderType?: 'customer' | 'agent' | 'admin' | 'ai' | 'system'; // Actual sender type (AI vs human agent or system)
+  isRead?: boolean; // Whether current user has read this message
 }
 
 interface ChatMessageProps {
@@ -356,6 +357,11 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
               : isAgent || isAI
               ? 'bg-accent text-accent-foreground'
               : 'bg-muted text-muted-foreground'
+          } ${
+            // Only highlight unread messages from others (not own messages, not system messages)
+            !isCurrentUser && !isSystem && message.isRead === false
+              ? 'ring-2 ring-primary/50 shadow-lg' 
+              : ''
           }`}
           data-testid={`message-content-${message.id}`}
         >

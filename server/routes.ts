@@ -1386,7 +1386,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  app.put('/api/conversations/:conversationId/mark-read', requireAuth, async (req, res) => {
+  app.post('/api/conversations/:conversationId/mark-read', requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
       
@@ -1423,9 +1423,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
       
+      const user = req.user as any;
       const messages = await storage.getMessagesByConversation(req.params.id);
       
-      // Enrich messages with sender information
+      // Get read status for all messages
+      const messageIds = messages.map(m => m.id);
+      const readStatus = await storage.getMessagesReadStatus(messageIds, user.id);
+      
+      // Enrich messages with sender information and read status
       const enrichedMessages = await Promise.all(
         messages.map(async (message) => {
           let sender;
@@ -1463,6 +1468,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             scope: message.scope,
             timestamp: message.timestamp,
             status: message.status,
+            isRead: readStatus.get(message.id) || false,
             sender
           };
         })

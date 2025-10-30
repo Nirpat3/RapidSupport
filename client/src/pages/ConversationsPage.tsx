@@ -175,8 +175,39 @@ export default function ConversationsPage() {
     mutationFn: async (conversationId: string) => {
       return await apiRequest(`/api/conversations/${conversationId}/mark-read`, 'POST');
     },
-    onSuccess: () => {
+    onMutate: async (conversationId: string) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ['/api/unread-counts'] });
+      
+      // Snapshot the previous value for rollback
+      const previousUnreadCounts = queryClient.getQueryData<Array<{ conversationId: string; unreadCount: number }>>(['/api/unread-counts']);
+      
+      // Optimistically update the unread count to 0 for immediate UI feedback
+      queryClient.setQueryData<Array<{ conversationId: string; unreadCount: number }>>(
+        ['/api/unread-counts'],
+        (oldData) => {
+          if (!oldData) return oldData;
+          return oldData.map(item =>
+            item.conversationId === conversationId
+              ? { ...item, unreadCount: 0 }
+              : item
+          );
+        }
+      );
+      
+      // Return snapshot for rollback
+      return { previousUnreadCounts };
+    },
+    onError: (err, conversationId, context) => {
+      // Rollback to previous state on error
+      if (context?.previousUnreadCounts) {
+        queryClient.setQueryData(['/api/unread-counts'], context.previousUnreadCounts);
+      }
+    },
+    onSettled: (_, __, conversationId) => {
+      // Always invalidate to ensure cache matches server state
       queryClient.invalidateQueries({ queryKey: ['/api/unread-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
     }
   });
 

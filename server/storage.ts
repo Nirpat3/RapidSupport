@@ -153,6 +153,7 @@ export interface IStorage {
   createMessageRead(messageId: string, userId: string): Promise<void>;
   markAllConversationMessagesAsRead(conversationId: string, userId: string): Promise<boolean>; // Returns true if conversation found, false otherwise
   getUnreadMessageCountsPerConversation(userId: string): Promise<Array<{ conversationId: string; unreadCount: number }>>;
+  getMessagesReadStatus(messageIds: string[], userId: string): Promise<Map<string, boolean>>; // Returns Map of messageId => isRead
 
   // Ticket operations
   getTicket(id: string): Promise<Ticket | undefined>;
@@ -990,6 +991,30 @@ export class DatabaseStorage implements IStorage {
       .groupBy(messages.conversationId);
 
     return result;
+  }
+
+  async getMessagesReadStatus(messageIds: string[], userId: string): Promise<Map<string, boolean>> {
+    if (messageIds.length === 0) {
+      return new Map();
+    }
+
+    // Get all message reads for this user and these messages
+    const reads = await db
+      .select({ messageId: messageReads.messageId })
+      .from(messageReads)
+      .where(
+        and(
+          eq(messageReads.userId, userId),
+          inArray(messageReads.messageId, messageIds)
+        )
+      );
+
+    // Create a Map with all messageIds set to false, then update the ones that are read
+    const readStatus = new Map<string, boolean>();
+    messageIds.forEach(id => readStatus.set(id, false));
+    reads.forEach(read => readStatus.set(read.messageId, true));
+
+    return readStatus;
   }
 
   // Ticket operations
