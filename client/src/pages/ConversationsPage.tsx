@@ -479,6 +479,7 @@ export default function ConversationsPage() {
             {/* Chat Messages */}
             <ChatInterface
               conversationId={activeConversationId}
+              customer={activeConversation.customer}
               messages={activeMessages}
             />
           </>
