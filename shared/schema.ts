@@ -4,6 +4,33 @@ import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Organizations table - for multi-tenant support
+export const organizations = pgTable("organizations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(), // URL-friendly identifier (e.g., 'acme', 'techco')
+  // Branding
+  logo: text("logo"), // URL or path to logo
+  primaryColor: text("primary_color").default("#2563eb"), // Hex color for primary brand color
+  secondaryColor: text("secondary_color").default("#64748b"), // Hex color for secondary brand color
+  // Custom domain support
+  customDomain: text("custom_domain"), // e.g., 'support.acme.com'
+  subdomain: text("subdomain"), // e.g., 'acme' for acme.supportboard.com
+  // Organization settings
+  welcomeMessage: text("welcome_message"), // Custom welcome message for customer chat
+  aiEnabled: boolean("ai_enabled").notNull().default(true), // Enable/disable AI for this org
+  knowledgeBaseEnabled: boolean("knowledge_base_enabled").notNull().default(true),
+  // Contact info
+  supportEmail: text("support_email"),
+  supportPhone: text("support_phone"),
+  website: text("website"),
+  // Status
+  status: text("status").notNull().default("active"), // 'active' | 'suspended' | 'trial'
+  trialEndsAt: timestamp("trial_ends_at"), // For trial accounts
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Users table - for agents and admins
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -11,6 +38,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   name: text("name").notNull(),
   role: text("role").notNull().default("agent"), // 'agent' | 'admin'
+  organizationId: varchar("organization_id").references(() => organizations.id), // Staff belong to organizations
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -26,7 +54,7 @@ export const customers = pgTable("customers", {
   ipAddress: text("ip_address"), // Track IP for session management
   tags: text("tags").array(), // Array of tags for categorization
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
-  organizationId: varchar("organization_id"), // For API key multi-tenant scoping
+  organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   // Portal access fields
   portalPassword: text("portal_password"), // Hashed password for portal login (nullable - not all customers have portal access)
   hasPortalAccess: boolean("has_portal_access").notNull().default(false), // Whether customer can access portal
@@ -53,7 +81,7 @@ export const conversations = pgTable("conversations", {
   followupDate: timestamp("followup_date"), // When this conversation needs follow-up (nullable)
   aiAssistanceEnabled: boolean("ai_assistance_enabled").notNull().default(true), // Toggle AI auto-response
   contextData: text("context_data"), // JSON string for custom context from 3rd party integrations (product info, page context, etc.)
-  organizationId: varchar("organization_id"), // For API key multi-tenant scoping
+  organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -218,6 +246,7 @@ export const aiAgents = pgTable("ai_agents", {
   maxTokens: integer("max_tokens").notNull().default(1000),
   temperature: integer("temperature").notNull().default(30), // Stored as integer (0-100), divided by 100 for API
   responseFormat: text("response_format").notNull().default('conversational'), // 'conversational' | 'step_by_step' | 'faq' | 'technical' | 'bullet_points'
+  organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -246,6 +275,7 @@ export const knowledgeBase = pgTable("knowledge_base", {
   urlDescription: text("url_description"), // Meta description from URL
   // Agent assignment
   assignedAgentIds: text("assigned_agent_ids").array(), // Which specific agents can access this knowledge
+  organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   createdBy: varchar("created_by").references(() => users.id),
   // Indexing status tracking
   indexingStatus: text("indexing_status").notNull().default("pending"), // 'pending' | 'indexing' | 'indexed' | 'failed'
@@ -368,7 +398,7 @@ export const tickets = pgTable("tickets", {
   customerId: varchar("customer_id").notNull().references(() => customers.id),
   assignedAgentId: varchar("assigned_agent_id").references(() => users.id),
   conversationId: varchar("conversation_id").references(() => conversations.id), // Link to conversation if escalated
-  organizationId: varchar("organization_id"), // For API key multi-tenant scoping
+  organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   // AI-related fields for automated ticket generation
   isAiGenerated: boolean("is_ai_generated").notNull().default(false), // Track if AI generated title/description
   aiConfidenceScore: integer("ai_confidence_score"), // AI confidence in generated content (0-100)
@@ -638,11 +668,29 @@ export const aiAgentFileUsageRelations = relations(aiAgentFileUsage, ({ one }) =
 }));
 
 // Insert schemas
+export const insertOrganizationSchema = createInsertSchema(organizations).pick({
+  name: true,
+  slug: true,
+  logo: true,
+  primaryColor: true,
+  secondaryColor: true,
+  customDomain: true,
+  subdomain: true,
+  welcomeMessage: true,
+  aiEnabled: true,
+  knowledgeBaseEnabled: true,
+  supportEmail: true,
+  supportPhone: true,
+  website: true,
+  status: true,
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   password: true,
   name: true,
   role: true,
+  organizationId: true,
 });
 
 export const insertCustomerSchema = createInsertSchema(customers).pick({
@@ -990,6 +1038,8 @@ export const insertAiAgentSessionSchema = createInsertSchema(aiAgentSessions).pi
 });
 
 // Types
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+export type Organization = typeof organizations.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
@@ -1056,6 +1106,7 @@ export const posts = pgTable("posts", {
   visibility: text("visibility").notNull().default("internal"), // 'internal' | 'all_customers' | 'targeted'
   targetedUserIds: text("targeted_user_ids").array(), // Specific user/customer IDs when visibility='targeted'
   isUrgent: boolean("is_urgent").notNull().default(false), // Urgent/priority flag
+  organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
