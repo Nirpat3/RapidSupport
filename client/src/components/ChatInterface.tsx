@@ -458,7 +458,7 @@ export default function ChatInterface({
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-background">
+    <div className="flex-1 flex flex-col overflow-hidden bg-background">
       {/* Enhanced Chat Header */}
       <div className="sticky top-0 z-10 border-b border-border bg-card">
         {/* Main Header Info */}
