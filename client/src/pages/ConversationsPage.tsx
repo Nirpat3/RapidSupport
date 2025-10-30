@@ -164,9 +164,10 @@ export default function ConversationsPage() {
   });
 
   // Fetch messages for active conversation
-  const { data: activeMessages = [], isLoading: messagesLoading } = useQuery<Message[]>({
+  const { data: activeMessages = [], isLoading: messagesLoading, refetch: refetchMessages } = useQuery<Message[]>({
     queryKey: ['/api/conversations', activeConversationId, 'messages'],
     enabled: !!activeConversationId,
+    staleTime: 0, // Always consider data stale to ensure fresh fetches
   });
 
   // Mark conversation as read when viewing
@@ -215,6 +216,10 @@ export default function ConversationsPage() {
     setActiveConversationId(conversationId);
     setShowMobileList(false);
     setLocation(`/conversations/${conversationId}`);
+    // Force refresh messages when selecting conversation
+    queryClient.invalidateQueries({ 
+      queryKey: ['/api/conversations', conversationId, 'messages'] 
+    });
   };
 
   // Handle back to list on mobile
