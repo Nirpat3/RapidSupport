@@ -148,6 +148,7 @@ export default function ConversationsPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(params.id || null);
   const [activeTab, setActiveTab] = useState("active");
   const { markAsRead } = useNotifications();
+  const [ws, setWs] = useState<WebSocket | null>(null);
   
   // Update activeConversationId when URL parameter changes
   useEffect(() => {
@@ -155,6 +156,74 @@ export default function ConversationsPage() {
       setActiveConversationId(params.id);
     }
   }, [params.id, activeConversationId]);
+  
+  // WebSocket connection for real-time updates
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
+    
+    const websocket = new WebSocket(wsUrl);
+    
+    websocket.onopen = () => {
+      console.log('[ConversationsPage] WebSocket connected');
+      setWs(websocket);
+    };
+    
+    websocket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // Handle new messages
+        if (data.type === 'new_message' && data.conversationId) {
+          // Refresh messages for the active conversation
+          if (data.conversationId === activeConversationId) {
+            queryClient.invalidateQueries({ 
+              queryKey: ['/api/conversations', activeConversationId, 'messages'] 
+            });
+          }
+          // Also refresh the conversation list
+          queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+        }
+      } catch (error) {
+        console.error('[ConversationsPage] Error parsing WebSocket message:', error);
+      }
+    };
+    
+    websocket.onclose = () => {
+      console.log('[ConversationsPage] WebSocket disconnected');
+      setWs(null);
+    };
+    
+    return () => {
+      websocket.close();
+    };
+  }, []);
+  
+  // Join/leave conversation via WebSocket
+  useEffect(() => {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !activeConversationId) return;
+    
+    // Join the conversation
+    ws.send(JSON.stringify({
+      type: 'join_conversation',
+      conversationId: activeConversationId
+    }));
+    
+    console.log(`[ConversationsPage] Joined conversation: ${activeConversationId}`);
+    
+    // Leave conversation on cleanup or when changing conversations
+    return () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'leave_conversation',
+          conversationId: activeConversationId
+        }));
+        console.log(`[ConversationsPage] Left conversation: ${activeConversationId}`);
+      }
+    };
+  }, [ws, activeConversationId]);
   
   // Fetch real conversations from API instead of using sample data
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<any[]>({

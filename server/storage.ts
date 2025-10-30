@@ -175,7 +175,7 @@ export interface IStorage {
   getConversationBySession(sessionId: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null>;
   getConversationByIP(ipAddress: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null>;
   createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }>;
-  getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string; attachments?: Attachment[] }>>;
+  getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent' | 'ai'; senderName: string; timestamp: string; attachments?: Attachment[] }>>;
   createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message>;
   findExistingCustomer(email: string, phone: string, company: string): Promise<Customer | undefined>;
 
@@ -1343,7 +1343,7 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent'; senderName: string; timestamp: string; attachments?: Attachment[] }>> {
+  async getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent' | 'ai'; senderName: string; timestamp: string; attachments?: Attachment[] }>> {
     const messageResults = await db
       .select({
         message: messages,
@@ -1364,8 +1364,18 @@ export class DatabaseStorage implements IStorage {
       messageResults.map(async (result) => {
         const message = result.message;
         let senderName = 'Unknown';
+        let senderType: 'customer' | 'agent' | 'ai' = message.senderType as 'customer' | 'agent';
         
-        if (message.senderType === 'customer' && result.customer) {
+        // Check if this is an AI message - either the system AI agent or any AI agent from aiAgents table
+        // The system AI agent ID is used for all AI-generated messages
+        const AI_SYSTEM_AGENT_ID = 'ai-system-agent-001';
+        const isAiMessage = message.senderId === AI_SYSTEM_AGENT_ID || 
+                           (!result.customer && !result.agent && (message.senderType === 'agent' || message.senderType === 'admin'));
+        
+        if (isAiMessage) {
+          senderType = 'ai';
+          senderName = 'Alex (AI Assistant)';
+        } else if (message.senderType === 'customer' && result.customer) {
           senderName = result.customer.name;
         } else if ((message.senderType === 'agent' || message.senderType === 'admin') && result.agent) {
           senderName = result.agent.name;
@@ -1376,7 +1386,7 @@ export class DatabaseStorage implements IStorage {
         return {
           id: message.id,
           content: message.content,
-          senderType: message.senderType as 'customer' | 'agent',
+          senderType,
           senderName,
           timestamp: message.timestamp.toISOString(),
           attachments: messageAttachments.length > 0 ? messageAttachments : undefined,

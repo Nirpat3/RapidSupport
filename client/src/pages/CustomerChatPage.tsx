@@ -91,6 +91,10 @@ export default function CustomerChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  
+  // WebSocket state
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   // Initialize chat state with localStorage persistence
   const [chatState, setChatState] = useState<ChatState>(() => {
@@ -131,6 +135,23 @@ export default function CustomerChatPage() {
   useEffect(() => {
     localStorage.setItem('customer-chat-state', JSON.stringify(chatState));
   }, [chatState]);
+  
+  // WebSocket connection for real-time updates (no auth required for customer chat)
+  useEffect(() => {
+    // Customer chat doesn't use WebSocket auth, only staff connections do
+    // So we won't establish a WebSocket connection here to avoid auth errors
+    // Instead, we'll rely on polling for customer messages
+    return;
+  }, []);
+  
+  // Join conversation via WebSocket when conversationId changes
+  useEffect(() => {
+    if (!chatState.conversationId) return;
+    
+    // For customer chat, we rely on polling instead of WebSocket
+    // because customer WebSocket connections don't have authentication
+    return;
+  }, [chatState.conversationId]);
 
   // Check for existing conversation - always run to get IP address
   const { data: existingConversation } = useQuery<ExistingConversationResponse | null>({
@@ -141,7 +162,7 @@ export default function CustomerChatPage() {
   const { data: messages = [], refetch: refetchMessages } = useQuery<ChatMessage[]>({
     queryKey: ['/api/customer-chat/messages', chatState.conversationId],
     enabled: !!chatState.conversationId,
-    refetchInterval: chatStarted ? 3000 : false,
+    refetchInterval: chatStarted ? 1000 : false, // Poll more frequently for real-time feel
   });
 
   // Fetch conversation details to check status (using public endpoint)

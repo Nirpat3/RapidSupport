@@ -2040,6 +2040,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const { conversationId, content } = messageCreateSchema.parse(req.body);
       const user = req.user as any;
       
+      console.log(`[POST /api/messages] Staff ${user.name} (${user.role}) sending message to conversation ${conversationId}`);
+      
       // Check if conversation exists
       const conversation = await storage.getConversation(conversationId);
       if (!conversation) {
@@ -2060,6 +2062,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Determine sender type from user role
       const senderType = user.role === 'admin' ? 'admin' : 'agent';
       
+      console.log(`[POST /api/messages] Creating message with senderId=${user.id}, senderType=${senderType}, scope=public`);
       const message = await storage.createMessage({
         conversationId,
         senderId: user.id,
@@ -2067,6 +2070,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         content,
         scope: 'public'
       });
+      console.log(`[POST /api/messages] Message created successfully: ${message.id}`);
       
       // Auto-disable AI assistance when an agent responds
       if (conversation.aiAssistanceEnabled) {
@@ -2584,10 +2588,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.get('/api/customer-chat/messages/:conversationId', async (req, res) => {
     try {
       const { conversationId } = req.params;
+      console.log(`[customer-chat/messages] Fetching messages for conversation: ${conversationId}`);
       const messages = await storage.getCustomerChatMessages(conversationId);
+      console.log(`[customer-chat/messages] Returned ${messages.length} messages:`, messages.map(m => ({ id: m.id, senderType: m.senderType, content: m.content.substring(0, 50) })));
+      
+      // Disable caching for real-time message updates
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       
       res.json(messages);
     } catch (error) {
+      console.error('[customer-chat/messages] Error fetching messages:', error);
       res.status(500).json({ error: 'Failed to fetch messages' });
     }
   });
