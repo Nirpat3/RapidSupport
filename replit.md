@@ -22,6 +22,14 @@ The platform features a streamlined AI management interface with three focused s
 ### UI/UX Decisions
 The frontend uses React 18, TypeScript, and Vite, leveraging Radix UI components with Tailwind CSS in a shadcn/ui pattern for a custom design system supporting light/dark themes. The customer chat features a Perplexity-style redesign with a prominent hero input, progressive disclosure of customer information, suggested questions, and visual feature cards. Design aesthetics are Apple/Stripe-like, utilizing SF Pro/Inter font stacks, refined letter-spacing, layered subtle shadows, elegant border radii, and comprehensive typography utilities. The layout ensures independent scrolling for conversation lists and chat interfaces across devices, and mobile message input has been optimized for small screens. Floating chat widgets are integrated into the main page and knowledge base for instant AI assistance.
 
+**Staff Conversations Page** (`/conversations`): Redesigned with a clean, mobile-first approach featuring a 2-column layout (conversation list + chat area) on desktop that collapses to a single view on mobile (< 768px). The interface includes:
+- **Conversation List**: Sidebar (320-384px wide) with search, status filtering, and scrollable list. Each conversation displays customer avatar, name, message preview, status icon, timestamp, and priority indicator.
+- **Unread Tracking**: Visual indicators include red badge with count on avatar, bold text for unread conversations, and accent background. Conversations are automatically marked as read when viewed.
+- **Mobile Navigation**: Single view mode that switches between list and chat with a back button to return to list.
+- **Real-time Updates**: WebSocket integration for live message updates and unread count synchronization.
+- **Management Controls**: Status dropdown (open, pending, resolved, closed) and agent assignment selector in chat header.
+- **Safe Search**: Search filter safely handles missing customer data and message content with fallback empty strings.
+
 ### Technical Implementations
 The backend is a Node.js Express.js application in TypeScript, providing a RESTful API with Zod validation and rate limiting. Authentication is session-based using Passport.js (local strategy, bcrypt for hashing) and Express sessions with a PostgreSQL store. A custom WebSocket server facilitates real-time communication. PostgreSQL is the database, accessed via Drizzle ORM, with Neon serverless for connection pooling. Authentication includes role-based access control (Admin, Agent, Customer) and anonymous customer support via `sessionId` and IP tracking, with a granular permission system for staff access control.
 
