@@ -1,190 +1,116 @@
 import { useState, useEffect } from "react";
-import { useParams } from "wouter";
-import ConversationList, { type Conversation } from "@/components/ConversationList";
-import ChatInterface from "@/components/ChatInterface";
-import { type Message } from "@/components/ChatMessage";
+import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Users, Search, MessageSquare, ArrowLeft, Clock, CheckCircle, History, AlertCircle } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  MessageSquare,
+  Search,
+  ArrowLeft,
+  MoreVertical,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  User,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useNotifications } from "@/contexts/NotificationContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatDistanceToNow } from "date-fns";
+import ChatInterface from "@/components/ChatInterface";
+import { type Message } from "@/components/ChatMessage";
 
-// TODO: remove mock functionality
-const sampleConversations: Conversation[] = [
-  {
-    id: '1',
-    customer: {
-      id: 'cust1',
-      name: 'John Doe',
-      status: 'online'
-    },
-    lastMessage: {
-      content: 'I need help with my account setup',
-      timestamp: new Date(Date.now() - 1000 * 60 * 5),
-      sender: 'customer'
-    },
-    unreadCount: 2,
-    status: 'open',
-    priority: 'high'
-  },
-  {
-    id: '2',
-    customer: {
-      id: 'cust2',
-      name: 'Sarah Wilson',
-      status: 'away'
-    },
-    lastMessage: {
-      content: 'Thank you for your help!',
-      timestamp: new Date(Date.now() - 1000 * 60 * 15),
-      sender: 'customer'
-    },
-    unreadCount: 0,
-    status: 'resolved',
-    priority: 'low'
-  },
-  {
-    id: '3',
-    customer: {
-      id: 'cust3',
-      name: 'Mike Johnson',
-      status: 'offline'
-    },
-    lastMessage: {
-      content: 'Payment issue with my subscription',
-      timestamp: new Date(Date.now() - 1000 * 60 * 30),
-      sender: 'customer'
-    },
-    unreadCount: 1,
-    status: 'pending',
-    priority: 'urgent'
-  },
-  {
-    id: '4',
-    customer: {
-      id: 'cust4',
-      name: 'Emma Davis',
-      status: 'busy'
-    },
-    lastMessage: {
-      content: 'Can you help me understand the pricing?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60),
-      sender: 'customer'
-    },
-    unreadCount: 0,
-    status: 'open',
-    priority: 'medium'
-  }
-];
+interface Conversation {
+  id: string;
+  customer?: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+  customerId?: string;
+  lastMessage?: {
+    content: string;
+    timestamp: string;
+    senderType: string;
+  };
+  status: string;
+  priority: string;
+  assignedAgentId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
-const sampleMessages: { [key: string]: Message[] } = {
-  '1': [
-    {
-      id: '1',
-      content: 'Hello! I need help with my account setup.',
-      sender: {
-        id: 'customer1',
-        name: 'John Doe',
-        role: 'customer'
-      },
-      timestamp: new Date(Date.now() - 1000 * 60 * 10),
-      status: 'read'
-    },
-    {
-      id: '2',
-      content: 'Hi John! I\'d be happy to help you with your account setup. What specific issue are you experiencing?',
-      sender: {
-        id: 'agent1',
-        name: 'Sarah Smith',
-        role: 'agent'
-      },
-      timestamp: new Date(Date.now() - 1000 * 60 * 8)
-    },
-    {
-      id: '3',
-      content: 'I\'m having trouble uploading my profile picture. The upload button doesn\'t seem to work.',
-      sender: {
-        id: 'customer1',
-        name: 'John Doe',
-        role: 'customer'
-      },
-      timestamp: new Date(Date.now() - 1000 * 60 * 5),
-      status: 'delivered'
-    }
-  ],
-  '3': [
-    {
-      id: '1',
-      content: 'Hi, I\'m having a payment issue with my subscription.',
-      sender: {
-        id: 'customer3',
-        name: 'Mike Johnson',
-        role: 'customer'
-      },
-      timestamp: new Date(Date.now() - 1000 * 60 * 30),
-      status: 'read'
-    },
-    {
-      id: '2',
-      content: 'I\'m sorry to hear about the payment issue. Let me help you resolve this. Can you tell me what error message you\'re seeing?',
-      sender: {
-        id: 'agent1',
-        name: 'Sarah Smith',
-        role: 'agent'
-      },
-      timestamp: new Date(Date.now() - 1000 * 60 * 25)
-    }
-  ]
+const statusIcons = {
+  open: AlertCircle,
+  pending: Clock,
+  resolved: CheckCircle,
+  closed: CheckCircle,
+};
+
+const statusColors = {
+  open: "text-blue-500",
+  pending: "text-yellow-500",
+  resolved: "text-green-500",
+  closed: "text-gray-500",
+};
+
+const priorityColors = {
+  low: "bg-blue-500",
+  medium: "bg-yellow-500",
+  high: "bg-orange-500",
+  urgent: "bg-red-500",
 };
 
 export default function ConversationsPage() {
-  const params = useParams<{ id?: string }>();
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(params.id || null);
-  const [activeTab, setActiveTab] = useState("active");
-  const { markAsRead } = useNotifications();
+  const params = useParams();
+  const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
+  const [activeConversationId, setActiveConversationId] = useState<string | undefined>(
+    params.id
+  );
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [ws, setWs] = useState<WebSocket | null>(null);
-  
-  // Update activeConversationId when URL parameter changes
-  useEffect(() => {
-    if (params.id && params.id !== activeConversationId) {
-      setActiveConversationId(params.id);
-    }
-  }, [params.id, activeConversationId]);
-  
-  // WebSocket connection for real-time updates
+  const [showMobileList, setShowMobileList] = useState(!params.id);
+
+  // WebSocket setup
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
     
     const websocket = new WebSocket(wsUrl);
+    setWs(websocket);
     
     websocket.onopen = () => {
       console.log('[ConversationsPage] WebSocket connected');
-      setWs(websocket);
     };
     
     websocket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         
-        // Handle new messages
         if (data.type === 'new_message' && data.conversationId) {
-          // Refresh messages for the active conversation
           if (data.conversationId === activeConversationId) {
             queryClient.invalidateQueries({ 
               queryKey: ['/api/conversations', activeConversationId, 'messages'] 
             });
           }
-          // Also refresh the conversation list
           queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/unread-counts'] });
         }
       } catch (error) {
         console.error('[ConversationsPage] Error parsing WebSocket message:', error);
@@ -199,13 +125,12 @@ export default function ConversationsPage() {
     return () => {
       websocket.close();
     };
-  }, []);
+  }, [activeConversationId]);
   
   // Join/leave conversation via WebSocket
   useEffect(() => {
     if (!ws || ws.readyState !== WebSocket.OPEN || !activeConversationId) return;
     
-    // Join the conversation
     ws.send(JSON.stringify({
       type: 'join_conversation',
       conversationId: activeConversationId
@@ -213,7 +138,6 @@ export default function ConversationsPage() {
     
     console.log(`[ConversationsPage] Joined conversation: ${activeConversationId}`);
     
-    // Leave conversation on cleanup or when changing conversations
     return () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
@@ -224,18 +148,18 @@ export default function ConversationsPage() {
       }
     };
   }, [ws, activeConversationId]);
-  
-  // Fetch real conversations from API instead of using sample data
-  const { data: conversations = [], isLoading: conversationsLoading } = useQuery<any[]>({
+
+  // Fetch conversations
+  const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ['/api/conversations'],
   });
 
-  // Fetch unread counts for conversations (using new message-level tracking API)
+  // Fetch unread counts
   const { data: unreadCounts = [] } = useQuery<Array<{ conversationId: string; unreadCount: number }>>({
     queryKey: ['/api/unread-counts'],
   });
 
-  // Fetch staff members for assignment dropdown
+  // Fetch staff members
   const { data: staffMembers = [] } = useQuery<Array<{ id: string; name: string; email: string; role: string }>>({
     queryKey: ['/api/users/staff'],
   });
@@ -246,122 +170,72 @@ export default function ConversationsPage() {
     enabled: !!activeConversationId,
   });
 
-  const { toast } = useToast();
-
-  // Convert API conversation data to match ConversationList format
-  const formattedConversations: Conversation[] = conversations.map(conv => {
-    const unreadCount = unreadCounts.find(u => u.conversationId === conv.id)?.unreadCount || 0;
-    return {
-      id: conv.id,
-      customer: {
-        id: conv.customer?.id || conv.customerId,
-        name: conv.customer?.name || 'Unknown Customer',
-        status: conv.customer?.status || 'offline'
-      },
-      lastMessage: conv.lastMessage || {
-        content: 'No messages yet',
-        timestamp: new Date(conv.updatedAt || conv.createdAt),
-        sender: 'customer'
-      },
-      unreadCount,
-      status: conv.status || 'open',
-      priority: conv.priority || 'medium',
-      isAssigned: Boolean(conv.assignedAgentId), // True only if there's an assigned agent
-      assignedAgentId: conv.assignedAgentId,
-      followupDate: conv.followupDate ? new Date(conv.followupDate) : undefined
-    };
-  });
-
-  // Filter conversations by tab type
-  const { user } = useAuth();
-  const currentUserId = user?.id;
-  
-  // Filter conversations for each tab
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // Start of today
-  
-  const followupConversations = formattedConversations.filter(conv => {
-    // Show conversations that have a follow-up date scheduled AND it's not due yet
-    if (!conv.followupDate) return false;
-    const followupDate = new Date(conv.followupDate);
-    followupDate.setHours(0, 0, 0, 0);
-    return followupDate > today; // Only show if follow-up is in the future
-  });
-  
-  const newConversations = formattedConversations.filter(conv => {
-    // Include unassigned open conversations
-    const isUnassignedOpen = !conv.isAssigned && conv.status === 'open';
-    
-    // Also include conversations with follow-up due today or overdue
-    const hasFollowupDueToday = conv.followupDate && (() => {
-      const followupDate = new Date(conv.followupDate);
-      followupDate.setHours(0, 0, 0, 0);
-      return followupDate <= today;
-    })();
-    
-    return isUnassignedOpen || hasFollowupDueToday;
-  });
-  
-  // Active: ALL conversations (open and pending), regardless of assignment
-  const activeConversations = formattedConversations.filter(conv => 
-    ['open', 'pending'].includes(conv.status)
-  );
-  
-  // Assigned to Me: Only conversations assigned to current user
-  const assignedToMeConversations = formattedConversations.filter(conv => 
-    conv.assignedAgentId === currentUserId
-  );
-  
-  const historyConversations = formattedConversations.filter(conv => 
-    ['resolved', 'closed'].includes(conv.status)
-  );
-
-  // Calculate unread and total counts for each tab
-  const activeUnreadCount = activeConversations.filter(conv => conv.unreadCount > 0).length;
-  const assignedUnreadCount = assignedToMeConversations.filter(conv => conv.unreadCount > 0).length;
-  const followupUnreadCount = followupConversations.filter(conv => conv.unreadCount > 0).length;
-  
-  // Calculate total active conversations (combining active, assigned, and followup without duplicates)
-  const allActiveConversations = formattedConversations.filter(conv => 
-    ['open', 'pending'].includes(conv.status) || 
-    (conv.followupDate && new Date(conv.followupDate) > today)
-  );
-  const totalActiveCount = allActiveConversations.length;
-  const totalActiveUnreadCount = allActiveConversations.filter(conv => conv.unreadCount > 0).length;
-
-  // Get conversations for current tab
-  const getCurrentTabConversations = () => {
-    switch (activeTab) {
-      case "active": return activeConversations;
-      case "assigned": return assignedToMeConversations;
-      case "followup": return followupConversations;
-      case "history": return historyConversations;
-      default: return activeConversations;
+  // Mark conversation as read when viewing
+  const markAsReadMutation = useMutation({
+    mutationFn: async (conversationId: string) => {
+      return await apiRequest(`/api/conversations/${conversationId}/mark-read`, 'POST');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/unread-counts'] });
     }
+  });
+
+  // Effect to mark conversation as read when viewing
+  useEffect(() => {
+    if (activeConversationId) {
+      markAsReadMutation.mutate(activeConversationId);
+    }
+  }, [activeConversationId]);
+
+  // Filter and search conversations
+  const filteredConversations = conversations.filter(conv => {
+    const matchesSearch = searchQuery === "" || 
+      conv.customer?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.customer?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.lastMessage?.content.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesStatus = statusFilter === "all" || conv.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  // Sort by most recent message
+  const sortedConversations = [...filteredConversations].sort((a, b) => {
+    const aTime = new Date(a.lastMessage?.timestamp || a.updatedAt).getTime();
+    const bTime = new Date(b.lastMessage?.timestamp || b.updatedAt).getTime();
+    return bTime - aTime;
+  });
+
+  // Get unread count for a conversation
+  const getUnreadCount = (conversationId: string) => {
+    return unreadCounts.find(u => u.conversationId === conversationId)?.unreadCount || 0;
   };
 
-  // Assign conversation to a staff member
+  // Handle conversation selection
+  const handleSelectConversation = (conversationId: string) => {
+    setActiveConversationId(conversationId);
+    setShowMobileList(false);
+    setLocation(`/conversations/${conversationId}`);
+  };
+
+  // Handle back to list on mobile
+  const handleBackToList = () => {
+    setShowMobileList(true);
+    setActiveConversationId(undefined);
+    setLocation('/conversations');
+  };
+
+  // Assign conversation mutation
   const assignMutation = useMutation({
     mutationFn: async ({ conversationId, agentId }: { conversationId: string; agentId: string }) => {
       return await apiRequest(`/api/conversations/${conversationId}/assign`, 'PUT', { agentId });
     },
-    onSuccess: (_, { conversationId, agentId }) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
-      const assignedAgent = staffMembers.find(s => s.id === agentId);
-      const isAssignedToMe = agentId === currentUserId;
-      
       toast({
         title: "Success",
-        description: isAssignedToMe 
-          ? "Conversation assigned to you successfully" 
-          : `Conversation assigned to ${assignedAgent?.name || 'staff member'}`,
+        description: "Conversation assigned successfully",
       });
-      
-      // If assigned to current user, switch to assigned tab
-      if (isAssignedToMe) {
-        setActiveTab('assigned');
-        setActiveConversationId(conversationId);
-      }
     },
     onError: (error: any) => {
       toast({
@@ -372,246 +246,248 @@ export default function ConversationsPage() {
     }
   });
 
-  // Auto-selection removed to improve mobile UX - users can choose their conversation manually
-
-  // Get active conversation object
-  const activeConversation = activeConversationId 
-    ? formattedConversations.find(conv => conv.id === activeConversationId) 
-    : null;
-
-  // Mark conversation as read when it becomes active
-  useEffect(() => {
-    if (activeConversationId) {
-      // Mark as read in notification context (for notification badge)
-      markAsRead(activeConversationId);
-      
-      // Mark all messages in the conversation as read using new message-level tracking API
-      apiRequest(`/api/conversations/${activeConversationId}/mark-read`, 'PUT', {})
-        .then(() => {
-          // Invalidate and refetch unread counts query immediately to update UI
-          queryClient.invalidateQueries({ queryKey: ['/api/unread-counts'] });
-          queryClient.refetchQueries({ queryKey: ['/api/unread-counts'] });
-        })
-        .catch((error) => {
-          console.log('Note: Could not mark conversation as read:', error);
-        });
-    }
-  }, [activeConversationId]);
-  
-  // Send message mutation
-  const sendMessage = useMutation({
-    mutationFn: async ({ conversationId, content }: { conversationId: string; content: string }) => {
-      return await apiRequest('/api/messages', 'POST', { conversationId, content });
+  // Update status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ conversationId, status }: { conversationId: string; status: string }) => {
+      return await apiRequest(`/api/conversations/${conversationId}/status`, 'PUT', { status });
     },
     onSuccess: () => {
-      // Invalidate and refetch messages after sending
-      queryClient.invalidateQueries({ queryKey: ['/api/conversations', activeConversationId, 'messages'] });
-      // Also invalidate conversations list to reflect status changes (e.g., closed → open)
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      toast({
+        title: "Success",
+        description: "Status updated successfully",
+      });
     },
     onError: (error: any) => {
-      console.error('Send message mutation failed:', error);
-      
-      let errorMessage = "Please check your connection and try again";
-      const errorMsg = typeof error?.message === 'string' ? error.message : '';
-      
-      // Handle specific error types
-      if (error?.status === 401 || errorMsg.includes('401')) {
-        errorMessage = "Authentication required. Please refresh the page and log in again";
-      } else if (error?.status === 403 || errorMsg.includes('403')) {
-        errorMessage = "You don't have permission to send messages to this conversation";
-      } else if (errorMsg) {
-        errorMessage = errorMsg;
-      }
-      
-      // Show error toast to user
       toast({
-        title: "Failed to send message",
-        description: errorMessage,
+        title: "Error",
+        description: error.message || "Failed to update status",
         variant: "destructive",
       });
     }
   });
 
-  const handleSendMessage = (content: string) => {
-    if (!activeConversationId) return;
-    
-    sendMessage.mutate({ 
-      conversationId: activeConversationId, 
-      content 
-    });
-  };
-  
-  const handleAssign = (conversationId: string, agentId: string) => {
-    assignMutation.mutate({ conversationId, agentId });
-  };
+  const activeConversation = conversations.find(c => c.id === activeConversationId);
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen overflow-hidden" data-testid="conversations-page">
-      {/* Mobile: Show conversation list OR chat interface, Desktop: Side by side */}
-      <div className={`${activeConversationId ? 'hidden lg:flex' : 'flex'} flex-col lg:w-96 lg:flex-shrink-0 w-full h-full overflow-hidden bg-card lg:border-r`}>
+    <div className="flex h-screen overflow-hidden">
+      {/* Conversation List Sidebar - Desktop always visible, Mobile conditional */}
+      <div className={`
+        w-full md:w-80 lg:w-96 
+        border-r flex flex-col
+        ${showMobileList ? 'block' : 'hidden md:block'}
+      `}>
         {/* Header */}
-        <div className="p-3 lg:p-4 border-b bg-background/50">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-primary" />
-              <h2 className="font-semibold text-base lg:text-lg">Conversations</h2>
-            </div>
-            <div className="text-xs text-muted-foreground" data-testid="conversation-counts">
-              New - <span className="font-semibold text-primary">{totalActiveUnreadCount}</span> unread vs <span className="font-semibold">{totalActiveCount}</span> total
-            </div>
+        <div className="p-4 border-b">
+          <div className="flex items-center gap-2 mb-3">
+            <MessageSquare className="w-5 h-5 text-primary" />
+            <h1 className="text-lg font-semibold" data-testid="page-title">Conversations</h1>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+
+          {/* Search */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Search conversations..."
-              className="pl-10 text-sm"
-              data-testid="input-search-conversations-main"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+              data-testid="input-search-conversations"
             />
           </div>
+
+          {/* Status Filter */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger data-testid="select-status-filter">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="open">Open</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+              <SelectItem value="closed">Closed</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Conversation Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-          <TabsList className="grid w-full grid-cols-4 mx-3 mt-3 flex-shrink-0">
-            <TabsTrigger value="active" className="text-xs" data-testid="tab-active">
-              <MessageSquare className="h-3 w-3 mr-1" />
-              Active
-              <Badge variant="secondary" className="ml-1 text-xs px-1" data-testid="badge-active">
-                {activeUnreadCount}/{activeConversations.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="assigned" className="text-xs" data-testid="tab-assigned">
-              <Users className="h-3 w-3 mr-1" />
-              Mine
-              <Badge variant="secondary" className="ml-1 text-xs px-1" data-testid="badge-assigned">
-                {assignedUnreadCount}/{assignedToMeConversations.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="followup" className="text-xs" data-testid="tab-followup">
-              <Clock className="h-3 w-3 mr-1" />
-              Follow-up
-              <Badge variant="outline" className="ml-1 text-xs px-1" data-testid="badge-followup">
-                {followupUnreadCount}/{followupConversations.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="history" className="text-xs" data-testid="tab-history">
-              <CheckCircle className="h-3 w-3 mr-1" />
-              History
-              {historyConversations.length > 0 && (
-                <Badge variant="outline" className="ml-1 text-xs px-1" data-testid="badge-history">
-                  {historyConversations.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="active" className="flex-1 mt-0 overflow-hidden">
-            <div className="h-full overflow-y-auto p-3">
-              <p className="text-sm text-muted-foreground mb-3">
-                All active conversations
-              </p>
-              {activeConversations.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No active conversations</p>
-                </div>
-              ) : (
-                <ConversationList
-                  conversations={activeConversations}
-                  activeConversationId={activeConversationId || undefined}
-                  onSelectConversation={setActiveConversationId}
-                />
-              )}
+        {/* Conversation List */}
+        <ScrollArea className="flex-1">
+          {conversationsLoading ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <div className="animate-pulse">Loading conversations...</div>
             </div>
-          </TabsContent>
-
-          <TabsContent value="assigned" className="flex-1 mt-0 overflow-hidden">
-            <div className="h-full overflow-y-auto p-3">
-              <p className="text-sm text-muted-foreground mb-3">
-                Conversations assigned to you
-              </p>
-              {assignedToMeConversations.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No assigned conversations</p>
-                </div>
-              ) : (
-                <ConversationList
-                  conversations={assignedToMeConversations}
-                  activeConversationId={activeConversationId || undefined}
-                  onSelectConversation={setActiveConversationId}
-                />
-              )}
+          ) : sortedConversations.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground" data-testid="no-conversations">
+              <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No conversations found</p>
             </div>
-          </TabsContent>
+          ) : (
+            <div className="p-2">
+              {sortedConversations.map((conversation) => {
+                const unreadCount = getUnreadCount(conversation.id);
+                const isActive = activeConversationId === conversation.id;
+                const StatusIcon = statusIcons[conversation.status as keyof typeof statusIcons] || MessageSquare;
+                
+                return (
+                  <Button
+                    key={conversation.id}
+                    variant={isActive ? "secondary" : "ghost"}
+                    className={`
+                      w-full p-3 h-auto justify-start mb-1 hover-elevate
+                      ${unreadCount > 0 ? 'bg-accent/50' : ''}
+                    `}
+                    onClick={() => handleSelectConversation(conversation.id)}
+                    data-testid={`conversation-${conversation.id}`}
+                  >
+                    <div className="flex items-start gap-3 w-full">
+                      {/* Avatar */}
+                      <div className="relative flex-shrink-0">
+                        <Avatar className="w-10 h-10">
+                          <AvatarFallback>
+                            {conversation.customer?.name?.slice(0, 2).toUpperCase() || 'UN'}
+                          </AvatarFallback>
+                        </Avatar>
+                        {unreadCount > 0 && (
+                          <div className="absolute -top-1 -right-1">
+                            <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
+                              {unreadCount}
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
 
-          <TabsContent value="followup" className="flex-1 mt-0 overflow-hidden">
-            <div className="h-full overflow-y-auto p-3">
-              <p className="text-sm text-muted-foreground mb-3">
-                Conversations scheduled for follow-up
-              </p>
-              {followupConversations.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No follow-ups scheduled</p>
-                </div>
-              ) : (
-                <ConversationList
-                  conversations={followupConversations}
-                  activeConversationId={activeConversationId || undefined}
-                  onSelectConversation={setActiveConversationId}
-                />
-              )}
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <h3 className={`text-sm font-medium truncate ${unreadCount > 0 ? 'font-bold' : ''}`}>
+                            {conversation.customer?.name || 'Unknown Customer'}
+                          </h3>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {conversation.priority !== 'low' && (
+                              <div className={`w-2 h-2 rounded-full ${priorityColors[conversation.priority as keyof typeof priorityColors]}`} />
+                            )}
+                          </div>
+                        </div>
+                        
+                        <p className={`text-xs text-muted-foreground truncate mb-1 ${unreadCount > 0 ? 'font-semibold' : ''}`}>
+                          {conversation.lastMessage?.content || 'No messages yet'}
+                        </p>
+                        
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <StatusIcon className={`w-3 h-3 ${statusColors[conversation.status as keyof typeof statusColors]}`} />
+                          <span className="capitalize">{conversation.status}</span>
+                          <span>•</span>
+                          <span>
+                            {formatDistanceToNow(new Date(conversation.lastMessage?.timestamp || conversation.updatedAt), { addSuffix: true })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Button>
+                );
+              })}
             </div>
-          </TabsContent>
-
-          <TabsContent value="history" className="flex-1 mt-0 overflow-hidden">
-            <div className="h-full overflow-y-auto p-3">
-              <p className="text-sm text-muted-foreground mb-3">
-                Resolved and closed conversations
-              </p>
-              {historyConversations.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CheckCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No conversation history</p>
-                </div>
-              ) : (
-                <ConversationList
-                  conversations={historyConversations}
-                  activeConversationId={activeConversationId || undefined}
-                  onSelectConversation={setActiveConversationId}
-                />
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+          )}
+        </ScrollArea>
       </div>
-      
-      {/* Chat interface - Mobile: Full screen when active, Desktop: Side panel */}
-      <div className={`${activeConversationId ? 'flex' : 'hidden lg:flex'} flex-col flex-1 min-w-0 h-full`}>
-        {/* Mobile Back Button */}
-        {activeConversationId && (
-          <div className="lg:hidden flex items-center gap-2 p-3 border-b bg-background/50">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setActiveConversationId(null)}
-              className="flex items-center gap-2"
-              data-testid="button-back-to-conversations"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Conversations
-            </Button>
+
+      {/* Chat Area - Desktop always visible, Mobile conditional */}
+      <div className={`
+        flex-1 flex flex-col
+        ${showMobileList ? 'hidden md:flex' : 'flex'}
+      `}>
+        {activeConversationId && activeConversation ? (
+          <>
+            {/* Chat Header */}
+            <div className="p-4 border-b flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {/* Mobile back button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  onClick={handleBackToList}
+                  data-testid="button-back-to-list"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+
+                <Avatar>
+                  <AvatarFallback>
+                    {activeConversation.customer?.name?.slice(0, 2).toUpperCase() || 'UN'}
+                  </AvatarFallback>
+                </Avatar>
+
+                <div>
+                  <h2 className="font-semibold" data-testid="chat-customer-name">
+                    {activeConversation.customer?.name || 'Unknown Customer'}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    {activeConversation.customer?.email}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Status Selector */}
+                <Select
+                  value={activeConversation.status}
+                  onValueChange={(status) => 
+                    updateStatusMutation.mutate({ conversationId: activeConversationId, status })
+                  }
+                >
+                  <SelectTrigger className="w-32" data-testid="select-conversation-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Assign Selector */}
+                <Select
+                  value={activeConversation.assignedAgentId || "unassigned"}
+                  onValueChange={(agentId) => {
+                    if (agentId !== "unassigned") {
+                      assignMutation.mutate({ conversationId: activeConversationId, agentId });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-40" data-testid="select-assign-agent">
+                    <SelectValue placeholder="Assign to..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {staffMembers.map((staff) => (
+                      <SelectItem key={staff.id} value={staff.id}>
+                        {staff.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Chat Messages */}
+            <ChatInterface
+              conversationId={activeConversationId}
+              messages={activeMessages}
+              isLoading={messagesLoading}
+            />
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            <div className="text-center">
+              <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg font-medium mb-1">No conversation selected</p>
+              <p className="text-sm">Choose a conversation from the list to start messaging</p>
+            </div>
           </div>
         )}
-        
-        <ChatInterface
-          conversationId={activeConversationId || undefined}
-          customer={activeConversation?.customer}
-          messages={activeMessages}
-          onSendMessage={handleSendMessage}
-        />
       </div>
     </div>
   );
