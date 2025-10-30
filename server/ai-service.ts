@@ -1391,8 +1391,29 @@ The more details you can share, the better I can help you resolve this quickly!"
         adjustedConfidence = Math.min(adjustedConfidence, 25);
       }
       
+      // Extract unique KB articles for reference links
+      const uniqueArticles = new Map<string, { id: string; title: string }>();
+      for (const result of searchResults.slice(0, 3)) { // Top 3 most relevant
+        if (!uniqueArticles.has(result.chunk.knowledgeBaseId)) {
+          uniqueArticles.set(result.chunk.knowledgeBaseId, {
+            id: result.chunk.knowledgeBaseId,
+            title: result.chunk.metadata.sourceTitle || result.chunk.title
+          });
+        }
+      }
+      
+      // Format reference links section
+      let responseWithReferences = response;
+      if (uniqueArticles.size > 0 && !shouldForceHumanTakeover) {
+        const references = Array.from(uniqueArticles.values())
+          .map(article => `• [${article.title}](/kb/${article.id})`)
+          .join('\n');
+        
+        responseWithReferences = `${response}\n\n**📚 Learn More:**\n${references}`;
+      }
+      
       return {
-        response,
+        response: responseWithReferences,
         confidence: Math.max(0, Math.min(100, adjustedConfidence)),
         requiresHumanTakeover: shouldForceHumanTakeover || result.requiresHumanTakeover || false,
         suggestedActions: result.suggestedActions || ['Connect with human agent'],
@@ -1629,7 +1650,7 @@ The more details you can share, the better I can help you resolve this quickly!"
       // This ensures we search ALL knowledge base articles instead of returning empty results
       if (shouldExpandScope) {
         searchOptions.expandScope = true;
-        searchOptions.maxResults = 10; // Get more results when searching all articles
+        searchOptions.maxResults = 6; // ⚡ Reduced from 10 to 6 for faster performance
         console.log('✅ expandScope ENABLED - will search all KB articles');
       }
       
@@ -1763,8 +1784,8 @@ The more details you can share, the better I can help you resolve this quickly!"
       case 'instructional':
         return {
           ...baseOptions,
-          maxResults: 10, // ✅ Increased from 6 to 10 (RAG guide recommends 8-12)
-          minScore: 0.2, // ✅ Increased from 0.12 to 0.2 for better quality
+          maxResults: 6, // ⚡ Reduced from 10 to 6 for faster performance
+          minScore: 0.25, // ✅ Increased for better quality
           requireSteps: true,
           expandScope: true, // Instructional content might be in various articles
         };
@@ -1772,8 +1793,8 @@ The more details you can share, the better I can help you resolve this quickly!"
       case 'troubleshooting':
         return {
           ...baseOptions,
-          maxResults: 10, // ✅ Increased from 5 to 10
-          minScore: 0.25, // ✅ Increased from 0.2 to 0.25 for accuracy
+          maxResults: 6, // ⚡ Reduced from 10 to 6 for faster performance
+          minScore: 0.3, // ✅ Increased for accuracy
           requireSteps: true, // Troubleshooting often involves steps
           expandScope: true, // Issues might span multiple topics
         };
@@ -1781,16 +1802,16 @@ The more details you can share, the better I can help you resolve this quickly!"
       case 'specific':
         return {
           ...baseOptions,
-          maxResults: 8, // ✅ Increased from 3 to 8 for better coverage
-          minScore: 0.3, // ✅ Increased from 0.25 to 0.3 for precision
+          maxResults: 5, // ⚡ Reduced from 8 to 5 for faster performance
+          minScore: 0.35, // ✅ Increased for precision
           expandScope: false, // Keep search focused
         };
         
       default: // informational
         return {
           ...baseOptions,
-          maxResults: analysis.complexity === 'high' ? 10 : 8, // ✅ Increased from 6/4 to 10/8
-          minScore: analysis.complexity === 'high' ? 0.2 : 0.25, // ✅ Increased thresholds
+          maxResults: analysis.complexity === 'high' ? 6 : 5, // ⚡ Reduced from 10/8 to 6/5 for speed
+          minScore: analysis.complexity === 'high' ? 0.25 : 0.3, // ✅ Balanced thresholds
           expandScope: analysis.complexity === 'high',
         };
     }
@@ -1844,9 +1865,9 @@ The more details you can share, the better I can help you resolve this quickly!"
         if (analysis.complexity === 'high') {
           return result.score > 0.25; // ✅ Increased from 0.2
         }
-        return result.score > 0.2; // ✅ Increased from 0.15
+        return result.score > 0.25; // ⚡ Increased from 0.2 for quality
       })
-      .slice(0, analysis.complexity === 'high' ? 10 : 8); // ✅ Increased from 6/5 to 10/8
+      .slice(0, analysis.complexity === 'high' ? 6 : 5); // ⚡ Reduced from 10/8 to 6/5 for speed
   }
 
   /**

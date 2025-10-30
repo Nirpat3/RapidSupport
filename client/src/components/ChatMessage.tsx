@@ -29,8 +29,93 @@ interface ChatMessageProps {
   viewerRole?: 'customer' | 'agent' | 'admin'; // Role of the person viewing the message
 }
 
-// Helper function to convert URLs in text to clickable links
+// Helper function to convert URLs, markdown links, and bold text to formatted elements
 export function linkifyText(text: string) {
+  const elements: (string | JSX.Element)[] = [];
+  let lastIndex = 0;
+  
+  // Match markdown links: [text](url), bold text: **text**, and plain URLs
+  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  
+  // First, handle markdown links
+  let match;
+  
+  while ((match = markdownLinkRegex.exec(text)) !== null) {
+    const [fullMatch, linkText, linkUrl] = match;
+    const matchStart = match.index;
+    const matchEnd = matchStart + fullMatch.length;
+    
+    // Add text before this link (with bold and URLs)
+    if (matchStart > lastIndex) {
+      const beforeText = text.substring(lastIndex, matchStart);
+      elements.push(...processTextWithFormats(beforeText, elements.length));
+    }
+    
+    // Add the markdown link
+    elements.push(
+      <a
+        key={`md-${elements.length}`}
+        href={linkUrl}
+        target={linkUrl.startsWith('/') ? undefined : '_blank'}
+        rel={linkUrl.startsWith('/') ? undefined : 'noopener noreferrer'}
+        className="text-primary underline hover:text-primary/80 transition-colors font-medium"
+        data-testid="markdown-link"
+      >
+        {linkText}
+      </a>
+    );
+    
+    lastIndex = matchEnd;
+  }
+  
+  // Add remaining text with bold and URLs
+  if (lastIndex < text.length) {
+    const remainingText = text.substring(lastIndex);
+    elements.push(...processTextWithFormats(remainingText, elements.length));
+  }
+  
+  return elements.length > 0 ? elements : [text];
+}
+
+// Helper to process text with bold markdown and plain URLs
+function processTextWithFormats(text: string, startKey: number) {
+  const elements: (string | JSX.Element)[] = [];
+  const boldRegex = /\*\*([^*]+)\*\*/g;
+  let lastIndex = 0;
+  let match;
+  
+  while ((match = boldRegex.exec(text)) !== null) {
+    const [fullMatch, boldText] = match;
+    const matchStart = match.index;
+    const matchEnd = matchStart + fullMatch.length;
+    
+    // Add text before this bold (with URLs)
+    if (matchStart > lastIndex) {
+      const beforeText = text.substring(lastIndex, matchStart);
+      elements.push(...linkifyPlainUrls(beforeText, startKey + elements.length));
+    }
+    
+    // Add bold text
+    elements.push(
+      <strong key={`bold-${startKey}-${elements.length}`} className="font-semibold">
+        {boldText}
+      </strong>
+    );
+    
+    lastIndex = matchEnd;
+  }
+  
+  // Add remaining text with URLs
+  if (lastIndex < text.length) {
+    const remainingText = text.substring(lastIndex);
+    elements.push(...linkifyPlainUrls(remainingText, startKey + elements.length));
+  }
+  
+  return elements.length > 0 ? elements : [text];
+}
+
+// Helper to linkify plain URLs (for text that doesn't have markdown links or bold)
+function linkifyPlainUrls(text: string, startKey: number) {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
   
@@ -38,7 +123,7 @@ export function linkifyText(text: string) {
     if (part.match(urlRegex)) {
       return (
         <a 
-          key={index} 
+          key={`url-${startKey}-${index}`}
           href={part} 
           target="_blank" 
           rel="noopener noreferrer"
