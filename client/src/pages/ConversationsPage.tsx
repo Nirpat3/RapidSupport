@@ -190,9 +190,9 @@ export default function ConversationsPage() {
   // Filter and search conversations
   const filteredConversations = conversations.filter(conv => {
     const matchesSearch = searchQuery === "" || 
-      conv.customer?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.customer?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.lastMessage?.content.toLowerCase().includes(searchQuery.toLowerCase());
+      (conv.customer?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (conv.customer?.email || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (conv.lastMessage?.content || '').toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesStatus = statusFilter === "all" || conv.status === statusFilter;
     
