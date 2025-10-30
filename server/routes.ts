@@ -1418,6 +1418,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
   app.get('/api/conversations/:id/messages', requireAuth, async (req, res) => {
     try {
+      // Disable caching for real-time message updates
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
       const messages = await storage.getMessagesByConversation(req.params.id);
       
       // Enrich messages with sender information
