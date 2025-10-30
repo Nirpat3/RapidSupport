@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -275,10 +274,10 @@ export default function ConversationsPage() {
       <div className={`
         w-full md:w-80 lg:w-96 
         border-r flex flex-col
-        ${showMobileList ? 'block' : 'hidden md:block'}
+        ${showMobileList ? 'flex' : 'hidden md:flex'}
       `}>
         {/* Header */}
-        <div className="p-4 border-b">
+        <div className="p-4 border-b flex-shrink-0">
           <div className="flex items-center gap-2 mb-3">
             <MessageSquare className="w-5 h-5 text-primary" />
             <h1 className="text-lg font-semibold" data-testid="page-title">Conversations</h1>
@@ -311,8 +310,8 @@ export default function ConversationsPage() {
           </Select>
         </div>
 
-        {/* Conversation List */}
-        <ScrollArea className="flex-1">
+        {/* Conversation List - Native scrolling */}
+        <div className="flex-1 overflow-y-auto">
           {conversationsLoading ? (
             <div className="p-8 text-center text-muted-foreground">
               <div className="animate-pulse">Loading conversations...</div>
@@ -389,18 +388,18 @@ export default function ConversationsPage() {
               })}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Chat Area - Desktop always visible, Mobile conditional */}
       <div className={`
-        flex-1 flex flex-col
+        flex-1 flex flex-col overflow-hidden
         ${showMobileList ? 'hidden md:flex' : 'flex'}
       `}>
         {activeConversationId && activeConversation ? (
           <>
             {/* Chat Header */}
-            <div className="p-4 border-b flex items-center justify-between">
+            <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
                 {/* Mobile back button */}
                 <Button
@@ -476,11 +475,10 @@ export default function ConversationsPage() {
             <ChatInterface
               conversationId={activeConversationId}
               messages={activeMessages}
-              isLoading={messagesLoading}
             />
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="flex-1 overflow-y-auto flex items-center justify-center text-muted-foreground">
             <div className="text-center">
               <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium mb-1">No conversation selected</p>
