@@ -42,7 +42,12 @@ The backend is a Node.js Express.js application in TypeScript, providing a RESTf
   - **Automatic Indexing**: All uploaded documents are automatically chunked (400-word segments with intelligent section splitting) and indexed with vector embeddings immediately upon upload. This ensures documents are instantly searchable by AI without manual intervention. Automatic re-indexing occurs when articles are updated. Indexing includes: intelligent content chunking based on document structure (headers, paragraphs), OpenAI embeddings generation for semantic search, caching for performance, and error handling with non-blocking fallback. Documents are immediately available for AI responses after upload, eliminating the "consult with colleagues" responses caused by un-indexed documents.
 - **Rich Media Input**: Supports file attachments (drag-drop, multi-file), universal camera capture, emoji picker, and voice-to-text.
 - **User Identification**: IP-based customer identification and `sessionId` tracking for returning users and "Continue Conversation" cards.
-- **Unread Tracking & Notifications**: Comprehensive system for tracking message read status, providing unread counts, and real-time notifications. Sidebar and tab badges display conversation counts (unread vs. total).
+- **Unread Tracking & Notifications**: Comprehensive system for tracking message read status, providing unread counts, and real-time notifications. Features include:
+  - **Optimistic Badge Clearing**: Unread count badges clear instantly when clicking a conversation, with automatic rollback on error to ensure UI consistency
+  - **Visual Message Highlighting**: Unread incoming messages display with subtle ring and shadow effects, excluding own messages and system messages
+  - **Efficient Read Status**: Batch lookup using `inArray` for per-user, per-message read tracking via `messageReadStatus` table
+  - **Real-time Sync**: Sidebar and tab badges display conversation counts (unread vs. total), with WebSocket updates for live synchronization
+  - **Mark-as-Read API**: POST endpoint automatically creates read status records when conversation is viewed, enriching messages API with `isRead` flags
 - **Feed Module**: Allows post creation with visibility controls, urgent flags, links, images, comments, likes, and views.
 - **Conversation Rating & Feedback**: Customers provide 1-5 star ratings and feedback, with AI-powered sentiment analysis.
 - **Staff Performance Tracking**: Tracks agent metrics (conversations handled, closure rates, ratings, AI sentiment scores).
