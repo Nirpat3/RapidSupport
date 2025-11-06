@@ -2955,6 +2955,153 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Generate streaming AI agent response (ChatGPT-like experience)
+  app.post('/api/ai/smart-response-stream', async (req, res) => {
+    const requestId = `stream-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`[${requestId}] ===== AI STREAMING RESPONSE START =====`);
+    
+    try {
+      // Validate request data
+      const streamResponseSchema = z.object({
+        conversationId: z.string().uuid(),
+        customerMessage: z.string().min(1).max(5000),
+        customerId: z.string().uuid(),
+        agentId: z.string().uuid().optional()
+      });
+
+      const { conversationId, customerMessage, customerId, agentId } = streamResponseSchema.parse(req.body);
+
+      // Check if conversation exists
+      const conversation = await storage.getConversationWithCustomer(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      // Security: Verify customer owns this conversation
+      if (conversation.customerId !== customerId) {
+        return res.status(403).json({ error: 'Access denied to this conversation' });
+      }
+
+      const wsServer = (app as any).wsServer;
+      if (!wsServer) {
+        console.log(`[${requestId}] ERROR: WebSocket server not available`);
+        return res.status(503).json({ error: 'Streaming not available' });
+      }
+
+      const streamId = requestId; // Use request ID as stream ID
+      let fullResponse = '';
+      let metadata: any = null;
+      let isFirst = true;
+
+      console.log(`[${requestId}] Starting AI stream generation...`);
+      
+      // Start streaming
+      try {
+        for await (const chunk of AIService.generateSmartAgentResponseStream(
+          customerMessage,
+          conversationId,
+          agentId
+        )) {
+          if (chunk.type === 'token') {
+            fullResponse += chunk.data;
+            wsServer.streamAIToken(conversationId, {
+              streamId,
+              token: chunk.data,
+              isFirst
+            });
+            isFirst = false;
+          } else if (chunk.type === 'metadata') {
+            metadata = chunk.data;
+          }
+        }
+
+        console.log(`[${requestId}] Stream complete. Response length: ${fullResponse.length}`);
+
+        // Create and persist AI message
+        const SYSTEM_AI_AGENT_ID = 'ai-system-agent-001';
+        const messageData = {
+          conversationId,
+          content: fullResponse,
+          senderId: SYSTEM_AI_AGENT_ID,
+          senderType: 'agent' as const
+        };
+
+        const message = await storage.createMessage(messageData);
+        console.log(`[${requestId}] AI message persisted. Message ID: ${message.id}`);
+
+        // Send stream completion with metadata
+        wsServer.streamAIComplete(conversationId, {
+          streamId,
+          messageId: message.id,
+          fullResponse,
+          confidence: metadata?.confidence || 50,
+          requiresHumanTakeover: metadata?.requiresHumanTakeover || false,
+          format: metadata?.format,
+          agentId: metadata?.agentId
+        });
+
+        // IMPORTANT: Also broadcast as legacy new_message for backward compatibility
+        // This ensures clients that don't understand streaming events still receive the AI response
+        wsServer.broadcastNewMessage(conversationId, {
+          messageId: message.id,
+          conversationId: message.conversationId,
+          content: message.content,
+          userId: SYSTEM_AI_AGENT_ID,
+          userName: 'Alex (AI Assistant)',
+          userRole: 'agent',
+          senderType: message.senderType,
+          timestamp: message.timestamp,
+          status: message.status,
+          format: metadata?.format
+        });
+
+        // Broadcast unread count updates
+        if (conversation.customerId) {
+          wsServer.broadcastUnreadCountUpdate(conversation.customerId);
+        }
+
+        // Update all staff members
+        const allUsers = await storage.getAllUsers();
+        for (const staffUser of allUsers) {
+          wsServer.broadcastUnreadCountUpdate(staffUser.id);
+        }
+
+        // If AI requires human takeover, notify staff
+        if (metadata?.requiresHumanTakeover && wsServer.broadcastToStaff) {
+          wsServer.broadcastToStaff({
+            type: 'ai_assistance_required',
+            conversationId,
+            customerName: conversation.customer?.name,
+            customerId: conversation.customer?.id,
+            message: `Alex (AI Assistant) needs help with: ${customerMessage.slice(0, 100)}`,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        res.json({
+          success: true,
+          streamId,
+          messageId: message.id
+        });
+
+      } catch (streamError) {
+        console.error(`[${requestId}] Streaming error:`, streamError);
+        wsServer.streamAIError(conversationId, {
+          streamId,
+          error: 'An error occurred while generating the response'
+        });
+        throw streamError;
+      }
+
+    } catch (error) {
+      console.error(`[${requestId}] Error:`, error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      res.status(500).json({ error: 'Failed to generate AI response' });
+    }
+  });
+
   // Generate smart AI agent response for customer chat and persist message
   app.post('/api/ai/smart-response', async (req, res) => {
     const requestId = `req-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

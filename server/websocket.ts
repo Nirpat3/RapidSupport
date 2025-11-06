@@ -472,6 +472,67 @@ class ChatWebSocketServer {
 
     console.log(`Broadcasted conversation update for ${conversationId}:`, updateData);
   }
+
+  /**
+   * Stream AI response tokens in real-time to conversation participants
+   * Used for ChatGPT-like streaming experience
+   */
+  public streamAIToken(conversationId: string, streamData: {
+    streamId: string;
+    token: string;
+    isFirst?: boolean;
+  }) {
+    this.broadcastToConversation(conversationId, {
+      type: 'ai_stream_token',
+      conversationId,
+      streamId: streamData.streamId,
+      token: streamData.token,
+      isFirst: streamData.isFirst || false,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  /**
+   * Signal completion of AI streaming response with metadata
+   */
+  public streamAIComplete(conversationId: string, completionData: {
+    streamId: string;
+    messageId: string;
+    fullResponse: string;
+    confidence: number;
+    requiresHumanTakeover: boolean;
+    format?: string;
+    agentId?: string;
+  }) {
+    this.broadcastToConversation(conversationId, {
+      type: 'ai_stream_complete',
+      conversationId,
+      streamId: completionData.streamId,
+      messageId: completionData.messageId,
+      fullResponse: completionData.fullResponse,
+      confidence: completionData.confidence,
+      requiresHumanTakeover: completionData.requiresHumanTakeover,
+      format: completionData.format,
+      agentId: completionData.agentId,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  /**
+   * Signal error in AI streaming response
+   */
+  public streamAIError(conversationId: string, errorData: {
+    streamId: string;
+    error: string;
+  }) {
+    this.broadcastToConversation(conversationId, {
+      type: 'ai_stream_error',
+      conversationId,
+      streamId: errorData.streamId,
+      error: errorData.error,
+      timestamp: new Date().toISOString()
+    });
+  }
 }
 
 export default ChatWebSocketServer;
