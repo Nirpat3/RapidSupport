@@ -1,8 +1,20 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, unique, customType } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+const vector = customType<{ data: number[], driverData: string }>({
+  dataType() {
+    return 'vector(1536)';
+  },
+  toDriver(value: number[]): string {
+    return JSON.stringify(value);
+  },
+  fromDriver(value: string): number[] {
+    return JSON.parse(value);
+  },
+});
 
 // Organizations table - for multi-tenant support
 export const organizations = pgTable("organizations", {
@@ -467,6 +479,26 @@ export const knowledgeBaseVersions = pgTable("knowledge_base_versions", {
   changeReason: text("change_reason"), // Why was this change made
   changedBy: varchar("changed_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Knowledge Chunks table - stores persistent vector embeddings for RAG
+export const knowledgeChunks = pgTable("knowledge_chunks", {
+  id: varchar("id").primaryKey(), // Format: {knowledgeBaseId}_chunk_{index}
+  knowledgeBaseId: varchar("knowledge_base_id").notNull().references(() => knowledgeBase.id),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  category: text("category").notNull(),
+  tags: text("tags").array(),
+  priority: integer("priority").notNull().default(50),
+  wordCount: integer("word_count").notNull(),
+  sourceTitle: text("source_title").notNull(),
+  sourceCategory: text("source_category").notNull(),
+  chunkTitle: text("chunk_title"),
+  hasStructure: boolean("has_structure").notNull().default(false),
+  embedding: vector("embedding"), // 1536-dimensional vector for OpenAI embeddings
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // API Keys table - for 3rd party integrations and widget authentication
@@ -1079,6 +1111,12 @@ export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
 export type KnowledgeBase = typeof knowledgeBase.$inferSelect;
 export type InsertKnowledgeBaseImage = z.infer<typeof insertKnowledgeBaseImageSchema>;
 export type KnowledgeBaseImage = typeof knowledgeBaseImages.$inferSelect;
+export const insertKnowledgeChunkSchema = createInsertSchema(knowledgeChunks).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertKnowledgeChunk = z.infer<typeof insertKnowledgeChunkSchema>;
+export type KnowledgeChunk = typeof knowledgeChunks.$inferSelect;
 export type InsertAiAgentLearning = z.infer<typeof insertAiAgentLearningSchema>;
 export type AiAgentLearning = typeof aiAgentLearning.$inferSelect;
 export type InsertAiAgentSession = z.infer<typeof insertAiAgentSessionSchema>;

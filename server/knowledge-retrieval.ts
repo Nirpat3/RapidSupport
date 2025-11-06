@@ -43,7 +43,6 @@ export interface RetrievalOptions {
 
 export class KnowledgeRetrievalService {
   private static instance: KnowledgeRetrievalService;
-  private chunksCache = new Map<string, KnowledgeChunk[]>();
   private synonymMap = new Map<string, string[]>();
 
   private constructor() {
@@ -511,37 +510,70 @@ export class KnowledgeRetrievalService {
   }
 
   /**
-   * Get or create chunks for knowledge base articles
+   * Get or create chunks for knowledge base articles (now using persistent database)
+   * Handles mixed scenarios: some articles have chunks, some don't
    */
   private async getChunks(knowledgeBaseIds: string[]): Promise<KnowledgeChunk[]> {
-    const allChunks: KnowledgeChunk[] = [];
+    // Get all existing chunks from persistent database
+    const dbChunks = await storage.getKnowledgeChunks?.(knowledgeBaseIds) || [];
     
-    // Get fresh articles from storage
-    const articles = await storage.getKnowledgeBaseArticles?.(knowledgeBaseIds) || [];
+    // Determine which knowledge base IDs already have chunks
+    const knowledgeBaseIdsWithChunks = new Set(dbChunks.map(chunk => chunk.knowledgeBaseId));
+    
+    // Find which knowledge base IDs need chunks created
+    const knowledgeBaseIdsNeedingChunks = knowledgeBaseIds.filter(
+      id => !knowledgeBaseIdsWithChunks.has(id)
+    );
+    
+    // If all requested articles already have chunks, return them
+    if (knowledgeBaseIdsNeedingChunks.length === 0) {
+      return dbChunks;
+    }
+    
+    // Get articles that need to be chunked and indexed
+    const articles = await storage.getKnowledgeBaseArticles?.(knowledgeBaseIdsNeedingChunks) || [];
+    const newChunks: KnowledgeChunk[] = [];
     
     for (const article of articles) {
       if (!article.isActive) continue;
       
-      // Check cache first
-      let chunks = this.chunksCache.get(article.id);
+      // Create chunks from article
+      const chunks = this.chunkDocument(article);
       
-      if (!chunks) {
-        // Create and cache chunks
-        chunks = this.chunkDocument(article);
+      // Generate embeddings and prepare for database insertion
+      const chunksToInsert = [];
+      for (const chunk of chunks) {
+        const embeddingText = `${chunk.title}\n${chunk.content}`;
+        const embedding = await this.generateEmbedding(embeddingText);
         
-        // Generate embeddings for each chunk
-        for (const chunk of chunks) {
-          const embeddingText = `${chunk.title}\n${chunk.content}`;
-          chunk.embedding = await this.generateEmbedding(embeddingText);
-        }
-        
-        this.chunksCache.set(article.id, chunks);
+        chunksToInsert.push({
+          id: chunk.id,
+          knowledgeBaseId: chunk.knowledgeBaseId,
+          title: chunk.title,
+          content: chunk.content,
+          chunkIndex: chunk.chunkIndex,
+          category: chunk.category,
+          tags: chunk.tags,
+          priority: chunk.priority,
+          wordCount: chunk.metadata.wordCount,
+          sourceTitle: chunk.metadata.sourceTitle,
+          sourceCategory: chunk.metadata.sourceCategory,
+          chunkTitle: chunk.metadata.chunkTitle,
+          hasStructure: chunk.metadata.hasStructure || false,
+          embedding,
+        });
       }
       
-      allChunks.push(...chunks);
+      // Batch insert into database for persistence
+      if (chunksToInsert.length > 0) {
+        const createdChunks = await storage.createKnowledgeChunksBatch?.(chunksToInsert) || [];
+        newChunks.push(...createdChunks);
+        console.log(`Indexed article "${article.title}" with ${createdChunks.length} chunks`);
+      }
     }
     
-    return allChunks;
+    // Combine existing chunks with newly created ones
+    return [...dbChunks, ...newChunks];
   }
 
   /**
@@ -624,25 +656,29 @@ export class KnowledgeRetrievalService {
   }
 
   /**
-   * Clear cache for specific knowledge base ID (call when article is updated)
+   * Clear chunks from database for specific knowledge base ID (call when article is updated)
    */
-  clearCache(knowledgeBaseId?: string) {
-    if (knowledgeBaseId) {
-      this.chunksCache.delete(knowledgeBaseId);
-    } else {
-      this.chunksCache.clear();
+  async clearCache(knowledgeBaseId?: string): Promise<void> {
+    try {
+      if (knowledgeBaseId) {
+        await storage.deleteKnowledgeChunksByArticle?.(knowledgeBaseId);
+      }
+      // Note: We don't clear all chunks globally anymore as they're valuable persistent data
+    } catch (error) {
+      console.error('Error clearing knowledge chunks:', error);
     }
   }
 
   /**
    * Reindex specific knowledge base articles (call when articles are created/updated)
+   * This deletes old chunks and creates new ones with fresh embeddings
    */
   async reindexArticle(articleId: string): Promise<void> {
     try {
       console.log(`Reindexing knowledge base article: ${articleId}`);
       
-      // Clear cache for this specific article
-      this.clearCache(articleId);
+      // Delete old chunks from database
+      await this.clearCache(articleId);
       
       // Get the fresh article from storage
       const articles = await storage.getKnowledgeBaseArticles?.([articleId]) || [];
@@ -655,20 +691,41 @@ export class KnowledgeRetrievalService {
       
       if (!article.isActive) {
         console.log(`Article ${articleId} is inactive, skipping reindexing`);
+        await this.clearCache(articleId); // Remove chunks for inactive articles
         return;
       }
       
       // Create chunks and generate embeddings
       const chunks = this.chunkDocument(article);
+      const chunksToInsert = [];
       
       // Generate embeddings for each chunk
       for (const chunk of chunks) {
         const embeddingText = `${chunk.title}\n${chunk.content}`;
-        chunk.embedding = await this.generateEmbedding(embeddingText);
+        const embedding = await this.generateEmbedding(embeddingText);
+        
+        chunksToInsert.push({
+          id: chunk.id,
+          knowledgeBaseId: chunk.knowledgeBaseId,
+          title: chunk.title,
+          content: chunk.content,
+          chunkIndex: chunk.chunkIndex,
+          category: chunk.category,
+          tags: chunk.tags,
+          priority: chunk.priority,
+          wordCount: chunk.metadata.wordCount,
+          sourceTitle: chunk.metadata.sourceTitle,
+          sourceCategory: chunk.metadata.sourceCategory,
+          chunkTitle: chunk.metadata.chunkTitle,
+          hasStructure: chunk.metadata.hasStructure || false,
+          embedding,
+        });
       }
       
-      // Cache the chunks
-      this.chunksCache.set(article.id, chunks);
+      // Batch insert into database for persistence
+      if (chunksToInsert.length > 0) {
+        await storage.createKnowledgeChunksBatch?.(chunksToInsert);
+      }
       
       console.log(`Successfully reindexed article: ${article.title} with ${chunks.length} chunks`);
     } catch (error) {

@@ -21,6 +21,7 @@ import {
   knowledgeBaseFiles,
   aiAgentFileUsage,
   knowledgeBaseVersions,
+  knowledgeChunks,
   posts,
   postComments,
   postLikes,
@@ -73,6 +74,8 @@ import {
   type InsertAiAgentFileUsage,
   type KnowledgeBaseVersion,
   type InsertKnowledgeBaseVersion,
+  type KnowledgeChunk,
+  type InsertKnowledgeChunk,
   type Post,
   type InsertPost,
   type PostComment,
@@ -243,6 +246,14 @@ export interface IStorage {
   deleteKnowledgeBaseFaq(id: string): Promise<void>;
   updateKnowledgeBaseFaqOrder(id: string, displayOrder: number): Promise<void>;
   updateKnowledgeBaseFaqFeedback(id: string, helpful: boolean): Promise<void>;
+
+  // Knowledge Chunk operations (for persistent vector embeddings)
+  getKnowledgeChunks(knowledgeBaseIds: string[]): Promise<KnowledgeChunk[]>;
+  getKnowledgeChunksByIds(chunkIds: string[]): Promise<KnowledgeChunk[]>;
+  createKnowledgeChunk(chunk: InsertKnowledgeChunk): Promise<KnowledgeChunk>;
+  createKnowledgeChunksBatch(chunks: InsertKnowledgeChunk[]): Promise<KnowledgeChunk[]>;
+  deleteKnowledgeChunksByArticle(knowledgeBaseId: string): Promise<void>;
+  searchKnowledgeChunksByVector(queryEmbedding: number[], limit: number): Promise<Array<{ chunk: KnowledgeChunk; similarity: number }>>;
 
   // AI Agent Learning operations
   getAiAgentLearning(id: string): Promise<AiAgentLearning | undefined>;
@@ -2022,6 +2033,103 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error updating knowledge base FAQ feedback:', error);
       throw error;
+    }
+  }
+
+  // Knowledge Chunk operations (for persistent vector embeddings)
+  async getKnowledgeChunks(knowledgeBaseIds: string[]): Promise<KnowledgeChunk[]> {
+    try {
+      if (knowledgeBaseIds.length === 0) {
+        return await db.select().from(knowledgeChunks);
+      }
+      return await db.select().from(knowledgeChunks)
+        .where(inArray(knowledgeChunks.knowledgeBaseId, knowledgeBaseIds))
+        .orderBy(knowledgeChunks.knowledgeBaseId, knowledgeChunks.chunkIndex);
+    } catch (error) {
+      console.error('Error fetching knowledge chunks:', error);
+      return [];
+    }
+  }
+
+  async getKnowledgeChunksByIds(chunkIds: string[]): Promise<KnowledgeChunk[]> {
+    try {
+      if (chunkIds.length === 0) return [];
+      return await db.select().from(knowledgeChunks)
+        .where(inArray(knowledgeChunks.id, chunkIds));
+    } catch (error) {
+      console.error('Error fetching knowledge chunks by IDs:', error);
+      return [];
+    }
+  }
+
+  async createKnowledgeChunk(chunk: InsertKnowledgeChunk): Promise<KnowledgeChunk> {
+    try {
+      const [createdChunk] = await db.insert(knowledgeChunks).values(chunk).returning();
+      return createdChunk;
+    } catch (error) {
+      console.error('Error creating knowledge chunk:', error);
+      throw error;
+    }
+  }
+
+  async createKnowledgeChunksBatch(chunks: InsertKnowledgeChunk[]): Promise<KnowledgeChunk[]> {
+    try {
+      if (chunks.length === 0) return [];
+      const createdChunks = await db.insert(knowledgeChunks).values(chunks).returning();
+      return createdChunks;
+    } catch (error) {
+      console.error('Error creating knowledge chunks batch:', error);
+      throw error;
+    }
+  }
+
+  async deleteKnowledgeChunksByArticle(knowledgeBaseId: string): Promise<void> {
+    try {
+      await db.delete(knowledgeChunks).where(eq(knowledgeChunks.knowledgeBaseId, knowledgeBaseId));
+    } catch (error) {
+      console.error('Error deleting knowledge chunks:', error);
+      throw error;
+    }
+  }
+
+  async searchKnowledgeChunksByVector(queryEmbedding: number[], limit: number = 10): Promise<Array<{ chunk: KnowledgeChunk; similarity: number }>> {
+    try {
+      const embeddingStr = JSON.stringify(queryEmbedding);
+      
+      const results = await db.execute(sql`
+        SELECT 
+          *,
+          1 - (embedding <=> ${embeddingStr}::vector) as similarity
+        FROM ${knowledgeChunks}
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <=> ${embeddingStr}::vector
+        LIMIT ${limit}
+      `);
+      
+      return results.rows.map((row: any) => ({
+        chunk: {
+          id: row.id,
+          knowledgeBaseId: row.knowledge_base_id,
+          title: row.title,
+          content: row.content,
+          chunkIndex: row.chunk_index,
+          category: row.category,
+          tags: row.tags || [],
+          priority: row.priority,
+          wordCount: row.word_count,
+          sourceTitle: row.source_title,
+          sourceCategory: row.source_category,
+          chunkTitle: row.chunk_title,
+          hasStructure: row.has_structure,
+          embedding: row.embedding ? JSON.parse(row.embedding) : null,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        },
+        similarity: row.similarity,
+      }));
+    } catch (error) {
+      console.error('Error searching knowledge chunks by vector:', error);
+      return [];
     }
   }
 
