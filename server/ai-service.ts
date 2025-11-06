@@ -2040,4 +2040,383 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
     
     return isVague;
   }
+
+  /**
+   * Generate streaming AI agent response with real-time token delivery
+   * Yields tokens as they arrive from OpenAI for ChatGPT-like experience
+   */
+  static async *generateSmartAgentResponseStream(
+    customerMessage: string,
+    conversationId: string,
+    agentId?: string
+  ): AsyncGenerator<{ type: 'token' | 'metadata'; data: any }, void, unknown> {
+    const startTime = Date.now();
+    
+    try {
+      // Log customer message
+      conversationLogger.logCustomerMessage(conversationId, customerMessage);
+      
+      // Classify intent to determine appropriate response format and agent routing
+      const intentClassification = await this.classifyIntent(customerMessage);
+      console.log(`[Stream] Intent: ${intentClassification.intent} (${intentClassification.confidence}%)`);
+
+      // Get or create AI agent session
+      let session = await storage.getAiAgentSessionByConversation(conversationId);
+      let agent: AiAgent | null = null;
+
+      if (!session) {
+        // Select or create agent (same logic as non-streaming version)
+        if (agentId) {
+          agent = (await storage.getAiAgent(agentId)) || null;
+        }
+        
+        if (!agent) {
+          agent = await this.selectBestAgentForIntent(intentClassification.intent, customerMessage);
+          if (!agent) {
+            agent = await this.findBestAgent(customerMessage);
+          }
+        }
+        
+        if (agent) {
+          session = await storage.createAiAgentSession({
+            conversationId,
+            agentId: agent.id,
+            status: 'active',
+            messageCount: 0,
+            avgConfidence: 0,
+          });
+        }
+      } else {
+        agent = (await storage.getAiAgent(session.agentId)) || null;
+        
+        // Check for agent handoff
+        const currentAgentSpecializations = agent?.specializations || [];
+        const isSpecializedForIntent = currentAgentSpecializations.some(spec => 
+          spec.toLowerCase().includes(intentClassification.intent.toLowerCase())
+        );
+        
+        if (!isSpecializedForIntent && intentClassification.confidence > 70) {
+          const specializedAgent = await this.selectBestAgentForIntent(intentClassification.intent, customerMessage);
+          
+          if (specializedAgent && specializedAgent.id !== agent?.id) {
+            session = await this.handoffToAgent(
+              session.id, 
+              specializedAgent.id, 
+              `Intent changed to ${intentClassification.intent}`
+            );
+            agent = specializedAgent;
+          }
+        }
+      }
+
+      if (!agent || !session) {
+        // Fallback response
+        yield {
+          type: 'token',
+          data: 'I apologize, but I need to connect you with a specialist to assist you properly.'
+        };
+        yield {
+          type: 'metadata',
+          data: {
+            sessionId: 'fallback',
+            confidence: 30,
+            requiresHumanTakeover: true,
+            agentId: null
+          }
+        };
+        return;
+      }
+
+      // Get conversation context
+      const conversation = await storage.getConversation(conversationId);
+      let contextData: any = null;
+      if (conversation?.contextData) {
+        try {
+          contextData = JSON.parse(conversation.contextData);
+        } catch (e) {
+          console.error('Failed to parse context data:', e);
+        }
+      }
+
+      // Get conversation history
+      const messages = await storage.getMessagesByConversation(conversationId);
+      const conversationHistory = messages
+        .filter(msg => msg.scope !== 'internal')
+        .slice(-10)
+        .map(msg => `${msg.senderType}: ${msg.content}`);
+
+      // Determine response format based on intent
+      let responseFormat: keyof typeof RESPONSE_FORMATS = 'conversational';
+      if (intentClassification.intent === 'technical') {
+        responseFormat = 'step_by_step';
+      } else if (intentClassification.intent === 'billing') {
+        responseFormat = 'bullet_points';
+      }
+
+      // Get relevant knowledge base articles
+      const searchResults = await this.getRelevantKnowledge(
+        customerMessage, 
+        agent.knowledgeBaseIds || [], 
+        conversationHistory
+      );
+      
+      console.log(`[Stream] Retrieved ${searchResults.length} knowledge chunks`);
+
+      // Stream the response
+      let fullResponse = '';
+      let metadata: any = null;
+
+      for await (const chunk of this.generateAgentResponseWithConfigStream(
+        customerMessage,
+        conversationHistory,
+        searchResults,
+        agent,
+        responseFormat,
+        contextData
+      )) {
+        if (chunk.type === 'token') {
+          fullResponse += chunk.data;
+          yield chunk;
+        } else if (chunk.type === 'metadata') {
+          metadata = chunk.data;
+        }
+      }
+
+      // Update session statistics
+      const newMessageCount = session.messageCount + 1;
+      const confidence = metadata?.confidence || 50;
+      const newAvgConfidence = Math.round(
+        (session.avgConfidence * session.messageCount + confidence) / newMessageCount
+      );
+
+      await storage.updateAiAgentSession(session.id, {
+        messageCount: newMessageCount,
+        avgConfidence: newAvgConfidence,
+      });
+
+      // Check for human takeover
+      const shouldTakeOver = confidence < agent.autoTakeoverThreshold || metadata?.requiresHumanTakeover;
+
+      if (shouldTakeOver) {
+        await storage.updateAiAgentSession(session.id, {
+          status: 'handed_over',
+          handoverReason: `Low confidence (${confidence}%) or complex query`,
+        });
+      }
+
+      // Track file usage
+      if (metadata?.knowledgeUsed && metadata.knowledgeUsed.length > 0) {
+        for (const knowledgeBaseId of metadata.knowledgeUsed) {
+          try {
+            const linkedFiles = await storage.getFilesLinkedToKnowledgeBase(knowledgeBaseId);
+            for (const linkedFile of linkedFiles) {
+              await storage.incrementFileUsage(linkedFile.id, agent.id);
+            }
+          } catch (error) {
+            console.error(`Error tracking file usage:`, error);
+          }
+        }
+      }
+
+      // Yield final metadata
+      yield {
+        type: 'metadata',
+        data: {
+          sessionId: session.id,
+          messageCount: newMessageCount,
+          avgConfidence: newAvgConfidence,
+          shouldLearn: newMessageCount >= 5 && newAvgConfidence < 60,
+          ...metadata,
+          agentId: agent.id
+        }
+      };
+
+    } catch (error) {
+      console.error('[Stream] Error:', error);
+      yield {
+        type: 'token',
+        data: 'I apologize for the technical difficulty. Let me connect you with a specialist.'
+      };
+      yield {
+        type: 'metadata',
+        data: {
+          sessionId: 'error',
+          confidence: 0,
+          requiresHumanTakeover: true
+        }
+      };
+    }
+  }
+
+  /**
+   * Generate streaming agent response with OpenAI streaming API
+   * Yields tokens as they arrive for real-time display
+   */
+  private static async *generateAgentResponseWithConfigStream(
+    customerMessage: string,
+    conversationHistory: string[],
+    searchResults: SearchResult[],
+    agent: AiAgent,
+    responseFormat: keyof typeof RESPONSE_FORMATS = 'conversational',
+    contextData?: any
+  ): AsyncGenerator<{ type: 'token' | 'metadata'; data: any }, void, unknown> {
+    try {
+      // Build the same context as non-streaming version
+      const knowledgeContext = searchResults.length 
+        ? this.formatKnowledgeContext(searchResults)
+        : '\nKnowledge Base: No relevant knowledge base articles available.\n';
+
+      const conversationContext = conversationHistory.length 
+        ? `\nConversation History:\n${conversationHistory.join('\n')}\n`
+        : '';
+
+      const customContext = contextData 
+        ? `\nCustom Context Data:\n${JSON.stringify(contextData, null, 2)}\n`
+        : '';
+
+      const knowledgeQuality = this.calculateKnowledgeQuality(searchResults);
+      const isVagueQuery = this.detectVagueQuery(customerMessage);
+      const bestRetrievalScore = searchResults.length > 0 ? searchResults[0].score : 0;
+      const meetsConfidenceThreshold = bestRetrievalScore >= 0.3;
+      const shouldAbstain = !meetsConfidenceThreshold && searchResults.length > 0;
+      
+      const formatTemplate = RESPONSE_FORMATS[responseFormat];
+
+      // Build the prompt (same as non-streaming)
+      const userPrompt = `${knowledgeContext}${conversationContext}${customContext}
+Customer Message: "${customerMessage}"
+
+Agent Role: ${agent.name} - ${agent.description}
+Specializations: ${agent.specializations?.join(', ') || 'General Support'}
+
+RESPONSE FORMAT REQUIREMENT:
+Format: ${responseFormat}
+Instructions: ${formatTemplate.prompt}
+
+IMPORTANT: Provide a helpful, conversational response directly. Do NOT wrap your response in JSON. Just provide the natural language answer.
+
+Knowledge available: ${searchResults.length} relevant chunks (score: ${bestRetrievalScore.toFixed(2)})
+Query is vague: ${isVagueQuery ? 'YES - ask clarifying questions' : 'NO - provide solution'}
+Confidence threshold met: ${meetsConfidenceThreshold ? 'YES' : 'NO'}
+
+${shouldAbstain ? 'IMPORTANT: Insufficient information to answer confidently. Suggest human specialist.' : ''}
+${isVagueQuery ? 'IMPORTANT: Query is too vague. Ask 2-3 clarifying questions.' : ''}
+${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided knowledge base information and cite sources.' : ''}`;
+
+      // Call OpenAI with streaming enabled
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: agent.systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: (agent.temperature || 30) / 100,
+        max_tokens: agent.maxTokens || 1000,
+        stream: true, // Enable streaming
+      });
+
+      // Stream tokens as they arrive
+      let fullResponse = '';
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          fullResponse += content;
+          yield {
+            type: 'token',
+            data: content
+          };
+        }
+      }
+
+      // Update knowledge base usage statistics
+      if (searchResults.length > 0) {
+        for (const result of searchResults) {
+          try {
+            await storage.updateKnowledgeBaseUsage?.(result.chunk.knowledgeBaseId);
+          } catch (e) {
+            // Ignore if method doesn't exist
+          }
+        }
+      }
+
+      // Calculate confidence and metadata after streaming completes
+      const shouldForceHumanTakeover = searchResults.length === 0;
+      
+      // Estimate confidence based on knowledge quality
+      let confidence = 50;
+      if (!shouldForceHumanTakeover && searchResults.length > 0) {
+        const qualityMultiplier = Math.min(1.2, 0.8 + (knowledgeQuality / 25));
+        confidence = Math.round(75 * qualityMultiplier);
+        
+        if (searchResults.length > 1 && knowledgeQuality > 7) {
+          confidence = Math.min(95, confidence + 5);
+        }
+        
+        if (knowledgeQuality < 4) {
+          confidence = Math.max(20, confidence - 15);
+        }
+      } else if (shouldForceHumanTakeover) {
+        confidence = 25;
+      }
+
+      // Detect format from response
+      const hasNumberedSteps = /\d+[.)]\s+.*(\n.*\d+[.)]\s+)/.test(fullResponse);
+      const instructionalKeywords = /\b(how\s+(do\s+i|to)|setup|install|configure)\b/i;
+      const isInstructionalQuery = instructionalKeywords.test(customerMessage);
+      const finalFormat = (hasNumberedSteps || isInstructionalQuery) ? 'steps' : 'regular';
+
+      // Add reference links
+      const uniqueArticles = new Map<string, { id: string; title: string }>();
+      for (const result of searchResults.slice(0, 3)) {
+        if (!uniqueArticles.has(result.chunk.knowledgeBaseId)) {
+          uniqueArticles.set(result.chunk.knowledgeBaseId, {
+            id: result.chunk.knowledgeBaseId,
+            title: result.chunk.metadata.sourceTitle || result.chunk.title
+          });
+        }
+      }
+      
+      if (uniqueArticles.size > 0 && !shouldForceHumanTakeover) {
+        const references = Array.from(uniqueArticles.values())
+          .map(article => `• [${article.title}](/kb/${article.id})`)
+          .join('\n');
+        
+        const refSection = `\n\n**📚 Learn More:**\n${references}`;
+        yield {
+          type: 'token',
+          data: refSection
+        };
+      }
+
+      // Yield metadata at the end
+      yield {
+        type: 'metadata',
+        data: {
+          confidence: Math.max(0, Math.min(100, confidence)),
+          requiresHumanTakeover: shouldForceHumanTakeover,
+          suggestedActions: shouldForceHumanTakeover ? ['Connect with human agent'] : [],
+          knowledgeUsed: searchResults.map(r => r.chunk.knowledgeBaseId),
+          agentId: agent.id,
+          format: finalFormat
+        }
+      };
+
+    } catch (error) {
+      console.error('[Stream Config] Error:', error);
+      yield {
+        type: 'token',
+        data: 'I apologize, but I need to connect you with a specialist.'
+      };
+      yield {
+        type: 'metadata',
+        data: {
+          confidence: 0,
+          requiresHumanTakeover: true,
+          suggestedActions: ['Connect with human agent'],
+          agentId: agent.id,
+          format: 'regular'
+        }
+      };
+    }
+  }
 }
