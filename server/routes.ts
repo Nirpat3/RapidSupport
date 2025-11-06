@@ -4594,6 +4594,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         title: article.title,
         category: article.category,
         tags: article.tags || [],
+        usageCount: article.usageCount || 0,
         createdAt: article.createdAt,
         updatedAt: article.updatedAt
       }));
