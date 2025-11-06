@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning } from '@shared/schema';
+import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning, BrandConfig } from '@shared/schema';
 import { storage } from './storage';
 import { knowledgeRetrieval, type SearchResult, type RetrievalOptions } from './knowledge-retrieval';
 import { conversationLogger } from './conversation-logger';
@@ -103,6 +103,81 @@ const RESPONSE_FORMATS = {
 } as const;
 
 export class AIService {
+  /**
+   * Load brand configuration from database (singleton)
+   */
+  private static async loadBrandConfig(): Promise<BrandConfig | null> {
+    try {
+      const config = await storage.getBrandConfig?.();
+      return config || null;
+    } catch (error) {
+      console.error('[Brand Voice] Error loading brand config:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Build brand voice prompt injection from configuration
+   */
+  private static buildBrandVoicePrompt(brandConfig: BrandConfig | null): string {
+    if (!brandConfig || !brandConfig.isActive) {
+      return ''; // No brand voice injection if disabled or not configured
+    }
+
+    const sections: string[] = [
+      '\n=== BRAND VOICE GUIDELINES ===',
+      `Company: ${brandConfig.companyName}`,
+    ];
+
+    if (brandConfig.industryVertical) {
+      sections.push(`Industry: ${brandConfig.industryVertical}`);
+    }
+
+    // Core voice attributes
+    sections.push(
+      '',
+      'TONE & STYLE:',
+      `• Tone: ${brandConfig.tone}`,
+      `• Voice: ${brandConfig.voice}`,
+      `• Style: ${brandConfig.style}`,
+      `• Formality Level: ${brandConfig.formalityLevel}/10`,
+      `• Empathy Level: ${brandConfig.empathyLevel}/10`,
+      `• Technical Depth: ${brandConfig.technicalDepth}/10`
+    );
+
+    // Do's and Don'ts
+    if (brandConfig.dosList && brandConfig.dosList.length > 0) {
+      sections.push('', 'ALWAYS DO:');
+      brandConfig.dosList.forEach(item => sections.push(`• ${item}`));
+    }
+
+    if (brandConfig.dontsList && brandConfig.dontsList.length > 0) {
+      sections.push('', 'NEVER DO:');
+      brandConfig.dontsList.forEach(item => sections.push(`• ${item}`));
+    }
+
+    // Preferred/Avoided terms
+    if (brandConfig.preferredTerms && brandConfig.preferredTerms.length > 0) {
+      sections.push('', `PREFERRED TERMS: ${brandConfig.preferredTerms.join(', ')}`);
+    }
+
+    if (brandConfig.avoidedTerms && brandConfig.avoidedTerms.length > 0) {
+      sections.push('', `AVOID TERMS: ${brandConfig.avoidedTerms.join(', ')}`);
+    }
+
+    // Example interactions (few-shot learning)
+    if (brandConfig.exampleInteractions && brandConfig.exampleInteractions.length > 0) {
+      sections.push('', 'EXAMPLE INTERACTIONS:');
+      brandConfig.exampleInteractions.forEach((example, idx) => {
+        sections.push(`${idx + 1}. ${example}`);
+      });
+    }
+
+    sections.push('=== END BRAND VOICE GUIDELINES ===\n');
+
+    return sections.join('\n');
+  }
+
   /**
    * Classify customer message intent
    */
@@ -2261,6 +2336,10 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
     contextData?: any
   ): AsyncGenerator<{ type: 'token' | 'metadata'; data: any }, void, unknown> {
     try {
+      // Load brand voice configuration
+      const brandConfig = await this.loadBrandConfig();
+      const brandVoicePrompt = this.buildBrandVoicePrompt(brandConfig);
+
       // Build the same context as non-streaming version
       const knowledgeContext = searchResults.length 
         ? this.formatKnowledgeContext(searchResults)
@@ -2303,11 +2382,18 @@ ${shouldAbstain ? 'IMPORTANT: Insufficient information to answer confidently. Su
 ${isVagueQuery ? 'IMPORTANT: Query is too vague. Ask 2-3 clarifying questions.' : ''}
 ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided knowledge base information and cite sources.' : ''}`;
 
+      // Inject brand voice into system prompt
+      const enhancedSystemPrompt = agent.systemPrompt + brandVoicePrompt;
+      
+      if (brandConfig) {
+        console.log(`[Brand Voice] Injected brand voice configuration for ${brandConfig.companyName}`);
+      }
+
       // Call OpenAI with streaming enabled
       const stream = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: agent.systemPrompt },
+          { role: "system", content: enhancedSystemPrompt },
           { role: "user", content: userPrompt }
         ],
         temperature: (agent.temperature || 30) / 100,

@@ -6709,6 +6709,31 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Brand Configuration API routes
+  app.get('/api/brand-config', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const config = await storage.getBrandConfig();
+      if (!config) {
+        return res.status(404).json({ error: 'Brand configuration not found' });
+      }
+      res.json(config);
+    } catch (error) {
+      console.error('Failed to fetch brand config:', error);
+      res.status(500).json({ error: 'Failed to fetch brand configuration' });
+    }
+  });
+
+  app.put('/api/brand-config', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const updates = req.body;
+      const updatedConfig = await storage.updateBrandConfig(updates);
+      res.json(updatedConfig);
+    } catch (error) {
+      console.error('Failed to update brand config:', error);
+      res.status(500).json({ error: 'Failed to update brand configuration' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat

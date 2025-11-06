@@ -31,10 +31,14 @@ import {
   agentPerformanceStats,
   activityNotifications,
   userPermissions,
+  brandConfig,
   type User,
   type InsertUser,
   type Customer,
   type InsertCustomer,
+  type BrandConfig,
+  type UpdateBrandConfig,
+  type InsertBrandConfig,
   type Conversation,
   type InsertConversation,
   type Message,
@@ -211,6 +215,10 @@ export interface IStorage {
   createAiAgent(agent: InsertAiAgent): Promise<AiAgent>;
   updateAiAgent(id: string, updates: Partial<InsertAiAgent>): Promise<void>;
   deleteAiAgent(id: string): Promise<void>;
+
+  // Brand Configuration operations
+  getBrandConfig(): Promise<BrandConfig | undefined>;
+  updateBrandConfig(updates: Partial<UpdateBrandConfig>): Promise<BrandConfig>;
 
   // Knowledge Base operations
   getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined>;
@@ -1722,6 +1730,42 @@ export class DatabaseStorage implements IStorage {
       await db.delete(aiAgents).where(eq(aiAgents.id, id));
     } catch (error) {
       console.error('Error deleting AI agent:', error);
+      throw error;
+    }
+  }
+
+  // Brand Configuration operations
+  async getBrandConfig(): Promise<BrandConfig | undefined> {
+    try {
+      const [config] = await db.select().from(brandConfig).limit(1);
+      return config || undefined;
+    } catch (error) {
+      console.error('Error fetching brand config:', error);
+      return undefined;
+    }
+  }
+
+  async updateBrandConfig(updates: Partial<UpdateBrandConfig>): Promise<BrandConfig> {
+    try {
+      const [config] = await db.select().from(brandConfig).limit(1);
+      
+      if (!config) {
+        const [newConfig] = await db.insert(brandConfig).values({
+          ...updates,
+          updatedAt: new Date(),
+        } as InsertBrandConfig).returning();
+        return newConfig;
+      }
+
+      const [updatedConfig] = await db
+        .update(brandConfig)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(brandConfig.id, config.id))
+        .returning();
+      
+      return updatedConfig;
+    } catch (error) {
+      console.error('Error updating brand config:', error);
       throw error;
     }
   }
