@@ -83,6 +83,14 @@ export default function ConversationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [showMobileList, setShowMobileList] = useState(!params.id);
+  
+  // Streaming AI response state - Map keyed by conversationId to support concurrent streams
+  const [streamingMessages, setStreamingMessages] = useState<Map<string, {
+    streamId: string;
+    conversationId: string;
+    content: string;
+    isStreaming: boolean;
+  }>>(new Map());
 
   // WebSocket setup
   useEffect(() => {
@@ -102,7 +110,71 @@ export default function ConversationsPage() {
       try {
         const data = JSON.parse(event.data);
         
-        if (data.type === 'new_message' && data.conversationId) {
+        // Handle streaming AI response tokens
+        if (data.type === 'ai_stream_token') {
+          setStreamingMessages((prev) => {
+            const newMap = new Map(prev);
+            const existing = newMap.get(data.conversationId);
+            
+            if (!existing || existing.streamId !== data.streamId) {
+              // Start new stream for this conversation
+              newMap.set(data.conversationId, {
+                streamId: data.streamId,
+                conversationId: data.conversationId,
+                content: data.token,
+                isStreaming: true
+              });
+            } else {
+              // Append to existing stream
+              newMap.set(data.conversationId, {
+                ...existing,
+                content: existing.content + data.token
+              });
+            }
+            return newMap;
+          });
+        }
+        
+        // Handle streaming completion
+        else if (data.type === 'ai_stream_complete') {
+          console.log('[ConversationsPage] AI streaming complete:', data.streamId);
+          
+          // Remove streaming state for this conversation
+          setStreamingMessages((prev) => {
+            const newMap = new Map(prev);
+            newMap.delete(data.conversationId);
+            return newMap;
+          });
+          
+          // Refresh messages to show the persisted message
+          if (data.conversationId === activeConversationId) {
+            queryClient.invalidateQueries({ 
+              queryKey: ['/api/conversations', activeConversationId, 'messages'] 
+            });
+          }
+          queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/unread-counts'] });
+        }
+        
+        // Handle streaming errors
+        else if (data.type === 'ai_stream_error') {
+          console.error('[ConversationsPage] AI streaming error:', data.error);
+          toast({
+            title: "AI Response Error",
+            description: data.error || "Failed to generate AI response",
+            variant: "destructive",
+          });
+          
+          // Remove streaming state for this conversation
+          setStreamingMessages((prev) => {
+            const newMap = new Map(prev);
+            newMap.delete(data.conversationId);
+            return newMap;
+          });
+        }
+        
+        // Handle regular new message events (backward compatibility)
+        else if (data.type === 'new_message' && data.conversationId) {
           if (data.conversationId === activeConversationId) {
             queryClient.invalidateQueries({ 
               queryKey: ['/api/conversations', activeConversationId, 'messages'] 
@@ -512,6 +584,7 @@ export default function ConversationsPage() {
               conversationId={activeConversationId}
               customer={activeConversation.customer}
               messages={activeMessages}
+              streamingMessage={activeConversationId ? streamingMessages.get(activeConversationId) || null : null}
             />
           </>
         ) : (

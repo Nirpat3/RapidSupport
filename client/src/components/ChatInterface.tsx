@@ -34,6 +34,12 @@ interface ChatInterfaceProps {
   };
   messages?: Message[];
   onSendMessage?: (content: string) => void;
+  streamingMessage?: {
+    streamId: string;
+    conversationId: string;
+    content: string;
+    isStreaming: boolean;
+  } | null;
 }
 
 const statusColors = {
@@ -47,7 +53,8 @@ export default function ChatInterface({
   conversationId,
   customer,
   messages = [],
-  onSendMessage 
+  onSendMessage,
+  streamingMessage 
 }: ChatInterfaceProps) {
   const [newMessage, setNewMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -867,6 +874,32 @@ export default function ChatInterface({
               viewerRole={user?.role}
             />
           ))}
+          
+          {/* Streaming AI Response */}
+          {streamingMessage && streamingMessage.isStreaming && (
+            <div className="flex items-start gap-3" data-testid="streaming-message">
+              <Avatar className="w-8 h-8 flex-shrink-0">
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  <Sparkles className="w-4 h-4" />
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-medium">Alex (AI Assistant)</span>
+                  <Badge variant="default" className="text-xs">
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    AI
+                  </Badge>
+                </div>
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-3">
+                  <div className="text-sm whitespace-pre-wrap">
+                    {streamingMessage.content}
+                    <span className="inline-block w-1 h-4 ml-0.5 bg-primary animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           
           {isTyping && customer && (
             <div className="flex items-center gap-3" data-testid="typing-indicator">
