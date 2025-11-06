@@ -43,6 +43,45 @@ export const organizations = pgTable("organizations", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Brand Voice Configuration - Centralized AI tone and style settings (Singleton table)
+export const brandConfig = pgTable("brand_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Core Brand Identity
+  companyName: text("company_name").notNull().default("Your Company"),
+  industryVertical: text("industry_vertical"), // e.g., "SaaS", "E-commerce", "Healthcare"
+  
+  // Brand Voice Attributes
+  tone: text("tone").notNull().default("professional yet approachable"), // Overall emotional quality
+  voice: text("voice").notNull().default("empathetic and solution-focused"), // Personality characteristics
+  style: text("style").notNull().default("concise with actionable next steps"), // Writing style
+  
+  // Communication Guidelines
+  dosList: text("dos_list").array().default(sql`ARRAY['Be empathetic and understanding', 'Provide clear next steps', 'Use customer-friendly language', 'Acknowledge customer concerns']::text[]`),
+  dontsList: text("donts_list").array().default(sql`ARRAY['Use jargon without explanation', 'Make promises we cannot keep', 'Be overly formal or robotic', 'Ignore customer emotions']::text[]`),
+  
+  // Few-Shot Examples (optional training examples)
+  exampleInteractions: text("example_interactions").array(), // JSON strings of example Q&A pairs
+  
+  // Vocabulary Preferences
+  preferredTerms: text("preferred_terms").array(), // Terms the brand prefers (e.g., "client" vs "customer")
+  avoidedTerms: text("avoided_terms").array(), // Terms to avoid
+  
+  // Response Characteristics
+  formalityLevel: integer("formality_level").notNull().default(5), // 1-10 scale (1=casual, 10=very formal)
+  empathyLevel: integer("empathy_level").notNull().default(8), // 1-10 scale
+  technicalDepth: integer("technical_depth").notNull().default(5), // 1-10 scale
+  
+  // Escalation Preferences
+  escalationThreshold: integer("escalation_threshold").notNull().default(30), // Confidence % below which to escalate
+  
+  // Active Status
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Users table - for agents and admins
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -717,6 +756,18 @@ export const insertOrganizationSchema = createInsertSchema(organizations).pick({
   status: true,
 });
 
+export const insertBrandConfigSchema = createInsertSchema(brandConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateBrandConfigSchema = createInsertSchema(brandConfig).partial().omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   password: true,
@@ -1072,6 +1123,9 @@ export const insertAiAgentSessionSchema = createInsertSchema(aiAgentSessions).pi
 // Types
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 export type Organization = typeof organizations.$inferSelect;
+export type InsertBrandConfig = z.infer<typeof insertBrandConfigSchema>;
+export type UpdateBrandConfig = z.infer<typeof updateBrandConfigSchema>;
+export type BrandConfig = typeof brandConfig.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
