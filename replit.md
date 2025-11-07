@@ -22,6 +22,17 @@ The platform features a streamlined AI management interface with three focused s
 ### UI/UX Decisions
 The frontend uses React 18, TypeScript, and Vite, leveraging Radix UI components with Tailwind CSS in a shadcn/ui pattern for a custom design system supporting light/dark themes. The customer chat features a Perplexity-style redesign with a prominent hero input, progressive disclosure of customer information, suggested questions, and visual feature cards. Design aesthetics are Apple/Stripe-like, utilizing SF Pro/Inter font stacks, refined letter-spacing, layered subtle shadows, elegant border radii, and comprehensive typography utilities. The layout ensures independent scrolling for conversation lists and chat interfaces across devices, and mobile message input has been optimized for small screens. Floating chat widgets are integrated into the main page and knowledge base for instant AI assistance.
 
+**Public Knowledge Base** (`/knowledge-base`): Redesigned as a comprehensive FAQ-style interface serving as the primary self-service support destination. Features include:
+- **Hero Section**: Gradient background with prominent "Knowledge Base" heading and full-width search bar for instant article discovery
+- **Category Overview Cards**: Visual grid showcasing all categories with article counts, clickable for smooth scroll navigation to category sections
+- **Accordion Layout**: Expandable category sections containing organized article cards, with first category auto-expanded by default for immediate content visibility
+- **Smart Search**: Real-time filtering across article titles, categories, tags, and content with clear button and results summary
+- **Article Dialog**: Full-screen modal view for reading complete article content with print functionality and rich HTML rendering
+- **Empty State Handling**: Helpful messaging when no articles exist or search yields no results
+- **Usage Indicators**: "Popular" badges on frequently-accessed articles (usage count > 10) to highlight valuable content
+- **Integrated AI Support**: Floating ChatWidget provides instant AI assistance alongside browsable articles
+- **Mobile-Responsive**: Optimized layout and spacing for all screen sizes
+
 **Staff Conversations Page** (`/conversations`): Redesigned with a clean, mobile-first approach featuring a 2-column layout (conversation list + chat area) on desktop that collapses to a single view on mobile (< 768px). The interface includes:
 - **Conversation List**: Sidebar (320-384px wide) with search, status filtering, and scrollable list. Each conversation displays customer avatar, name, message preview, status icon, timestamp, and priority indicator.
 - **Unread Tracking**: Visual indicators include red badge with count on avatar, bold text for unread conversations, and accent background. Conversations are automatically marked as read when viewed.
