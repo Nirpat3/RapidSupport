@@ -27,11 +27,20 @@ The frontend uses React 18, TypeScript, and Vite, leveraging Radix UI components
 - **Category Overview Cards**: Visual grid showcasing all categories with article counts, clickable for smooth scroll navigation to category sections
 - **Accordion Layout**: Expandable category sections containing organized article cards, with first category auto-expanded by default for immediate content visibility
 - **Smart Search**: Real-time filtering across article titles, categories, tags, and content with clear button and results summary
-- **Article Dialog**: Full-screen modal view for reading complete article content with print functionality and rich HTML rendering
+- **Article Links**: Articles open in new tabs at `/kb/{id}` with ExternalLink icons, enabling easy sharing and multitasking
 - **Empty State Handling**: Helpful messaging when no articles exist or search yields no results
 - **Usage Indicators**: "Popular" badges on frequently-accessed articles (usage count > 10) to highlight valuable content
 - **Integrated AI Support**: Floating ChatWidget provides instant AI assistance alongside browsable articles
 - **Mobile-Responsive**: Optimized layout and spacing for all screen sizes
+
+**Article Detail Page** (`/kb/:id`): Dedicated page for viewing individual knowledge base articles with:
+- **Share Functionality**: One-click button to copy article URL to clipboard with visual confirmation and toast notification
+- **Print Support**: Optimized print layout with proper formatting and article metadata
+- **PDF Export**: Save as PDF button for offline access
+- **Navigation**: Back button to return to previous page
+- **Rich Content**: Full HTML rendering with proper typography and spacing
+- **Metadata Display**: Category badges, tags, and last updated date
+- **Print-Optimized**: Hidden controls and enhanced layout for printed/PDF versions
 
 **Staff Conversations Page** (`/conversations`): Redesigned with a clean, mobile-first approach featuring a 2-column layout (conversation list + chat area) on desktop that collapses to a single view on mobile (< 768px). The interface includes:
 - **Conversation List**: Sidebar (320-384px wide) with search, status filtering, and scrollable list. Each conversation displays customer avatar, name, message preview, status icon, timestamp, and priority indicator.
