@@ -4,16 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Search, FileText, BookOpen, Printer, Sparkles, HelpCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Search, FileText, BookOpen, Sparkles, HelpCircle, ExternalLink } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import ChatWidget from "@/components/ChatWidget";
 
@@ -31,23 +28,12 @@ interface KnowledgeBaseArticle {
 
 export default function SupportPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedArticle, setSelectedArticle] = useState<KnowledgeBaseArticle | null>(null);
 
   // Fetch all enabled articles
   const { data: articles = [], isLoading } = useQuery<KnowledgeBaseArticle[]>({
     queryKey: ['/api/public/knowledge-base'],
     queryFn: async () => {
       return apiRequest('/api/public/knowledge-base', 'GET');
-    },
-  });
-
-  // Fetch full article content when selected
-  const { data: fullArticle } = useQuery<KnowledgeBaseArticle>({
-    queryKey: ['/api/public/knowledge-base', selectedArticle?.id],
-    enabled: !!selectedArticle?.id,
-    queryFn: async () => {
-      if (!selectedArticle?.id) throw new Error('No article selected');
-      return apiRequest(`/api/public/knowledge-base/${selectedArticle.id}`, 'GET');
     },
   });
 
@@ -88,40 +74,6 @@ export default function SupportPage() {
     return Object.keys(articlesByCategory).sort();
   }, [articlesByCategory]);
 
-  const handlePrint = () => {
-    if (fullArticle) {
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>${fullArticle.title}</title>
-              <style>
-                body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-                h1 { color: #111; font-size: 2rem; margin-bottom: 1.5rem; }
-                .meta { color: #666; font-size: 0.875rem; margin-bottom: 2rem; }
-                .content { color: #333; }
-                .content h2 { margin-top: 2rem; margin-bottom: 1rem; }
-                .content p { margin-bottom: 1rem; }
-                .content ul, .content ol { margin-bottom: 1rem; padding-left: 2rem; }
-                .content li { margin-bottom: 0.5rem; }
-                @media print { body { margin: 0; padding: 1rem; } }
-              </style>
-            </head>
-            <body>
-              <h1>${fullArticle.title}</h1>
-              <div class="meta">Category: ${fullArticle.category}</div>
-              <div class="content">${fullArticle.content || ''}</div>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => printWindow.print(), 250);
-      }
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -276,37 +228,44 @@ export default function SupportPage() {
                     <AccordionContent className="px-6 pb-4">
                       <div className="grid gap-3 pt-2">
                         {articlesByCategory[category].map((article) => (
-                          <Card
+                          <a
                             key={article.id}
-                            className="hover-elevate active-elevate-2 transition-all cursor-pointer group"
-                            onClick={() => setSelectedArticle(article)}
-                            data-testid={`card-article-${article.id}`}
+                            href={`/kb/${article.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block"
+                            data-testid={`link-article-${article.id}`}
                           >
-                            <CardHeader className="p-4">
-                              <div className="flex items-start gap-3">
-                                <div className="flex-1 min-w-0">
-                                  <CardTitle className="text-base font-semibold group-hover:text-primary transition-colors mb-2">
-                                    {article.title}
-                                  </CardTitle>
-                                  {article.tags && article.tags.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {article.tags.map((tag, idx) => (
-                                        <Badge key={idx} variant="secondary" className="text-xs">
-                                          {tag}
-                                        </Badge>
-                                      ))}
+                            <Card className="hover-elevate active-elevate-2 transition-all group">
+                              <CardHeader className="p-4">
+                                <div className="flex items-start gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <CardTitle className="text-base font-semibold group-hover:text-primary transition-colors">
+                                        {article.title}
+                                      </CardTitle>
+                                      <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
                                     </div>
+                                    {article.tags && article.tags.length > 0 && (
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {article.tags.map((tag, idx) => (
+                                          <Badge key={idx} variant="secondary" className="text-xs">
+                                            {tag}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {article.usageCount && article.usageCount > 10 && (
+                                    <Badge variant="outline" className="gap-1 flex-shrink-0">
+                                      <Sparkles className="h-3 w-3" />
+                                      Popular
+                                    </Badge>
                                   )}
                                 </div>
-                                {article.usageCount && article.usageCount > 10 && (
-                                  <Badge variant="outline" className="gap-1 flex-shrink-0">
-                                    <Sparkles className="h-3 w-3" />
-                                    Popular
-                                  </Badge>
-                                )}
-                              </div>
-                            </CardHeader>
-                          </Card>
+                              </CardHeader>
+                            </Card>
+                          </a>
                         ))}
                       </div>
                     </AccordionContent>
@@ -317,48 +276,6 @@ export default function SupportPage() {
           </div>
         )}
       </div>
-
-      {/* Article View Dialog */}
-      {selectedArticle && fullArticle && (
-        <Dialog open={!!selectedArticle} onOpenChange={() => setSelectedArticle(null)}>
-          <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
-            <DialogHeader>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <DialogTitle className="text-2xl mb-3" data-testid="title-article-view">
-                    {fullArticle.title}
-                  </DialogTitle>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline">{fullArticle.category}</Badge>
-                    {fullArticle.tags?.map((tag, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrint}
-                  className="gap-2 flex-shrink-0"
-                  data-testid="button-print-article"
-                >
-                  <Printer className="h-4 w-4" />
-                  Print
-                </Button>
-              </div>
-            </DialogHeader>
-            <ScrollArea className="flex-1 pr-4">
-              <div
-                className="prose prose-sm dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: fullArticle.content || '' }}
-                data-testid="content-article-view"
-              />
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
-      )}
 
       {/* Floating Support Chat Widget */}
       <ChatWidget className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 !max-w-[min(28rem,calc(100vw-2rem))] max-h-[80vh]" />

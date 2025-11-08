@@ -3,8 +3,10 @@ import { useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Printer, Download, ArrowLeft, BookOpen, Tag } from "lucide-react";
+import { Printer, Download, ArrowLeft, BookOpen, Tag, Share2, Check } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface PublicArticle {
   id: string;
@@ -19,6 +21,8 @@ interface PublicArticle {
 export default function PublicArticlePage() {
   const [, params] = useRoute("/kb/:id");
   const articleId = params?.id;
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
 
   const { data: article, isLoading, error } = useQuery<PublicArticle>({
     queryKey: [`/api/public/knowledge-base/${articleId}`],
@@ -31,6 +35,25 @@ export default function PublicArticlePage() {
 
   const handleDownloadPDF = () => {
     window.print();
+  };
+
+  const handleShare = async () => {
+    const shareUrl = window.location.href;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      toast({
+        title: "Link copied!",
+        description: "Article link has been copied to your clipboard.",
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      toast({
+        title: "Failed to copy",
+        description: "Please copy the URL from your browser's address bar.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
@@ -89,6 +112,25 @@ export default function PublicArticlePage() {
           </Button>
           
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleShare}
+              className="gap-2"
+              data-testid="button-share"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </>
+              )}
+            </Button>
             <Button
               variant="outline"
               size="sm"
