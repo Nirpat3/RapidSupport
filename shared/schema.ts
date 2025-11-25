@@ -438,6 +438,76 @@ export const aiAgentSessions = pgTable("ai_agent_sessions", {
   completedAt: timestamp("completed_at"),
 });
 
+// AI Message Feedback table - tracks thumbs up/down on individual AI messages for learning
+export const aiMessageFeedback = pgTable("ai_message_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull().references(() => messages.id),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
+  feedbackType: text("feedback_type").notNull(), // 'thumbs_up' | 'thumbs_down'
+  feedbackReason: text("feedback_reason"), // Optional reason: 'incorrect', 'unhelpful', 'too_long', 'off_topic', 'perfect', 'helpful'
+  customerQuery: text("customer_query"), // The question that prompted this response
+  aiResponse: text("ai_response"), // The AI response that was rated
+  knowledgeUsed: text("knowledge_used").array(), // Which KB articles were used
+  confidenceScore: integer("confidence_score"), // AI's confidence when generating this response
+  customerId: varchar("customer_id").references(() => customers.id),
+  sessionId: text("session_id"), // Anonymous session tracking
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// AI Corrections table - tracks when humans correct/override AI responses for training
+export const aiCorrections = pgTable("ai_corrections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
+  originalMessageId: varchar("original_message_id").references(() => messages.id),
+  customerQuery: text("customer_query").notNull(), // What the customer asked
+  originalAiResponse: text("original_ai_response").notNull(), // What the AI said (incorrect)
+  correctedResponse: text("corrected_response").notNull(), // What the human staff said instead
+  correctionType: text("correction_type").notNull(), // 'factual_error', 'tone_issue', 'incomplete', 'wrong_context', 'other'
+  correctionNotes: text("correction_notes"), // Staff notes about why correction was needed
+  shouldLearnFrom: boolean("should_learn_from").notNull().default(true), // Flag if this should be used for training
+  appliedToKnowledge: boolean("applied_to_knowledge").notNull().default(false), // Has this been added to KB?
+  suggestedKbArticleId: varchar("suggested_kb_article_id").references(() => knowledgeBase.id),
+  correctedBy: varchar("corrected_by").notNull().references(() => users.id),
+  reviewedBy: varchar("reviewed_by").references(() => users.id), // Manager review
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Knowledge Gaps table - tracks questions the AI couldn't answer well
+export const knowledgeGaps = pgTable("knowledge_gaps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerQuery: text("customer_query").notNull(), // The unanswered question
+  queryNormalized: text("query_normalized"), // Normalized/cleaned version for grouping
+  occurrenceCount: integer("occurrence_count").notNull().default(1), // How many times this was asked
+  avgConfidence: integer("avg_confidence"), // Average AI confidence when answering
+  lastAskedAt: timestamp("last_asked_at").notNull().defaultNow(),
+  status: text("status").notNull().default("open"), // 'open' | 'in_progress' | 'resolved' | 'ignored'
+  suggestedCategory: text("suggested_category"), // AI-suggested category for new article
+  suggestedTitle: text("suggested_title"), // AI-suggested title for new article
+  suggestedContent: text("suggested_content"), // AI-drafted content for new article
+  relatedKbArticleIds: text("related_kb_article_ids").array(), // Possibly related existing articles
+  resolvedByArticleId: varchar("resolved_by_article_id").references(() => knowledgeBase.id),
+  assignedTo: varchar("assigned_to").references(() => users.id), // Staff member working on this
+  priority: text("priority").notNull().default("medium"), // 'low' | 'medium' | 'high' based on occurrence
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// AI Training Queue table - items queued for AI model improvement
+export const aiTrainingQueue = pgTable("ai_training_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceType: text("source_type").notNull(), // 'correction' | 'feedback' | 'gap' | 'example'
+  sourceId: varchar("source_id").notNull(), // ID from source table
+  trainingData: text("training_data").notNull(), // JSON with Q&A pair, context, etc.
+  status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected' | 'applied'
+  priority: integer("priority").notNull().default(50), // 0-100, higher = more important
+  qualityScore: integer("quality_score"), // Validated quality of training data
+  approvedBy: varchar("approved_by").references(() => users.id),
+  appliedAt: timestamp("applied_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Tickets table - separate from conversations for better ticket management
 export const tickets = pgTable("tickets", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1120,6 +1190,63 @@ export const insertAiAgentSessionSchema = createInsertSchema(aiAgentSessions).pi
   avgConfidence: true,
 });
 
+// AI Message Feedback schemas
+export const insertAiMessageFeedbackSchema = createInsertSchema(aiMessageFeedback).pick({
+  messageId: true,
+  conversationId: true,
+  feedbackType: true,
+  feedbackReason: true,
+  customerQuery: true,
+  aiResponse: true,
+  knowledgeUsed: true,
+  confidenceScore: true,
+  customerId: true,
+  sessionId: true,
+  ipAddress: true,
+});
+
+// AI Corrections schemas
+export const insertAiCorrectionSchema = createInsertSchema(aiCorrections).pick({
+  conversationId: true,
+  originalMessageId: true,
+  customerQuery: true,
+  originalAiResponse: true,
+  correctedResponse: true,
+  correctionType: true,
+  correctionNotes: true,
+  shouldLearnFrom: true,
+  appliedToKnowledge: true,
+  suggestedKbArticleId: true,
+  correctedBy: true,
+});
+
+// Knowledge Gaps schemas
+export const insertKnowledgeGapSchema = createInsertSchema(knowledgeGaps).pick({
+  customerQuery: true,
+  queryNormalized: true,
+  occurrenceCount: true,
+  avgConfidence: true,
+  status: true,
+  suggestedCategory: true,
+  suggestedTitle: true,
+  suggestedContent: true,
+  relatedKbArticleIds: true,
+  resolvedByArticleId: true,
+  assignedTo: true,
+  priority: true,
+});
+
+// AI Training Queue schemas
+export const insertAiTrainingQueueSchema = createInsertSchema(aiTrainingQueue).pick({
+  sourceType: true,
+  sourceId: true,
+  trainingData: true,
+  status: true,
+  priority: true,
+  qualityScore: true,
+  approvedBy: true,
+});
+
 // Types
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 export type Organization = typeof organizations.$inferSelect;
@@ -1181,6 +1308,14 @@ export type InsertKnowledgeBaseFile = z.infer<typeof insertKnowledgeBaseFileSche
 export type KnowledgeBaseFile = typeof knowledgeBaseFiles.$inferSelect;
 export type InsertAiAgentFileUsage = z.infer<typeof insertAiAgentFileUsageSchema>;
 export type AiAgentFileUsage = typeof aiAgentFileUsage.$inferSelect;
+export type InsertAiMessageFeedback = z.infer<typeof insertAiMessageFeedbackSchema>;
+export type AiMessageFeedback = typeof aiMessageFeedback.$inferSelect;
+export type InsertAiCorrection = z.infer<typeof insertAiCorrectionSchema>;
+export type AiCorrection = typeof aiCorrections.$inferSelect;
+export type InsertKnowledgeGap = z.infer<typeof insertKnowledgeGapSchema>;
+export type KnowledgeGap = typeof knowledgeGaps.$inferSelect;
+export type InsertAiTrainingQueue = z.infer<typeof insertAiTrainingQueueSchema>;
+export type AiTrainingQueue = typeof aiTrainingQueue.$inferSelect;
 
 // ========================================
 // FEED MODULE SCHEMA

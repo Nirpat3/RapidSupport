@@ -14,11 +14,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal, GraduationCap } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import ChatMessage, { type Message } from "./ChatMessage";
 import InternalChatPanel from "./InternalChatPanel";
 import KnowledgeSearchDialog from "./KnowledgeSearchDialog";
+import AiCorrectionDialog from "./AiCorrectionDialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface ChatInterfaceProps {
@@ -94,6 +95,9 @@ export default function ChatInterface({
   
   // Takeover state
   const [isTakingOver, setIsTakingOver] = useState(false);
+  
+  // AI Correction state
+  const [isCorrectionDialogOpen, setIsCorrectionDialogOpen] = useState(false);
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -552,6 +556,15 @@ export default function ChatInterface({
                 <DropdownMenuItem onClick={() => setIsKnowledgeSearchOpen(true)} data-testid="dropdown-knowledge-base">
                   <BookOpen className="w-4 h-4 mr-2" />
                   Knowledge Base
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem 
+                  onClick={() => setIsCorrectionDialogOpen(true)} 
+                  disabled={!messages.some(m => m.senderType === 'ai')}
+                  data-testid="dropdown-teach-ai"
+                >
+                  <GraduationCap className="w-4 h-4 mr-2" />
+                  Teach AI
                 </DropdownMenuItem>
 
                 <DropdownMenuSeparator />
@@ -1123,6 +1136,42 @@ export default function ChatInterface({
           });
         }}
       />
+
+      {/* AI Correction Dialog */}
+      {isCorrectionDialogOpen && (() => {
+        const aiMessages = messages.filter(m => m.senderType === 'ai');
+        const lastAiMessage = aiMessages[aiMessages.length - 1];
+        const customerMessages = messages.filter(m => m.sender.role === 'customer');
+        const lastCustomerQuery = customerMessages.length > 0 
+          ? customerMessages[customerMessages.length - 1]?.content 
+          : '';
+        
+        return lastAiMessage ? (
+          <Dialog open={isCorrectionDialogOpen} onOpenChange={setIsCorrectionDialogOpen}>
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5 text-primary" />
+                  Teach the AI
+                </DialogTitle>
+                <DialogDescription>
+                  Help improve AI responses by submitting a correction. This feedback trains the AI to provide better answers in the future.
+                </DialogDescription>
+              </DialogHeader>
+              {conversationId && (
+                <AiCorrectionDialog
+                  conversationId={conversationId}
+                  originalMessageId={lastAiMessage.id}
+                  originalAiResponse={lastAiMessage.content}
+                  customerQuery={lastCustomerQuery}
+                  onCorrectionSubmitted={() => setIsCorrectionDialogOpen(false)}
+                  embedded={true}
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+        ) : null;
+      })()}
 
       {/* Close Conversation Confirmation Dialog */}
       <AlertDialog open={isCloseDialogOpen} onOpenChange={setIsCloseDialogOpen}>

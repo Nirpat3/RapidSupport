@@ -17,6 +17,10 @@ import {
   knowledgeBaseFaqs,
   aiAgentLearning,
   aiAgentSessions,
+  aiMessageFeedback,
+  aiCorrections,
+  knowledgeGaps,
+  aiTrainingQueue,
   uploadedFiles,
   knowledgeBaseFiles,
   aiAgentFileUsage,
@@ -100,6 +104,14 @@ import {
   type InsertUserPermission,
   type MessageRating,
   type InsertMessageRating,
+  type AiMessageFeedback,
+  type InsertAiMessageFeedback,
+  type AiCorrection,
+  type InsertAiCorrection,
+  type KnowledgeGap,
+  type InsertKnowledgeGap,
+  type AiTrainingQueue,
+  type InsertAiTrainingQueue,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte } from "drizzle-orm";
@@ -269,6 +281,28 @@ export interface IStorage {
   getAiAgentLearningByAgent(agentId: string): Promise<AiAgentLearning[]>;
   createAiAgentLearning(learning: InsertAiAgentLearning): Promise<AiAgentLearning>;
   updateAiAgentLearning(id: string, updates: Partial<InsertAiAgentLearning>): Promise<void>;
+  
+  // AI Message Feedback operations (thumbs up/down on individual messages)
+  createAiMessageFeedback(feedback: InsertAiMessageFeedback): Promise<AiMessageFeedback>;
+  getAiMessageFeedback(messageId: string): Promise<AiMessageFeedback | undefined>;
+  getAiMessageFeedbackStats(): Promise<{ thumbsUp: number; thumbsDown: number; total: number }>;
+  
+  // AI Corrections operations (human corrections to AI responses)
+  createAiCorrection(correction: InsertAiCorrection): Promise<AiCorrection>;
+  getAiCorrections(filters?: { status?: string; limit?: number }): Promise<AiCorrection[]>;
+  updateAiCorrection(id: string, updates: Partial<AiCorrection>): Promise<void>;
+  getPendingCorrectionsCount(): Promise<number>;
+  
+  // Knowledge Gaps operations (unanswered questions tracking)
+  createOrUpdateKnowledgeGap(query: string, confidence: number): Promise<KnowledgeGap>;
+  getKnowledgeGaps(filters?: { status?: string; priority?: string; limit?: number }): Promise<KnowledgeGap[]>;
+  updateKnowledgeGap(id: string, updates: Partial<KnowledgeGap>): Promise<void>;
+  getKnowledgeGapStats(): Promise<{ open: number; inProgress: number; resolved: number }>;
+  
+  // AI Training Queue operations
+  addToTrainingQueue(item: InsertAiTrainingQueue): Promise<AiTrainingQueue>;
+  getTrainingQueueItems(status?: string): Promise<AiTrainingQueue[]>;
+  updateTrainingQueueItem(id: string, updates: Partial<AiTrainingQueue>): Promise<void>;
   
   // AI Training & Correction operations
   getAiLearningEntries(filters: { agentId?: string; limit?: number; offset?: number }): Promise<any[]>;
@@ -2221,6 +2255,249 @@ export class DatabaseStorage implements IStorage {
       await db.update(aiAgentLearning).set(updates).where(eq(aiAgentLearning.id, id));
     } catch (error) {
       console.error('Error updating AI agent learning:', error);
+      throw error;
+    }
+  }
+
+  // AI Message Feedback operations (thumbs up/down on individual messages)
+  async createAiMessageFeedback(feedback: InsertAiMessageFeedback): Promise<AiMessageFeedback> {
+    try {
+      const [result] = await db.insert(aiMessageFeedback).values(feedback).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating AI message feedback:', error);
+      throw error;
+    }
+  }
+
+  async getAiMessageFeedback(messageId: string): Promise<AiMessageFeedback | undefined> {
+    try {
+      const [feedback] = await db.select().from(aiMessageFeedback).where(eq(aiMessageFeedback.messageId, messageId));
+      return feedback || undefined;
+    } catch (error) {
+      console.error('Error fetching AI message feedback:', error);
+      return undefined;
+    }
+  }
+
+  async getAiMessageFeedbackStats(): Promise<{ thumbsUp: number; thumbsDown: number; total: number }> {
+    try {
+      const results = await db.select({
+        feedbackType: aiMessageFeedback.feedbackType,
+        count: sql<number>`count(*)::int`
+      })
+      .from(aiMessageFeedback)
+      .groupBy(aiMessageFeedback.feedbackType);
+
+      const thumbsUp = results.find(r => r.feedbackType === 'thumbs_up')?.count || 0;
+      const thumbsDown = results.find(r => r.feedbackType === 'thumbs_down')?.count || 0;
+      return { thumbsUp, thumbsDown, total: thumbsUp + thumbsDown };
+    } catch (error) {
+      console.error('Error fetching AI message feedback stats:', error);
+      return { thumbsUp: 0, thumbsDown: 0, total: 0 };
+    }
+  }
+
+  // AI Corrections operations (human corrections to AI responses)
+  async createAiCorrection(correction: InsertAiCorrection): Promise<AiCorrection> {
+    try {
+      const [result] = await db.insert(aiCorrections).values(correction).returning();
+      
+      // Auto-add to training queue for learning
+      await this.addToTrainingQueue({
+        sourceType: 'correction',
+        sourceId: result.id,
+        trainingData: JSON.stringify({
+          query: correction.customerQuery,
+          incorrectResponse: correction.originalAiResponse,
+          correctResponse: correction.correctedResponse,
+          correctionType: correction.correctionType,
+          notes: correction.correctionNotes
+        }),
+        status: 'pending',
+        priority: 70 // Corrections are high priority
+      });
+      
+      return result;
+    } catch (error) {
+      console.error('Error creating AI correction:', error);
+      throw error;
+    }
+  }
+
+  async getAiCorrections(filters?: { status?: string; limit?: number }): Promise<AiCorrection[]> {
+    try {
+      let query = db.select().from(aiCorrections).$dynamic();
+      
+      if (filters?.status === 'pending') {
+        query = query.where(eq(aiCorrections.appliedToKnowledge, false));
+      }
+      
+      query = query.orderBy(desc(aiCorrections.createdAt));
+      
+      if (filters?.limit) {
+        query = query.limit(filters.limit);
+      }
+      
+      return await query;
+    } catch (error) {
+      console.error('Error fetching AI corrections:', error);
+      return [];
+    }
+  }
+
+  async updateAiCorrection(id: string, updates: Partial<AiCorrection>): Promise<void> {
+    try {
+      await db.update(aiCorrections).set(updates).where(eq(aiCorrections.id, id));
+    } catch (error) {
+      console.error('Error updating AI correction:', error);
+      throw error;
+    }
+  }
+
+  async getPendingCorrectionsCount(): Promise<number> {
+    try {
+      const [result] = await db.select({ count: sql<number>`count(*)::int` })
+        .from(aiCorrections)
+        .where(eq(aiCorrections.appliedToKnowledge, false));
+      return result?.count || 0;
+    } catch (error) {
+      console.error('Error getting pending corrections count:', error);
+      return 0;
+    }
+  }
+
+  // Knowledge Gaps operations (unanswered questions tracking)
+  async createOrUpdateKnowledgeGap(query: string, confidence: number): Promise<KnowledgeGap> {
+    try {
+      const normalizedQuery = query.toLowerCase().trim().replace(/[^\w\s]/g, '');
+      
+      // Check for existing similar gap
+      const existing = await db.select().from(knowledgeGaps)
+        .where(eq(knowledgeGaps.queryNormalized, normalizedQuery))
+        .limit(1);
+      
+      if (existing.length > 0) {
+        // Update existing gap
+        const updated = await db.update(knowledgeGaps)
+          .set({
+            occurrenceCount: sql`${knowledgeGaps.occurrenceCount} + 1`,
+            avgConfidence: sql`(${knowledgeGaps.avgConfidence} * ${knowledgeGaps.occurrenceCount} + ${confidence}) / (${knowledgeGaps.occurrenceCount} + 1)`,
+            lastAskedAt: new Date(),
+            priority: existing[0].occurrenceCount >= 5 ? 'high' : existing[0].occurrenceCount >= 3 ? 'medium' : 'low',
+            updatedAt: new Date()
+          })
+          .where(eq(knowledgeGaps.id, existing[0].id))
+          .returning();
+        return updated[0];
+      }
+      
+      // Create new gap
+      const [result] = await db.insert(knowledgeGaps).values({
+        customerQuery: query,
+        queryNormalized: normalizedQuery,
+        occurrenceCount: 1,
+        avgConfidence: confidence,
+        status: 'open',
+        priority: 'low'
+      }).returning();
+      
+      return result;
+    } catch (error) {
+      console.error('Error creating/updating knowledge gap:', error);
+      throw error;
+    }
+  }
+
+  async getKnowledgeGaps(filters?: { status?: string; priority?: string; limit?: number }): Promise<KnowledgeGap[]> {
+    try {
+      let query = db.select().from(knowledgeGaps).$dynamic();
+      
+      const conditions: any[] = [];
+      if (filters?.status) {
+        conditions.push(eq(knowledgeGaps.status, filters.status));
+      }
+      if (filters?.priority) {
+        conditions.push(eq(knowledgeGaps.priority, filters.priority));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+      
+      query = query.orderBy(desc(knowledgeGaps.occurrenceCount), desc(knowledgeGaps.lastAskedAt));
+      
+      if (filters?.limit) {
+        query = query.limit(filters.limit);
+      }
+      
+      return await query;
+    } catch (error) {
+      console.error('Error fetching knowledge gaps:', error);
+      return [];
+    }
+  }
+
+  async updateKnowledgeGap(id: string, updates: Partial<KnowledgeGap>): Promise<void> {
+    try {
+      await db.update(knowledgeGaps).set({ ...updates, updatedAt: new Date() }).where(eq(knowledgeGaps.id, id));
+    } catch (error) {
+      console.error('Error updating knowledge gap:', error);
+      throw error;
+    }
+  }
+
+  async getKnowledgeGapStats(): Promise<{ open: number; inProgress: number; resolved: number }> {
+    try {
+      const results = await db.select({
+        status: knowledgeGaps.status,
+        count: sql<number>`count(*)::int`
+      })
+      .from(knowledgeGaps)
+      .groupBy(knowledgeGaps.status);
+
+      return {
+        open: results.find(r => r.status === 'open')?.count || 0,
+        inProgress: results.find(r => r.status === 'in_progress')?.count || 0,
+        resolved: results.find(r => r.status === 'resolved')?.count || 0
+      };
+    } catch (error) {
+      console.error('Error fetching knowledge gap stats:', error);
+      return { open: 0, inProgress: 0, resolved: 0 };
+    }
+  }
+
+  // AI Training Queue operations
+  async addToTrainingQueue(item: InsertAiTrainingQueue): Promise<AiTrainingQueue> {
+    try {
+      const [result] = await db.insert(aiTrainingQueue).values(item).returning();
+      return result;
+    } catch (error) {
+      console.error('Error adding to training queue:', error);
+      throw error;
+    }
+  }
+
+  async getTrainingQueueItems(status?: string): Promise<AiTrainingQueue[]> {
+    try {
+      let query = db.select().from(aiTrainingQueue).$dynamic();
+      
+      if (status) {
+        query = query.where(eq(aiTrainingQueue.status, status));
+      }
+      
+      return await query.orderBy(desc(aiTrainingQueue.priority), desc(aiTrainingQueue.createdAt));
+    } catch (error) {
+      console.error('Error fetching training queue items:', error);
+      return [];
+    }
+  }
+
+  async updateTrainingQueueItem(id: string, updates: Partial<AiTrainingQueue>): Promise<void> {
+    try {
+      await db.update(aiTrainingQueue).set(updates).where(eq(aiTrainingQueue.id, id));
+    } catch (error) {
+      console.error('Error updating training queue item:', error);
       throw error;
     }
   }

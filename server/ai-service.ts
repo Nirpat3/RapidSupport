@@ -1214,6 +1214,18 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         });
       }
 
+      // Track knowledge gaps for low-confidence responses
+      // This helps identify topics that need more documentation
+      if (response.confidence < 50 && customerMessage.trim().length > 10) {
+        try {
+          await storage.createOrUpdateKnowledgeGap(customerMessage, response.confidence);
+          console.log(`📚 Knowledge gap tracked: "${customerMessage.slice(0, 50)}..." (confidence: ${response.confidence}%)`);
+        } catch (gapError) {
+          console.error('Error tracking knowledge gap:', gapError);
+          // Don't let gap tracking errors affect the response
+        }
+      }
+
       return {
         ...response,
         sessionId: session.id,

@@ -1430,12 +1430,26 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const messageIds = messages.map(m => m.id);
       const readStatus = await storage.getMessagesReadStatus(messageIds, user.id);
       
+      // AI System Agent ID used for AI-generated messages
+      const AI_SYSTEM_AGENT_ID = 'ai-system-agent-001';
+      
       // Enrich messages with sender information and read status
       const enrichedMessages = await Promise.all(
         messages.map(async (message) => {
           let sender;
+          let effectiveSenderType = message.senderType;
           
-          if (message.senderType === 'system') {
+          // Check if this is an AI message
+          const isAiMessage = message.senderId === AI_SYSTEM_AGENT_ID;
+          
+          if (isAiMessage) {
+            effectiveSenderType = 'ai';
+            sender = {
+              id: AI_SYSTEM_AGENT_ID,
+              name: 'Alex (AI Assistant)',
+              role: 'ai'
+            };
+          } else if (message.senderType === 'system') {
             // System messages have a special sender
             sender = {
               id: 'system',
@@ -1464,7 +1478,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             id: message.id,
             content: message.content,
             senderId: message.senderId,
-            senderType: message.senderType,
+            senderType: effectiveSenderType,
             scope: message.scope,
             timestamp: message.timestamp,
             status: message.status,
@@ -3789,6 +3803,247 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to fetch agent stats:', error);
       res.status(500).json({ error: 'Failed to fetch agent stats' });
+    }
+  });
+
+  // =====================================================================
+  // AI Learning System - Message Feedback, Corrections, Knowledge Gaps
+  // =====================================================================
+
+  // Submit feedback on an AI message (thumbs up/down)
+  app.post('/api/ai/message-feedback', async (req, res) => {
+    try {
+      const { messageId, conversationId, feedbackType, sessionId, feedbackReason } = req.body;
+      
+      if (!messageId || !conversationId || !feedbackType) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      
+      if (!['thumbs_up', 'thumbs_down'].includes(feedbackType)) {
+        return res.status(400).json({ error: 'Invalid feedback type' });
+      }
+      
+      const feedback = await storage.createAiMessageFeedback({
+        messageId,
+        conversationId,
+        feedbackType,
+        sessionId,
+        feedbackReason
+      });
+      
+      // If negative feedback, add to training queue for review
+      if (feedbackType === 'thumbs_down') {
+        // Get the message content from conversation messages
+        const messages = await storage.getMessages(conversationId);
+        const message = messages.find(m => m.id === messageId);
+        if (message) {
+          await storage.addToTrainingQueue({
+            sourceType: 'feedback',
+            sourceId: feedback.id,
+            trainingData: JSON.stringify({
+              messageId,
+              content: message.content,
+              feedbackType,
+              reason: feedbackReason
+            }),
+            status: 'pending',
+            priority: feedbackReason ? 80 : 50 // Higher priority if user gave a reason
+          });
+        }
+      }
+      
+      res.json({ success: true, feedback });
+    } catch (error) {
+      console.error('Failed to submit message feedback:', error);
+      res.status(500).json({ error: 'Failed to submit feedback' });
+    }
+  });
+
+  // Get feedback stats for dashboard
+  app.get('/api/ai/feedback-stats', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const stats = await storage.getAiMessageFeedbackStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch feedback stats:', error);
+      res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+  });
+
+  // Submit a correction to an AI response
+  app.post('/api/ai/corrections', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { 
+        originalMessageId, 
+        conversationId, 
+        originalAiResponse, 
+        correctedResponse, 
+        customerQuery,
+        correctionType,
+        correctionNotes 
+      } = req.body;
+      
+      if (!originalAiResponse || !correctedResponse || !customerQuery) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+      
+      const user = req.user as any;
+      
+      const correction = await storage.createAiCorrection({
+        originalMessageId,
+        conversationId,
+        originalAiResponse,
+        correctedResponse,
+        customerQuery,
+        correctionType: correctionType || 'factual_error',
+        correctionNotes,
+        correctedBy: user.id
+      });
+      
+      res.json({ success: true, correction });
+    } catch (error) {
+      console.error('Failed to submit correction:', error);
+      res.status(500).json({ error: 'Failed to submit correction' });
+    }
+  });
+
+  // Get pending corrections for review
+  app.get('/api/ai/corrections', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { status, limit } = req.query;
+      const corrections = await storage.getAiCorrections({
+        status: status as string,
+        limit: limit ? parseInt(limit as string) : undefined
+      });
+      res.json(corrections);
+    } catch (error) {
+      console.error('Failed to fetch corrections:', error);
+      res.status(500).json({ error: 'Failed to fetch corrections' });
+    }
+  });
+
+  // Apply a correction to the knowledge base
+  app.post('/api/ai/corrections/:id/apply', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Mark the correction as applied
+      await storage.updateAiCorrection(id, { appliedToKnowledge: true });
+      
+      // Update training queue item to approved and applied
+      const queueItems = await storage.getTrainingQueueItems('pending');
+      const matchingItem = queueItems.find(item => item.sourceId === id && item.sourceType === 'correction');
+      if (matchingItem) {
+        await storage.updateTrainingQueueItem(matchingItem.id, { status: 'applied', appliedAt: new Date() });
+      }
+      
+      res.json({ success: true, message: 'Correction applied to knowledge base' });
+    } catch (error) {
+      console.error('Failed to apply correction:', error);
+      res.status(500).json({ error: 'Failed to apply correction' });
+    }
+  });
+
+  // Update/dismiss a correction
+  app.patch('/api/ai/corrections/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      
+      if (status) {
+        await storage.updateAiCorrection(id, { appliedToKnowledge: status === 'applied' });
+      }
+      
+      res.json({ success: true, message: 'Correction updated' });
+    } catch (error) {
+      console.error('Failed to update correction:', error);
+      res.status(500).json({ error: 'Failed to update correction' });
+    }
+  });
+
+  // Get knowledge gaps (unanswered questions)
+  app.get('/api/ai/knowledge-gaps', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { status, priority, limit } = req.query;
+      const gaps = await storage.getKnowledgeGaps({
+        status: status as string,
+        priority: priority as string,
+        limit: limit ? parseInt(limit as string) : undefined
+      });
+      res.json(gaps);
+    } catch (error) {
+      console.error('Failed to fetch knowledge gaps:', error);
+      res.status(500).json({ error: 'Failed to fetch knowledge gaps' });
+    }
+  });
+
+  // Get knowledge gap stats
+  app.get('/api/ai/knowledge-gaps/stats', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const stats = await storage.getKnowledgeGapStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch knowledge gap stats:', error);
+      res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+  });
+
+  // Update knowledge gap status (mark as addressed)
+  app.patch('/api/ai/knowledge-gaps/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, resolvedByArticleId, assignedTo, priority, suggestedCategory, suggestedTitle, suggestedContent } = req.body;
+      
+      const updates: any = {};
+      if (status) updates.status = status;
+      if (resolvedByArticleId) updates.resolvedByArticleId = resolvedByArticleId;
+      if (assignedTo) updates.assignedTo = assignedTo;
+      if (priority) updates.priority = priority;
+      if (suggestedCategory) updates.suggestedCategory = suggestedCategory;
+      if (suggestedTitle) updates.suggestedTitle = suggestedTitle;
+      if (suggestedContent) updates.suggestedContent = suggestedContent;
+      
+      await storage.updateKnowledgeGap(id, updates);
+      
+      res.json({ success: true, message: 'Knowledge gap updated' });
+    } catch (error) {
+      console.error('Failed to update knowledge gap:', error);
+      res.status(500).json({ error: 'Failed to update knowledge gap' });
+    }
+  });
+
+  // Get training queue items
+  app.get('/api/ai/training-queue', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { status } = req.query;
+      const items = await storage.getTrainingQueueItems(status as string);
+      res.json(items);
+    } catch (error) {
+      console.error('Failed to fetch training queue:', error);
+      res.status(500).json({ error: 'Failed to fetch training queue' });
+    }
+  });
+
+  // Process a training queue item
+  app.patch('/api/ai/training-queue/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status, approvedBy } = req.body;
+      
+      const updates: any = { status };
+      if (status === 'applied') {
+        updates.appliedAt = new Date();
+      }
+      if (approvedBy) {
+        updates.approvedBy = approvedBy;
+      }
+      
+      await storage.updateTrainingQueueItem(id, updates);
+      
+      res.json({ success: true, message: 'Training queue item updated' });
+    } catch (error) {
+      console.error('Failed to update training queue item:', error);
+      res.status(500).json({ error: 'Failed to update item' });
     }
   });
 

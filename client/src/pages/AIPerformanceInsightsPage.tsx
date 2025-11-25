@@ -29,7 +29,12 @@ import {
   Sparkles,
   Zap,
   Target,
-  Users
+  Users,
+  GraduationCap,
+  BookPlus,
+  XCircle,
+  FileQuestion,
+  BookOpen
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -85,6 +90,36 @@ interface LearningMetric {
   createdAt: string;
 }
 
+interface AiCorrection {
+  id: string;
+  originalMessageId: string;
+  conversationId: string;
+  originalAiResponse: string;
+  correctedResponse: string;
+  customerQuery: string | null;
+  correctionReason: string;
+  submittedBy: string;
+  appliedToKnowledge: boolean;
+  createdAt: string;
+}
+
+interface KnowledgeGap {
+  id: string;
+  queryText: string;
+  aiResponse: string | null;
+  confidenceScore: number | null;
+  conversationId: string | null;
+  occurrenceCount: number;
+  status: string;
+  priority: string;
+  suggestedCategory: string | null;
+  suggestedTitle: string | null;
+  suggestedContent: string | null;
+  resolvedByArticleId: string | null;
+  assignedTo: string | null;
+  createdAt: string;
+}
+
 export default function AIPerformanceInsightsPage() {
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [testMessage, setTestMessage] = useState("");
@@ -104,6 +139,16 @@ export default function AIPerformanceInsightsPage() {
   // Fetch learning metrics
   const { data: learningData = [], isLoading: learningLoading } = useQuery<LearningMetric[]>({
     queryKey: ['/api/ai/learning-metrics', { agent: selectedAgentId || "all", intent: selectedIntent, timeRange }]
+  });
+
+  // Fetch pending corrections
+  const { data: corrections = [], isLoading: correctionsLoading, refetch: refetchCorrections } = useQuery<AiCorrection[]>({
+    queryKey: ['/api/ai/corrections', { status: 'pending' }]
+  });
+
+  // Fetch knowledge gaps
+  const { data: knowledgeGaps = [], isLoading: gapsLoading, refetch: refetchGaps } = useQuery<KnowledgeGap[]>({
+    queryKey: ['/api/ai/knowledge-gaps', { status: 'open' }]
   });
 
   // Calculate performance metrics from agents
@@ -150,7 +195,7 @@ export default function AIPerformanceInsightsPage() {
     setTestResult(null);
 
     try {
-      const response = await apiRequest<AITestResponse>("/api/ai/test", "POST", {
+      const response: AITestResponse = await apiRequest("/api/ai/test", "POST", {
         agentId: selectedAgentId,
         message: testMessage,
         context: conversationContext || undefined,
@@ -169,6 +214,78 @@ export default function AIPerformanceInsightsPage() {
       });
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  // Apply an AI correction
+  const handleApplyCorrection = async (correctionId: string) => {
+    try {
+      await apiRequest(`/api/ai/corrections/${correctionId}/apply`, "POST");
+      toast({
+        title: "Correction Applied",
+        description: "The correction has been applied to improve AI responses",
+      });
+      refetchCorrections();
+    } catch (error: any) {
+      toast({
+        title: "Failed to apply correction",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Dismiss a correction
+  const handleDismissCorrection = async (correctionId: string) => {
+    try {
+      await apiRequest(`/api/ai/corrections/${correctionId}`, "PATCH", { status: 'dismissed' });
+      toast({
+        title: "Correction Dismissed",
+        description: "The correction has been dismissed",
+      });
+      refetchCorrections();
+    } catch (error: any) {
+      toast({
+        title: "Failed to dismiss correction",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Resolve a knowledge gap
+  const handleResolveGap = async (gapId: string) => {
+    try {
+      await apiRequest(`/api/ai/knowledge-gaps/${gapId}`, "PATCH", { status: 'resolved' });
+      toast({
+        title: "Gap Resolved",
+        description: "The knowledge gap has been marked as resolved",
+      });
+      refetchGaps();
+    } catch (error: any) {
+      toast({
+        title: "Failed to resolve gap",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Dismiss a knowledge gap
+  const handleDismissGap = async (gapId: string) => {
+    try {
+      await apiRequest(`/api/ai/knowledge-gaps/${gapId}`, "PATCH", { status: 'dismissed' });
+      toast({
+        title: "Gap Dismissed",
+        description: "The knowledge gap has been dismissed",
+      });
+      refetchGaps();
+    } catch (error: any) {
+      toast({
+        title: "Failed to dismiss gap",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
     }
   };
 
@@ -240,10 +357,18 @@ export default function AIPerformanceInsightsPage() {
       </div>
 
       <Tabs defaultValue="performance" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="testing">AI Testing</TabsTrigger>
-          <TabsTrigger value="learning">Learning Metrics</TabsTrigger>
+          <TabsTrigger value="learning">Learning</TabsTrigger>
+          <TabsTrigger value="training">
+            Training
+            {(corrections.length > 0 || knowledgeGaps.length > 0) && (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
+                {corrections.length + knowledgeGaps.length}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Performance Tab */}
@@ -596,6 +721,234 @@ export default function AIPerformanceInsightsPage() {
                                   <ThumbsDown className="w-4 h-4 text-red-600" />
                                 )
                               )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Training Queue Tab */}
+        <TabsContent value="training" className="space-y-4">
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 gap-2">
+                <CardTitle className="text-sm font-medium">Pending Corrections</CardTitle>
+                <GraduationCap className="w-4 h-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{corrections.length}</div>
+                <p className="text-xs text-muted-foreground">Staff-submitted improvements</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 gap-2">
+                <CardTitle className="text-sm font-medium">Knowledge Gaps</CardTitle>
+                <FileQuestion className="w-4 h-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{knowledgeGaps.length}</div>
+                <p className="text-xs text-muted-foreground">Questions AI couldn't answer</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 gap-2">
+                <CardTitle className="text-sm font-medium">Total Actions</CardTitle>
+                <BookOpen className="w-4 h-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{corrections.length + knowledgeGaps.length}</div>
+                <p className="text-xs text-muted-foreground">Items needing attention</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Corrections Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <GraduationCap className="w-5 h-5" />
+                <CardTitle>Staff Corrections</CardTitle>
+              </div>
+              <CardDescription>
+                Review and apply corrections submitted by staff to improve AI responses
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {correctionsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-32 bg-gray-200 rounded animate-pulse"></div>
+                  ))}
+                </div>
+              ) : corrections.length === 0 ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No pending corrections</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Staff can submit corrections when overriding AI responses
+                  </p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-4">
+                    {corrections.map((correction) => (
+                      <Card key={correction.id} className="hover-elevate">
+                        <CardContent className="p-4">
+                          <div className="space-y-3">
+                            {correction.customerQuery && (
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Customer Query</p>
+                                <p className="text-sm">{correction.customerQuery}</p>
+                              </div>
+                            )}
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="bg-red-50 dark:bg-red-950/20 p-3 rounded-lg">
+                                <p className="text-xs font-medium text-red-700 dark:text-red-400 mb-1 flex items-center gap-1">
+                                  <XCircle className="w-3 h-3" />
+                                  Original AI Response
+                                </p>
+                                <p className="text-sm text-red-900 dark:text-red-200 line-clamp-4">{correction.originalAiResponse}</p>
+                              </div>
+                              
+                              <div className="bg-green-50 dark:bg-green-950/20 p-3 rounded-lg">
+                                <p className="text-xs font-medium text-green-700 dark:text-green-400 mb-1 flex items-center gap-1">
+                                  <CheckCircle className="w-3 h-3" />
+                                  Corrected Response
+                                </p>
+                                <p className="text-sm text-green-900 dark:text-green-200 line-clamp-4">{correction.correctedResponse}</p>
+                              </div>
+                            </div>
+
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Reason for Correction</p>
+                              <p className="text-sm">{correction.correctionReason}</p>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-2 border-t">
+                              <div className="text-xs text-muted-foreground">
+                                Submitted by {correction.submittedBy} • {new Date(correction.createdAt).toLocaleDateString()}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDismissCorrection(correction.id)}
+                                  data-testid={`button-dismiss-correction-${correction.id}`}
+                                >
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Dismiss
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleApplyCorrection(correction.id)}
+                                  data-testid={`button-apply-correction-${correction.id}`}
+                                >
+                                  <BookPlus className="w-4 h-4 mr-1" />
+                                  Apply to KB
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Knowledge Gaps Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <FileQuestion className="w-5 h-5" />
+                <CardTitle>Knowledge Gaps</CardTitle>
+              </div>
+              <CardDescription>
+                Questions the AI couldn't answer confidently - consider creating new knowledge base articles
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {gapsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-24 bg-gray-200 rounded animate-pulse"></div>
+                  ))}
+                </div>
+              ) : knowledgeGaps.length === 0 ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
+                  <p className="text-muted-foreground">No knowledge gaps detected</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    The AI is handling all queries confidently
+                  </p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3">
+                    {knowledgeGaps.map((gap) => (
+                      <Card key={gap.id} className="hover-elevate">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant={gap.priority === 'high' ? 'destructive' : gap.priority === 'medium' ? 'default' : 'secondary'}>
+                                  {gap.priority} priority
+                                </Badge>
+                                <Badge variant="outline">
+                                  {gap.occurrenceCount} occurrence{gap.occurrenceCount !== 1 ? 's' : ''}
+                                </Badge>
+                                {gap.confidenceScore !== null && (
+                                  <Badge variant="secondary">
+                                    {gap.confidenceScore}% confidence
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              <p className="font-medium">{gap.queryText}</p>
+                              
+                              {gap.aiResponse && (
+                                <div className="text-sm text-muted-foreground line-clamp-2">
+                                  <span className="font-medium">AI attempted: </span>
+                                  {gap.aiResponse}
+                                </div>
+                              )}
+
+                              {gap.suggestedTitle && (
+                                <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded text-sm">
+                                  <span className="font-medium text-blue-700 dark:text-blue-400">Suggested article: </span>
+                                  <span className="text-blue-900 dark:text-blue-200">{gap.suggestedTitle}</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="flex flex-col gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDismissGap(gap.id)}
+                                data-testid={`button-dismiss-gap-${gap.id}`}
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleResolveGap(gap.id)}
+                                data-testid={`button-resolve-gap-${gap.id}`}
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                              </Button>
                             </div>
                           </div>
                         </CardContent>
