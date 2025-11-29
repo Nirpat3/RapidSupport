@@ -600,11 +600,65 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
         <>
           {/* Content */}
           <CardContent className="flex-1 p-4 overflow-y-auto flex flex-col">
-            {chatState.showInfoForm ? (
+            {chatState.showCategorySelection ? (
+              /* Category Selection Screen */
+              <div className="flex-1 flex flex-col space-y-4" data-testid="category-selection-screen">
+                <div className="text-center mb-2">
+                  <h3 className="font-semibold text-lg">How can we help you?</h3>
+                  <p className="text-sm text-muted-foreground">Choose a topic to get started</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {SUPPORT_CATEGORIES.map((category) => {
+                    const IconComponent = category.icon;
+                    return (
+                      <button
+                        key={category.id}
+                        onClick={() => handleCategorySelect(category.id)}
+                        className="flex flex-col items-center p-4 rounded-lg border bg-card hover-elevate transition-all text-left group"
+                        data-testid={`button-category-${category.id}`}
+                      >
+                        <IconComponent className={cn("h-8 w-8 mb-2", category.color)} />
+                        <span className="font-medium text-sm">{category.label}</span>
+                        <span className="text-xs text-muted-foreground text-center mt-1">
+                          {category.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="ghost"
+                  onClick={() => setChatState(prev => ({ ...prev, showCategorySelection: false }))}
+                  className="mt-2"
+                  data-testid="button-back-welcome"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Button>
+              </div>
+            ) : chatState.showInfoForm ? (
               <div className="flex-1 overflow-y-auto">
+                <div className="mb-4">
+                  {chatState.selectedCategory && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleBackToCategories}
+                        className="h-8 px-2"
+                        data-testid="button-back-categories"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                      </Button>
+                      <Badge variant="secondary" className={cn("text-xs", getSelectedCategoryInfo()?.color)}>
+                        {getSelectedCategoryInfo()?.label}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
                 <CustomerInfoForm
                   onSubmit={handleCustomerInfoSubmit}
-                  onCancel={() => setChatState(prev => ({ ...prev, showInfoForm: false }))}
+                  onCancel={() => setChatState(prev => ({ ...prev, showInfoForm: false, showCategorySelection: true }))}
                   isLoading={createCustomerMutation.isPending}
                   title="Start a conversation"
                   description="Please provide your details to get personalized support."
@@ -619,6 +673,11 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
                       <Badge variant="secondary" className="text-xs">
                         {chatState.customerInfo.company}
                       </Badge>
+                      {chatState.selectedCategory && (
+                        <Badge variant="outline" className={cn("text-xs", getSelectedCategoryInfo()?.color)}>
+                          {getSelectedCategoryInfo()?.label}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {chatState.customerInfo.name} • {chatState.customerInfo.email}
@@ -680,6 +739,27 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
                             <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Suggested Questions - Show when conversation is new */}
+                  {messages.length <= 2 && chatState.selectedCategory && !isAiResponding && (
+                    <div className="mt-4 space-y-2" data-testid="suggested-questions">
+                      <p className="text-xs text-muted-foreground">Suggested questions:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {getSelectedCategoryInfo()?.suggestedQuestions.slice(0, 3).map((question, index) => (
+                          <button
+                            key={index}
+                            onClick={() => {
+                              setMessageInput(question);
+                            }}
+                            className="text-xs px-3 py-1.5 rounded-full border bg-background hover-elevate transition-colors"
+                            data-testid={`button-suggested-question-${index}`}
+                          >
+                            {question}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   )}
