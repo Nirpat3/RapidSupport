@@ -303,6 +303,28 @@ export const aiAgents = pgTable("ai_agents", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Support Categories table - customizable customer chat routing categories
+export const supportCategories = pgTable("support_categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // e.g., "Billing", "Technical Support"
+  slug: text("slug").notNull().unique(), // URL-friendly identifier (e.g., "billing", "technical")
+  description: text("description"), // Brief description shown to customers
+  icon: text("icon").notNull().default("HelpCircle"), // Lucide icon name
+  color: text("color").default("#6366f1"), // Category color (hex)
+  displayOrder: integer("display_order").notNull().default(0), // Order in category selection
+  isVisible: boolean("is_visible").notNull().default(true), // Show/hide category
+  isActive: boolean("is_active").notNull().default(true), // Enable/disable category
+  // AI Agent linking
+  aiAgentId: varchar("ai_agent_id").references(() => aiAgents.id), // Linked AI agent for this category
+  // Suggested questions for this category
+  suggestedQuestions: text("suggested_questions").array(), // Pre-defined questions for customers
+  // Organization scoping
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Knowledge Base table - stores reusable knowledge articles for AI agents
 export const knowledgeBase = pgTable("knowledge_base", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1053,6 +1075,27 @@ export const insertAiAgentSchema = createInsertSchema(aiAgents).pick({
 });
 
 export const updateAiAgentSchema = insertAiAgentSchema.partial();
+
+// Support Categories schemas
+export const insertSupportCategorySchema = createInsertSchema(supportCategories).pick({
+  name: true,
+  slug: true,
+  description: true,
+  icon: true,
+  color: true,
+  displayOrder: true,
+  isVisible: true,
+  isActive: true,
+  aiAgentId: true,
+  suggestedQuestions: true,
+  organizationId: true,
+  createdBy: true,
+});
+
+export const updateSupportCategorySchema = insertSupportCategorySchema.partial();
+
+export type InsertSupportCategory = z.infer<typeof insertSupportCategorySchema>;
+export type SupportCategory = typeof supportCategories.$inferSelect;
 
 // Knowledge Base schemas
 export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick({
