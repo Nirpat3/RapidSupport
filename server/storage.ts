@@ -11,6 +11,7 @@ import {
   activityLogs,
   agentWorkload,
   aiAgents,
+  supportCategories,
   knowledgeBase,
   knowledgeBaseImages,
   knowledgeBaseVideos,
@@ -62,6 +63,8 @@ import {
   type InsertAgentWorkload,
   type AiAgent,
   type InsertAiAgent,
+  type SupportCategory,
+  type InsertSupportCategory,
   type KnowledgeBase,
   type InsertKnowledgeBase,
   type KnowledgeBaseImage,
@@ -227,6 +230,15 @@ export interface IStorage {
   createAiAgent(agent: InsertAiAgent): Promise<AiAgent>;
   updateAiAgent(id: string, updates: Partial<InsertAiAgent>): Promise<void>;
   deleteAiAgent(id: string): Promise<void>;
+
+  // Support Categories operations
+  getSupportCategory(id: string): Promise<SupportCategory | undefined>;
+  getSupportCategoryBySlug(slug: string): Promise<SupportCategory | undefined>;
+  getAllSupportCategories(): Promise<SupportCategory[]>;
+  getVisibleSupportCategories(): Promise<SupportCategory[]>;
+  createSupportCategory(category: InsertSupportCategory): Promise<SupportCategory>;
+  updateSupportCategory(id: string, updates: Partial<InsertSupportCategory>): Promise<void>;
+  deleteSupportCategory(id: string): Promise<void>;
 
   // Brand Configuration operations
   getBrandConfig(): Promise<BrandConfig | undefined>;
@@ -1764,6 +1776,75 @@ export class DatabaseStorage implements IStorage {
       await db.delete(aiAgents).where(eq(aiAgents.id, id));
     } catch (error) {
       console.error('Error deleting AI agent:', error);
+      throw error;
+    }
+  }
+
+  // Support Categories operations
+  async getSupportCategory(id: string): Promise<SupportCategory | undefined> {
+    try {
+      const [category] = await db.select().from(supportCategories).where(eq(supportCategories.id, id));
+      return category || undefined;
+    } catch (error) {
+      console.error('Error fetching support category:', error);
+      return undefined;
+    }
+  }
+
+  async getSupportCategoryBySlug(slug: string): Promise<SupportCategory | undefined> {
+    try {
+      const [category] = await db.select().from(supportCategories).where(eq(supportCategories.slug, slug));
+      return category || undefined;
+    } catch (error) {
+      console.error('Error fetching support category by slug:', error);
+      return undefined;
+    }
+  }
+
+  async getAllSupportCategories(): Promise<SupportCategory[]> {
+    try {
+      return await db.select().from(supportCategories).orderBy(supportCategories.displayOrder);
+    } catch (error) {
+      console.error('Error fetching all support categories:', error);
+      return [];
+    }
+  }
+
+  async getVisibleSupportCategories(): Promise<SupportCategory[]> {
+    try {
+      return await db.select().from(supportCategories)
+        .where(and(eq(supportCategories.isVisible, true), eq(supportCategories.isActive, true)))
+        .orderBy(supportCategories.displayOrder);
+    } catch (error) {
+      console.error('Error fetching visible support categories:', error);
+      return [];
+    }
+  }
+
+  async createSupportCategory(category: InsertSupportCategory): Promise<SupportCategory> {
+    try {
+      const [result] = await db.insert(supportCategories).values(category).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating support category:', error);
+      throw error;
+    }
+  }
+
+  async updateSupportCategory(id: string, updates: Partial<InsertSupportCategory>): Promise<void> {
+    try {
+      await db.update(supportCategories).set({ ...updates, updatedAt: new Date() }).where(eq(supportCategories.id, id));
+    } catch (error) {
+      console.error('Error updating support category:', error);
+      throw error;
+    }
+  }
+
+  async deleteSupportCategory(id: string): Promise<void> {
+    try {
+      await db.delete(supportCategories).where(eq(supportCategories.id, id));
+    } catch (error) {
+      console.error('Error deleting support category:', error);
       throw error;
     }
   }
