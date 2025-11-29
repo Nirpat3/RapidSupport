@@ -39,6 +39,8 @@ import {
   insertPostViewSchema,
   insertAiAgentSchema,
   updateAiAgentSchema,
+  insertSupportCategorySchema,
+  updateSupportCategorySchema,
   customers,
   conversations
 } from '@shared/schema';
@@ -3471,6 +3473,200 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to delete AI agent:', error);
       res.status(500).json({ error: 'Failed to delete AI agent' });
+    }
+  });
+
+  // ============= SUPPORT CATEGORIES MANAGEMENT =============
+  
+  // Get all support categories (Public - for customer chat widget)
+  app.get('/api/support-categories/public', async (req, res) => {
+    try {
+      const categories = await storage.getVisibleSupportCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error('Failed to fetch public support categories:', error);
+      res.status(500).json({ error: 'Failed to fetch support categories' });
+    }
+  });
+
+  // Get all support categories (Admin - includes hidden ones)
+  app.get('/api/support-categories', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const categories = await storage.getAllSupportCategories();
+      res.json(categories);
+    } catch (error) {
+      console.error('Failed to fetch support categories:', error);
+      res.status(500).json({ error: 'Failed to fetch support categories' });
+    }
+  });
+
+  // Get single support category
+  app.get('/api/support-categories/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const category = await storage.getSupportCategory(id);
+      
+      if (!category) {
+        return res.status(404).json({ error: 'Support category not found' });
+      }
+      
+      res.json(category);
+    } catch (error) {
+      console.error('Failed to fetch support category:', error);
+      res.status(500).json({ error: 'Failed to fetch support category' });
+    }
+  });
+
+  // Create support category (Admin only)
+  app.post('/api/support-categories', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const data = insertSupportCategorySchema.parse({
+        ...req.body,
+        createdBy: user.id
+      });
+      
+      const category = await storage.createSupportCategory(data);
+      res.status(201).json(category);
+    } catch (error) {
+      console.error('Failed to create support category:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to create support category' });
+    }
+  });
+
+  // Update support category (Admin only)
+  app.put('/api/support-categories/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = updateSupportCategorySchema.parse(req.body);
+      
+      await storage.updateSupportCategory(id, data);
+      const updatedCategory = await storage.getSupportCategory(id);
+      
+      res.json(updatedCategory);
+    } catch (error) {
+      console.error('Failed to update support category:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to update support category' });
+    }
+  });
+
+  // Delete support category (Admin only)
+  app.delete('/api/support-categories/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await storage.deleteSupportCategory(id);
+      res.json({ message: 'Support category deleted successfully' });
+    } catch (error) {
+      console.error('Failed to delete support category:', error);
+      res.status(500).json({ error: 'Failed to delete support category' });
+    }
+  });
+
+  // Seed default support categories (Admin only - for initial setup)
+  app.post('/api/support-categories/seed', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      // Check if categories already exist
+      const existing = await storage.getAllSupportCategories();
+      if (existing.length > 0) {
+        return res.status(400).json({ error: 'Categories already exist. Delete existing ones first or update them.' });
+      }
+      
+      // Default categories
+      const defaultCategories = [
+        {
+          name: 'Billing',
+          slug: 'billing',
+          description: 'Payments, invoices & subscriptions',
+          icon: 'CreditCard',
+          color: '#6366f1',
+          displayOrder: 0,
+          isVisible: true,
+          isActive: true,
+          suggestedQuestions: [
+            "How do I update my payment method?",
+            "Where can I find my invoice?",
+            "How do I cancel my subscription?"
+          ],
+          createdBy: user.id
+        },
+        {
+          name: 'Sales',
+          slug: 'sales',
+          description: 'Pricing, plans & demos',
+          icon: 'DollarSign',
+          color: '#10b981',
+          displayOrder: 1,
+          isVisible: true,
+          isActive: true,
+          suggestedQuestions: [
+            "What pricing plans are available?",
+            "Can I get a demo?",
+            "Is there a discount for annual billing?"
+          ],
+          createdBy: user.id
+        },
+        {
+          name: 'Technical Support',
+          slug: 'technical',
+          description: 'Setup, errors & troubleshooting',
+          icon: 'Wrench',
+          color: '#f59e0b',
+          displayOrder: 2,
+          isVisible: true,
+          isActive: true,
+          suggestedQuestions: [
+            "How do I reset my password?",
+            "I'm getting an error, can you help?",
+            "How do I set up integrations?"
+          ],
+          createdBy: user.id
+        },
+        {
+          name: 'General',
+          slug: 'general',
+          description: 'Other questions & feedback',
+          icon: 'HelpCircle',
+          color: '#8b5cf6',
+          displayOrder: 3,
+          isVisible: true,
+          isActive: true,
+          suggestedQuestions: [
+            "I have a general question",
+            "I'd like to provide feedback",
+            "How can I contact your team?"
+          ],
+          createdBy: user.id
+        }
+      ];
+      
+      const createdCategories = [];
+      for (const cat of defaultCategories) {
+        const created = await storage.createSupportCategory(cat);
+        createdCategories.push(created);
+      }
+      
+      res.status(201).json({ 
+        message: 'Default categories seeded successfully',
+        categories: createdCategories
+      });
+    } catch (error) {
+      console.error('Failed to seed support categories:', error);
+      res.status(500).json({ error: 'Failed to seed support categories' });
     }
   });
 
