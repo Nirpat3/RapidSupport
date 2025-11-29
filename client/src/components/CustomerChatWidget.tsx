@@ -5,26 +5,53 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip, Sparkles, Check, CreditCard, DollarSign, Wrench, HelpCircle, ArrowLeft } from "lucide-react";
+import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip, Sparkles, Check, CreditCard, DollarSign, Wrench, HelpCircle, ArrowLeft, Bot, Loader2 } from "lucide-react";
 import { CustomerInfoForm } from "./CustomerInfoForm";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageAttachments, type MessageAttachment } from "./MessageAttachments";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
-import { AnonymousCustomer } from "@shared/schema";
+import { AnonymousCustomer, SupportCategory as SupportCategoryType } from "@shared/schema";
 
-type SupportCategory = 'billing' | 'sales' | 'technical' | 'general';
+const ICON_MAP: Record<string, typeof CreditCard> = {
+  CreditCard,
+  DollarSign,
+  Wrench,
+  HelpCircle,
+  Bot,
+  Sparkles,
+};
+
+const COLOR_MAP: Record<string, string> = {
+  '#6366f1': 'text-indigo-600 dark:text-indigo-400',
+  '#10b981': 'text-green-600 dark:text-green-400',
+  '#f59e0b': 'text-orange-600 dark:text-orange-400',
+  '#8b5cf6': 'text-purple-600 dark:text-purple-400',
+  '#ef4444': 'text-red-600 dark:text-red-400',
+  '#06b6d4': 'text-cyan-600 dark:text-cyan-400',
+  '#ec4899': 'text-pink-600 dark:text-pink-400',
+  '#84cc16': 'text-lime-600 dark:text-lime-400',
+};
+
+function getIconComponent(iconName: string | null): typeof CreditCard {
+  return ICON_MAP[iconName || 'HelpCircle'] || HelpCircle;
+}
+
+function getColorClass(hexColor: string | null): string {
+  return COLOR_MAP[hexColor || '#8b5cf6'] || 'text-purple-600 dark:text-purple-400';
+}
 
 interface CategoryOption {
-  id: SupportCategory;
+  id: string;
   label: string;
   description: string;
   icon: typeof CreditCard;
   color: string;
   suggestedQuestions: string[];
+  aiAgentId?: string | null;
 }
 
-const SUPPORT_CATEGORIES: CategoryOption[] = [
+const DEFAULT_CATEGORIES: CategoryOption[] = [
   {
     id: 'billing',
     label: 'Billing',
@@ -35,7 +62,6 @@ const SUPPORT_CATEGORIES: CategoryOption[] = [
       'How do I update my payment method?',
       'Where can I find my invoices?',
       'How do I cancel my subscription?',
-      'Why was I charged twice?',
     ],
   },
   {
@@ -46,9 +72,8 @@ const SUPPORT_CATEGORIES: CategoryOption[] = [
     color: 'text-green-600 dark:text-green-400',
     suggestedQuestions: [
       'What pricing plans do you offer?',
-      'Can I get a demo of the product?',
+      'Can I get a demo?',
       'Do you offer volume discounts?',
-      'How do I upgrade my plan?',
     ],
   },
   {
@@ -60,7 +85,6 @@ const SUPPORT_CATEGORIES: CategoryOption[] = [
     suggestedQuestions: [
       'I\'m getting an error message',
       'How do I configure my settings?',
-      'The app isn\'t loading properly',
       'How do I integrate with my system?',
     ],
   },
@@ -74,7 +98,6 @@ const SUPPORT_CATEGORIES: CategoryOption[] = [
       'I have a question about my account',
       'I\'d like to provide feedback',
       'How do I contact support?',
-      'What are your business hours?',
     ],
   },
 ];
@@ -127,7 +150,7 @@ interface ChatState {
   isMinimized: boolean;
   showCategorySelection: boolean;
   showInfoForm: boolean;
-  selectedCategory: SupportCategory | null;
+  selectedCategory: string | null;
   conversationId: string | null;
   customerId: string | null;
   sessionId: string;
@@ -234,6 +257,25 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
     // Server will determine IP address from request
     return '';
   };
+
+  // Fetch support categories from API
+  const { data: apiCategories = [], isLoading: categoriesLoading } = useQuery<SupportCategoryType[]>({
+    queryKey: ['/api/support-categories/public'],
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // Transform API categories to component format, with fallback to defaults
+  const SUPPORT_CATEGORIES: CategoryOption[] = apiCategories.length > 0
+    ? apiCategories.map((cat) => ({
+        id: cat.slug,
+        label: cat.name,
+        description: cat.description || '',
+        icon: getIconComponent(cat.icon),
+        color: getColorClass(cat.color),
+        suggestedQuestions: cat.suggestedQuestions || [],
+        aiAgentId: cat.aiAgentId,
+      }))
+    : DEFAULT_CATEGORIES;
 
   // Check for existing conversation based on session/IP
   // Skip checking for existing conversation if we have contextData (always create new conversation with context)
@@ -441,10 +483,10 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
     }
   };
 
-  const handleCategorySelect = (category: SupportCategory) => {
+  const handleCategorySelect = (categoryId: string) => {
     setChatState(prev => ({
       ...prev,
-      selectedCategory: category,
+      selectedCategory: categoryId,
       showCategorySelection: false,
       showInfoForm: true,
     }));
