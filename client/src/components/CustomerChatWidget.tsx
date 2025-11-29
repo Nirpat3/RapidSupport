@@ -5,13 +5,79 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip, Sparkles, Check } from "lucide-react";
+import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip, Sparkles, Check, CreditCard, DollarSign, Wrench, HelpCircle, ArrowLeft } from "lucide-react";
 import { CustomerInfoForm } from "./CustomerInfoForm";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageAttachments, type MessageAttachment } from "./MessageAttachments";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { AnonymousCustomer } from "@shared/schema";
+
+type SupportCategory = 'billing' | 'sales' | 'technical' | 'general';
+
+interface CategoryOption {
+  id: SupportCategory;
+  label: string;
+  description: string;
+  icon: typeof CreditCard;
+  color: string;
+  suggestedQuestions: string[];
+}
+
+const SUPPORT_CATEGORIES: CategoryOption[] = [
+  {
+    id: 'billing',
+    label: 'Billing',
+    description: 'Payments, invoices & subscriptions',
+    icon: CreditCard,
+    color: 'text-blue-600 dark:text-blue-400',
+    suggestedQuestions: [
+      'How do I update my payment method?',
+      'Where can I find my invoices?',
+      'How do I cancel my subscription?',
+      'Why was I charged twice?',
+    ],
+  },
+  {
+    id: 'sales',
+    label: 'Sales',
+    description: 'Pricing, plans & demos',
+    icon: DollarSign,
+    color: 'text-green-600 dark:text-green-400',
+    suggestedQuestions: [
+      'What pricing plans do you offer?',
+      'Can I get a demo of the product?',
+      'Do you offer volume discounts?',
+      'How do I upgrade my plan?',
+    ],
+  },
+  {
+    id: 'technical',
+    label: 'Technical Support',
+    description: 'Setup, errors & troubleshooting',
+    icon: Wrench,
+    color: 'text-orange-600 dark:text-orange-400',
+    suggestedQuestions: [
+      'I\'m getting an error message',
+      'How do I configure my settings?',
+      'The app isn\'t loading properly',
+      'How do I integrate with my system?',
+    ],
+  },
+  {
+    id: 'general',
+    label: 'General',
+    description: 'Other questions & feedback',
+    icon: HelpCircle,
+    color: 'text-purple-600 dark:text-purple-400',
+    suggestedQuestions: [
+      'I have a question about my account',
+      'I\'d like to provide feedback',
+      'How do I contact support?',
+      'What are your business hours?',
+    ],
+  },
+];
 
 interface ChatMessage {
   id: string;
@@ -59,7 +125,9 @@ interface CreateCustomerResponse {
 interface ChatState {
   isOpen: boolean;
   isMinimized: boolean;
+  showCategorySelection: boolean;
   showInfoForm: boolean;
+  selectedCategory: SupportCategory | null;
   conversationId: string | null;
   customerId: string | null;
   sessionId: string;
@@ -85,7 +153,9 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
       const freshState = {
         isOpen: false,
         isMinimized: false,
+        showCategorySelection: false,
         showInfoForm: false,
+        selectedCategory: null,
         conversationId: null,
         customerId: null,
         sessionId: crypto.randomUUID(),
@@ -103,7 +173,9 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
         return {
           isOpen: false,
           isMinimized: false,
+          showCategorySelection: false,
           showInfoForm: false,
+          selectedCategory: parsed.selectedCategory || null,
           conversationId: parsed.conversationId || null,
           customerId: parsed.customerId || null,
           sessionId: parsed.sessionId || crypto.randomUUID(),
@@ -116,7 +188,9 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
     return {
       isOpen: false,
       isMinimized: false,
+      showCategorySelection: false,
       showInfoForm: false,
+      selectedCategory: null,
       conversationId: null,
       customerId: null,
       sessionId: crypto.randomUUID(),
@@ -136,9 +210,10 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
       customerId: chatState.customerId,
       sessionId: chatState.sessionId,
       customerInfo: chatState.customerInfo,
+      selectedCategory: chatState.selectedCategory,
     };
     localStorage.setItem('customer-chat-state', JSON.stringify(stateToSave));
-  }, [chatState.conversationId, chatState.customerId, chatState.sessionId, chatState.customerInfo, contextData]);
+  }, [chatState.conversationId, chatState.customerId, chatState.sessionId, chatState.customerInfo, chatState.selectedCategory, contextData]);
 
   const [messageInput, setMessageInput] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -182,7 +257,11 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
         ...customerData,
         ipAddress,
         sessionId: chatState.sessionId,
-        contextData: contextData,
+        contextData: {
+          ...contextData,
+          selectedCategory: chatState.selectedCategory,
+          categoryLabel: SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory)?.label,
+        },
       };
       const response = await apiRequest('/api/customer-chat/create-customer', 'POST', requestData);
       return response;
@@ -354,11 +433,34 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
         customerId: existingConversation.customerId,
         customerInfo: existingConversation.customerInfo,
         showInfoForm: false,
+        showCategorySelection: false,
       }));
     } else {
-      // Show customer info form
-      setChatState(prev => ({ ...prev, showInfoForm: true }));
+      // Show category selection first
+      setChatState(prev => ({ ...prev, showCategorySelection: true }));
     }
+  };
+
+  const handleCategorySelect = (category: SupportCategory) => {
+    setChatState(prev => ({
+      ...prev,
+      selectedCategory: category,
+      showCategorySelection: false,
+      showInfoForm: true,
+    }));
+  };
+
+  const handleBackToCategories = () => {
+    setChatState(prev => ({
+      ...prev,
+      selectedCategory: null,
+      showCategorySelection: true,
+      showInfoForm: false,
+    }));
+  };
+
+  const getSelectedCategoryInfo = () => {
+    return SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
   };
 
   const handleCustomerInfoSubmit = async (customerData: AnonymousCustomer) => {
