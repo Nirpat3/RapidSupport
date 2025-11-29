@@ -41,7 +41,13 @@ The backend is a Node.js Express.js application in TypeScript, providing a RESTf
 - **Customer Portal**: Authenticated self-service access to support history, profile management, and feedback.
 - **External Channel Integration**: Supports WhatsApp Business API, Telegram Bot, and Facebook Messenger via webhooks.
 - **Third-Party Integration API**: RESTful API for embedding support chat with pre-filled customer data, custom context, and multi-tenant support.
-- **Category-Based Customer Routing**: Customers can pre-select their support category (Billing, Sales, Technical Support, General) before starting a conversation. The selected category is passed as contextData to enable specialized AI agent routing, category-specific suggested questions, and visual badges throughout the chat experience.
+- **Category-Based Customer Routing**: Customers pre-select their support category before starting a conversation. Categories are fully customizable via the admin UI (`/support-categories`) with the ability to:
+  - Create, edit, and delete categories with custom names, icons, colors, and descriptions
+  - Toggle category visibility to show/hide from customer selection
+  - Link categories to specific AI agents for specialized routing
+  - Configure suggested questions per category
+  - Categories are fetched dynamically from the API (`/api/support-categories/public`) with fallback to defaults
+  - Selected category is passed as `contextData` to enable specialized AI agent routing throughout the chat experience
 
 ## External Dependencies
 
