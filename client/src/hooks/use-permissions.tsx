@@ -28,6 +28,7 @@ const FEATURE_MAP: Record<string, string> = {
   '/feed': 'feed',
   '/settings': 'settings',
   '/user-management': 'user-management',
+  '/support-categories': 'support-categories',
 };
 
 // Helper to extract base path from URL (handles parameterized routes)

@@ -33,7 +33,8 @@ import {
   TrendingUp,
   Bell,
   FileText,
-  Code
+  Code,
+  Tags
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -117,6 +118,12 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     title: "User Management",
     url: "/user-management",
     icon: Shield,
+    adminOnly: true
+  },
+  {
+    title: "Support Categories",
+    url: "/support-categories",
+    icon: Tags,
     adminOnly: true
   },
   {

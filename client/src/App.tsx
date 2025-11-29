@@ -32,6 +32,7 @@ import CustomerPortalFeed from "@/pages/CustomerPortalFeed";
 import { CustomerPortalRouter } from "@/components/CustomerPortalRouter";
 import PublicArticlePage from "@/pages/PublicArticlePage";
 import UserManagementPage from "@/pages/UserManagementPage";
+import SupportCategoriesPage from "@/pages/SupportCategoriesPage";
 import DocumentationPage from "@/pages/DocumentationPage";
 import WidgetSetupPage from "@/pages/WidgetSetupPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
@@ -118,6 +119,11 @@ function Router() {
       <Route path="/user-management">
         <PermissionGuard feature="user-management">
           <UserManagementPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/support-categories">
+        <PermissionGuard feature="support-categories">
+          <SupportCategoriesPage />
         </PermissionGuard>
       </Route>
       <Route path="/settings">
