@@ -30,8 +30,58 @@ import { CustomerInfoForm } from "@/components/CustomerInfoForm";
 import { ConversationRatingDialog } from "@/components/ConversationRatingDialog";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
-import { AnonymousCustomer } from "@shared/schema";
+import { AnonymousCustomer, SupportCategory as SupportCategoryType } from "@shared/schema";
 import { renderFormattedContent } from "@/components/ChatMessage";
+import { CreditCard, DollarSign, Wrench, HelpCircle, Headphones, Package, Settings, type LucideIcon } from "lucide-react";
+
+const ICON_MAP: Record<string, LucideIcon> = {
+  CreditCard,
+  DollarSign,
+  Wrench,
+  HelpCircle,
+  Headphones,
+  Package,
+  Settings,
+};
+
+const getIconComponent = (iconName: string | null): LucideIcon => {
+  if (!iconName) return HelpCircle;
+  return ICON_MAP[iconName] || HelpCircle;
+};
+
+interface CategoryOption {
+  id: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  color: string;
+  suggestedQuestions: string[];
+  aiAgentId: string | number | null;
+}
+
+const DEFAULT_CATEGORIES: CategoryOption[] = [
+  { id: 'billing', label: 'Billing', description: 'Payment and subscription inquiries', icon: CreditCard, color: 'text-blue-500', suggestedQuestions: [], aiAgentId: null },
+  { id: 'sales', label: 'Sales', description: 'Product and pricing questions', icon: DollarSign, color: 'text-green-500', suggestedQuestions: [], aiAgentId: null },
+  { id: 'technical', label: 'Technical Support', description: 'Technical issues and troubleshooting', icon: Wrench, color: 'text-orange-500', suggestedQuestions: [], aiAgentId: null },
+  { id: 'general', label: 'General', description: 'Other questions and feedback', icon: HelpCircle, color: 'text-purple-500', suggestedQuestions: [], aiAgentId: null },
+];
+
+const getColorClass = (color: string | null): string => {
+  const colorMap: Record<string, string> = {
+    blue: 'text-blue-500',
+    green: 'text-green-500',
+    orange: 'text-orange-500',
+    purple: 'text-purple-500',
+    red: 'text-red-500',
+    yellow: 'text-yellow-500',
+    indigo: 'text-indigo-500',
+    pink: 'text-pink-500',
+    cyan: 'text-cyan-500',
+    teal: 'text-teal-500',
+  };
+  if (!color) return 'text-primary';
+  return colorMap[color] || 'text-primary';
+};
 
 interface Attachment {
   id: string;
@@ -69,6 +119,7 @@ interface ChatState {
   customerId: string | null;
   sessionId: string;
   customerInfo: AnonymousCustomer | null;
+  selectedCategory: string | null;
 }
 
 interface ConversationDetails {
@@ -107,6 +158,7 @@ export default function CustomerChatPage() {
           customerId: parsed.customerId || null,
           sessionId: parsed.sessionId || crypto.randomUUID(),
           customerInfo: parsed.customerInfo || null,
+          selectedCategory: parsed.selectedCategory || null,
         };
       } catch (e) {
         console.error('Failed to parse saved chat state:', e);
@@ -117,11 +169,15 @@ export default function CustomerChatPage() {
       customerId: null,
       sessionId: crypto.randomUUID(),
       customerInfo: null,
+      selectedCategory: null,
     };
   });
 
   // Initialize chatStarted to false - let user choose to continue or start new
   const [chatStarted, setChatStarted] = useState(false);
+  
+  // Category selection state
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
   
   // Rating dialog state
   const [showRatingDialog, setShowRatingDialog] = useState(false);
@@ -172,6 +228,25 @@ export default function CustomerChatPage() {
     refetchInterval: chatStarted ? 5000 : false,
   });
 
+  // Fetch support categories from API
+  const { data: apiCategories = [] } = useQuery<SupportCategoryType[]>({
+    queryKey: ['/api/support-categories/public'],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Transform API categories to component format, with fallback to defaults
+  const SUPPORT_CATEGORIES: CategoryOption[] = apiCategories.length > 0
+    ? apiCategories.map((cat) => ({
+        id: cat.slug,
+        label: cat.name,
+        description: cat.description || '',
+        icon: getIconComponent(cat.icon),
+        color: getColorClass(cat.color),
+        suggestedQuestions: cat.suggestedQuestions || [],
+        aiAgentId: cat.aiAgentId,
+      }))
+    : DEFAULT_CATEGORIES;
+
   // Check if conversation is closed and show rating dialog
   useEffect(() => {
     console.log('[CustomerChatPage] Conversation details:', conversationDetails);
@@ -208,23 +283,35 @@ export default function CustomerChatPage() {
     }
   }, [conversationDetails?.status, chatState.conversationId]);
 
+  // Helper to get selected category info
+  const getSelectedCategoryInfo = () => {
+    return SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
+  };
+
   // Create customer and conversation
   const createCustomerMutation = useMutation<CreateCustomerResponse, Error, AnonymousCustomer>({
     mutationFn: async (customerData: AnonymousCustomer) => {
+      const selectedCategory = getSelectedCategoryInfo();
       const response = await apiRequest('/api/customer-chat/create-customer', 'POST', {
         ...customerData,
         ipAddress: '',
         sessionId: chatState.sessionId,
+        contextData: {
+          selectedCategory: chatState.selectedCategory,
+          categoryLabel: selectedCategory?.label,
+          aiAgentId: selectedCategory?.aiAgentId,
+        },
       });
       return response;
     },
     onSuccess: async (response) => {
-      setChatState({
+      setChatState((prev) => ({
+        ...prev,
         conversationId: response.conversationId,
         customerId: response.customerId,
         sessionId: chatState.sessionId,
         customerInfo: response.customerInfo,
-      });
+      }));
       setShowInfoDialog(false);
       setChatStarted(true);
       
@@ -429,12 +516,13 @@ export default function CustomerChatPage() {
   // Sync state with existing conversation from API (don't auto-start)
   useEffect(() => {
     if (existingConversation?.conversationId && !chatState.conversationId) {
-      setChatState({
+      setChatState((prev) => ({
+        ...prev,
         conversationId: existingConversation.conversationId,
         customerId: existingConversation.customerId,
         sessionId: chatState.sessionId,
         customerInfo: existingConversation.customerInfo,
-      });
+      }));
     }
   }, [existingConversation]);
 
@@ -455,11 +543,29 @@ export default function CustomerChatPage() {
     }
 
     // Hero "Ask" button always starts a NEW conversation
-    // Clear any existing conversation state and show info dialog
-    console.log(`[HANDLE ASK QUESTION] Opening info dialog for new conversation`);
+    // First show category selection, then info dialog
+    console.log(`[HANDLE ASK QUESTION] Opening category selection for new conversation`);
     setPendingMessage(question);
     setPendingFiles(selectedFiles);
+    setShowCategoryDialog(true);
+  };
+
+  const handleCategorySelect = (categoryId: string) => {
+    setChatState((prev) => ({
+      ...prev,
+      selectedCategory: categoryId,
+    }));
+    setShowCategoryDialog(false);
     setShowInfoDialog(true);
+  };
+
+  const handleBackToCategories = () => {
+    setChatState((prev) => ({
+      ...prev,
+      selectedCategory: null,
+    }));
+    setShowInfoDialog(false);
+    setShowCategoryDialog(true);
   };
 
   const handleCustomerInfoSubmit = async (customerData: AnonymousCustomer) => {
@@ -564,8 +670,10 @@ export default function CustomerChatPage() {
       customerId: null,
       sessionId: crypto.randomUUID(),
       customerInfo: null,
+      selectedCategory: null,
     });
     setChatStarted(false);
+    setShowCategoryDialog(false);
     setQuestion('');
     setSelectedFiles([]);
   };
@@ -938,7 +1046,9 @@ export default function CustomerChatPage() {
                         customerId: null,
                         sessionId: crypto.randomUUID(),
                         customerInfo: null,
+                        selectedCategory: null,
                       });
+                      setShowCategoryDialog(false);
                       setQuestion("");
                       setSelectedFiles([]);
                     }}
@@ -1008,6 +1118,45 @@ export default function CustomerChatPage() {
         </div>
       </div>
 
+      {/* Category Selection Dialog */}
+      <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5" />
+              How can we help you today?
+            </DialogTitle>
+            <DialogDescription>
+              Select a category to help us connect you with the right support
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-4">
+            {SUPPORT_CATEGORIES.map((category) => {
+              const Icon = category.icon;
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => handleCategorySelect(category.id)}
+                  className="flex flex-col items-center p-4 rounded-lg border border-border hover-elevate active-elevate-2 transition-all text-center"
+                  data-testid={`button-category-${category.id}`}
+                >
+                  <div className={cn("p-2 rounded-full mb-2", category.color.replace('text-', 'bg-').replace('-500', '-100'))}>
+                    <Icon className={cn("h-5 w-5", category.color)} />
+                  </div>
+                  <span className="font-medium text-sm">{category.label}</span>
+                  <span className="text-xs text-muted-foreground mt-1">{category.description}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex justify-end">
+            <Button variant="ghost" onClick={() => setShowCategoryDialog(false)}>
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Customer Info Dialog */}
       <Dialog open={showInfoDialog} onOpenChange={setShowInfoDialog}>
         <DialogContent className="sm:max-w-md">
@@ -1020,6 +1169,27 @@ export default function CustomerChatPage() {
               Help us provide better support by sharing your contact information
             </DialogDescription>
           </DialogHeader>
+          <div className="mb-4 flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+            {chatState.selectedCategory && (() => {
+              const cat = getSelectedCategoryInfo();
+              if (!cat) return null;
+              const Icon = cat.icon;
+              return (
+                <>
+                  <Icon className={cn("h-4 w-4", cat.color)} />
+                  <span className="text-sm font-medium">{cat.label}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleBackToCategories}
+                    className="ml-auto h-6 text-xs"
+                  >
+                    Change
+                  </Button>
+                </>
+              );
+            })()}
+          </div>
           <CustomerInfoForm
             onSubmit={handleCustomerInfoSubmit}
             onCancel={() => setShowInfoDialog(false)}
