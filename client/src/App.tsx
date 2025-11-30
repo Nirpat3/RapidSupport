@@ -205,6 +205,7 @@ function AppContent() {
   const isKnowledgeBasePage = pathname === '/knowledge-base';
   const isChatEmbedPage = pathname === '/chat'; // Embeddable chat widget
   const isSupportCenterWidget = pathname === '/support-widget'; // Enhanced support center widget
+  const isMockupPage = pathname === '/mockup'; // Design mockup page - public
   
   // Knowledge base article public view
   const isPublicArticlePage = window.location.pathname.startsWith('/kb/');
@@ -291,6 +292,18 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <CustomerPortalRouter />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  // For design mockup page, render without authentication
+  if (isMockupPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <MockupPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
