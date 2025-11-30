@@ -3,13 +3,20 @@
 ## Overview
 Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
 
+## Recent Changes (Nov 30, 2025)
+- **MAJOR REDESIGN**: Implemented "Conversation-First Intelligence" visual overhaul
+  - Updated color system: Primary Indigo (243° 100% 40%), Accent Emerald (160° 84% 39%), highlights via Amber
+  - Applied new color variables to both light and dark modes
+  - Created comprehensive mockup viewer at `/mockup` with all page designs
+  - Transitioned from cool grays to warm, professional Indigo-Emerald-Amber palette
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
 ### UI/UX Decisions
-The frontend uses React 18, TypeScript, and Vite, leveraging Radix UI with Tailwind CSS in a shadcn/ui pattern for a custom design system supporting light/dark themes. The customer chat features a Perplexity-style redesign with a prominent hero input, progressive disclosure, suggested questions, and visual feature cards. Design aesthetics are Apple/Stripe-like, utilizing SF Pro/Inter font stacks, refined typography, and comprehensive utilities. The layout ensures independent scrolling and mobile optimization for message input. Floating chat widgets are integrated for instant AI assistance.
+The frontend uses React 18, TypeScript, and Vite, leveraging Radix UI with Tailwind CSS in a shadcn/ui pattern for a custom design system supporting light/dark themes. The customer chat features a Perplexity-style redesign with a prominent hero input, progressive disclosure, suggested questions, and visual feature cards. Design aesthetics now reflect Apple/Stripe-like refinement with the new Indigo/Emerald color scheme, refined typography, and comprehensive utilities. The layout ensures independent scrolling and mobile optimization for message input. Floating chat widgets are integrated for instant AI assistance.
 
 The **Public Knowledge Base** (`/knowledge-base`) is a redesigned FAQ-style interface featuring a hero section with a search bar, visual category overview cards, an accordion layout for articles, and smart search capabilities. Articles open in new tabs (`/kb/{id}`) with share, print, and PDF export functionality. It includes "Popular" article badges and integrated AI support via a floating ChatWidget.
 
@@ -48,6 +55,13 @@ The backend is a Node.js Express.js application in TypeScript, providing a RESTf
   - Configure suggested questions per category
   - Categories are fetched dynamically from the API (`/api/support-categories/public`) with fallback to defaults
   - Selected category is passed as `contextData` to enable specialized AI agent routing throughout the chat experience
+
+## Color Palette (New Design)
+- **Primary Indigo**: 243° 100% 40% (bright, professional, trustworthy)
+- **Accent Emerald**: 160° 84% 39% (success, AI-generated responses, growth)
+- **Highlight Amber**: 45° 93% 51% (attention, important information, warmth)
+- **Neutral Backgrounds**: 240° 10% (minimal saturation for calm, clean appearance)
+- Applies consistently across light mode and dark mode variants
 
 ## External Dependencies
 
