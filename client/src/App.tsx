@@ -35,12 +35,14 @@ import UserManagementPage from "@/pages/UserManagementPage";
 import SupportCategoriesPage from "@/pages/SupportCategoriesPage";
 import DocumentationPage from "@/pages/DocumentationPage";
 import WidgetSetupPage from "@/pages/WidgetSetupPage";
+import MockupPage from "@/pages/MockupPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
+      <Route path="/mockup" component={MockupPage} />
       <Route path="/admin">
         <PermissionGuard feature="conversations">
           <ConversationsPage />
