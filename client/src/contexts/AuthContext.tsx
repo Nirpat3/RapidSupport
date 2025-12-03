@@ -47,6 +47,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const login = async (email: string, password: string): Promise<boolean> => {
+    console.log('[Login] Attempting login for:', email);
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -57,8 +58,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: 'include'
       });
 
+      console.log('[Login] Response status:', response.status, response.statusText);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('[Login] Success! User:', data.user?.email);
         setUser(data.user);
         toast({
           title: "Login successful",
@@ -69,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return true;
       } else {
         const errorData = await response.json();
+        console.log('[Login] Failed:', response.status, errorData);
         toast({
           title: "Login failed",
           description: errorData.error || "Invalid credentials",
@@ -77,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false;
       }
     } catch (error) {
+      console.error('[Login] Network error:', error);
       toast({
         title: "Login failed",
         description: "Network error. Please try again.",

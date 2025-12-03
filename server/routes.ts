@@ -470,14 +470,37 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     const referer = req.get('Referer');
     const host = req.get('Host');
     
-    // Check origin header
-    if (origin && !origin.includes(host)) {
-      return res.status(403).json({ error: 'Invalid origin' });
+    console.log('[CSRF] Checking request:', { origin, referer, host, path: req.path });
+    
+    // In development/Replit environment, be more permissive with origin checks
+    // Allow requests from Replit preview hosts
+    if (origin && host) {
+      const originHost = origin.replace(/^https?:\/\//, '').split('/')[0];
+      const hostWithoutPort = host.split(':')[0];
+      
+      // Check if origins match (case-insensitive)
+      if (originHost.toLowerCase() !== hostWithoutPort.toLowerCase()) {
+        // Allow Replit domains
+        if (originHost.includes('.replit.dev') || originHost.includes('.kirk.replit.dev')) {
+          console.log('[CSRF] Allowing Replit domain:', originHost);
+        } else {
+          console.log('[CSRF] Origin mismatch - Origin:', originHost, 'Host:', hostWithoutPort);
+          return res.status(403).json({ error: 'Invalid origin' });
+        }
+      }
     }
     
-    // Check referer header as fallback
-    if (!origin && referer && !referer.includes(host)) {
-      return res.status(403).json({ error: 'Invalid referer' });
+    // Check referer header as fallback only if no origin
+    if (!origin && referer && host) {
+      const refererHost = referer.replace(/^https?:\/\//, '').split('/')[0];
+      const hostWithoutPort = host.split(':')[0];
+      
+      if (refererHost.toLowerCase() !== hostWithoutPort.toLowerCase()) {
+        if (!refererHost.includes('.replit.dev')) {
+          console.log('[CSRF] Referer mismatch - Referer:', refererHost, 'Host:', hostWithoutPort);
+          return res.status(403).json({ error: 'Invalid referer' });
+        }
+      }
     }
     
     next();

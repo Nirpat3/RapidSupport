@@ -12,14 +12,22 @@ passport.use(new LocalStrategy(
   },
   async (email: string, password: string, done) => {
     try {
+      console.log('[Auth] Login attempt for email:', email);
+      
       // Find user by email
       const user = await storage.getUserByEmail(email);
       if (!user) {
+        console.log('[Auth] No user found for email:', email);
         return done(null, false, { message: 'Invalid email or password' });
       }
+      
+      console.log('[Auth] User found:', user.email, 'Role:', user.role);
+      console.log('[Auth] Stored hash starts with:', user.password?.substring(0, 20));
 
       // Check password
       const isValidPassword = await compare(password, user.password);
+      console.log('[Auth] Password comparison result:', isValidPassword);
+      
       if (!isValidPassword) {
         return done(null, false, { message: 'Invalid email or password' });
       }
