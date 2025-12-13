@@ -291,6 +291,25 @@ export default function ConversationsPage() {
     }
   }, [activeConversationId]);
 
+  // Effect to clear selected conversation when switching tabs if it's not in the filtered list
+  useEffect(() => {
+    if (activeConversationId && conversations.length > 0) {
+      const activeConv = conversations.find(c => c.id === activeConversationId);
+      if (activeConv) {
+        const isInCurrentView = viewMode === 'active'
+          ? (activeConv.status === 'open' || activeConv.status === 'pending')
+          : (activeConv.status === 'closed' || activeConv.status === 'resolved');
+        
+        if (!isInCurrentView) {
+          setActiveConversationId(undefined);
+          setLocation('/conversations');
+        }
+      }
+    }
+    // Also clear selection state when switching tabs
+    setSelectedConversationIds(new Set());
+  }, [viewMode]);
+
   // Filter and search conversations
   const filteredConversations = conversations.filter(conv => {
     const matchesSearch = searchQuery === "" || 
