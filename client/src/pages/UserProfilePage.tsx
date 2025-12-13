@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +25,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import {
   Select,
@@ -33,14 +36,16 @@ import {
 } from "@/components/ui/select";
 import { 
   Shield, User, ArrowLeft, Loader2, Save, Trash2, 
-  Power, Eye, Edit, EyeOff 
+  Power, Eye, Edit, EyeOff, Key, Activity, Mail,
+  Calendar, Clock, CheckCircle, XCircle, UserCog
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useParams } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { format } from "date-fns";
 
 const FEATURES = [
   { id: 'conversations', label: 'Conversations', description: 'View and manage customer conversations' },
@@ -79,20 +84,33 @@ interface UserPermission {
   permission: PermissionLevel;
 }
 
-const updateUserSchema = z.object({
+const updateProfileSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters").or(z.literal("")),
+});
+
+const updatePasswordSchema = z.object({
+  newPassword: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string().min(6, "Password must be at least 6 characters"),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+const updateRoleSchema = z.object({
   role: z.enum(["admin", "agent"]),
 });
 
-type UpdateUserForm = z.infer<typeof updateUserSchema>;
+type UpdateProfileForm = z.infer<typeof updateProfileSchema>;
+type UpdatePasswordForm = z.infer<typeof updatePasswordSchema>;
+type UpdateRoleForm = z.infer<typeof updateRoleSchema>;
 
 export default function UserProfilePage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const params = useParams();
   const userId = params.id;
+  const [activeTab, setActiveTab] = useState("profile");
 
   const { data: user, isLoading: isLoadingUser } = useQuery<UserData>({
     queryKey: ['/api/users', userId],
@@ -104,48 +122,99 @@ export default function UserProfilePage() {
     enabled: !!userId,
   });
 
-  const form = useForm<UpdateUserForm>({
-    resolver: zodResolver(updateUserSchema),
+  const profileForm = useForm<UpdateProfileForm>({
+    resolver: zodResolver(updateProfileSchema),
     defaultValues: {
       name: "",
       email: "",
-      password: "",
+    },
+  });
+
+  const passwordForm = useForm<UpdatePasswordForm>({
+    resolver: zodResolver(updatePasswordSchema),
+    defaultValues: {
+      newPassword: "",
+      confirmPassword: "",
+    },
+  });
+
+  const roleForm = useForm<UpdateRoleForm>({
+    resolver: zodResolver(updateRoleSchema),
+    defaultValues: {
       role: "agent",
     },
   });
 
   useEffect(() => {
     if (user) {
-      form.reset({
+      profileForm.reset({
         name: user.name,
         email: user.email,
-        password: "",
+      });
+      roleForm.reset({
         role: user.role as "admin" | "agent",
       });
     }
-  }, [user, form]);
+  }, [user, profileForm, roleForm]);
 
-  const updateUserMutation = useMutation({
-    mutationFn: async (data: UpdateUserForm) => {
-      const updateData: any = { name: data.name, email: data.email, role: data.role };
-      if (data.password) {
-        updateData.password = data.password;
-      }
-      return apiRequest(`/api/users/${userId}`, 'PUT', updateData);
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: UpdateProfileForm) => {
+      return apiRequest(`/api/users/${userId}`, 'PUT', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/users', userId] });
       toast({
-        title: "User updated",
-        description: "User information has been updated successfully.",
+        title: "Profile updated",
+        description: "User profile has been updated successfully.",
       });
     },
     onError: (error: any) => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error?.message || "Failed to update user.",
+        description: error?.message || "Failed to update profile.",
+      });
+    }
+  });
+
+  const updatePasswordMutation = useMutation({
+    mutationFn: async (data: UpdatePasswordForm) => {
+      return apiRequest(`/api/users/${userId}`, 'PUT', { password: data.newPassword });
+    },
+    onSuccess: () => {
+      passwordForm.reset();
+      toast({
+        title: "Password updated",
+        description: "User password has been changed successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to update password.",
+      });
+    }
+  });
+
+  const updateRoleMutation = useMutation({
+    mutationFn: async (data: UpdateRoleForm) => {
+      return apiRequest(`/api/users/${userId}`, 'PUT', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users', userId] });
+      toast({
+        title: "Role updated",
+        description: "User role has been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error?.message || "Failed to update role.",
       });
     }
   });
@@ -243,10 +312,6 @@ export default function UserProfilePage() {
     }
   };
 
-  const onSubmit = (data: UpdateUserForm) => {
-    updateUserMutation.mutate(data);
-  };
-
   if (isLoadingUser || isLoadingPermissions) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -268,8 +333,8 @@ export default function UserProfilePage() {
   }
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-y-auto">
-      <div className="flex items-center gap-4 mb-6 flex-wrap">
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="flex items-center gap-4 p-6 pb-4 border-b flex-shrink-0">
         <Button 
           variant="ghost" 
           size="icon" 
@@ -279,244 +344,470 @@ export default function UserProfilePage() {
           <ArrowLeft className="w-5 h-5" />
         </Button>
         
-        <div className="flex items-center gap-3 flex-1">
-          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-            <User className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="text-user-name">{user.name}</h1>
-            <p className="text-sm text-muted-foreground">{user.email}</p>
+        <div className="flex items-center gap-4 flex-1">
+          <Avatar className="w-16 h-16">
+            <AvatarFallback className="text-xl bg-primary/10 text-primary">
+              {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold" data-testid="text-user-name">{user.name}</h1>
+              <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                {user.role === 'admin' ? 'Administrator' : 'Agent'}
+              </Badge>
+              <Badge variant={user.status === 'disabled' ? 'destructive' : 'outline'}>
+                {user.status === 'disabled' ? (
+                  <><XCircle className="w-3 h-3 mr-1" /> Disabled</>
+                ) : (
+                  <><CheckCircle className="w-3 h-3 mr-1" /> Active</>
+                )}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+              <Mail className="w-4 h-4" />
+              {user.email}
+            </p>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-            {user.role}
-          </Badge>
-          <Badge variant={user.status === 'disabled' ? 'destructive' : 'secondary'}>
-            {user.status}
-          </Badge>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button
+            variant={user.status === 'disabled' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => toggleStatusMutation.mutate()}
+            disabled={toggleStatusMutation.isPending}
+            data-testid="button-toggle-status"
+          >
+            {toggleStatusMutation.isPending ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Power className="w-4 h-4 mr-2" />
+            )}
+            {user.status === 'disabled' ? 'Enable' : 'Disable'}
+          </Button>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm" data-testid="button-delete-user">
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete User</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete "{user.name}" and all their permissions. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => deleteUserMutation.mutate()}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  data-testid="button-confirm-delete"
+                >
+                  {deleteUserMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Delete User
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>User Information</CardTitle>
-            <CardDescription>Update user details and credentials</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Name</FormLabel>
-                      <FormControl>
-                        <Input {...field} data-testid="input-edit-name" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" {...field} data-testid="input-edit-email" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>New Password (leave blank to keep current)</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="Enter new password" {...field} data-testid="input-edit-password" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="role"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Role</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-edit-role">
-                            <SelectValue placeholder="Select a role" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="agent">Agent</SelectItem>
-                          <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <div className="flex gap-2 pt-4">
-                  <Button 
-                    type="submit" 
-                    disabled={updateUserMutation.isPending}
-                    data-testid="button-save-user"
-                  >
-                    {updateUserMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Save className="w-4 h-4 mr-2" />
-                    )}
-                    Save Changes
-                  </Button>
-                </div>
-              </form>
-            </Form>
-            
-            <Separator className="my-6" />
-            
-            <div className="space-y-4">
-              <h3 className="font-medium">Account Actions</h3>
-              
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  variant={user.status === 'disabled' ? 'default' : 'outline'}
-                  onClick={() => toggleStatusMutation.mutate()}
-                  disabled={toggleStatusMutation.isPending}
-                  data-testid="button-toggle-status"
-                >
-                  {toggleStatusMutation.isPending ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Power className="w-4 h-4 mr-2" />
-                  )}
-                  {user.status === 'disabled' ? 'Enable User' : 'Disable User'}
-                </Button>
-                
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" data-testid="button-delete-user">
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete User
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete the user "{user.name}". This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => deleteUserMutation.mutate()}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        data-testid="button-confirm-delete"
-                      >
-                        {deleteUserMutation.isPending ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : null}
-                        Delete
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex-1 overflow-y-auto p-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full max-w-lg grid-cols-4 mb-6">
+            <TabsTrigger value="profile" className="flex items-center gap-2" data-testid="tab-profile">
+              <User className="w-4 h-4" />
+              <span className="hidden sm:inline">Profile</span>
+            </TabsTrigger>
+            <TabsTrigger value="role" className="flex items-center gap-2" data-testid="tab-role">
+              <Shield className="w-4 h-4" />
+              <span className="hidden sm:inline">Role</span>
+            </TabsTrigger>
+            <TabsTrigger value="password" className="flex items-center gap-2" data-testid="tab-password">
+              <Key className="w-4 h-4" />
+              <span className="hidden sm:inline">Password</span>
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="flex items-center gap-2" data-testid="tab-activity">
+              <Activity className="w-4 h-4" />
+              <span className="hidden sm:inline">Activity</span>
+            </TabsTrigger>
+          </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              Permissions
-            </CardTitle>
-            <CardDescription>
-              {user.role === 'admin' 
-                ? 'Admin users have full access to all features by default'
-                : 'Configure which features this user can access'
-              }
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 max-h-[500px] overflow-y-auto">
-            {user.role === 'admin' && (
-              <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg mb-4">
-                <p className="text-sm font-medium text-primary">
-                  <Shield className="w-4 h-4 inline mr-2" />
-                  Admin users have full access to all features
-                </p>
-              </div>
-            )}
-            
-            {FEATURES.map((feature, index) => (
-              <div key={feature.id}>
-                {index > 0 && <Separator className="my-4" />}
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium" data-testid={`feature-label-${feature.id}`}>{feature.label}</h3>
-                    <p className="text-sm text-muted-foreground">{feature.description}</p>
+          <TabsContent value="profile" className="mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  Profile Information
+                </CardTitle>
+                <CardDescription>
+                  Update the user's basic profile information
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...profileForm}>
+                  <form onSubmit={profileForm.handleSubmit((data) => updateProfileMutation.mutate(data))} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <FormField
+                        control={profileForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Full Name</FormLabel>
+                            <FormControl>
+                              <Input {...field} data-testid="input-edit-name" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={profileForm.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email Address</FormLabel>
+                            <FormControl>
+                              <Input type="email" {...field} data-testid="input-edit-email" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-muted-foreground">Account Created</label>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="w-4 h-4 text-muted-foreground" />
+                          {user.createdAt ? format(new Date(user.createdAt), 'PPP') : 'Unknown'}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-muted-foreground">Last Updated</label>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="w-4 h-4 text-muted-foreground" />
+                          {user.updatedAt ? format(new Date(user.updatedAt), 'PPP p') : 'Never'}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end">
+                      <Button 
+                        type="submit" 
+                        disabled={updateProfileMutation.isPending}
+                        data-testid="button-save-profile"
+                      >
+                        {updateProfileMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4 mr-2" />
+                        )}
+                        Save Profile
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="role" className="mt-0 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCog className="w-5 h-5" />
+                  User Role
+                </CardTitle>
+                <CardDescription>
+                  Change the user's role to control their access level
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...roleForm}>
+                  <form onSubmit={roleForm.handleSubmit((data) => updateRoleMutation.mutate(data))} className="space-y-6">
+                    <FormField
+                      control={roleForm.control}
+                      name="role"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Role</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="max-w-xs" data-testid="select-edit-role">
+                                <SelectValue placeholder="Select a role" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="agent">Agent</SelectItem>
+                              <SelectItem value="admin">Administrator</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {field.value === 'admin' 
+                              ? 'Administrators have full access to all features and can manage other users.'
+                              : 'Agents have access to conversations and features based on their permissions.'
+                            }
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <div className="flex justify-end">
+                      <Button 
+                        type="submit" 
+                        disabled={updateRoleMutation.isPending}
+                        data-testid="button-save-role"
+                      >
+                        {updateRoleMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4 mr-2" />
+                        )}
+                        Save Role
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Feature Permissions
+                </CardTitle>
+                <CardDescription>
+                  {user.role === 'admin' 
+                    ? 'Administrators have full access to all features'
+                    : 'Configure which features this user can access'
+                  }
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {user.role === 'admin' && (
+                  <div className="p-4 bg-primary/10 border border-primary/20 rounded-lg mb-6">
+                    <p className="text-sm font-medium text-primary flex items-center gap-2">
+                      <Shield className="w-4 h-4" />
+                      Administrators have full access to all features. Permission settings are disabled.
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <Badge 
-                      variant={getPermissionColor(getPermissionForFeature(feature.id))}
-                      className="gap-1"
-                    >
-                      {getPermissionIcon(getPermissionForFeature(feature.id))}
-                      {getPermissionForFeature(feature.id)}
-                    </Badge>
-                    <Select
-                      value={getPermissionForFeature(feature.id)}
-                      onValueChange={(value) => handlePermissionChange(feature.id, value as PermissionLevel)}
-                      disabled={setPermissionMutation.isPending || user.role === 'admin'}
-                    >
-                      <SelectTrigger className="w-[130px]" data-testid={`permission-select-${feature.id}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="hidden">
-                          <div className="flex items-center gap-2">
-                            <EyeOff className="w-4 h-4" />
-                            Hidden
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="view">
-                          <div className="flex items-center gap-2">
-                            <Eye className="w-4 h-4" />
-                            View Only
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="edit">
-                          <div className="flex items-center gap-2">
-                            <Edit className="w-4 h-4" />
-                            Edit
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                )}
+                
+                <div className="space-y-4">
+                  {FEATURES.map((feature, index) => (
+                    <div key={feature.id}>
+                      {index > 0 && <Separator className="my-4" />}
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium" data-testid={`feature-label-${feature.id}`}>{feature.label}</h3>
+                          <p className="text-sm text-muted-foreground">{feature.description}</p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <Badge 
+                            variant={getPermissionColor(getPermissionForFeature(feature.id))}
+                            className="gap-1"
+                          >
+                            {getPermissionIcon(getPermissionForFeature(feature.id))}
+                            {getPermissionForFeature(feature.id)}
+                          </Badge>
+                          <Select
+                            value={getPermissionForFeature(feature.id)}
+                            onValueChange={(value) => handlePermissionChange(feature.id, value as PermissionLevel)}
+                            disabled={setPermissionMutation.isPending || user.role === 'admin'}
+                          >
+                            <SelectTrigger className="w-[130px]" data-testid={`permission-select-${feature.id}`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="hidden">
+                                <div className="flex items-center gap-2">
+                                  <EyeOff className="w-4 h-4" />
+                                  Hidden
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="view">
+                                <div className="flex items-center gap-2">
+                                  <Eye className="w-4 h-4" />
+                                  View Only
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="edit">
+                                <div className="flex items-center gap-2">
+                                  <Edit className="w-4 h-4" />
+                                  Edit
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="password" className="mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="w-5 h-5" />
+                  Change Password
+                </CardTitle>
+                <CardDescription>
+                  Set a new password for this user
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...passwordForm}>
+                  <form onSubmit={passwordForm.handleSubmit((data) => updatePasswordMutation.mutate(data))} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <FormField
+                        control={passwordForm.control}
+                        name="newPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>New Password</FormLabel>
+                            <FormControl>
+                              <Input type="password" placeholder="Enter new password" {...field} data-testid="input-new-password" />
+                            </FormControl>
+                            <FormDescription>
+                              Must be at least 6 characters
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={passwordForm.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Confirm Password</FormLabel>
+                            <FormControl>
+                              <Input type="password" placeholder="Confirm new password" {...field} data-testid="input-confirm-password" />
+                            </FormControl>
+                            <FormDescription>
+                              Re-enter the password to confirm
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    
+                    <div className="flex justify-end">
+                      <Button 
+                        type="submit" 
+                        disabled={updatePasswordMutation.isPending}
+                        data-testid="button-save-password"
+                      >
+                        {updatePasswordMutation.isPending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Key className="w-4 h-4 mr-2" />
+                        )}
+                        Update Password
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="activity" className="mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="w-5 h-5" />
+                  User Activity
+                </CardTitle>
+                <CardDescription>
+                  View recent activity and login history for this user
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card className="bg-muted/50">
+                      <CardContent className="p-4">
+                        <div className="text-sm text-muted-foreground">Account Status</div>
+                        <div className="text-2xl font-bold flex items-center gap-2 mt-1">
+                          {user.status === 'disabled' ? (
+                            <><XCircle className="w-5 h-5 text-destructive" /> Disabled</>
+                          ) : (
+                            <><CheckCircle className="w-5 h-5 text-green-500" /> Active</>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-muted/50">
+                      <CardContent className="p-4">
+                        <div className="text-sm text-muted-foreground">Member Since</div>
+                        <div className="text-2xl font-bold mt-1">
+                          {user.createdAt ? format(new Date(user.createdAt), 'MMM yyyy') : 'Unknown'}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="bg-muted/50">
+                      <CardContent className="p-4">
+                        <div className="text-sm text-muted-foreground">Role</div>
+                        <div className="text-2xl font-bold capitalize mt-1">
+                          {user.role === 'admin' ? 'Administrator' : 'Agent'}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div>
+                    <h3 className="font-medium mb-4">Account Timeline</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <Clock className="w-4 h-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Last Updated</p>
+                          <p className="text-sm text-muted-foreground">
+                            {user.updatedAt ? format(new Date(user.updatedAt), 'PPP p') : 'Never updated'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-4">
+                        <div className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Account Created</p>
+                          <p className="text-sm text-muted-foreground">
+                            {user.createdAt ? format(new Date(user.createdAt), 'PPP p') : 'Unknown'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
