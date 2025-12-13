@@ -356,7 +356,7 @@ export default function ConversationsPage() {
   // Update status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async ({ conversationId, status }: { conversationId: string; status: string }) => {
-      return await apiRequest(`/api/conversations/${conversationId}/status`, 'PUT', { status });
+      return await apiRequest(`/api/conversations/${conversationId}/status`, 'PATCH', { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
