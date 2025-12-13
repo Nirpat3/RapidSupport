@@ -10,8 +10,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Search, FileText, BookOpen, Sparkles, HelpCircle, ExternalLink, ArrowRight } from "lucide-react";
-import { Link } from "wouter";
+import { Search, FileText, BookOpen, Sparkles, HelpCircle, ExternalLink } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import ChatWidget from "@/components/ChatWidget";
 
@@ -176,9 +175,11 @@ export default function SupportPage() {
                   {categories.map((category) => {
                     const articleCount = articlesByCategory[category].length;
                     return (
-                      <Link 
+                      <a 
                         key={category} 
                         href={`/knowledge-base/category/${encodeURIComponent(category)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         data-testid={`link-category-${category}`}
                       >
                         <Card className="hover-elevate transition-all cursor-pointer group h-full">
@@ -191,14 +192,14 @@ export default function SupportPage() {
                             </div>
                             <CardTitle className="text-lg group-hover:text-primary transition-colors flex items-center gap-2">
                               {category}
-                              <ArrowRight className="h-4 w-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                              <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                             </CardTitle>
                             <CardDescription className="text-sm">
                               {articleCount} {articleCount === 1 ? 'article' : 'articles'}
                             </CardDescription>
                           </CardHeader>
                         </Card>
-                      </Link>
+                      </a>
                     );
                   })}
                 </div>

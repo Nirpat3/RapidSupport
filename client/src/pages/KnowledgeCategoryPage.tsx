@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useParams, Link } from "wouter";
+import { useParams } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,12 +41,12 @@ export default function KnowledgeCategoryPage() {
     <div className="min-h-screen bg-background">
       <div className="bg-gradient-to-b from-primary/5 via-primary/3 to-background border-b">
         <div className="container max-w-5xl mx-auto px-4 py-8 sm:py-12">
-          <Link href="/knowledge-base">
+          <a href="/knowledge-base">
             <Button variant="ghost" className="mb-6 gap-2" data-testid="button-back-to-kb">
               <ArrowLeft className="h-4 w-4" />
               Back to Knowledge Base
             </Button>
-          </Link>
+          </a>
           
           <div className="flex items-center gap-3 mb-4">
             <FileText className="h-8 w-8 text-primary" />
@@ -78,11 +78,11 @@ export default function KnowledgeCategoryPage() {
                   There are no articles in this category yet.
                 </p>
               </div>
-              <Link href="/knowledge-base">
+              <a href="/knowledge-base">
                 <Button variant="outline" data-testid="button-browse-all">
                   Browse All Categories
                 </Button>
-              </Link>
+              </a>
             </div>
           </Card>
         ) : (
