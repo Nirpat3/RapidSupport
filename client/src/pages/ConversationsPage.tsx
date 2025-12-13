@@ -453,23 +453,35 @@ export default function ConversationsPage() {
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex gap-2 mb-3">
-            <Button
-              variant={viewMode === 'active' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('active')}
-              data-testid="tab-active-conversations"
-            >
-              Active
-            </Button>
-            <Button
-              variant={viewMode === 'history' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setViewMode('history')}
-              data-testid="tab-history-conversations"
-            >
-              History
-            </Button>
+          <div className="flex gap-2 mb-3 items-center justify-between">
+            <div className="flex gap-2">
+              <Button
+                variant={viewMode === 'active' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('active')}
+                data-testid="tab-active-conversations"
+              >
+                Active
+              </Button>
+              <Button
+                variant={viewMode === 'history' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('history')}
+                data-testid="tab-history-conversations"
+              >
+                History
+              </Button>
+            </div>
+            {sortedConversations.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSelectAll}
+                data-testid="button-select-all"
+              >
+                {selectedConversationIds.size === sortedConversations.length ? 'Deselect All' : 'Select All'}
+              </Button>
+            )}
           </div>
 
           {/* Search */}
