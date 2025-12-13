@@ -135,12 +135,12 @@ export default function UserManagementPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
         {/* Users List */}
-        <Card className="lg:col-span-1 flex flex-col">
-          <CardHeader>
+        <Card className="lg:col-span-1 flex flex-col min-h-0 overflow-hidden">
+          <CardHeader className="flex-shrink-0">
             <CardTitle>Staff Members</CardTitle>
             <CardDescription>Select a user to manage permissions</CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 overflow-auto space-y-2">
+          <CardContent className="flex-1 overflow-y-auto min-h-0 space-y-2">
             {usersWithPermissions?.map(({ user }) => (
               <button
                 key={user.id}
@@ -168,8 +168,8 @@ export default function UserManagementPage() {
         </Card>
 
         {/* Permissions Grid */}
-        <Card className="lg:col-span-2 flex flex-col">
-          <CardHeader>
+        <Card className="lg:col-span-2 flex flex-col min-h-0 overflow-hidden">
+          <CardHeader className="flex-shrink-0">
             <CardTitle>
               {selectedUserData ? `Permissions for ${selectedUserData.user.name}` : 'Select a User'}
             </CardTitle>
@@ -180,7 +180,7 @@ export default function UserManagementPage() {
               }
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex-1 overflow-auto">
+          <CardContent className="flex-1 overflow-y-auto min-h-0">
             {selectedUserData ? (
               <div className="space-y-4">
                 {selectedUserData.user.role === 'admin' && (
