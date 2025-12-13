@@ -14,6 +14,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   MessageSquare,
   Search,
   ArrowLeft,
@@ -92,6 +102,10 @@ export default function ConversationsPage() {
     content: string;
     isStreaming: boolean;
   }>>(new Map());
+
+  // Reopen conversation dialog state
+  const [isReopenDialogOpen, setIsReopenDialogOpen] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
   // WebSocket setup
   useEffect(() => {
@@ -449,7 +463,73 @@ export default function ConversationsPage() {
     }
   });
 
+  // Send message mutation
+  const sendMessageMutation = useMutation({
+    mutationFn: async ({ conversationId, content }: { conversationId: string; content: string }) => {
+      return await apiRequest('/api/messages', 'POST', { conversationId, content });
+    },
+    onSuccess: (_, variables) => {
+      // Use mutation variables for cache invalidation
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations', variables.conversationId, 'messages'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/unread-counts'] });
+    },
+    onError: (error: any, variables) => {
+      // Rollback optimistic status update on failure
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send message",
+        variant: "destructive",
+      });
+    }
+  });
+
   const activeConversation = conversations.find(c => c.id === activeConversationId);
+
+  // Handle sending message - checks if conversation is closed first
+  const handleSendMessage = (content: string) => {
+    if (!activeConversationId || !content.trim() || sendMessageMutation.isPending) return;
+    
+    // Get the fresh conversation status from the latest query data
+    const currentConversations = queryClient.getQueryData<Conversation[]>(['/api/conversations']) || conversations;
+    const currentConversation = currentConversations.find(c => c.id === activeConversationId);
+    
+    // Check if conversation is closed or resolved
+    if (currentConversation?.status === 'closed' || currentConversation?.status === 'resolved') {
+      setPendingMessage(content);
+      setIsReopenDialogOpen(true);
+      return;
+    }
+    
+    // Send message directly for open/pending conversations
+    sendMessageMutation.mutate({ conversationId: activeConversationId, content });
+  };
+
+  // Handle confirmation to reopen and send
+  const handleConfirmReopenAndSend = () => {
+    if (!activeConversationId || !pendingMessage || sendMessageMutation.isPending) return;
+    
+    // Optimistically update the conversation status to 'open' in cache
+    queryClient.setQueryData<Conversation[]>(['/api/conversations'], (oldData) => {
+      if (!oldData) return oldData;
+      return oldData.map(conv => 
+        conv.id === activeConversationId 
+          ? { ...conv, status: 'open' } 
+          : conv
+      );
+    });
+    
+    sendMessageMutation.mutate({ conversationId: activeConversationId, content: pendingMessage });
+    setIsReopenDialogOpen(false);
+    setPendingMessage(null);
+  };
+
+  // Handle cancel reopen
+  const handleCancelReopen = () => {
+    setIsReopenDialogOpen(false);
+    setPendingMessage(null);
+  };
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -747,6 +827,7 @@ export default function ConversationsPage() {
                 phone: undefined
               } : undefined}
               messages={activeMessages}
+              onSendMessage={handleSendMessage}
               streamingMessage={activeConversationId ? streamingMessages.get(activeConversationId) || null : null}
               conversationStatus={activeConversation.status}
               onStatusChange={(status) => updateStatusMutation.mutate({ conversationId: activeConversationId, status })}
@@ -764,6 +845,30 @@ export default function ConversationsPage() {
           </div>
         )}
       </div>
+
+      {/* Reopen Conversation Confirmation Dialog */}
+      <AlertDialog open={isReopenDialogOpen} onOpenChange={setIsReopenDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reopen this conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This conversation is currently closed. Sending a message will reopen it and notify the customer. Would you like to proceed?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleCancelReopen} data-testid="button-cancel-reopen">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmReopenAndSend}
+              disabled={sendMessageMutation.isPending}
+              data-testid="button-confirm-reopen"
+            >
+              {sendMessageMutation.isPending ? 'Sending...' : 'Reopen & Send'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
