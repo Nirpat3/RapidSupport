@@ -10,6 +10,22 @@ Support Board is a full-stack customer support platform for real-time chat, conv
   - Created comprehensive mockup viewer at `/mockup` with all page designs
   - Transitioned from cool grays to warm, professional Indigo-Emerald-Amber palette
 
+## Test Credentials
+**Super Admin:**
+- Email: Admin@ris.com
+- Password: Admin$123
+- Permissions: Full system access, user management, all settings, dashboard
+
+**Support Agent:**
+- Email: Agent@rapidrms.com
+- Password: Agent$123
+- Permissions: Handle conversations, manage assigned cases, access staff features
+
+**Customer (Portal Access):**
+- Email: Customer@rms.com
+- Password: Customer$123
+- Permissions: Portal access (/portal), view support history, submit feedback
+
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
