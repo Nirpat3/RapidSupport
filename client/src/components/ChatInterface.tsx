@@ -105,6 +105,7 @@ export default function ChatInterface({
   
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -207,8 +208,7 @@ export default function ChatInterface({
     // Send the message first
     onSendMessage?.(newMessage || '📎 File attachment');
     
-    // Note: In a real implementation, we'd need the message ID to attach files
-    // For now, clear the message and files
+    // Clear the message and files
     setNewMessage("");
     setSelectedFiles([]);
     if (fileInputRef.current) {
@@ -216,10 +216,6 @@ export default function ChatInterface({
     }
     setProofreadResult(null);
     setIsProofreadingOpen(false);
-    
-    // Simulate typing indicator
-    setIsTyping(true);
-    setTimeout(() => setIsTyping(false), 2000);
   };
 
   const handleProofreadMessage = async () => {
@@ -1082,9 +1078,17 @@ export default function ChatInterface({
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={(e) => {
-                  // Prevent form submission on Enter - require clicking Send button
+                  // Tab key focuses the send button
+                  if (e.key === 'Tab' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendButtonRef.current?.focus();
+                  }
+                  // Enter key sends the message (Shift+Enter for new line)
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
+                    if (newMessage.trim() || selectedFiles.length > 0) {
+                      sendButtonRef.current?.click();
+                    }
                   }
                 }}
                 className={`resize-none ${isInternalMode ? "border-amber-300 dark:border-amber-700" : ""}`}
@@ -1120,6 +1124,7 @@ export default function ChatInterface({
             </Button>
             
             <Button 
+              ref={sendButtonRef}
               type="submit" 
               size="icon"
               disabled={(!newMessage.trim() && selectedFiles.length === 0) || isUploadingFiles}
