@@ -662,9 +662,9 @@ export default function ConversationsPage() {
       `}>
         {activeConversationId && activeConversation ? (
           <>
-            {/* Chat Header */}
-            <div className="p-4 border-b flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
+            {/* Chat Header - Controls Only */}
+            <div className="p-3 border-b flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-2">
                 {/* Mobile back button */}
                 <Button
                   variant="ghost"
@@ -675,21 +675,6 @@ export default function ConversationsPage() {
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </Button>
-
-                <Avatar>
-                  <AvatarFallback>
-                    {activeConversation.customer?.name?.slice(0, 2).toUpperCase() || 'UN'}
-                  </AvatarFallback>
-                </Avatar>
-
-                <div>
-                  <h2 className="font-semibold" data-testid="chat-customer-name">
-                    {activeConversation.customer?.name || 'Unknown Customer'}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    {activeConversation.customer?.email}
-                  </p>
-                </div>
               </div>
 
               <div className="flex items-center gap-2">
