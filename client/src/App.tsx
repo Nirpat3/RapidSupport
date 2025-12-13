@@ -31,6 +31,7 @@ import CustomerPortalLogin from "@/pages/CustomerPortalLogin";
 import CustomerPortalFeed from "@/pages/CustomerPortalFeed";
 import { CustomerPortalRouter } from "@/components/CustomerPortalRouter";
 import PublicArticlePage from "@/pages/PublicArticlePage";
+import KnowledgeCategoryPage from "@/pages/KnowledgeCategoryPage";
 import UserManagementPage from "@/pages/UserManagementPage";
 import SupportCategoriesPage from "@/pages/SupportCategoriesPage";
 import DocumentationPage from "@/pages/DocumentationPage";
@@ -203,6 +204,7 @@ function AppContent() {
   const pathname = window.location.pathname.replace(/\/$/, ''); // Remove trailing slash
   const isCustomerChatPage = pathname === '' || pathname === '/customer-chat';
   const isKnowledgeBasePage = pathname === '/knowledge-base';
+  const isKnowledgeCategoryPage = pathname.startsWith('/knowledge-base/category/');
   const isChatEmbedPage = pathname === '/chat'; // Embeddable chat widget
   const isSupportCenterWidget = pathname === '/support-widget'; // Enhanced support center widget
   const isMockupPage = pathname === '/mockup'; // Design mockup page - public
@@ -232,6 +234,18 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <SupportPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // For knowledge base category page, render without authentication
+  if (isKnowledgeCategoryPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <KnowledgeCategoryPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

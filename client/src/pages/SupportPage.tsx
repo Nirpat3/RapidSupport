@@ -10,7 +10,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Search, FileText, BookOpen, Sparkles, HelpCircle, ExternalLink } from "lucide-react";
+import { Search, FileText, BookOpen, Sparkles, HelpCircle, ExternalLink, ArrowRight } from "lucide-react";
+import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import ChatWidget from "@/components/ChatWidget";
 
@@ -175,25 +176,29 @@ export default function SupportPage() {
                   {categories.map((category) => {
                     const articleCount = articlesByCategory[category].length;
                     return (
-                      <Card key={category} className="hover-elevate transition-all cursor-pointer group" onClick={() => {
-                        const element = document.getElementById(`category-${category}`);
-                        element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                      }}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <FileText className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                            <Badge variant="secondary" className="ml-auto">
-                              {articleCount}
-                            </Badge>
-                          </div>
-                          <CardTitle className="text-lg group-hover:text-primary transition-colors">
-                            {category}
-                          </CardTitle>
-                          <CardDescription className="text-sm">
-                            {articleCount} {articleCount === 1 ? 'article' : 'articles'}
-                          </CardDescription>
-                        </CardHeader>
-                      </Card>
+                      <Link 
+                        key={category} 
+                        href={`/knowledge-base/category/${encodeURIComponent(category)}`}
+                        data-testid={`link-category-${category}`}
+                      >
+                        <Card className="hover-elevate transition-all cursor-pointer group h-full">
+                          <CardHeader className="pb-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <FileText className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                              <Badge variant="secondary" className="ml-auto">
+                                {articleCount}
+                              </Badge>
+                            </div>
+                            <CardTitle className="text-lg group-hover:text-primary transition-colors flex items-center gap-2">
+                              {category}
+                              <ArrowRight className="h-4 w-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                            </CardTitle>
+                            <CardDescription className="text-sm">
+                              {articleCount} {articleCount === 1 ? 'article' : 'articles'}
+                            </CardDescription>
+                          </CardHeader>
+                        </Card>
+                      </Link>
                     );
                   })}
                 </div>
