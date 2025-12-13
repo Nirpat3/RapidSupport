@@ -4,10 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { TrendingUp, Clock, MessageSquare, CheckCircle } from "lucide-react";
+import { TrendingUp, Clock, MessageSquare, CheckCircle, RefreshCw, Award, Star } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-// TODO: remove mock functionality
 const recentActivity = [
   {
     id: '1',
@@ -70,74 +69,93 @@ const topAgents = [
 ];
 
 const statusColors = {
-  online: 'bg-green-500',
-  away: 'bg-yellow-500',
-  busy: 'bg-red-500',
-  offline: 'bg-gray-400'
+  online: 'bg-accent',
+  away: 'bg-highlight',
+  busy: 'bg-destructive',
+  offline: 'bg-muted-foreground'
 };
 
 const activityIcons = {
-  conversation_resolved: <CheckCircle className="w-4 h-4 text-green-500" />,
-  new_conversation: <MessageSquare className="w-4 h-4 text-blue-500" />,
-  conversation_transferred: <TrendingUp className="w-4 h-4 text-orange-500" />
+  conversation_resolved: <CheckCircle className="w-4 h-4 text-accent" />,
+  new_conversation: <MessageSquare className="w-4 h-4 text-primary" />,
+  conversation_transferred: <TrendingUp className="w-4 h-4 text-highlight" />
 };
 
 export default function DashboardPage() {
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6" data-testid="dashboard-page">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl sm:text-3xl font-bold" data-testid="dashboard-title">Dashboard</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Welcome back! Here's what's happening today.</p>
+    <div className="space-y-6" data-testid="dashboard-page">
+      {/* Hero Header with Gradient */}
+      <div className="relative overflow-hidden rounded-lg bg-gradient-to-br from-primary via-primary/90 to-primary/80 p-6 sm:p-8 text-primary-foreground">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-accent/20 via-transparent to-transparent" />
+        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="dashboard-title">
+              Dashboard
+            </h1>
+            <p className="text-primary-foreground/80 mt-1">
+              Welcome back! Here's what's happening today.
+            </p>
+          </div>
+          <Button 
+            variant="secondary" 
+            className="w-full sm:w-auto gap-2 bg-white/10 hover:bg-white/20 text-primary-foreground border-white/20"
+            data-testid="button-refresh"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh Data
+          </Button>
         </div>
-        <Button className="w-full sm:w-auto" data-testid="button-refresh">
-          Refresh Data
-        </Button>
       </div>
       
       {/* Metrics Cards */}
-      <DashboardMetrics />
+      <div className="px-1">
+        <DashboardMetrics />
+      </div>
       
       {/* Content Grid */}
-      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3 px-1">
         {/* Recent Activity */}
-        <Card className="lg:col-span-2 order-2 lg:order-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Recent Activity
-            </CardTitle>
-            <CardDescription>
-              Latest updates from your support team
-            </CardDescription>
+        <Card className="lg:col-span-2 order-2 lg:order-1 shadow-sm">
+          <CardHeader className="border-b border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Clock className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle>Recent Activity</CardTitle>
+                <CardDescription>
+                  Latest updates from your support team
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-4">
             <ScrollArea className="h-60 sm:h-80">
-              <div className="space-y-4">
+              <div className="space-y-2">
                 {recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover-elevate" data-testid={`activity-${activity.id}`}>
-                    <div className="flex-shrink-0 mt-1">
+                  <div 
+                    key={activity.id} 
+                    className="flex items-start gap-3 p-3 rounded-lg hover-elevate border border-transparent hover:border-border/50 transition-colors" 
+                    data-testid={`activity-${activity.id}`}
+                  >
+                    <div className="flex-shrink-0 mt-1 p-1.5 rounded-full bg-muted">
                       {activityIcons[activity.type as keyof typeof activityIcons]}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium" data-testid={`activity-description-${activity.id}`}>
                         {activity.description}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-muted-foreground">
-                          Customer: {activity.customer}
-                        </span>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                        <Badge variant="outline" className="text-xs font-normal">
+                          {activity.customer}
+                        </Badge>
                         {activity.agent && (
-                          <>
-                            <span className="text-xs text-muted-foreground">•</span>
-                            <span className="text-xs text-muted-foreground">
-                              Agent: {activity.agent}
-                            </span>
-                          </>
+                          <Badge variant="secondary" className="text-xs font-normal">
+                            {activity.agent}
+                          </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1" data-testid={`activity-time-${activity.id}`}>
+                      <p className="text-xs text-muted-foreground mt-1.5" data-testid={`activity-time-${activity.id}`}>
                         {formatDistanceToNow(activity.timestamp, { addSuffix: true })}
                       </p>
                     </div>
@@ -149,27 +167,43 @@ export default function DashboardPage() {
         </Card>
         
         {/* Top Agents */}
-        <Card className="order-1 lg:order-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5" />
-              Top Agents
-            </CardTitle>
-            <CardDescription>
-              Best performing agents today
-            </CardDescription>
+        <Card className="order-1 lg:order-2 shadow-sm">
+          <CardHeader className="border-b border-border/50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-accent/10">
+                <Award className="w-5 h-5 text-accent" />
+              </div>
+              <div>
+                <CardTitle>Top Agents</CardTitle>
+                <CardDescription>
+                  Best performing agents today
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="pt-4">
+            <div className="space-y-3">
               {topAgents.map((agent, index) => (
-                <div key={agent.id} className="flex items-center gap-3 p-2 rounded-lg hover-elevate" data-testid={`agent-${agent.id}`}>
+                <div 
+                  key={agent.id} 
+                  className="flex items-center gap-3 p-3 rounded-lg hover-elevate border border-transparent hover:border-border/50 transition-colors" 
+                  data-testid={`agent-${agent.id}`}
+                >
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-muted-foreground w-4">#{index + 1}</span>
+                    <span className={`text-sm font-bold w-5 text-center ${
+                      index === 0 ? 'text-highlight' : 
+                      index === 1 ? 'text-muted-foreground' : 
+                      'text-muted-foreground/70'
+                    }`}>
+                      #{index + 1}
+                    </span>
                     <div className="relative">
-                      <Avatar className="w-8 h-8">
-                        <AvatarFallback>{agent.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      <Avatar className="w-9 h-9 border-2 border-background shadow-sm">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+                          {agent.name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
                       </Avatar>
-                      <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${statusColors[agent.status as keyof typeof statusColors]}`} />
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background ${statusColors[agent.status as keyof typeof statusColors]}`} />
                     </div>
                   </div>
                   
@@ -181,11 +215,11 @@ export default function DashboardPage() {
                   </div>
                   
                   <div className="text-right">
-                    <p className="text-sm font-medium" data-testid={`agent-resolved-${agent.id}`}>
+                    <p className="text-sm font-semibold text-accent" data-testid={`agent-resolved-${agent.id}`}>
                       {agent.resolved}
                     </p>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-muted-foreground">★</span>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Star className="w-3 h-3 fill-highlight text-highlight" />
                       <span className="text-xs text-muted-foreground" data-testid={`agent-rating-${agent.id}`}>
                         {agent.rating}
                       </span>

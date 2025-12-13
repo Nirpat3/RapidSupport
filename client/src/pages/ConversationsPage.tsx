@@ -57,17 +57,17 @@ const statusIcons = {
 };
 
 const statusColors = {
-  open: "text-blue-500",
-  pending: "text-yellow-500",
-  resolved: "text-green-500",
-  closed: "text-gray-500",
+  open: "text-primary",
+  pending: "text-highlight",
+  resolved: "text-accent",
+  closed: "text-muted-foreground",
 };
 
 const priorityColors = {
-  low: "bg-blue-500",
-  medium: "bg-yellow-500",
-  high: "bg-orange-500",
-  urgent: "bg-red-500",
+  low: "bg-primary/60",
+  medium: "bg-highlight/80",
+  high: "bg-highlight",
+  urgent: "bg-destructive",
 };
 
 export default function ConversationsPage() {
@@ -385,9 +385,11 @@ export default function ConversationsPage() {
         ${showMobileList ? 'flex' : 'hidden md:flex'}
       `}>
         {/* Header */}
-        <div className="p-4 border-b flex-shrink-0">
+        <div className="p-4 border-b flex-shrink-0 bg-gradient-to-b from-primary/5 to-transparent">
           <div className="flex items-center gap-2 mb-3">
-            <MessageSquare className="w-5 h-5 text-primary" />
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <MessageSquare className="w-5 h-5 text-primary" />
+            </div>
             <h1 className="text-lg font-semibold" data-testid="page-title">Conversations</h1>
           </div>
 
@@ -588,10 +590,12 @@ export default function ConversationsPage() {
             />
           </>
         ) : (
-          <div className="flex-1 overflow-y-auto flex items-center justify-center text-muted-foreground">
+          <div className="flex-1 overflow-y-auto flex items-center justify-center text-muted-foreground bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
             <div className="text-center">
-              <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium mb-1">No conversation selected</p>
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                <MessageSquare className="w-10 h-10 text-primary/60" />
+              </div>
+              <p className="text-lg font-medium mb-1 text-foreground/80">No conversation selected</p>
               <p className="text-sm">Choose a conversation from the list to start messaging</p>
             </div>
           </div>

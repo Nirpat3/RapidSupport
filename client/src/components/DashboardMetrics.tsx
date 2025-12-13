@@ -116,12 +116,12 @@ export default function DashboardMetrics({ metrics }: DashboardMetricsProps) {
               {metric.change && (
                 <div className="flex items-center gap-1">
                   {metric.change.type === 'increase' ? (
-                    <TrendingUp className="w-3 h-3 text-green-500" />
+                    <TrendingUp className="w-3 h-3 text-accent" />
                   ) : (
-                    <TrendingDown className="w-3 h-3 text-red-500" />
+                    <TrendingDown className="w-3 h-3 text-destructive" />
                   )}
                   <Badge 
-                    variant={metric.change.type === 'increase' ? 'default' : 'secondary'}
+                    variant={metric.change.type === 'increase' ? 'default' : 'destructive'}
                     className="text-xs"
                     data-testid={`metric-change-${index}`}
                   >
