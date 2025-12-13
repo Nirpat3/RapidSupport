@@ -5442,6 +5442,72 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Reindex all knowledge base articles for AI search
+  app.post('/api/knowledge-base/reindex-all', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      console.log('Starting bulk knowledge base reindexing...');
+      
+      // Get all active articles that need indexing
+      const articles = await storage.getAllKnowledgeBase();
+      const pendingArticles = articles.filter(a => a.isActive && a.indexingStatus !== 'indexed');
+      
+      console.log(`Found ${pendingArticles.length} articles to reindex`);
+      
+      // Start async reindexing (non-blocking)
+      (async () => {
+        let successCount = 0;
+        let failCount = 0;
+        
+        for (const article of pendingArticles) {
+          try {
+            await knowledgeRetrieval.reindexArticle(article.id);
+            successCount++;
+            console.log(`Reindexed: ${article.title}`);
+          } catch (error) {
+            failCount++;
+            console.error(`Failed to reindex ${article.title}:`, error);
+          }
+        }
+        
+        console.log(`Bulk reindexing complete: ${successCount} succeeded, ${failCount} failed`);
+      })();
+      
+      res.json({ 
+        success: true, 
+        message: `Started reindexing ${pendingArticles.length} articles. This may take a few minutes.`,
+        count: pendingArticles.length
+      });
+    } catch (error) {
+      console.error('Failed to start bulk reindexing:', error);
+      res.status(500).json({ error: 'Failed to start bulk reindexing' });
+    }
+  });
+
+  // Reindex a single knowledge base article
+  app.post('/api/knowledge-base/:id/reindex', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      const article = await storage.getKnowledgeBase(id);
+      if (!article) {
+        return res.status(404).json({ error: 'Article not found' });
+      }
+      
+      // Start async reindexing
+      knowledgeRetrieval.reindexArticle(id)
+        .then(() => console.log(`Successfully reindexed article: ${article.title}`))
+        .catch(error => console.error(`Failed to reindex article ${id}:`, error));
+      
+      res.json({ 
+        success: true, 
+        message: `Started reindexing "${article.title}". This may take a moment.`
+      });
+    } catch (error) {
+      console.error('Failed to reindex article:', error);
+      res.status(500).json({ error: 'Failed to reindex article' });
+    }
+  });
+
   // Knowledge Base Image routes
 
   // Get images for a knowledge base article

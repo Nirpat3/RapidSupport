@@ -73,7 +73,8 @@ import {
   CheckCircle,
   AlertCircle,
   Video,
-  Youtube
+  Youtube,
+  RefreshCw
 } from "lucide-react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { VideoUpload } from "@/components/VideoUpload";
@@ -125,7 +126,7 @@ const fileKnowledgeSchema = z.object({
   assignedAgentIds: z.array(z.string()).optional(),
 });
 
-type KnowledgeArticleForm = z.infer<typeof knowledgeArticleSchema>;
+type KnowledgeArticleFormData = z.infer<typeof knowledgeArticleSchema>;
 type UrlKnowledgeForm = z.infer<typeof urlKnowledgeSchema>;
 type FileKnowledgeForm = z.infer<typeof fileKnowledgeSchema>;
 
@@ -203,7 +204,7 @@ export default function KnowledgeManagementPage() {
 
   // Create article mutation
   const createMutation = useMutation({
-    mutationFn: async (data: KnowledgeArticleForm) => {
+    mutationFn: async (data: KnowledgeArticleFormData) => {
       // First, create the knowledge article
       const payload = {
         ...data,
@@ -298,7 +299,7 @@ export default function KnowledgeManagementPage() {
 
   // Update article mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: KnowledgeArticleForm }) => {
+    mutationFn: ({ id, data }: { id: string; data: KnowledgeArticleFormData }) => {
       const payload = {
         ...data,
         tags: data.tags ? data.tags.split(',').map(tag => tag.trim()).filter(Boolean) : [],
@@ -360,6 +361,28 @@ export default function KnowledgeManagementPage() {
           variant: "destructive",
         });
       }
+    },
+  });
+
+  // Reindex all articles mutation
+  const reindexAllMutation = useMutation({
+    mutationFn: () => apiRequest('/api/knowledge-base/reindex-all', 'POST'),
+    onSuccess: (data: any) => {
+      toast({
+        title: "Reindexing Started",
+        description: data.message || "All pending articles are being indexed. This may take a few minutes.",
+      });
+      // Refresh list after a short delay to show updated status
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
+      }, 3000);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start reindexing.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -538,8 +561,9 @@ export default function KnowledgeManagementPage() {
           <h1 className="text-xl sm:text-3xl font-bold" data-testid="page-title">Knowledge Management</h1>
           <p className="text-muted-foreground text-sm sm:text-base">Manage AI knowledge base articles and track effectiveness</p>
         </div>
+      </div>
         
-        {/* Mobile: Stack vertically, Desktop: Side by side */}
+      {/* Mobile: Stack vertically, Desktop: Side by side */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
           {/* View Toggle */}
           <div className="flex items-center gap-1 p-1 bg-muted rounded-md w-fit">
@@ -565,6 +589,30 @@ export default function KnowledgeManagementPage() {
             </Button>
           </div>
           
+          <div className="flex flex-col sm:flex-row gap-2">
+            {/* Reindex All Button - show count of pending articles */}
+            {articles.filter(a => a.indexingStatus === 'pending').length > 0 && (
+              <Button 
+                variant="outline"
+                onClick={() => reindexAllMutation.mutate()}
+                disabled={reindexAllMutation.isPending || !user}
+                data-testid="button-reindex-all"
+                className="w-full sm:w-auto"
+              >
+                {reindexAllMutation.isPending ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Indexing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Index All ({articles.filter(a => a.indexingStatus === 'pending').length} pending)
+                  </>
+                )}
+              </Button>
+            )}
+            
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button 
@@ -1470,6 +1518,15 @@ export default function KnowledgeManagementPage() {
   );
 }
 
+// Props interface for the form component
+interface KnowledgeArticleFormProps {
+  defaultValues?: Partial<KnowledgeArticleFormData>;
+  onSubmit: (data: KnowledgeArticleFormData) => void;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  agents?: Agent[];
+}
+
 // Form component for creating/editing knowledge articles
 function KnowledgeArticleForm({
   defaultValues,
@@ -1477,14 +1534,8 @@ function KnowledgeArticleForm({
   isSubmitting,
   onCancel,
   agents = [],
-}: {
-  defaultValues?: Partial<KnowledgeArticleForm>;
-  onSubmit: (data: KnowledgeArticleForm) => void;
-  isSubmitting: boolean;
-  onCancel: () => void;
-  agents?: Agent[];
-}) {
-  const form = useForm<KnowledgeArticleForm>({
+}: KnowledgeArticleFormProps) {
+  const form = useForm<KnowledgeArticleFormData>({
     resolver: zodResolver(knowledgeArticleSchema),
     defaultValues: {
       title: "",
