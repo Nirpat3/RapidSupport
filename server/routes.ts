@@ -908,6 +908,160 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get single user by ID (admin only)
+  app.get('/api/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = await storage.getUser(id);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch user' });
+    }
+  });
+
+  // Create new user (admin only)
+  app.post('/api/users', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const createUserSchema = z.object({
+        email: z.string().email(),
+        password: z.string().min(6),
+        name: z.string().min(1),
+        role: z.enum(['admin', 'agent']).default('agent'),
+      });
+      
+      const data = createUserSchema.parse(req.body);
+      
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail(data.email);
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email already exists' });
+      }
+      
+      // Hash the password
+      const hashedPassword = await hash(data.password, 10);
+      
+      const user = await storage.createUser({
+        email: data.email,
+        password: hashedPassword,
+        name: data.name,
+        role: data.role,
+        status: 'offline',
+      });
+      
+      const { password: _, ...userWithoutPassword } = user;
+      res.status(201).json(userWithoutPassword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      console.error('Failed to create user:', error);
+      res.status(500).json({ error: 'Failed to create user' });
+    }
+  });
+
+  // Update user (admin only)
+  app.put('/api/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateUserSchema = z.object({
+        email: z.string().email().optional(),
+        password: z.string().min(6).optional(),
+        name: z.string().min(1).optional(),
+        role: z.enum(['admin', 'agent']).optional(),
+      });
+      
+      const data = updateUserSchema.parse(req.body);
+      
+      // Check if user exists
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      // If email is being updated, check for duplicates
+      if (data.email && data.email !== existingUser.email) {
+        const emailUser = await storage.getUserByEmail(data.email);
+        if (emailUser) {
+          return res.status(400).json({ error: 'Email already exists' });
+        }
+      }
+      
+      // Prepare update data
+      const updateData: any = { ...data };
+      if (data.password) {
+        updateData.password = await hash(data.password, 10);
+      }
+      
+      const user = await storage.updateUser(id, updateData);
+      const { password: _, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: fromZodError(error).message });
+      }
+      console.error('Failed to update user:', error);
+      res.status(500).json({ error: 'Failed to update user' });
+    }
+  });
+
+  // Toggle user status (enable/disable) - admin only
+  app.put('/api/users/:id/toggle-status', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if user exists
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      // Toggle between 'disabled' and 'offline'
+      const newStatus = existingUser.status === 'disabled' ? 'offline' : 'disabled';
+      await storage.updateUserStatus(id, newStatus);
+      
+      const updatedUser = await storage.getUser(id);
+      if (!updatedUser) {
+        return res.status(404).json({ error: 'User not found after update' });
+      }
+      
+      const { password: _, ...userWithoutPassword } = updatedUser;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error('Failed to toggle user status:', error);
+      res.status(500).json({ error: 'Failed to toggle user status' });
+    }
+  });
+
+  // Delete user (admin only)
+  app.delete('/api/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if user exists
+      const existingUser = await storage.getUser(id);
+      if (!existingUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      // Prevent deleting yourself
+      if (req.user && req.user.id === id) {
+        return res.status(400).json({ error: 'Cannot delete your own account' });
+      }
+      
+      // Delete all user permissions first (cascade)
+      await storage.deleteAllUserPermissions(id);
+      await storage.deleteUser(id);
+      res.json({ success: true, message: 'User deleted successfully' });
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      res.status(500).json({ error: 'Failed to delete user' });
+    }
+  });
+
   // User Permission Management routes (admin only)
   app.get('/api/permissions/users-with-permissions', requireAuth, requireRole(['admin']), async (req, res) => {
     try {

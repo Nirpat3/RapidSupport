@@ -127,6 +127,8 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserStatus(id: string, status: string): Promise<void>;
+  updateUser(id: string, updates: Partial<InsertUser>): Promise<User>;
+  deleteUser(id: string): Promise<void>;
   getAllAgents(): Promise<User[]>;
   getAllUsers(): Promise<User[]>;
 
@@ -457,6 +459,7 @@ export interface IStorage {
   getUserPermissions(userId: string): Promise<UserPermission[]>;
   setUserPermission(userId: string, feature: string, permission: string): Promise<UserPermission>;
   deleteUserPermission(userId: string, feature: string): Promise<void>;
+  deleteAllUserPermissions(userId: string): Promise<void>;
   getUserPermissionForFeature(userId: string, feature: string): Promise<UserPermission | undefined>;
   getAllUsersWithPermissions(): Promise<Array<{ user: User; permissions: UserPermission[] }>>;
 }
@@ -490,6 +493,19 @@ export class DatabaseStorage implements IStorage {
       .update(users)
       .set({ status, updatedAt: new Date() })
       .where(eq(users.id, id));
+  }
+
+  async updateUser(id: string, updates: Partial<InsertUser>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
   }
 
   async getAllAgents(): Promise<User[]> {
@@ -3999,6 +4015,12 @@ export class DatabaseStorage implements IStorage {
           eq(userPermissions.feature, feature)
         )
       );
+  }
+
+  async deleteAllUserPermissions(userId: string): Promise<void> {
+    await db
+      .delete(userPermissions)
+      .where(eq(userPermissions.userId, userId));
   }
 
   async getUserPermissionForFeature(userId: string, feature: string): Promise<UserPermission | undefined> {
