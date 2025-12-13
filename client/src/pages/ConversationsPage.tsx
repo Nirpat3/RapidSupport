@@ -81,6 +81,7 @@ export default function ConversationsPage() {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [viewMode, setViewMode] = useState<'active' | 'history'>('active');
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [showMobileList, setShowMobileList] = useState(!params.id);
   
@@ -299,7 +300,12 @@ export default function ConversationsPage() {
     
     const matchesStatus = statusFilter === "all" || conv.status === statusFilter;
     
-    return matchesSearch && matchesStatus;
+    // Filter by view mode
+    const matchesViewMode = viewMode === 'active' 
+      ? conv.status !== 'closed' 
+      : conv.status === 'closed';
+    
+    return matchesSearch && matchesStatus && matchesViewMode;
   });
 
   // Sort by most recent message
@@ -393,6 +399,26 @@ export default function ConversationsPage() {
             <h1 className="text-lg font-semibold" data-testid="page-title">Conversations</h1>
           </div>
 
+          {/* Tab Navigation */}
+          <div className="flex gap-2 mb-3">
+            <Button
+              variant={viewMode === 'active' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('active')}
+              data-testid="tab-active-conversations"
+            >
+              Active
+            </Button>
+            <Button
+              variant={viewMode === 'history' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('history')}
+              data-testid="tab-history-conversations"
+            >
+              History
+            </Button>
+          </div>
+
           {/* Search */}
           <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -405,19 +431,20 @@ export default function ConversationsPage() {
             />
           </div>
 
-          {/* Status Filter */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger data-testid="select-status-filter">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="resolved">Resolved</SelectItem>
-              <SelectItem value="closed">Closed</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Status Filter - Hidden in History view */}
+          {viewMode === 'active' && (
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger data-testid="select-status-filter">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {/* Conversation List - Native scrolling */}
