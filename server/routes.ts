@@ -5522,7 +5522,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       console.log(`Found ${pendingArticles.length} articles to reindex`);
       
-      // Start async reindexing (non-blocking)
+      // Mark all pending articles as 'indexing' first
+      for (const article of pendingArticles) {
+        await storage.updateKnowledgeBase(article.id, { indexingStatus: 'indexing' });
+      }
+      
+      // Start async reindexing (non-blocking) with status updates
       (async () => {
         let successCount = 0;
         let failCount = 0;
@@ -5530,9 +5535,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         for (const article of pendingArticles) {
           try {
             await knowledgeRetrieval.reindexArticle(article.id);
+            await storage.updateKnowledgeBase(article.id, { 
+              indexingStatus: 'indexed',
+              indexedAt: new Date()
+            });
             successCount++;
             console.log(`Reindexed: ${article.title}`);
           } catch (error) {
+            await storage.updateKnowledgeBase(article.id, { 
+              indexingStatus: 'failed',
+              indexingError: error instanceof Error ? error.message : String(error)
+            });
             failCount++;
             console.error(`Failed to reindex ${article.title}:`, error);
           }
@@ -5562,10 +5575,26 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(404).json({ error: 'Article not found' });
       }
       
-      // Start async reindexing
-      knowledgeRetrieval.reindexArticle(id)
-        .then(() => console.log(`Successfully reindexed article: ${article.title}`))
-        .catch(error => console.error(`Failed to reindex article ${id}:`, error));
+      // Mark as indexing immediately
+      await storage.updateKnowledgeBase(id, { indexingStatus: 'indexing' });
+      
+      // Start async reindexing with status updates
+      (async () => {
+        try {
+          await knowledgeRetrieval.reindexArticle(id);
+          await storage.updateKnowledgeBase(id, { 
+            indexingStatus: 'indexed',
+            indexedAt: new Date()
+          });
+          console.log(`Successfully reindexed article: ${article.title}`);
+        } catch (error) {
+          await storage.updateKnowledgeBase(id, { 
+            indexingStatus: 'failed',
+            indexingError: error instanceof Error ? error.message : String(error)
+          });
+          console.error(`Failed to reindex article ${id}:`, error);
+        }
+      })();
       
       res.json({ 
         success: true, 

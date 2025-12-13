@@ -510,12 +510,39 @@ export class KnowledgeRetrievalService {
   }
 
   /**
+   * Transform database chunk to KnowledgeChunk interface
+   */
+  private transformDbChunkToKnowledgeChunk(dbChunk: any): KnowledgeChunk {
+    return {
+      id: dbChunk.id,
+      knowledgeBaseId: dbChunk.knowledgeBaseId,
+      title: dbChunk.title,
+      content: dbChunk.content,
+      chunkIndex: dbChunk.chunkIndex,
+      category: dbChunk.category,
+      tags: dbChunk.tags || [],
+      priority: dbChunk.priority,
+      embedding: dbChunk.embedding || undefined,
+      metadata: {
+        wordCount: dbChunk.wordCount || 0,
+        sourceTitle: dbChunk.sourceTitle || '',
+        sourceCategory: dbChunk.sourceCategory || '',
+        chunkTitle: dbChunk.chunkTitle,
+        hasStructure: dbChunk.hasStructure || false,
+      },
+    };
+  }
+
+  /**
    * Get or create chunks for knowledge base articles (now using persistent database)
    * Handles mixed scenarios: some articles have chunks, some don't
    */
   private async getChunks(knowledgeBaseIds: string[]): Promise<KnowledgeChunk[]> {
     // Get all existing chunks from persistent database
-    const dbChunks = await storage.getKnowledgeChunks?.(knowledgeBaseIds) || [];
+    const rawDbChunks = await storage.getKnowledgeChunks?.(knowledgeBaseIds) || [];
+    
+    // Transform database chunks to KnowledgeChunk interface
+    const dbChunks: KnowledgeChunk[] = rawDbChunks.map(chunk => this.transformDbChunkToKnowledgeChunk(chunk));
     
     // Determine which knowledge base IDs already have chunks
     const knowledgeBaseIdsWithChunks = new Set(dbChunks.map(chunk => chunk.knowledgeBaseId));
@@ -567,7 +594,8 @@ export class KnowledgeRetrievalService {
       // Batch insert into database for persistence
       if (chunksToInsert.length > 0) {
         const createdChunks = await storage.createKnowledgeChunksBatch?.(chunksToInsert) || [];
-        newChunks.push(...createdChunks);
+        // Transform created chunks to KnowledgeChunk interface
+        newChunks.push(...createdChunks.map(chunk => this.transformDbChunkToKnowledgeChunk(chunk)));
         console.log(`Indexed article "${article.title}" with ${createdChunks.length} chunks`);
       }
     }
@@ -739,7 +767,6 @@ export class KnowledgeRetrievalService {
   async reindexAll(): Promise<void> {
     try {
       console.log('Starting knowledge base reindexing...');
-      this.chunksCache.clear();
       
       // Get all active articles
       const allArticles = await storage.getKnowledgeBaseArticles?.([]) || [];
@@ -747,22 +774,12 @@ export class KnowledgeRetrievalService {
       
       console.log(`Reindexing ${activeArticles.length} knowledge base articles`);
       
-      // Process in batches to avoid overwhelming OpenAI API
+      // Process each article using reindexArticle (which persists to database)
       const batchSize = 5;
       for (let i = 0; i < activeArticles.length; i += batchSize) {
         const batch = activeArticles.slice(i, i + batchSize);
         
-        await Promise.all(batch.map(async article => {
-          const chunks = this.chunkDocument(article);
-          
-          // Generate embeddings for each chunk
-          for (const chunk of chunks) {
-            const embeddingText = `${chunk.title}\n${chunk.content}`;
-            chunk.embedding = await this.generateEmbedding(embeddingText);
-          }
-          
-          this.chunksCache.set(article.id, chunks);
-        }));
+        await Promise.all(batch.map(article => this.reindexArticle(article.id)));
         
         // Small delay to respect rate limits
         if (i + batchSize < activeArticles.length) {
