@@ -60,24 +60,24 @@ interface CategoryOption {
 }
 
 const DEFAULT_CATEGORIES: CategoryOption[] = [
-  { id: 'billing', label: 'Billing', description: 'Payment and subscription inquiries', icon: CreditCard, color: 'text-blue-500', suggestedQuestions: [], aiAgentId: null },
-  { id: 'sales', label: 'Sales', description: 'Product and pricing questions', icon: DollarSign, color: 'text-green-500', suggestedQuestions: [], aiAgentId: null },
-  { id: 'technical', label: 'Technical Support', description: 'Technical issues and troubleshooting', icon: Wrench, color: 'text-orange-500', suggestedQuestions: [], aiAgentId: null },
-  { id: 'general', label: 'General', description: 'Other questions and feedback', icon: HelpCircle, color: 'text-purple-500', suggestedQuestions: [], aiAgentId: null },
+  { id: 'billing', label: 'Billing', description: 'Payment and subscription inquiries', icon: CreditCard, color: 'text-primary', suggestedQuestions: [], aiAgentId: null },
+  { id: 'sales', label: 'Sales', description: 'Product and pricing questions', icon: DollarSign, color: 'text-accent', suggestedQuestions: [], aiAgentId: null },
+  { id: 'technical', label: 'Technical Support', description: 'Technical issues and troubleshooting', icon: Wrench, color: 'text-amber-500', suggestedQuestions: [], aiAgentId: null },
+  { id: 'general', label: 'General', description: 'Other questions and feedback', icon: HelpCircle, color: 'text-primary', suggestedQuestions: [], aiAgentId: null },
 ];
 
 const getColorClass = (color: string | null): string => {
   const colorMap: Record<string, string> = {
-    blue: 'text-blue-500',
-    green: 'text-green-500',
-    orange: 'text-orange-500',
-    purple: 'text-purple-500',
-    red: 'text-red-500',
-    yellow: 'text-yellow-500',
-    indigo: 'text-indigo-500',
-    pink: 'text-pink-500',
-    cyan: 'text-cyan-500',
-    teal: 'text-teal-500',
+    blue: 'text-primary',
+    indigo: 'text-primary',
+    green: 'text-accent',
+    teal: 'text-accent',
+    cyan: 'text-accent',
+    orange: 'text-amber-500',
+    yellow: 'text-amber-500',
+    red: 'text-destructive',
+    purple: 'text-primary',
+    pink: 'text-primary',
   };
   if (!color) return 'text-primary';
   return colorMap[color] || 'text-primary';
@@ -703,13 +703,13 @@ export default function CustomerChatPage() {
   // If chat has started, show the chat interface
   if (chatStarted && chatState.conversationId) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex flex-col">
         {/* Header */}
-        <header className="border-b bg-card sticky top-0 z-10">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center">
+                <div className="h-10 w-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm">
                   <Sparkles className="h-5 w-5 text-primary-foreground" />
                 </div>
                 <div>
@@ -745,8 +745,8 @@ export default function CustomerChatPage() {
                   <MessageSquarePlus className="h-4 w-4" />
                   <span className="hidden sm:inline">New Chat</span>
                 </Button>
-                <Badge variant="secondary" className="gap-1.5">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <Badge className="gap-1.5 bg-accent text-accent-foreground">
+                  <div className="w-2 h-2 bg-accent-foreground/80 rounded-full animate-pulse" />
                   <span className="hidden sm:inline">Online</span>
                 </Badge>
               </div>
@@ -768,15 +768,23 @@ export default function CustomerChatPage() {
                   data-testid={`message-${message.id}`}
                 >
                   {message.senderType !== 'customer' && (
-                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Sparkles className="h-4 w-4 text-primary" />
+                    <div className={cn(
+                      "h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0",
+                      message.senderType === 'ai' ? "bg-accent/10" : "bg-primary/10"
+                    )}>
+                      <Sparkles className={cn(
+                        "h-4 w-4",
+                        message.senderType === 'ai' ? "text-accent" : "text-primary"
+                      )} />
                     </div>
                   )}
                   <div
                     className={cn(
-                      "max-w-[80%] sm:max-w-[70%] rounded-2xl px-4 py-3",
+                      "max-w-[80%] sm:max-w-[70%] rounded-2xl px-4 py-3 shadow-sm",
                       message.senderType === 'customer'
                         ? "bg-primary text-primary-foreground"
+                        : message.senderType === 'ai'
+                        ? "bg-accent/5 border border-accent/20"
                         : "bg-muted"
                     )}
                   >
@@ -836,14 +844,14 @@ export default function CustomerChatPage() {
               {/* AI Typing Indicator */}
               {isAiResponding && (
                 <div className="flex gap-3 justify-start" data-testid="ai-typing-indicator">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="h-4 w-4 text-primary" />
+                  <div className="h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="h-4 w-4 text-accent animate-pulse" />
                   </div>
-                  <div className="max-w-[80%] sm:max-w-[70%] rounded-2xl px-4 py-3 bg-muted">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="max-w-[80%] sm:max-w-[70%] rounded-2xl px-4 py-3 bg-accent/5 border border-accent/20 shadow-sm">
+                    <div className="flex gap-1.5">
+                      <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-accent/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   </div>
                 </div>
@@ -855,7 +863,7 @@ export default function CustomerChatPage() {
         </ScrollArea>
 
         {/* Input Area */}
-        <div className="border-t bg-card sticky bottom-0">
+        <div className="border-t bg-card/80 backdrop-blur-sm sticky bottom-0">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 max-w-3xl">
             {/* File Previews */}
             {selectedFiles.length > 0 && (
@@ -989,32 +997,40 @@ export default function CustomerChatPage() {
 
   // Hero/Landing View
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30">
       {/* Hero Section */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-3xl sm:text-4xl font-bold mb-6" data-testid="title-hero">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-2xl mb-6">
+              <Sparkles className="h-8 w-8 text-primary" />
+            </div>
+            <h1 className="text-display mb-4" data-testid="title-hero">
               How can we help you today?
             </h1>
-            <div className="flex items-center justify-center gap-4">
+            <p className="text-lg text-muted-foreground mb-6">
+              Get instant answers from our AI assistant or connect with our support team
+            </p>
+            <div className="flex items-center justify-center gap-4 flex-wrap">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => window.location.href = '/knowledge-base'}
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="text-sm text-muted-foreground hover:text-foreground gap-2"
                 data-testid="link-knowledge-base"
               >
+                <FileText className="h-4 w-4" />
                 Browse Knowledge Base
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => window.location.href = '/portal/login'}
-                className="text-sm text-muted-foreground hover:text-foreground"
+                className="text-sm text-muted-foreground hover:text-foreground gap-2"
                 data-testid="link-portal-login"
               >
+                <LogIn className="h-4 w-4" />
                 Customer Portal
               </Button>
             </div>
@@ -1022,92 +1038,106 @@ export default function CustomerChatPage() {
 
           {/* Continue Conversation Card - Shows when user has existing conversation */}
           {(chatState.conversationId || existingConversation?.conversationId) && (
-            <Card className="mb-8">
+            <Card className="mb-8 border-primary/20 bg-primary/5">
               <CardContent className="pt-6">
-                <h3 className="font-semibold mb-2">Continue your conversation</h3>
-                {(chatState.customerInfo || existingConversation?.customerInfo) && (
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Welcome back, {chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
-                  </p>
-                )}
-                <div className="flex gap-2 flex-wrap">
-                  <Button 
-                    onClick={() => setChatStarted(true)}
-                    data-testid="button-continue-conversation"
-                  >
-                    Open Chat
-                  </Button>
-                  <Button 
-                    onClick={() => {
-                      // Clear localStorage and reset state to start fresh
-                      localStorage.removeItem('customer-chat-state');
-                      setChatState({
-                        conversationId: null,
-                        customerId: null,
-                        sessionId: crypto.randomUUID(),
-                        customerInfo: null,
-                        selectedCategory: null,
-                      });
-                      setShowCategoryDialog(false);
-                      setQuestion("");
-                      setSelectedFiles([]);
-                    }}
-                    variant="outline"
-                    data-testid="button-new-conversation"
-                  >
-                    Start New Chat
-                  </Button>
+                <div className="flex items-start gap-4">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold mb-1">Continue your conversation</h3>
+                    {(chatState.customerInfo || existingConversation?.customerInfo) && (
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Welcome back, {chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
+                      </p>
+                    )}
+                    <div className="flex gap-2 flex-wrap">
+                      <Button 
+                        onClick={() => setChatStarted(true)}
+                        data-testid="button-continue-conversation"
+                      >
+                        Open Chat
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          // Clear localStorage and reset state to start fresh
+                          localStorage.removeItem('customer-chat-state');
+                          setChatState({
+                            conversationId: null,
+                            customerId: null,
+                            sessionId: crypto.randomUUID(),
+                            customerInfo: null,
+                            selectedCategory: null,
+                          });
+                          setShowCategoryDialog(false);
+                          setQuestion("");
+                          setSelectedFiles([]);
+                        }}
+                        variant="outline"
+                        data-testid="button-new-conversation"
+                      >
+                        Start New Chat
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           )}
 
           {/* Search Input */}
-          <div className="mb-8 space-y-3">
-            <div className="relative">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <MessageCircle className="h-4 w-4" />
+          <Card className="mb-8 shadow-lg border-0 bg-card">
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary">
+                    <MessageCircle className="h-5 w-5" />
+                  </div>
+                  <Input
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAskQuestion();
+                      }
+                    }}
+                    placeholder="Ask a question or describe your issue..."
+                    className="pl-12 pr-4 h-14 text-base rounded-xl border-2 focus:border-primary transition-colors"
+                    data-testid="input-hero-question"
+                  />
+                </div>
+                <Button
+                  onClick={handleAskQuestion}
+                  disabled={!question.trim() || sendMessageMutation.isPending || createCustomerMutation.isPending}
+                  className="w-full rounded-xl h-12 text-base font-medium gap-2"
+                  data-testid="button-ask-question"
+                >
+                  {sendMessageMutation.isPending || createCustomerMutation.isPending ? (
+                    "Sending..."
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Get Help
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
               </div>
-              <Input
-                value={question}
-                onChange={(e) => setQuestion(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleAskQuestion();
-                  }
-                }}
-                placeholder="Ask a question..."
-                className="pl-11 pr-4 h-12 text-base rounded-lg"
-                data-testid="input-hero-question"
-              />
-            </div>
-            <Button
-              onClick={handleAskQuestion}
-              disabled={!question.trim() || sendMessageMutation.isPending || createCustomerMutation.isPending}
-              className="w-full rounded-lg h-12"
-              data-testid="button-ask-question"
-            >
-              {sendMessageMutation.isPending || createCustomerMutation.isPending ? (
-                "Sending..."
-              ) : (
-                <>
-                  Ask <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Suggested Questions */}
           <div>
+            <p className="text-center text-sm text-muted-foreground mb-4">Popular questions</p>
             <div className="flex flex-wrap gap-2 justify-center">
               {suggestedQuestions.map((q, idx) => (
                 <Button
                   key={idx}
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={() => setQuestion(q)}
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-sm rounded-full"
                   data-testid={`button-suggested-${idx}`}
                 >
                   {q}
@@ -1122,12 +1152,14 @@ export default function CustomerChatPage() {
       <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5" />
-              How can we help you today?
+            <DialogTitle className="flex items-center gap-2 text-headline">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <MessageCircle className="h-5 w-5 text-primary" />
+              </div>
+              <span>How can we help?</span>
             </DialogTitle>
-            <DialogDescription>
-              Select a category to help us connect you with the right support
+            <DialogDescription className="text-base">
+              Select a category to connect you with the right support team
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-4">
@@ -1137,19 +1169,22 @@ export default function CustomerChatPage() {
                 <button
                   key={category.id}
                   onClick={() => handleCategorySelect(category.id)}
-                  className="flex flex-col items-center p-4 rounded-lg border border-border hover-elevate active-elevate-2 transition-all text-center"
+                  className="flex flex-col items-center p-5 rounded-xl border border-border hover-elevate active-elevate-2 transition-all text-center group"
                   data-testid={`button-category-${category.id}`}
                 >
-                  <div className={cn("p-2 rounded-full mb-2", category.color.replace('text-', 'bg-').replace('-500', '-100'))}>
-                    <Icon className={cn("h-5 w-5", category.color)} />
+                  <div className={cn(
+                    "p-3 rounded-xl mb-3 transition-transform group-hover:scale-110",
+                    category.color.replace('text-', 'bg-').replace('-500', '-100')
+                  )}>
+                    <Icon className={cn("h-6 w-6", category.color)} />
                   </div>
-                  <span className="font-medium text-sm">{category.label}</span>
-                  <span className="text-xs text-muted-foreground mt-1">{category.description}</span>
+                  <span className="font-semibold text-sm mb-1">{category.label}</span>
+                  <span className="text-xs text-muted-foreground leading-relaxed">{category.description}</span>
                 </button>
               );
             })}
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end pt-2">
             <Button variant="ghost" onClick={() => setShowCategoryDialog(false)}>
               Cancel
             </Button>
@@ -1161,28 +1196,35 @@ export default function CustomerChatPage() {
       <Dialog open={showInfoDialog} onOpenChange={setShowInfoDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Just a few details
+            <DialogTitle className="flex items-center gap-3 text-headline">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <User className="h-5 w-5 text-primary" />
+              </div>
+              <span>Just a few details</span>
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-base">
               Help us provide better support by sharing your contact information
             </DialogDescription>
           </DialogHeader>
-          <div className="mb-4 flex items-center gap-2 p-2 rounded-lg bg-muted/50">
+          <div className="mb-4 flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
             {chatState.selectedCategory && (() => {
               const cat = getSelectedCategoryInfo();
               if (!cat) return null;
               const Icon = cat.icon;
               return (
                 <>
-                  <Icon className={cn("h-4 w-4", cat.color)} />
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    cat.color.replace('text-', 'bg-').replace('-500', '-100')
+                  )}>
+                    <Icon className={cn("h-4 w-4", cat.color)} />
+                  </div>
                   <span className="text-sm font-medium">{cat.label}</span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={handleBackToCategories}
-                    className="ml-auto h-6 text-xs"
+                    className="ml-auto text-xs"
                   >
                     Change
                   </Button>
