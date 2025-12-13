@@ -303,10 +303,10 @@ export default function ConversationsPage() {
     
     const matchesStatus = statusFilter === "all" || conv.status === statusFilter;
     
-    // Filter by view mode
+    // Filter by view mode - Active shows only open/pending, History shows closed/resolved
     const matchesViewMode = viewMode === 'active' 
-      ? conv.status !== 'closed' 
-      : conv.status === 'closed';
+      ? (conv.status === 'open' || conv.status === 'pending')
+      : (conv.status === 'closed' || conv.status === 'resolved');
     
     return matchesSearch && matchesStatus && matchesViewMode;
   });
@@ -496,20 +496,26 @@ export default function ConversationsPage() {
             />
           </div>
 
-          {/* Status Filter - Hidden in History view */}
-          {viewMode === 'active' && (
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger data-testid="select-status-filter">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="resolved">Resolved</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
+          {/* Status Filter */}
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger data-testid="select-status-filter">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              {viewMode === 'active' ? (
+                <>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="closed">Closed</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
 
           {/* Bulk Action Bar */}
           {selectedConversationIds.size > 0 && (
