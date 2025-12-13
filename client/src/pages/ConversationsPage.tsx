@@ -14,24 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   MessageSquare,
   Search,
   ArrowLeft,
-  MoreVertical,
   Clock,
   CheckCircle,
   AlertCircle,
   User,
-  Checkbox,
-  XCircle,
-  RotateCcw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -725,48 +714,23 @@ export default function ConversationsPage() {
                     ))}
                   </SelectContent>
                 </Select>
-
-                {/* Actions Dropdown Menu */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" data-testid="button-conversation-actions">
-                      <MoreVertical className="w-5 h-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {/* Reopen option - shown for closed/resolved conversations */}
-                    {(activeConversation.status === 'closed' || activeConversation.status === 'resolved') && (
-                      <>
-                        <DropdownMenuItem
-                          onClick={() => updateStatusMutation.mutate({ conversationId: activeConversationId, status: 'open' })}
-                          disabled={updateStatusMutation.isPending}
-                          data-testid="menu-item-reopen"
-                        >
-                          <RotateCcw className="w-4 h-4 mr-2" />
-                          {updateStatusMutation.isPending ? 'Reopening...' : 'Reopen Conversation'}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    <DropdownMenuItem
-                      onClick={() => updateStatusMutation.mutate({ conversationId: activeConversationId, status: 'closed' })}
-                      disabled={updateStatusMutation.isPending || activeConversation.status === 'closed'}
-                      data-testid="menu-item-close"
-                    >
-                      <XCircle className="w-4 h-4 mr-2" />
-                      Close Conversation
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </div>
 
             {/* Chat Messages */}
             <ChatInterface
               conversationId={activeConversationId}
-              customer={activeConversation.customer}
+              customer={activeConversation.customer ? {
+                ...activeConversation.customer,
+                status: 'online' as const,
+                avatar: undefined,
+                company: undefined,
+                phone: undefined
+              } : undefined}
               messages={activeMessages}
               streamingMessage={activeConversationId ? streamingMessages.get(activeConversationId) || null : null}
+              conversationStatus={activeConversation.status}
+              onStatusChange={(status) => updateStatusMutation.mutate({ conversationId: activeConversationId, status })}
             />
           </>
         ) : (

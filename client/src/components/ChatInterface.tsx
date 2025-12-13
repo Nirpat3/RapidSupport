@@ -41,6 +41,8 @@ interface ChatInterfaceProps {
     content: string;
     isStreaming: boolean;
   } | null;
+  conversationStatus?: string;
+  onStatusChange?: (status: string) => void;
 }
 
 const statusColors = {
@@ -55,7 +57,9 @@ export default function ChatInterface({
   customer,
   messages = [],
   onSendMessage,
-  streamingMessage 
+  streamingMessage,
+  conversationStatus,
+  onStatusChange
 }: ChatInterfaceProps) {
   const [newMessage, setNewMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -581,10 +585,24 @@ export default function ChatInterface({
                   {isTakingOver ? 'Assigning...' : 'Assign to Me'}
                 </DropdownMenuItem>
                 
-                <DropdownMenuItem onClick={() => setIsCloseDialogOpen(true)} data-testid="dropdown-close-conversation">
-                  <X className="w-4 h-4 mr-2" />
-                  Close Conversation
-                </DropdownMenuItem>
+                {/* Reopen - shown for closed/resolved conversations */}
+                {(conversationStatus === 'closed' || conversationStatus === 'resolved') && onStatusChange && (
+                  <DropdownMenuItem 
+                    onClick={() => onStatusChange('open')} 
+                    data-testid="dropdown-reopen-conversation"
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    Reopen Conversation
+                  </DropdownMenuItem>
+                )}
+                
+                {/* Close - hidden for already closed conversations */}
+                {conversationStatus !== 'closed' && (
+                  <DropdownMenuItem onClick={() => setIsCloseDialogOpen(true)} data-testid="dropdown-close-conversation">
+                    <X className="w-4 h-4 mr-2" />
+                    Close Conversation
+                  </DropdownMenuItem>
+                )}
 
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel>Contact</DropdownMenuLabel>
