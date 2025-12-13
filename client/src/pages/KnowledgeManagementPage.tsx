@@ -386,6 +386,34 @@ export default function KnowledgeManagementPage() {
     },
   });
 
+  // Reindex single article mutation
+  const [reindexingArticleId, setReindexingArticleId] = useState<string | null>(null);
+  const reindexSingleMutation = useMutation({
+    mutationFn: (articleId: string) => {
+      setReindexingArticleId(articleId);
+      return apiRequest(`/api/knowledge-base/${articleId}/reindex`, 'POST');
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Indexing Started",
+        description: data.message || "Article is being indexed. This may take a moment.",
+      });
+      // Refresh list after a short delay to show updated status
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['/api/knowledge-base'] });
+        setReindexingArticleId(null);
+      }, 2000);
+    },
+    onError: (error: any) => {
+      setReindexingArticleId(null);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start indexing.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // URL knowledge creation mutation
   const createFromUrlMutation = useMutation({
     mutationFn: (data: UrlKnowledgeForm) => {
@@ -1122,7 +1150,21 @@ export default function KnowledgeManagementPage() {
                     )}
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    {/* Reindex Button - shown for pending or failed articles */}
+                    {(article.indexingStatus === 'pending' || article.indexingStatus === 'failed') && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => reindexSingleMutation.mutate(article.id)}
+                        disabled={reindexingArticleId === article.id}
+                        data-testid={`button-reindex-${article.id}`}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        <RefreshCw className={`w-4 h-4 mr-1 ${reindexingArticleId === article.id ? 'animate-spin' : ''}`} />
+                        {reindexingArticleId === article.id ? 'Indexing...' : 'Index'}
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
