@@ -1,8 +1,8 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDistanceToNow } from "date-fns";
-import { Sparkles, Lock, Info, ThumbsUp, ThumbsDown } from "lucide-react";
+import { formatDistanceToNow, format } from "date-fns";
+import { Sparkles, Lock, Info, ThumbsUp, ThumbsDown, Check, CheckCheck } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState } from "react";
@@ -341,9 +341,6 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
               Step-by-step
             </Badge>
           )}
-          <span className="text-xs text-muted-foreground" data-testid={`timestamp-${message.id}`}>
-            {formatDistanceToNow(message.timestamp, { addSuffix: true })}
-          </span>
         </div>
         
         <div 
@@ -366,6 +363,39 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
           data-testid={`message-content-${message.id}`}
         >
           {renderFormattedContent(message.content)}
+          
+          {/* Inline timestamp and status for sent messages */}
+          <div className={`flex items-center gap-1 mt-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+            <span 
+              className={`text-[10px] ${
+                isCurrentUser 
+                  ? isAI 
+                    ? 'text-blue-600/70 dark:text-blue-300/70' 
+                    : 'text-primary-foreground/70'
+                  : 'text-muted-foreground/70'
+              }`}
+              data-testid={`timestamp-${message.id}`}
+            >
+              {format(new Date(message.timestamp), 'h:mm a')}
+            </span>
+            {/* Read status checkmarks - only for current user's messages */}
+            {isCurrentUser && (
+              <span 
+                className={`flex items-center ${
+                  isAI 
+                    ? 'text-blue-600/70 dark:text-blue-300/70' 
+                    : 'text-primary-foreground/70'
+                }`}
+                data-testid={`status-${message.id}`}
+              >
+                {message.status === 'read' || message.isRead ? (
+                  <CheckCheck className="w-3.5 h-3.5" data-testid={`read-icon-${message.id}`} />
+                ) : (
+                  <Check className="w-3 h-3" data-testid={`sent-icon-${message.id}`} />
+                )}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Message Rating Buttons - Show for agent/AI messages (not for customer's own messages or system messages) */}
@@ -409,11 +439,6 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
           </div>
         )}
         
-        {message.status && isCurrentUser && (
-          <span className="text-xs text-muted-foreground mt-1" data-testid={`status-${message.id}`}>
-            {message.status}
-          </span>
-        )}
       </div>
     </div>
   );
