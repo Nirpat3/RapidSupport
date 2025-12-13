@@ -22,6 +22,8 @@ import {
   CheckCircle,
   AlertCircle,
   User,
+  Checkbox,
+  XCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -82,6 +84,7 @@ export default function ConversationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<'active' | 'history'>('active');
+  const [selectedConversationIds, setSelectedConversationIds] = useState<Set<string>>(new Set());
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [showMobileList, setShowMobileList] = useState(!params.id);
   
@@ -338,6 +341,34 @@ export default function ConversationsPage() {
     setLocation('/conversations');
   };
 
+  // Handle conversation selection for bulk actions
+  const handleToggleSelection = (conversationId: string) => {
+    const newSelected = new Set(selectedConversationIds);
+    if (newSelected.has(conversationId)) {
+      newSelected.delete(conversationId);
+    } else {
+      newSelected.add(conversationId);
+    }
+    setSelectedConversationIds(newSelected);
+  };
+
+  // Select all visible conversations
+  const handleSelectAll = () => {
+    if (selectedConversationIds.size === sortedConversations.length) {
+      setSelectedConversationIds(new Set());
+    } else {
+      setSelectedConversationIds(new Set(sortedConversations.map(c => c.id)));
+    }
+  };
+
+  // Handle bulk close
+  const handleBulkClose = async () => {
+    if (selectedConversationIds.size === 0) return;
+    if (window.confirm(`Close ${selectedConversationIds.size} conversation(s)?`)) {
+      bulkCloseMutation.mutate(Array.from(selectedConversationIds));
+    }
+  };
+
   // Assign conversation mutation
   const assignMutation = useMutation({
     mutationFn: async ({ conversationId, agentId }: { conversationId: string; agentId: string }) => {
@@ -375,6 +406,28 @@ export default function ConversationsPage() {
       toast({
         title: "Error",
         description: error.message || "Failed to update status",
+        variant: "destructive",
+      });
+    }
+  });
+
+  // Bulk close conversations mutation
+  const bulkCloseMutation = useMutation({
+    mutationFn: async (conversationIds: string[]) => {
+      return await apiRequest(`/api/conversations/bulk/close`, 'POST', { conversationIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      setSelectedConversationIds(new Set());
+      toast({
+        title: "Success",
+        description: `${selectedConversationIds.size} conversation(s) closed successfully`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to close conversations",
         variant: "destructive",
       });
     }
@@ -445,6 +498,34 @@ export default function ConversationsPage() {
               </SelectContent>
             </Select>
           )}
+
+          {/* Bulk Action Bar */}
+          {selectedConversationIds.size > 0 && (
+            <div className="mt-3 p-2 bg-accent/10 rounded-lg flex items-center justify-between gap-2">
+              <div className="text-sm font-medium text-accent">
+                {selectedConversationIds.size} selected
+              </div>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleSelectAll}
+                  data-testid="button-deselect-all"
+                >
+                  Clear
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleBulkClose}
+                  disabled={bulkCloseMutation.isPending}
+                  data-testid="button-bulk-close"
+                >
+                  {bulkCloseMutation.isPending ? 'Closing...' : 'Close All'}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Conversation List - Native scrolling */}
@@ -463,64 +544,92 @@ export default function ConversationsPage() {
               {sortedConversations.map((conversation) => {
                 const unreadCount = getUnreadCount(conversation.id);
                 const isActive = activeConversationId === conversation.id;
+                const isSelected = selectedConversationIds.has(conversation.id);
                 const StatusIcon = statusIcons[conversation.status as keyof typeof statusIcons] || MessageSquare;
                 
                 return (
-                  <Button
+                  <div
                     key={conversation.id}
-                    variant={isActive ? "secondary" : "ghost"}
-                    className={`
-                      w-full p-3 h-auto justify-start mb-1 hover-elevate
-                      ${unreadCount > 0 ? 'bg-accent/50' : ''}
-                    `}
-                    onClick={() => handleSelectConversation(conversation.id)}
-                    data-testid={`conversation-${conversation.id}`}
+                    className={`flex items-start gap-2 mb-1 p-2 rounded-lg transition-colors ${
+                      isSelected ? 'bg-primary/10' : ''
+                    }`}
                   >
-                    <div className="flex items-start gap-3 w-full">
-                      {/* Avatar */}
-                      <div className="relative flex-shrink-0">
-                        <Avatar className="w-10 h-10">
-                          <AvatarFallback>
-                            {conversation.customer?.name?.slice(0, 2).toUpperCase() || 'UN'}
-                          </AvatarFallback>
-                        </Avatar>
-                        {unreadCount > 0 && (
-                          <div className="absolute -top-1 -right-1">
-                            <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
-                              {unreadCount}
-                            </Badge>
-                          </div>
+                    {/* Checkbox */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleSelection(conversation.id);
+                      }}
+                      className="mt-2 flex-shrink-0"
+                      data-testid={`checkbox-conversation-${conversation.id}`}
+                    >
+                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                        isSelected 
+                          ? 'bg-primary border-primary' 
+                          : 'border-muted-foreground hover:border-primary'
+                      }`}>
+                        {isSelected && (
+                          <CheckCircle className="w-3 h-3 text-primary-foreground" />
                         )}
                       </div>
+                    </button>
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0 text-left">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <h3 className={`text-sm font-medium truncate ${unreadCount > 0 ? 'font-bold' : ''}`}>
-                            {conversation.customer?.name || 'Unknown Customer'}
-                          </h3>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            {conversation.priority !== 'low' && (
-                              <div className={`w-2 h-2 rounded-full ${priorityColors[conversation.priority as keyof typeof priorityColors]}`} />
-                            )}
+                    {/* Conversation Button */}
+                    <Button
+                      variant={isActive ? "secondary" : "ghost"}
+                      className={`
+                        flex-1 p-3 h-auto justify-start hover-elevate
+                        ${unreadCount > 0 ? 'bg-accent/50' : ''}
+                      `}
+                      onClick={() => handleSelectConversation(conversation.id)}
+                      data-testid={`conversation-${conversation.id}`}
+                    >
+                      <div className="flex items-start gap-3 w-full">
+                        {/* Avatar */}
+                        <div className="relative flex-shrink-0">
+                          <Avatar className="w-10 h-10">
+                            <AvatarFallback>
+                              {conversation.customer?.name?.slice(0, 2).toUpperCase() || 'UN'}
+                            </AvatarFallback>
+                          </Avatar>
+                          {unreadCount > 0 && (
+                            <div className="absolute -top-1 -right-1">
+                              <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
+                                {unreadCount}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0 text-left">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <h3 className={`text-sm font-medium truncate ${unreadCount > 0 ? 'font-bold' : ''}`}>
+                              {conversation.customer?.name || 'Unknown Customer'}
+                            </h3>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {conversation.priority !== 'low' && (
+                                <div className={`w-2 h-2 rounded-full ${priorityColors[conversation.priority as keyof typeof priorityColors]}`} />
+                              )}
+                            </div>
+                          </div>
+                          
+                          <p className={`text-xs text-muted-foreground truncate mb-1 ${unreadCount > 0 ? 'font-semibold' : ''}`}>
+                            {conversation.lastMessage?.content || 'No messages yet'}
+                          </p>
+                          
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <StatusIcon className={`w-3 h-3 ${statusColors[conversation.status as keyof typeof statusColors]}`} />
+                            <span className="capitalize">{conversation.status}</span>
+                            <span>•</span>
+                            <span>
+                              {formatDistanceToNow(new Date(conversation.lastMessage?.timestamp || conversation.updatedAt), { addSuffix: true })}
+                            </span>
                           </div>
                         </div>
-                        
-                        <p className={`text-xs text-muted-foreground truncate mb-1 ${unreadCount > 0 ? 'font-semibold' : ''}`}>
-                          {conversation.lastMessage?.content || 'No messages yet'}
-                        </p>
-                        
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <StatusIcon className={`w-3 h-3 ${statusColors[conversation.status as keyof typeof statusColors]}`} />
-                          <span className="capitalize">{conversation.status}</span>
-                          <span>•</span>
-                          <span>
-                            {formatDistanceToNow(new Date(conversation.lastMessage?.timestamp || conversation.updatedAt), { addSuffix: true })}
-                          </span>
-                        </div>
                       </div>
-                    </div>
-                  </Button>
+                    </Button>
+                  </div>
                 );
               })}
             </div>

@@ -1676,6 +1676,75 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Bulk close conversations
+  app.post('/api/conversations/bulk/close', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { conversationIds } = z.object({
+        conversationIds: z.array(z.string()).min(1, 'At least one conversation ID is required')
+      }).parse(req.body);
+      
+      const user = req.user as any;
+      
+      console.log(`[POST /api/conversations/bulk/close] Closing ${conversationIds.length} conversations`);
+      
+      // Update all conversations
+      const results = [];
+      for (const conversationId of conversationIds) {
+        try {
+          const conversation = await storage.getConversation(conversationId);
+          if (!conversation) {
+            console.log(`[POST /api/conversations/bulk/close] Conversation ${conversationId} not found`);
+            continue;
+          }
+          
+          const previousStatus = conversation.status;
+          
+          // Update status
+          await storage.updateConversationStatus(conversationId, 'closed');
+          
+          // Create system message for closure
+          const systemMessage = await storage.createMessage({
+            conversationId,
+            senderId: 'system',
+            senderType: 'system',
+            content: `Conversation closed by ${user.name}`,
+            scope: 'public'
+          });
+          
+          // Broadcast via WebSocket
+          const wsServer = (req.app as any).wsServer;
+          if (wsServer) {
+            wsServer.broadcastNewMessage(conversationId, {
+              messageId: systemMessage.id,
+              conversationId: systemMessage.conversationId,
+              content: systemMessage.content,
+              senderId: systemMessage.senderId,
+              senderType: systemMessage.senderType,
+              scope: systemMessage.scope,
+              timestamp: systemMessage.timestamp,
+              status: systemMessage.status
+            });
+          }
+          
+          results.push({ conversationId, success: true });
+        } catch (err) {
+          console.error(`[POST /api/conversations/bulk/close] Error closing conversation ${conversationId}:`, err);
+          results.push({ conversationId, success: false, error: String(err) });
+        }
+      }
+      
+      res.json({ message: `${conversationIds.length} conversation(s) closed successfully`, results });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request data', 
+          details: fromZodError(error).toString() 
+        });
+      }
+      res.status(500).json({ error: 'Failed to close conversations' });
+    }
+  });
+
   // Toggle AI assistance for conversation
   app.patch('/api/conversations/:id/ai-assistance', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
