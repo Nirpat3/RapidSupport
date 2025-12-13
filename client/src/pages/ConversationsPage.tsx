@@ -693,6 +693,19 @@ export default function ConversationsPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Reopen Button - shown for closed/resolved conversations */}
+                {(activeConversation.status === 'closed' || activeConversation.status === 'resolved') && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => updateStatusMutation.mutate({ conversationId: activeConversationId, status: 'open' })}
+                    disabled={updateStatusMutation.isPending}
+                    data-testid="button-reopen-conversation"
+                  >
+                    {updateStatusMutation.isPending ? 'Reopening...' : 'Reopen'}
+                  </Button>
+                )}
+
                 {/* Status Selector */}
                 <Select
                   value={activeConversation.status}
