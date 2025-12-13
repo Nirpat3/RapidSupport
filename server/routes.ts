@@ -5529,12 +5529,13 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       // Start async reindexing (non-blocking) with status updates
       (async () => {
+        const knowledgeRetrievalService = KnowledgeRetrievalService.getInstance();
         let successCount = 0;
         let failCount = 0;
         
         for (const article of pendingArticles) {
           try {
-            await knowledgeRetrieval.reindexArticle(article.id);
+            await knowledgeRetrievalService.reindexArticle(article.id);
             await storage.updateKnowledgeBase(article.id, { 
               indexingStatus: 'indexed',
               indexedAt: new Date()
@@ -5580,8 +5581,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       // Start async reindexing with status updates
       (async () => {
+        const knowledgeRetrievalService = KnowledgeRetrievalService.getInstance();
         try {
-          await knowledgeRetrieval.reindexArticle(id);
+          await knowledgeRetrievalService.reindexArticle(id);
           await storage.updateKnowledgeBase(id, { 
             indexingStatus: 'indexed',
             indexedAt: new Date()

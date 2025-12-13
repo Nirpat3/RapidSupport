@@ -688,12 +688,13 @@ export class KnowledgeRetrievalService {
    */
   async clearCache(knowledgeBaseId?: string): Promise<void> {
     try {
-      if (knowledgeBaseId) {
-        await storage.deleteKnowledgeChunksByArticle?.(knowledgeBaseId);
+      if (knowledgeBaseId && storage.deleteKnowledgeChunksByArticle) {
+        await storage.deleteKnowledgeChunksByArticle(knowledgeBaseId);
+        console.log(`Cleared existing chunks for article: ${knowledgeBaseId}`);
       }
-      // Note: We don't clear all chunks globally anymore as they're valuable persistent data
     } catch (error) {
       console.error('Error clearing knowledge chunks:', error);
+      throw error; // Re-throw to prevent duplicate inserts
     }
   }
 
