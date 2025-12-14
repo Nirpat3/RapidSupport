@@ -331,14 +331,30 @@ class ChatWebSocketServer {
   }
 
   private handleTyping(ws: AuthenticatedWebSocket, conversationId: string, isTyping: boolean) {
-    // Broadcast typing status to others in the conversation
-    this.broadcastToConversation(conversationId, {
+    const message = {
       type: isTyping ? 'user_typing' : 'user_stopped_typing',
       userId: ws.userId,
       userName: ws.userName,
       userRole: ws.userRole,
       conversationId
-    }, [ws.userId!]);
+    };
+    
+    // Broadcast typing status to others in the conversation
+    this.broadcastToConversation(conversationId, message, [ws.userId!]);
+    
+    // Also broadcast to all connected staff members (agents/admins)
+    // This ensures agents see typing indicators even if they haven't "joined" the conversation
+    const conversationUsers = this.conversationConnections.get(conversationId) || new Set();
+    this.connections.forEach((connectionSet, userId) => {
+      // Skip if it's the same user who is typing, or if they already received via conversation broadcast
+      if (userId === ws.userId || conversationUsers.has(userId)) return;
+      
+      connectionSet.forEach(connection => {
+        if ((connection.userRole === 'agent' || connection.userRole === 'admin') && connection.readyState === WebSocket.OPEN) {
+          connection.send(JSON.stringify(message));
+        }
+      });
+    });
   }
 
   private broadcastToConversation(conversationId: string, message: any, excludeUsers: string[] = []) {
@@ -587,24 +603,43 @@ class ChatWebSocketServer {
   /**
    * Stream AI response tokens in real-time to conversation participants
    * Used for ChatGPT-like streaming experience
+   * Also broadcasts to all staff members so agents see AI activity in real-time
    */
   public streamAIToken(conversationId: string, streamData: {
     streamId: string;
     token: string;
     isFirst?: boolean;
   }) {
-    this.broadcastToConversation(conversationId, {
+    const message = {
       type: 'ai_stream_token',
       conversationId,
       streamId: streamData.streamId,
       token: streamData.token,
       isFirst: streamData.isFirst || false,
       timestamp: new Date().toISOString()
+    };
+    
+    // Broadcast to users who joined the conversation
+    this.broadcastToConversation(conversationId, message);
+    
+    // Also broadcast to all connected staff members (agents/admins) 
+    // This ensures agents see AI streaming even if they haven't "joined" via WebSocket
+    const conversationUsers = this.conversationConnections.get(conversationId) || new Set();
+    this.connections.forEach((connectionSet, userId) => {
+      // Skip if user already received via conversation broadcast
+      if (conversationUsers.has(userId)) return;
+      
+      connectionSet.forEach(ws => {
+        if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(message));
+        }
+      });
     });
   }
 
   /**
    * Signal completion of AI streaming response with metadata
+   * Also broadcasts to all staff members so agents see AI completion in real-time
    */
   public streamAIComplete(conversationId: string, completionData: {
     streamId: string;
@@ -615,7 +650,7 @@ class ChatWebSocketServer {
     format?: string;
     agentId?: string;
   }) {
-    this.broadcastToConversation(conversationId, {
+    const message = {
       type: 'ai_stream_complete',
       conversationId,
       streamId: completionData.streamId,
@@ -626,22 +661,53 @@ class ChatWebSocketServer {
       format: completionData.format,
       agentId: completionData.agentId,
       timestamp: new Date().toISOString()
+    };
+    
+    // Broadcast to users who joined the conversation
+    this.broadcastToConversation(conversationId, message);
+    
+    // Also broadcast to all connected staff members (agents/admins)
+    const conversationUsers = this.conversationConnections.get(conversationId) || new Set();
+    this.connections.forEach((connectionSet, userId) => {
+      if (conversationUsers.has(userId)) return;
+      
+      connectionSet.forEach(ws => {
+        if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(message));
+        }
+      });
     });
   }
 
   /**
    * Signal error in AI streaming response
+   * Also broadcasts to all staff members
    */
   public streamAIError(conversationId: string, errorData: {
     streamId: string;
     error: string;
   }) {
-    this.broadcastToConversation(conversationId, {
+    const message = {
       type: 'ai_stream_error',
       conversationId,
       streamId: errorData.streamId,
       error: errorData.error,
       timestamp: new Date().toISOString()
+    };
+    
+    // Broadcast to users who joined the conversation
+    this.broadcastToConversation(conversationId, message);
+    
+    // Also broadcast to all connected staff members (agents/admins)
+    const conversationUsers = this.conversationConnections.get(conversationId) || new Set();
+    this.connections.forEach((connectionSet, userId) => {
+      if (conversationUsers.has(userId)) return;
+      
+      connectionSet.forEach(ws => {
+        if ((ws.userRole === 'agent' || ws.userRole === 'admin') && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(message));
+        }
+      });
     });
   }
 }

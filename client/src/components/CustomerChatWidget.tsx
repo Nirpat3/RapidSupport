@@ -555,7 +555,7 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
       // Send stop_typing before leaving
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
-          type: 'stop_typing',
+          type: 'user_stopped_typing',
           conversationId: chatState.conversationId
         }));
         wsRef.current.send(JSON.stringify({
@@ -583,7 +583,7 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
   const sendTypingIndicator = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && chatState.conversationId) {
       wsRef.current.send(JSON.stringify({
-        type: 'typing',
+        type: 'user_typing',
         conversationId: chatState.conversationId
       }));
       
@@ -596,7 +596,7 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
       typingTimeoutRef.current = setTimeout(() => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send(JSON.stringify({
-            type: 'stop_typing',
+            type: 'user_stopped_typing',
             conversationId: chatState.conversationId
           }));
         }
