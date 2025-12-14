@@ -34,7 +34,9 @@ import {
   Bell,
   FileText,
   Code,
-  Tags
+  Tags,
+  Sparkles,
+  Zap
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -155,25 +157,22 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
   const [location] = useLocation();
   const { totalUnreadCount } = useNotifications();
   
-  // TODO: remove mock functionality
   const user = currentUser || {
     id: 'user1',
     name: 'Sarah Smith',
     role: 'admin' as const
   };
 
-  // Fetch activity notification count
   const { data: activityData } = useQuery<{ count: number }>({
     queryKey: ['/api/activity/notifications/unread-count'],
     queryFn: () => apiRequest('/api/activity/notifications/unread-count', 'GET'),
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 30000,
   });
 
-  // Fetch feed unread count
   const { data: feedData } = useQuery<{ count: number }>({
     queryKey: ['/api/feed/unread-count'],
     queryFn: () => apiRequest('/api/feed/unread-count', 'GET'),
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 30000,
   });
 
   const activityCount = activityData?.count || 0;
@@ -181,13 +180,10 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
   const navigationItems = getNavigationItems(totalUnreadCount, activityCount, feedCount);
   const { isUrlHidden } = usePermissions();
   
-  // Filter navigation items based on user role and permissions
   const filteredNavigationItems = navigationItems.filter((item) => {
-    // Hide admin-only items from non-admin users
     if ('adminOnly' in item && item.adminOnly && user.role !== 'admin') {
       return false;
     }
-    // Hide items based on user permissions
     if (isUrlHidden(item.url)) {
       return false;
     }
@@ -195,36 +191,50 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
   });
 
   return (
-    <Sidebar>
-      <SidebarHeader>
-        <div className="flex items-center gap-3 px-3 py-4">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <Shield className="w-5 h-5 text-primary-foreground" />
+    <Sidebar className="border-r border-sidebar-border/50">
+      <SidebarHeader className="border-b border-sidebar-border/30">
+        <div className="flex items-center gap-3 px-4 py-5 mx-2 mt-2 rounded-xl glass-subtle">
+          <div className="relative">
+            <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-lg">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-sidebar animate-pulse" />
           </div>
-          <div>
-            <h1 className="font-semibold text-lg" data-testid="app-title">Support Board</h1>
-            <p className="text-xs text-muted-foreground">Customer Support</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-semibold text-base text-sidebar-foreground tracking-tight" data-testid="app-title">
+              Support Board
+            </h1>
+            <div className="flex items-center gap-1.5">
+              <Zap className="w-3 h-3 text-amber-400" />
+              <p className="text-xs text-sidebar-foreground/60">Enterprise Suite</p>
+            </div>
           </div>
         </div>
       </SidebarHeader>
       
-      <SidebarContent>
+      <SidebarContent className="px-2">
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sidebar-foreground/50 text-xs font-medium uppercase tracking-wider px-2 py-3">
+            Navigation
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-0.5">
               {filteredNavigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild
                     isActive={location === item.url}
+                    className="group relative transition-smooth rounded-lg data-[state=active]:bg-sidebar-primary/15 data-[state=active]:text-sidebar-primary"
                     data-testid={`nav-${item.title.toLowerCase().replace(/ /g, '-')}`}
                   >
                     <Link href={item.url}>
-                      <item.icon className="w-4 h-4" />
-                      <span>{item.title}</span>
+                      <item.icon className="w-4 h-4 transition-smooth group-data-[state=active]:text-sidebar-primary" />
+                      <span className="flex-1">{item.title}</span>
                       {item.badge && (
-                        <Badge variant="destructive" className="ml-auto text-xs h-5 px-1.5">
+                        <Badge 
+                          variant="destructive" 
+                          className="ml-auto text-xs h-5 min-w-5 px-1.5 flex items-center justify-center bg-rose-500/90 border-0"
+                        >
                           {item.badge}
                         </Badge>
                       )}
@@ -237,18 +247,21 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
         </SidebarGroup>
         
         <SidebarGroup>
-          <SidebarGroupLabel>Support</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-sidebar-foreground/50 text-xs font-medium uppercase tracking-wider px-2 py-3">
+            Resources
+          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="space-y-0.5">
               {supportItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild
                     isActive={location === item.url}
+                    className="group relative transition-smooth rounded-lg data-[state=active]:bg-sidebar-primary/15 data-[state=active]:text-sidebar-primary"
                     data-testid={`support-${item.title.toLowerCase().replace(' ', '-')}`}
                   >
                     <Link href={item.url}>
-                      <item.icon className="w-4 h-4" />
+                      <item.icon className="w-4 h-4 transition-smooth group-data-[state=active]:text-sidebar-primary" />
                       <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
@@ -259,29 +272,37 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
         </SidebarGroup>
       </SidebarContent>
       
-      <SidebarFooter>
-        <div className="px-3 py-4 space-y-3">
-          {/* User Profile */}
-          <div className="flex items-center gap-3 p-2 rounded-lg bg-sidebar-accent">
-            <Avatar className="w-8 h-8">
-              <AvatarImage src={user.avatar} />
-              <AvatarFallback>{user.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
+      <SidebarFooter className="border-t border-sidebar-border/30 p-3">
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 p-3 rounded-xl glass-subtle">
+            <div className="relative">
+              <Avatar className="w-9 h-9 ring-2 ring-sidebar-primary/30 ring-offset-2 ring-offset-sidebar">
+                <AvatarImage src={user.avatar} />
+                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-medium">
+                  {user.name.slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-sidebar pulse-glow" />
+            </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate" data-testid="user-name">{user.name}</p>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs" data-testid="user-role">
+              <p className="text-sm font-medium text-sidebar-foreground truncate" data-testid="user-name">
+                {user.name}
+              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <Badge 
+                  variant="secondary" 
+                  className="text-xs capitalize bg-sidebar-primary/20 text-sidebar-primary border-0 px-2 py-0"
+                  data-testid="user-role"
+                >
                   {user.role}
                 </Badge>
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
               </div>
             </div>
           </div>
           
-          {/* Logout Button */}
           <Button 
             variant="ghost" 
-            className="w-full justify-start" 
+            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-smooth" 
             onClick={() => console.log('Logout clicked')}
             data-testid="button-logout"
           >
