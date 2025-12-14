@@ -65,10 +65,17 @@ export class KnowledgeRetrievalService {
     this.synonymMap.set('ipad', ['ipad', 'ios', 'tablet', 'apple device', 'ios device']);
     this.synonymMap.set('iphone', ['iphone', 'ios', 'mobile', 'apple phone', 'ios phone']);
     
+    // Printer synonyms (for hardware troubleshooting)
+    this.synonymMap.set('printer', ['printer', 'receipt printer', 'thermal printer', 'pos printer', 'print', 'printing']);
+    this.synonymMap.set('paper', ['paper', 'paper roll', 'receipt paper', 'thermal paper', 'roll']);
+    this.synonymMap.set('offline', ['offline', 'not working', 'not printing', 'disconnected', 'not responding', 'down']);
+    this.synonymMap.set('ip', ['ip', 'ip address', 'network address', 'address']);
+    
     // Action synonyms  
-    this.synonymMap.set('connect', ['connect', 'pair', 'link', 'sync', 'setup', 'configure']);
+    this.synonymMap.set('connect', ['connect', 'pair', 'link', 'sync', 'setup', 'configure', 'reconnect']);
     this.synonymMap.set('setup', ['setup', 'set up', 'install', 'configure', 'initialize']);
-    this.synonymMap.set('troubleshoot', ['troubleshoot', 'debug', 'fix', 'resolve', 'solve']);
+    this.synonymMap.set('troubleshoot', ['troubleshoot', 'debug', 'fix', 'resolve', 'solve', 'repair', 'help']);
+    this.synonymMap.set('restart', ['restart', 'reboot', 'power cycle', 'reset', 'turn off and on']);
     
     // Connectivity synonyms
     this.synonymMap.set('bluetooth', ['bluetooth', 'bt', 'wireless', 'ble']);
@@ -77,6 +84,10 @@ export class KnowledgeRetrievalService {
     // Common tech terms
     this.synonymMap.set('app', ['app', 'application', 'software', 'program']);
     this.synonymMap.set('settings', ['settings', 'configuration', 'config', 'preferences']);
+    
+    // Error/problem synonyms
+    this.synonymMap.set('error', ['error', 'issue', 'problem', 'trouble', 'not working', 'broken', 'failure']);
+    this.synonymMap.set('stuck', ['stuck', 'jammed', 'frozen', 'hanging', 'not responding']);
   }
 
   /**
