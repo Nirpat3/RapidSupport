@@ -4,6 +4,15 @@
 Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
 
 ## Recent Changes (Dec 14, 2025)
+- **Agent-Initiated Conversations**:
+  - Agents can now start conversations with registered customers from the Customer Profile page
+  - Click "Send Message" button on any customer profile to open conversation dialog
+  - Enter subject and message, conversation is created with agent auto-assigned
+  - New conversations are broadcast via WebSocket so all staff see them immediately
+  - After sending, agent is navigated directly to the new conversation
+- **Real-time Portal Messaging Fix**:
+  - Customer portal messages now broadcast via WebSocket to agents
+  - Agents viewing a conversation see new customer messages instantly without refresh
 - **Real-time Anonymous Chat Widget (CustomerChatWidget.tsx)**:
   - Replaced 5-second HTTP polling with WebSocket for instant message updates
   - WebSocket authenticates via URL query params: `?customerId=X&sessionId=Y`
