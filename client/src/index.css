@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* LIGHT MODE */
+/* LIGHT MODE - Glassmorphic Enterprise */
 :root {
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
@@ -14,40 +14,48 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 240 10% 98%;
-  --foreground: 240 10% 12%;
-  --border: 240 10% 88%;
-  --card: 240 5% 96%;
-  --card-foreground: 240 10% 12%;
-  --card-border: 240 10% 85%;
-  --sidebar: 240 10% 94%;
-  --sidebar-foreground: 240 10% 12%;
-  --sidebar-border: 240 10% 82%;
-  --sidebar-primary: 243 100% 40%;
-  --sidebar-primary-foreground: 240 5% 98%;
-  --sidebar-accent: 240 10% 90%;
-  --sidebar-accent-foreground: 240 10% 20%;
-  --sidebar-ring: 243 100% 40%;
-  --popover: 240 10% 92%;
-  --popover-foreground: 240 10% 12%;
-  --popover-border: 240 10% 80%;
-  --primary: 243 100% 40%;
-  --primary-foreground: 240 5% 98%;
-  --secondary: 240 10% 88%;
-  --secondary-foreground: 240 10% 20%;
-  --muted: 240 10% 90%;
-  --muted-foreground: 240 10% 50%;
+  /* Glassmorphic Enterprise - Light Mode (Slate/Blue theme) */
+  --background: 222 47% 96%;
+  --foreground: 222 47% 11%;
+  --border: 222 20% 88%;
+  --card: 222 30% 97%;
+  --card-foreground: 222 47% 11%;
+  --card-border: 222 20% 85%;
+  --sidebar: 222 47% 11%;
+  --sidebar-foreground: 222 20% 95%;
+  --sidebar-border: 222 30% 20%;
+  --sidebar-primary: 217 91% 60%;
+  --sidebar-primary-foreground: 222 47% 98%;
+  --sidebar-accent: 222 30% 18%;
+  --sidebar-accent-foreground: 222 20% 95%;
+  --sidebar-ring: 217 91% 60%;
+  --popover: 222 30% 97%;
+  --popover-foreground: 222 47% 11%;
+  --popover-border: 222 20% 80%;
+  --primary: 217 91% 60%;
+  --primary-foreground: 222 47% 98%;
+  --secondary: 222 20% 90%;
+  --secondary-foreground: 222 47% 20%;
+  --muted: 222 20% 92%;
+  --muted-foreground: 222 20% 45%;
   --accent: 160 84% 39%;
-  --accent-foreground: 240 5% 98%;
+  --accent-foreground: 222 47% 98%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 30% 95%;
-  --input: 240 10% 75%;
-  --ring: 243 100% 40%;
-  --chart-1: 243 100% 40%;
+  --input: 222 20% 80%;
+  --ring: 217 91% 60%;
+  --chart-1: 217 91% 60%;
   --chart-2: 160 84% 39%;
   --chart-3: 38 92% 50%;
   --chart-4: 280 70% 55%;
   --chart-5: 45 93% 51%;
+  
+  /* Glassmorphic specific variables */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.3);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 60%) 0%, hsl(255, 80%, 60%) 100%);
+  --gradient-accent: linear-gradient(135deg, hsl(160, 84%, 39%) 0%, hsl(180, 70%, 45%) 100%);
 
   /* Apple/Stripe-like Typography */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
@@ -113,6 +121,7 @@
   --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 }
 
+/* DARK MODE - Glassmorphic Enterprise (Deep Slate/Blue) */
 .dark {
   --button-outline: rgba(255,255,255, .10);
   --badge-outline: rgba(255,255,255, .05);
@@ -123,40 +132,48 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 240 10% 10%;
-  --foreground: 240 10% 92%;
-  --border: 240 10% 18%;
-  --card: 240 10% 13%;
-  --card-foreground: 240 10% 92%;
-  --card-border: 240 10% 20%;
-  --sidebar: 240 10% 8%;
-  --sidebar-foreground: 240 10% 92%;
-  --sidebar-border: 240 10% 16%;
-  --sidebar-primary: 243 100% 60%;
-  --sidebar-primary-foreground: 240 10% 10%;
-  --sidebar-accent: 240 10% 16%;
-  --sidebar-accent-foreground: 240 10% 92%;
-  --sidebar-ring: 243 100% 60%;
-  --popover: 240 10% 16%;
-  --popover-foreground: 240 10% 92%;
-  --popover-border: 240 10% 24%;
-  --primary: 243 100% 60%;
-  --primary-foreground: 240 10% 10%;
-  --secondary: 240 10% 20%;
-  --secondary-foreground: 240 10% 92%;
-  --muted: 240 10% 18%;
-  --muted-foreground: 240 10% 70%;
+  /* Glassmorphic Enterprise - Dark Mode (Deep Slate/Blue) */
+  --background: 222 47% 7%;
+  --foreground: 222 20% 95%;
+  --border: 222 30% 15%;
+  --card: 222 40% 10%;
+  --card-foreground: 222 20% 95%;
+  --card-border: 222 30% 18%;
+  --sidebar: 222 47% 5%;
+  --sidebar-foreground: 222 20% 95%;
+  --sidebar-border: 222 30% 12%;
+  --sidebar-primary: 217 91% 65%;
+  --sidebar-primary-foreground: 222 47% 5%;
+  --sidebar-accent: 222 30% 12%;
+  --sidebar-accent-foreground: 222 20% 95%;
+  --sidebar-ring: 217 91% 65%;
+  --popover: 222 40% 12%;
+  --popover-foreground: 222 20% 95%;
+  --popover-border: 222 30% 20%;
+  --primary: 217 91% 65%;
+  --primary-foreground: 222 47% 5%;
+  --secondary: 222 30% 15%;
+  --secondary-foreground: 222 20% 95%;
+  --muted: 222 30% 12%;
+  --muted-foreground: 222 20% 60%;
   --accent: 160 84% 55%;
-  --accent-foreground: 240 10% 10%;
+  --accent-foreground: 222 47% 5%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 30% 95%;
-  --input: 240 10% 28%;
-  --ring: 243 100% 60%;
-  --chart-1: 243 100% 60%;
+  --input: 222 30% 20%;
+  --ring: 217 91% 65%;
+  --chart-1: 217 91% 65%;
   --chart-2: 160 84% 55%;
   --chart-3: 38 92% 70%;
   --chart-4: 280 70% 75%;
   --chart-5: 45 93% 70%;
+
+  /* Glassmorphic specific variables - Dark Mode */
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: rgba(100, 116, 139, 0.2);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --gradient-primary: linear-gradient(135deg, hsl(217, 91%, 65%) 0%, hsl(255, 80%, 65%) 100%);
+  --gradient-accent: linear-gradient(135deg, hsl(160, 84%, 55%) 0%, hsl(180, 70%, 50%) 100%);
 
   /* Dark Mode Shadows - More pronounced for contrast */
   --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
@@ -167,7 +184,6 @@
   --shadow-lg: 0 20px 25px -5px rgb(0 0 0 / 0.6), 0 8px 10px -6px rgb(0 0 0 / 0.6);
   --shadow-xl: 0 25px 50px -12px rgb(0 0 0 / 0.7);
   --shadow-2xl: 0 30px 60px -15px rgb(0 0 0 / 0.8);
-
 }
 
 @layer base {
@@ -329,5 +345,118 @@
   
   .transition-smooth-slow {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Glassmorphic Utilities */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+  }
+
+  .glass-subtle {
+    background: var(--glass-bg);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+  }
+
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+
+  /* Glow effects for microservice cards */
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3), var(--glass-shadow);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3), var(--glass-shadow);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.3), var(--glass-shadow);
+  }
+
+  .glow-amber {
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3), var(--glass-shadow);
+  }
+
+  .glow-rose {
+    box-shadow: 0 0 20px rgba(244, 63, 94, 0.3), var(--glass-shadow);
+  }
+
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.3), var(--glass-shadow);
+  }
+
+  /* Animated gradient background */
+  .animated-gradient {
+    background: linear-gradient(
+      -45deg,
+      hsl(217, 91%, 60%),
+      hsl(255, 80%, 60%),
+      hsl(160, 84%, 45%),
+      hsl(217, 91%, 60%)
+    );
+    background-size: 400% 400%;
+    animation: gradient-shift 15s ease infinite;
+  }
+
+  @keyframes gradient-shift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  /* Shimmer effect for loading states */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* Floating animation for cards */
+  .float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* Pulse glow for active states */
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.2); }
+    50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); }
   }
 }
