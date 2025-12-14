@@ -5853,40 +5853,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Get specific knowledge base article (public access for shared articles)
-  app.get('/api/public/knowledge-base/:id', async (req, res) => {
-    try {
-      const { id } = req.params;
-      const article = await storage.getKnowledgeBase(id);
-      
-      if (!article) {
-        return res.status(404).json({ error: 'Knowledge base article not found' });
-      }
-      
-      // Only return active articles for public access
-      if (!article.isActive) {
-        return res.status(404).json({ error: 'Knowledge base article not found' });
-      }
-      
-      // Return only necessary fields for public viewing
-      const publicArticle = {
-        id: article.id,
-        title: article.title,
-        content: article.content,
-        category: article.category,
-        tags: article.tags,
-        createdAt: article.createdAt,
-        updatedAt: article.updatedAt
-      };
-      
-      res.json(publicArticle);
-    } catch (error) {
-      console.error('Failed to fetch public knowledge base article:', error);
-      res.status(500).json({ error: 'Failed to fetch knowledge base article' });
-    }
-  });
-
   // Get popular/most-used knowledge base articles (public access)
+  // NOTE: This must be defined BEFORE the /:id route to avoid being caught by the param
   app.get('/api/public/knowledge-base/popular', async (req, res) => {
     try {
       const { limit = '10' } = req.query;
@@ -5919,6 +5887,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Get personalized article recommendations based on customer history
+  // NOTE: This must be defined BEFORE the /:id route to avoid being caught by the param
   app.get('/api/public/knowledge-base/recommended', async (req, res) => {
     try {
       const { customerId, sessionId, limit = '6' } = req.query;
@@ -6031,6 +6000,39 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to fetch recommended articles:', error);
       res.status(500).json({ error: 'Failed to fetch recommended articles' });
+    }
+  });
+
+  // Get specific knowledge base article (public access for shared articles)
+  app.get('/api/public/knowledge-base/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const article = await storage.getKnowledgeBase(id);
+      
+      if (!article) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+      
+      // Only return active articles for public access
+      if (!article.isActive) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+      
+      // Return only necessary fields for public viewing
+      const publicArticle = {
+        id: article.id,
+        title: article.title,
+        content: article.content,
+        category: article.category,
+        tags: article.tags,
+        createdAt: article.createdAt,
+        updatedAt: article.updatedAt
+      };
+      
+      res.json(publicArticle);
+    } catch (error) {
+      console.error('Failed to fetch public knowledge base article:', error);
+      res.status(500).json({ error: 'Failed to fetch knowledge base article' });
     }
   });
 
