@@ -1,96 +1,7 @@
 # Support Board - Customer Support Platform
 
 ## Overview
-Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
-
-## Recent Changes (Dec 14, 2025)
-- **Customer Portal Notification & Read Tracking**:
-  - New unread message notification badge on Conversations nav item
-  - Shows red dot indicator on mobile, numeric badge on desktop
-  - Per-conversation unread counts displayed in conversation list
-  - Conversations with unread messages sorted to the top
-  - Messages automatically marked as read when customer views conversation
-  - Activity log entries created for audit trail when customer views messages
-  - WebSocket broadcast notifies agents when customer reads their messages
-  - Real-time cache invalidation keeps notification counts accurate
-- **WebSocket Real-Time Messaging Fix**:
-  - Fixed issue where messages weren't delivered instantly between customer portal and agent
-  - Enhanced `broadcastNewMessage` method to accept targetUserIds for direct delivery
-  - Agent messages now reliably reach customer portal users in real-time
-  - Customer portal messages now reliably reach agents in real-time
-  - No manual refresh needed - messages appear instantly on both sides
-- **AI Settings Controls**:
-  - New "AI Settings" section on the Settings page (/settings)
-  - Global AI toggle: Master switch to enable/disable all AI auto-responses
-  - Context-specific toggles: Anonymous Chat Widget, Customer Portal, Staff Conversations
-  - Settings are persisted in the database (engagementSettings table)
-  - AI responses are blocked at the API level when disabled for each context
-  - When global AI is off, context toggles are visually disabled
-- **Multi-Agent Assignment Tracking**:
-  - Conversations now track all agents who have responded (participatingAgentIds column)
-  - When any agent sends a message, they're automatically added to the participating agents list
-  - Staff conversations page displays participating agent avatars next to the assign selector
-  - Shows up to 5 agent avatars with overflow count for larger teams
-  - Works for both public and internal staff messages
-- **Agent-Initiated Conversations**:
-  - Agents can now start conversations with registered customers from the Customer Profile page
-  - Click "Send Message" button on any customer profile to open conversation dialog
-  - Enter subject and message, conversation is created with agent auto-assigned
-  - New conversations are broadcast via WebSocket so all staff see them immediately
-  - After sending, agent is navigated directly to the new conversation
-- **Real-time Portal Messaging Fix**:
-  - Customer portal messages now broadcast via WebSocket to agents
-  - Agents viewing a conversation see new customer messages instantly without refresh
-- **Real-time Anonymous Chat Widget (CustomerChatWidget.tsx)**:
-  - Replaced 5-second HTTP polling with WebSocket for instant message updates
-  - WebSocket authenticates via URL query params: `?customerId=X&sessionId=Y`
-  - Added typing indicators (see when agents are typing)
-  - Live connection status indicator in header (shows "Live" when connected)
-  - Customer typing indicators sent to agents
-  - Proper cleanup: sends stop_typing, clears timers on unmount
-  - Created mobile app WebSocket integration documentation: `docs/mobile-websocket-integration.md`
-- **Real-time Customer Portal Chat**:
-  - Replaced 5-second polling with WebSocket for instant message updates
-  - Added typing indicators (see when agents are typing)
-  - Live connection status indicator (shows "Live" when connected)
-  - WebSocket server now authenticates both staff and customer sessions
-- **DDoS/Spam Protection**:
-  - Global API rate limiter: 200 requests/minute per IP
-  - Message rate limiter: 30 messages/minute per IP
-  - Conversation creation limiter: 10 new conversations/hour per IP
-  - Applied to customer portal and anonymous chat endpoints
-- **Customer Portal Enhancements**:
-  - Agent assignment status now displayed in conversations list (shows agent name or "Awaiting agent")
-  - Priority badges (Urgent/High/Medium) shown on conversations
-  - Conversations sorted by priority first, then by date
-  - Fixed 403 error - agents can now reply to unassigned conversations
-  - Added dedicated portal chat page (`/portal/chat`) for authenticated customers
-  - New conversation creation form with subject and message fields
-  - View and reply to existing conversations at `/portal/chat/:conversationId`
-  - Fixed "Start New Conversation" button routing
-
-## Previous Changes (Nov 30, 2025)
-- **MAJOR REDESIGN**: Implemented "Conversation-First Intelligence" visual overhaul
-  - Updated color system: Primary Indigo (243° 100% 40%), Accent Emerald (160° 84% 39%), highlights via Amber
-  - Applied new color variables to both light and dark modes
-  - Created comprehensive mockup viewer at `/mockup` with all page designs
-  - Transitioned from cool grays to warm, professional Indigo-Emerald-Amber palette
-
-## Test Credentials
-**Super Admin:**
-- Email: Admin@ris.com
-- Password: Admin$123
-- Permissions: Full system access, user management, all settings, dashboard
-
-**Support Agent:**
-- Email: Agent@rapidrms.com
-- Password: Agent$123
-- Permissions: Handle conversations, manage assigned cases, access staff features
-
-**Customer (Portal Access):**
-- Email: Customer@rms.com
-- Password: Customer$123
-- Permissions: Portal access (/portal), view support history, submit feedback
+Support Board is a full-stack customer support platform designed for real-time chat, comprehensive conversation management, and administrative oversight. It supports various user roles (admin, agent, customer) and offers features such as conversation assignment, status tracking, priority management, and dashboard analytics. The platform includes internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base with image extraction, and advanced rich media input to create an efficient and user-friendly customer service experience. The project aims to provide a robust solution for enhancing customer interaction and agent productivity.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -98,52 +9,35 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### UI/UX Decisions
-The frontend uses React 18, TypeScript, and Vite, leveraging Radix UI with Tailwind CSS in a shadcn/ui pattern for a custom design system supporting light/dark themes. The customer chat features a Perplexity-style redesign with a prominent hero input, progressive disclosure, suggested questions, and visual feature cards. Design aesthetics now reflect Apple/Stripe-like refinement with the new Indigo/Emerald color scheme, refined typography, and comprehensive utilities. The layout ensures independent scrolling and mobile optimization for message input. Floating chat widgets are integrated for instant AI assistance.
+The frontend utilizes React 18, TypeScript, and Vite, built with Radix UI and Tailwind CSS following a shadcn/ui pattern for a custom, theme-aware design system (light/dark modes). The customer chat features a Perplexity-style interface with a hero input, progressive disclosure, suggested questions, and visual feature cards. The design incorporates an Indigo-Emerald-Amber color scheme, refined typography, independent scrolling, and mobile optimization. Floating chat widgets are integrated for AI assistance.
 
-The **Public Knowledge Base** (`/knowledge-base`) is a redesigned FAQ-style interface featuring a hero section with a search bar, visual category overview cards, an accordion layout for articles, and smart search capabilities. Articles open in new tabs (`/kb/{id}`) with share, print, and PDF export functionality. It includes "Popular" article badges and integrated AI support via a floating ChatWidget.
+The Public Knowledge Base is an FAQ-style interface with a search bar, category overview cards, accordion-style articles, smart search, and AI support via a floating ChatWidget. Articles include share, print, and PDF export functionality.
 
-The **Staff Conversations Page** (`/conversations`) features a clean, mobile-first, 2-column layout on desktop that collapses to a single view on mobile. It includes a conversation list with search, status filtering, and unread tracking. The interface provides real-time updates via WebSockets and management controls for status and agent assignment.
+The Staff Conversations Page features a clean, mobile-first 2-column layout on desktop, collapsing to a single view on mobile. It includes a conversation list with search, status filtering, unread tracking, real-time WebSocket updates, and controls for status and agent assignment.
 
 ### Technical Implementations
-The backend is a Node.js Express.js application in TypeScript, providing a RESTful API with Zod validation and rate limiting. Authentication is session-based using Passport.js and Express sessions with a PostgreSQL store. A custom WebSocket server handles real-time communication. PostgreSQL is the database, accessed via Drizzle ORM, with Neon serverless for connection pooling. Authentication includes role-based access control (Admin, Agent, Customer) and anonymous customer support via `sessionId` and IP tracking.
+The backend is a Node.js Express.js application in TypeScript, providing a RESTful API with Zod validation and rate limiting. Authentication is session-based using Passport.js and Express sessions with a PostgreSQL store. A custom WebSocket server handles real-time communication. PostgreSQL, accessed via Drizzle ORM and Neon serverless for connection pooling, is the primary database. Authentication includes role-based access control (Admin, Agent, Customer) and anonymous customer support via `sessionId` and IP tracking.
 
 ### Feature Specifications
-- **Real-time Communication**: Custom WebSocket server for chat, user presence, conversation routing, message broadcasting, and typing indicators. Closed conversations reopen on new messages, and system activity messages are broadcast. Customer chat uses HTTP polling.
-- **AI Capabilities**: Multi-agent AI response system (OpenAI GPT-4o-mini) for intent classification, smart routing, and agent handoff based on confidence scores. Features include 4-dimensional quality analysis and an AI Learning Dashboard. Enhanced AI uses improved system prompts and RAG optimization (Phase 1 & 2) for retrieval logging, answer grounding, confidence thresholds, and optimized chunking.
-  - **Centralized Brand Voice System**: Production-grade brand configuration system with a singleton `brand_config` table storing company identity, voice attributes, behavioral guidelines, and personality levels. This configuration is injected into every AI system prompt at runtime, managed via admin-only API endpoints.
-  - **Performance Optimization**: Knowledge base retrieval is optimized for speed with reduced `maxResults`, increased `quality thresholds`, and tighter filter limits, aiming for 20-40% faster AI response times.
-  - **Reference Links**: AI responses automatically include a "📚 Learn More:" section with clickable markdown links to the top 3 most relevant knowledge base articles, opening internal links in the same tab.
-  - **Persistent Vector Database**: Migrated to PostgreSQL with `pgvector` for persistent storage of knowledge chunks and OpenAI embeddings in the `knowledge_chunks` table, ensuring zero cold-start delays and efficient similarity search.
-- **AI Management (Consolidated)**:
-    - **AI Configuration** (`/ai-configuration`): Central hub for creating, editing, and deleting AI agents, configuring system prompts, temperature, max tokens, response formats, and monitoring performance.
-    - **AI Performance Insights** (`/ai-performance`): Unified analytics dashboard for monitoring AI performance, testing agents, tracking learning analytics, and reviewing quality scores.
-    - **Human Oversight** (`/human-oversight`): Real-time monitoring of active AI conversations with intervention capabilities.
-- **Knowledge Base Integration**: AI performs intelligent query analysis, multi-tiered search, context-aware responses, and transparent handoff. Automatically analyzes uploaded documents (TXT, PDF, DOCX) to extract metadata, generate FAQs, and suggest agent assignments.
-  - **Automatic Indexing**: All uploaded documents are automatically chunked (400-word segments) and indexed with vector embeddings immediately upon upload and persisted to PostgreSQL using `pgvector`, ensuring instant searchability and re-indexing upon updates.
-- **Rich Media Input**: Supports file attachments (drag-drop, multi-file), universal camera capture, emoji picker, and voice-to-text.
-- **User Identification**: IP-based customer identification and `sessionId` tracking for returning users.
-- **Unread Tracking & Notifications**: Comprehensive system for tracking message read status, unread counts, and real-time notifications with optimistic badge clearing, visual message highlighting, batch read status lookup, and WebSocket synchronization.
-- **AI Learning System**: Production-grade active learning pipeline for continuous AI improvement from human feedback. Features a four-table infrastructure (`aiMessageFeedback`, `aiCorrections`, `knowledgeGaps`, `aiTrainingQueue`), a "Teach AI" feature for staff corrections, a Training Queue Dashboard for admin review and approval, and confidence-based gap detection.
-- **Conversation Rating & Feedback**: Customer 1-5 star ratings and feedback with AI-powered sentiment analysis.
-- **Staff Performance Tracking**: Tracks agent metrics (conversations handled, closure rates, ratings, AI sentiment scores).
+- **Real-time Communication**: A custom WebSocket server provides real-time chat, user presence, conversation routing, message broadcasting, and typing indicators.
+- **AI Capabilities**: A multi-agent AI response system (OpenAI GPT-4o-mini) enables intent classification, smart routing, and agent handoff. Features include 4-dimensional quality analysis, an AI Learning Dashboard, and RAG optimization for retrieval logging, answer grounding, and confidence thresholds.
+    - **Centralized Brand Voice System**: A production-grade brand configuration system allows injection of company identity, voice attributes, and behavioral guidelines into AI system prompts.
+    - **Performance Optimization**: Knowledge base retrieval is optimized for faster AI response times.
+    - **Reference Links**: AI responses automatically include clickable markdown links to relevant knowledge base articles.
+    - **Persistent Vector Database**: Uses PostgreSQL with `pgvector` for persistent storage of knowledge chunks and OpenAI embeddings for efficient similarity search.
+- **AI Management**: A central hub for configuring AI agents, monitoring performance, and overseeing human intervention in AI conversations.
+- **Knowledge Base Integration**: AI analyzes uploaded documents (TXT, PDF, DOCX) to extract metadata, generate FAQs, and suggest agent assignments. Documents are automatically chunked and indexed with vector embeddings in PostgreSQL.
+- **Rich Media Input**: Supports file attachments (drag-drop, multi-file), camera capture, emoji picker, and voice-to-text.
+- **User Identification**: IP-based identification and `sessionId` tracking for returning customers.
+- **Unread Tracking & Notifications**: Comprehensive system for tracking message read status, unread counts, and real-time notifications with WebSocket synchronization.
+- **AI Learning System**: An active learning pipeline for continuous AI improvement from human feedback, including a "Teach AI" feature and a Training Queue Dashboard.
+- **Conversation Rating & Feedback**: Customers can provide 1-5 star ratings and feedback with AI-powered sentiment analysis.
+- **Staff Performance Tracking**: Monitors agent metrics such as conversations handled, closure rates, and ratings.
 - **Activity Notifications**: Notifies staff of mentions, tags, reminders, and assignments.
-- **Customer Portal**: Authenticated self-service access to support history, profile management, and feedback.
+- **Customer Portal**: Authenticated self-service access for support history, profile management, and feedback.
 - **External Channel Integration**: Supports WhatsApp Business API, Telegram Bot, and Facebook Messenger via webhooks.
-- **Third-Party Integration API**: RESTful API for embedding support chat with pre-filled customer data, custom context, and multi-tenant support.
-- **Category-Based Customer Routing**: Customers pre-select their support category before starting a conversation. Categories are fully customizable via the admin UI (`/support-categories`) with the ability to:
-  - Create, edit, and delete categories with custom names, icons, colors, and descriptions
-  - Toggle category visibility to show/hide from customer selection
-  - Link categories to specific AI agents for specialized routing
-  - Configure suggested questions per category
-  - Categories are fetched dynamically from the API (`/api/support-categories/public`) with fallback to defaults
-  - Selected category is passed as `contextData` to enable specialized AI agent routing throughout the chat experience
-
-## Color Palette (New Design)
-- **Primary Indigo**: 243° 100% 40% (bright, professional, trustworthy)
-- **Accent Emerald**: 160° 84% 39% (success, AI-generated responses, growth)
-- **Highlight Amber**: 45° 93% 51% (attention, important information, warmth)
-- **Neutral Backgrounds**: 240° 10% (minimal saturation for calm, clean appearance)
-- Applies consistently across light mode and dark mode variants
+- **Third-Party Integration API**: A RESTful API for embedding support chat with pre-filled customer data and multi-tenant support.
+- **Category-Based Customer Routing**: Customizable support categories allow customers to pre-select their issue, enabling specialized AI agent routing. Categories can be linked to specific AI agents and configured with suggested questions.
 
 ## External Dependencies
 
