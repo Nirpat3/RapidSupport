@@ -729,13 +729,22 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       const conversations = await storage.getConversationsByCustomer(customerId);
       
-      // Map all conversations
+      // Map all conversations - sort by priority first (urgent > high > medium > low), then by date
+      const priorityOrder: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
       const allConversations = conversations
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        .sort((a, b) => {
+          // First sort by priority
+          const aPriority = priorityOrder[a.priority || 'low'] ?? 3;
+          const bPriority = priorityOrder[b.priority || 'low'] ?? 3;
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          // Then by date (most recent first)
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        })
         .map(conv => ({
           id: conv.id,
           subject: conv.subject || 'Untitled Conversation',
           status: conv.status,
+          priority: conv.priority || 'low',
           createdAt: conv.createdAt,
           updatedAt: conv.updatedAt,
           unreadCount: 0, // Can implement unread tracking later
@@ -2597,9 +2606,10 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(404).json({ error: 'Conversation not found' });
       }
       
-      // Check access permissions - agents can only message assigned conversations, admins can message any
-      if (user.role === 'agent' && conversation.assignedAgentId !== user.id) {
-        return res.status(403).json({ error: 'You can only send messages to conversations assigned to you' });
+      // Check access permissions - agents can message assigned OR unassigned conversations, admins can message any
+      // Agents cannot message conversations assigned to OTHER agents
+      if (user.role === 'agent' && conversation.assignedAgentId && conversation.assignedAgentId !== user.id) {
+        return res.status(403).json({ error: 'This conversation is assigned to another agent' });
       }
       
       // Reopen conversation if it was closed

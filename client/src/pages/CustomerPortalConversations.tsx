@@ -13,7 +13,9 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  AlertTriangle,
+  Flame
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
@@ -29,12 +31,34 @@ export default function CustomerPortalConversations() {
     id: string;
     subject: string;
     status: string;
+    priority: string;
     createdAt: string;
     updatedAt: string;
     unreadCount?: number;
   }>>({
     queryKey: ['/api/customer-portal/conversations'],
   });
+
+  const getPriorityBadge = (priority: string) => {
+    if (priority === 'low') return null;
+    
+    const priorityConfig: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; icon: any; label: string }> = {
+      urgent: { variant: "destructive", icon: Flame, label: "Urgent" },
+      high: { variant: "destructive", icon: AlertTriangle, label: "High Priority" },
+      medium: { variant: "secondary", icon: AlertCircle, label: "Medium" },
+    };
+
+    const config = priorityConfig[priority];
+    if (!config) return null;
+    
+    const Icon = config.icon;
+    return (
+      <Badge variant={config.variant} className="gap-1">
+        <Icon className="h-3 w-3" />
+        {config.label}
+      </Badge>
+    );
+  };
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; icon: any }> = {
@@ -167,7 +191,8 @@ export default function CustomerPortalConversations() {
                           <span>Last updated {format(new Date(conv.updatedAt), 'MMM d, yyyy h:mm a')}</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                        {getPriorityBadge(conv.priority)}
                         {getStatusBadge(conv.status)}
                         <ArrowRight className="h-4 w-4 text-muted-foreground" />
                       </div>
