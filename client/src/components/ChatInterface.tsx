@@ -22,6 +22,12 @@ import KnowledgeSearchDialog from "./KnowledgeSearchDialog";
 import AiCorrectionDialog from "./AiCorrectionDialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
+interface TypingUser {
+  userId: string;
+  userName: string;
+  userRole: string;
+}
+
 interface ChatInterfaceProps {
   conversationId?: string;
   customer?: {
@@ -43,6 +49,9 @@ interface ChatInterfaceProps {
   } | null;
   conversationStatus?: string;
   onStatusChange?: (status: string) => void;
+  typingUsers?: TypingUser[];
+  onTypingStart?: () => void;
+  onTypingStop?: () => void;
 }
 
 const statusColors = {
@@ -59,10 +68,14 @@ export default function ChatInterface({
   onSendMessage,
   streamingMessage,
   conversationStatus,
-  onStatusChange
+  onStatusChange,
+  typingUsers = [],
+  onTypingStart,
+  onTypingStop
 }: ChatInterfaceProps) {
   const [newMessage, setNewMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [isInternalChatOpen, setIsInternalChatOpen] = useState(false);
   const [isKnowledgeSearchOpen, setIsKnowledgeSearchOpen] = useState(false);
@@ -137,6 +150,16 @@ export default function ChatInterface({
     fetchConversationData();
   }, [conversationId]);
 
+  // Cleanup typing timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      onTypingStop?.();
+    };
+  }, [onTypingStop]);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
@@ -204,6 +227,12 @@ export default function ChatInterface({
     }
     
     console.log('Sending message:', newMessage);
+    
+    // Stop typing indicator when sending
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+    onTypingStop?.();
     
     // Send the message first
     onSendMessage?.(newMessage || '📎 File attachment');
@@ -1010,6 +1039,40 @@ export default function ChatInterface({
         </div>
       )}
 
+      {/* Typing Indicator */}
+      {(typingUsers.length > 0 || streamingMessage) && (
+        <div className="px-4 py-2 border-t border-border bg-muted/30" data-testid="typing-indicator">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex gap-1">
+              <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+            <span>
+              {streamingMessage ? (
+                <span className="flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-primary" />
+                  AI is responding...
+                </span>
+              ) : typingUsers.length === 1 ? (
+                <span>
+                  <strong>{typingUsers[0].userName}</strong>
+                  {typingUsers[0].userRole === 'agent' || typingUsers[0].userRole === 'admin' 
+                    ? ' (Agent)' 
+                    : typingUsers[0].userRole === 'customer' 
+                      ? ' (Customer)' 
+                      : ''} is typing...
+                </span>
+              ) : (
+                <span>
+                  <strong>{typingUsers.map(u => u.userName).join(', ')}</strong> are typing...
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Message Input */}
       <div className="p-4 border-t border-border bg-card">
         <form onSubmit={handleSendMessage} className="space-y-2">
@@ -1076,7 +1139,23 @@ export default function ChatInterface({
               <Textarea
                 placeholder={isInternalMode ? "Type internal message (staff only)..." : "Type your message..."}
                 value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
+                onChange={(e) => {
+                  setNewMessage(e.target.value);
+                  // Handle typing indicator
+                  if (e.target.value.trim() && onTypingStart) {
+                    onTypingStart();
+                    // Clear previous timeout
+                    if (typingTimeoutRef.current) {
+                      clearTimeout(typingTimeoutRef.current);
+                    }
+                    // Stop typing after 2 seconds of inactivity
+                    typingTimeoutRef.current = setTimeout(() => {
+                      onTypingStop?.();
+                    }, 2000);
+                  } else if (!e.target.value.trim() && onTypingStop) {
+                    onTypingStop();
+                  }
+                }}
                 onKeyDown={(e) => {
                   // Tab key focuses the send button
                   if (e.key === 'Tab' && !e.shiftKey) {
