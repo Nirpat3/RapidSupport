@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning, BrandConfig } from '@shared/schema';
+import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning, BrandConfig, KnowledgeBaseImage } from '@shared/schema';
 import { storage } from './storage';
 import { knowledgeRetrieval, type SearchResult, type RetrievalOptions } from './knowledge-retrieval';
 import { conversationLogger } from './conversation-logger';
@@ -1264,9 +1264,14 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
     contextData?: any
   ): Promise<AIAgentResponse> {
     try {
-      // Enhanced knowledge context formatting with better structure
+      // Fetch images for articles in search results (for visual aids in hardware manuals)
+      const articleImages = searchResults.length > 0 
+        ? await this.fetchImagesForArticles(searchResults)
+        : new Map();
+      
+      // Enhanced knowledge context formatting with better structure and image references
       const knowledgeContext = searchResults.length 
-        ? this.formatKnowledgeContext(searchResults)
+        ? this.formatKnowledgeContext(searchResults, articleImages)
         : '\nKnowledge Base: No relevant knowledge base articles available.\n';
 
       const conversationContext = conversationHistory.length 
@@ -1958,10 +1963,38 @@ The more details you can share, the better I can help you resolve this quickly!"
   }
 
   /**
+   * Fetch images for all articles referenced in search results
+   */
+  private static async fetchImagesForArticles(searchResults: SearchResult[]): Promise<Map<string, KnowledgeBaseImage[]>> {
+    const imageMap = new Map<string, KnowledgeBaseImage[]>();
+    
+    // Get unique article IDs from search results
+    const articleIds = [...new Set(searchResults.map(r => r.chunk.knowledgeBaseId))];
+    
+    // Fetch images for each article in parallel
+    await Promise.all(articleIds.map(async (articleId) => {
+      try {
+        const images = await storage.getKnowledgeBaseImages(articleId);
+        if (images.length > 0) {
+          imageMap.set(articleId, images);
+        }
+      } catch (error) {
+        console.error(`Error fetching images for article ${articleId}:`, error);
+      }
+    }));
+    
+    return imageMap;
+  }
+
+  /**
    * Format knowledge context for better AI consumption
    * ✅ PHASE 1 IMPROVEMENT: Enhanced formatting with source IDs for citations
+   * ✅ Image references included for hardware manuals with visual aids
    */
-  private static formatKnowledgeContext(searchResults: SearchResult[]): string {
+  private static formatKnowledgeContext(
+    searchResults: SearchResult[], 
+    articleImages?: Map<string, KnowledgeBaseImage[]>
+  ): string {
     if (searchResults.length === 0) {
       return '\nKnowledge Base: No relevant knowledge base articles available.\n';
     }
@@ -1974,6 +2007,21 @@ The more details you can share, the better I can help you resolve this quickly!"
       const articleTitle = result.chunk.metadata.sourceTitle;
       const sectionTitle = result.chunk.title || result.chunk.metadata.chunkTitle || 'General';
       
+      // Get images for this article if available
+      const images = articleImages?.get(result.chunk.knowledgeBaseId) || [];
+      let imageSection = '';
+      
+      if (images.length > 0) {
+        const imageRefs = images.map((img, imgIndex) => {
+          const description = img.description || img.originalName || `Image ${imgIndex + 1}`;
+          // Use relative URL path that can be served by the backend
+          const imageUrl = `/uploads/knowledge-base-images/${result.chunk.knowledgeBaseId}/${img.filename}`;
+          return `  [IMAGE_${imgIndex + 1}]: ${description} - URL: ${imageUrl}`;
+        }).join('\n');
+        
+        imageSection = `\nRelated Images (include these URLs when helpful for visual guidance):\n${imageRefs}\n`;
+      }
+      
       return `
 --- ${sourceId}: [${articleTitle} → ${sectionTitle}] ---
 Relevance: ${relevanceLabel} (${result.score.toFixed(2)})
@@ -1982,13 +2030,20 @@ Category: ${result.chunk.category}
 Tags: ${result.chunk.tags.join(', ') || 'none'}
 Content:
 ${result.chunk.content}
-${result.chunk.metadata.hasStructure ? '[Well-structured content]' : '[Unstructured content]'}
+${result.chunk.metadata.hasStructure ? '[Well-structured content]' : '[Unstructured content]'}${imageSection}
 ---`;
     });
 
+    // Add image usage instructions if any images were found
+    const hasAnyImages = articleImages && articleImages.size > 0;
+    const imageInstructions = hasAnyImages 
+      ? `\n📷 IMAGE USAGE: When referencing steps that have related images, include the image URL in markdown format: ![Description](URL)
+This helps customers visualize the instructions, especially for hardware setup and troubleshooting.`
+      : '';
+
     return `\nKnowledge Base Sources (CITE THESE IN YOUR RESPONSE):\n${sections.join('\n')}\n
 IMPORTANT: When using information from these sources, cite them as [Article → Section] in your response.
-For example: "According to [PAX Terminal Setup → Bluetooth Connection], you should..."`;
+For example: "According to [PAX Terminal Setup → Bluetooth Connection], you should..."${imageInstructions}`;
   }
 
   /**
@@ -2352,9 +2407,14 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
       const brandConfig = await this.loadBrandConfig();
       const brandVoicePrompt = this.buildBrandVoicePrompt(brandConfig);
 
-      // Build the same context as non-streaming version
+      // Fetch images for articles in search results (for visual aids in hardware manuals)
+      const articleImages = searchResults.length > 0 
+        ? await this.fetchImagesForArticles(searchResults)
+        : new Map();
+
+      // Build the same context as non-streaming version with image references
       const knowledgeContext = searchResults.length 
-        ? this.formatKnowledgeContext(searchResults)
+        ? this.formatKnowledgeContext(searchResults, articleImages)
         : '\nKnowledge Base: No relevant knowledge base articles available.\n';
 
       const conversationContext = conversationHistory.length 
