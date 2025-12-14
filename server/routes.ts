@@ -731,6 +731,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       // Map all conversations - sort by priority first (urgent > high > medium > low), then by date
       const priorityOrder: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+      
+      // Get agent info for all assigned agents
+      const agentIds = [...new Set(conversations.filter(c => c.assignedAgentId).map(c => c.assignedAgentId as string))];
+      const agentMap = new Map<string, { name: string }>();
+      for (const agentId of agentIds) {
+        const agent = await storage.getUser(agentId);
+        if (agent) {
+          agentMap.set(agentId, { name: agent.name || 'Support Agent' });
+        }
+      }
+      
       const allConversations = conversations
         .sort((a, b) => {
           // First sort by priority
@@ -748,6 +759,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           createdAt: conv.createdAt,
           updatedAt: conv.updatedAt,
           unreadCount: 0, // Can implement unread tracking later
+          assignedAgentId: conv.assignedAgentId || null,
+          assignedAgentName: conv.assignedAgentId ? agentMap.get(conv.assignedAgentId)?.name || 'Support Agent' : null,
         }));
 
       res.json(allConversations);

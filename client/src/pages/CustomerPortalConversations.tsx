@@ -15,7 +15,9 @@ import {
   AlertCircle,
   ArrowRight,
   AlertTriangle,
-  Flame
+  Flame,
+  User,
+  UserCheck
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
@@ -35,6 +37,8 @@ export default function CustomerPortalConversations() {
     createdAt: string;
     updatedAt: string;
     unreadCount?: number;
+    assignedAgentId?: string | null;
+    assignedAgentName?: string | null;
   }>>({
     queryKey: ['/api/customer-portal/conversations'],
   });
@@ -189,6 +193,24 @@ export default function CustomerPortalConversations() {
                           <span>Created {format(new Date(conv.createdAt), 'MMM d, yyyy')}</span>
                           <span>•</span>
                           <span>Last updated {format(new Date(conv.updatedAt), 'MMM d, yyyy h:mm a')}</span>
+                          {conv.assignedAgentName && (
+                            <>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <UserCheck className="h-3 w-3" />
+                                Agent: {conv.assignedAgentName}
+                              </span>
+                            </>
+                          )}
+                          {!conv.assignedAgentId && (
+                            <>
+                              <span>•</span>
+                              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                                <User className="h-3 w-3" />
+                                Awaiting agent
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
