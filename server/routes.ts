@@ -1046,6 +1046,128 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Customer reopens a resolved/closed conversation
+  app.post('/api/customer-portal/conversation/:conversationId/reopen', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const { conversationId } = req.params;
+      const conversation = await storage.getConversation(conversationId);
+      
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      // Verify customer owns this conversation
+      if (conversation.customerId !== customerId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Only allow reopening closed/resolved conversations
+      if (conversation.status !== 'closed' && conversation.status !== 'resolved') {
+        return res.status(400).json({ error: 'Conversation is already open' });
+      }
+
+      const previousStatus = conversation.status;
+      const customer = await storage.getCustomer(customerId);
+      const customerName = customer?.name || 'Customer';
+
+      // Update status to open
+      await storage.updateConversationStatus(conversationId, 'open');
+
+      // Log the status change with who did it
+      await storage.createActivityLog({
+        conversationId,
+        action: 'status_changed',
+        details: JSON.stringify({
+          previousStatus,
+          newStatus: 'open',
+          changedBy: customerName,
+          changedByType: 'customer',
+          changedById: customerId,
+          reason: 'Customer reopened conversation'
+        }),
+      });
+
+      // Notify staff via WebSocket
+      const wsServer = (app as any).wsServer;
+      if (wsServer && wsServer.broadcastToStaff) {
+        wsServer.broadcastToStaff({
+          type: 'conversation_reopened',
+          conversationId,
+          customerId,
+          customerName,
+          previousStatus,
+          newStatus: 'open',
+        });
+      }
+
+      res.json({ success: true, message: 'Conversation reopened successfully' });
+    } catch (error) {
+      console.error('Reopen conversation error:', error);
+      res.status(500).json({ error: 'Failed to reopen conversation' });
+    }
+  });
+
+  // Get status change history for a conversation (customer portal)
+  app.get('/api/customer-portal/conversation/:conversationId/history', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const { conversationId } = req.params;
+      const conversation = await storage.getConversation(conversationId);
+      
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      // Verify customer owns this conversation
+      if (conversation.customerId !== customerId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Get activity logs for status changes
+      const activityLogs = await storage.getActivityLogsByConversation(conversationId);
+      
+      // Filter for status changes and format for customer display
+      const statusHistory = activityLogs
+        .filter((log: any) => log.action === 'status_changed')
+        .map((log: any) => {
+          let details: any = {};
+          try {
+            details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details || {};
+          } catch {
+            details = { rawDetails: log.details };
+          }
+          return {
+            id: log.id,
+            previousStatus: details.previousStatus,
+            newStatus: details.newStatus,
+            changedBy: details.changedBy || 'Support Team',
+            changedByType: details.changedByType || 'agent',
+            reason: details.reason,
+            timestamp: log.timestamp,
+          };
+        })
+        .sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      res.json(statusHistory);
+    } catch (error) {
+      console.error('Get conversation history error:', error);
+      res.status(500).json({ error: 'Failed to get conversation history' });
+    }
+  });
+
   // Send message to conversation for portal customer
   app.post('/api/customer-portal/conversation/:conversationId/messages', messageLimiter, async (req, res) => {
     try {
