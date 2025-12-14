@@ -1622,23 +1622,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const user = req.user as any;
       let conversations: any[];
       
-      if (user.role === 'admin') {
-        // Admins can see all conversations
-        conversations = await storage.getAllConversations();
-        console.log(`Admin user ${user.name} requesting conversations, found ${conversations.length} conversations`);
-      } else if (user.role === 'agent') {
-        // Agents can see conversations assigned to them AND unassigned conversations
-        const assignedConversations = await storage.getConversationsByAgent(user.id);
-        const unassignedConversations = await storage.getUnassignedConversations();
+      if (user.role === 'admin' || user.role === 'agent') {
+        // Both admins and agents can see ALL conversations
+        // Assignment is just a category/filter, not a visibility restriction
+        const allConversations = await storage.getAllConversations();
+        console.log(`${user.role} ${user.name} requesting conversations, found ${allConversations.length} conversations`);
         
-        console.log(`Agent ${user.name} - Assigned: ${assignedConversations.length}, Unassigned: ${unassignedConversations.length}`);
-        console.log(`Unassigned conversation IDs:`, unassignedConversations.map(c => c.id));
-        
-        // Combine and mark which are assigned vs unassigned
-        conversations = [
-          ...assignedConversations.map(conv => ({ ...conv, isAssigned: true })),
-          ...unassignedConversations.map(conv => ({ ...conv, isAssigned: false }))
-        ];
+        // Mark each conversation with assignment status for filtering
+        conversations = allConversations.map(conv => ({
+          ...conv,
+          isAssigned: !!conv.assignedAgentId,
+          isAssignedToMe: conv.assignedAgentId === user.id
+        }));
       } else {
         // Customers or other roles - return empty for now
         conversations = [];
