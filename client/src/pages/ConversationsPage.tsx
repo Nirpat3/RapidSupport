@@ -285,12 +285,24 @@ export default function ConversationsPage() {
     
     return () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
+        // Send stop_typing when leaving conversation
+        ws.send(JSON.stringify({
+          type: 'user_stopped_typing',
+          conversationId: activeConversationId
+        }));
         ws.send(JSON.stringify({
           type: 'leave_conversation',
           conversationId: activeConversationId
         }));
         console.log(`[ConversationsPage] Left conversation: ${activeConversationId}`);
       }
+      
+      // Clear typing users for this conversation when leaving
+      setTypingUsers((prev) => {
+        const newMap = new Map(prev);
+        newMap.delete(activeConversationId);
+        return newMap;
+      });
     };
   }, [ws, activeConversationId]);
 
@@ -947,7 +959,7 @@ export default function ConversationsPage() {
               onTypingStart={() => {
                 if (ws && ws.readyState === WebSocket.OPEN && activeConversationId) {
                   ws.send(JSON.stringify({
-                    type: 'typing',
+                    type: 'user_typing',
                     conversationId: activeConversationId
                   }));
                 }
@@ -955,7 +967,7 @@ export default function ConversationsPage() {
               onTypingStop={() => {
                 if (ws && ws.readyState === WebSocket.OPEN && activeConversationId) {
                   ws.send(JSON.stringify({
-                    type: 'stop_typing',
+                    type: 'user_stopped_typing',
                     conversationId: activeConversationId
                   }));
                 }

@@ -1141,19 +1141,22 @@ export default function ChatInterface({
                 value={newMessage}
                 onChange={(e) => {
                   setNewMessage(e.target.value);
-                  // Handle typing indicator
-                  if (e.target.value.trim() && onTypingStart) {
-                    onTypingStart();
+                  // Handle typing indicator - only for public messages (not internal)
+                  if (!isInternalMode) {
                     // Clear previous timeout
                     if (typingTimeoutRef.current) {
                       clearTimeout(typingTimeoutRef.current);
                     }
-                    // Stop typing after 2 seconds of inactivity
-                    typingTimeoutRef.current = setTimeout(() => {
-                      onTypingStop?.();
-                    }, 2000);
-                  } else if (!e.target.value.trim() && onTypingStop) {
-                    onTypingStop();
+                    
+                    if (e.target.value.trim() && onTypingStart) {
+                      onTypingStart();
+                      // Stop typing after 2 seconds of inactivity
+                      typingTimeoutRef.current = setTimeout(() => {
+                        onTypingStop?.();
+                      }, 2000);
+                    } else if (!e.target.value.trim() && onTypingStop) {
+                      onTypingStop();
+                    }
                   }
                 }}
                 onKeyDown={(e) => {
