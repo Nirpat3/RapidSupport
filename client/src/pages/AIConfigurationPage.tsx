@@ -14,13 +14,21 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Bot, Plus, Edit, Trash2, Settings, MessageSquare, TrendingUp, ThumbsUp, Zap, AlertTriangle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Bot, Plus, Edit, Trash2, Settings, MessageSquare, TrendingUp, ThumbsUp, Zap, AlertTriangle, BookOpen, X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { z } from "zod";
 import { AiAgent, insertAiAgentSchema } from "@shared/schema";
+
+interface KnowledgeArticle {
+  id: string;
+  title: string;
+  category: string;
+  isActive: boolean;
+}
 
 // Extend the shared schema for UI-specific validation
 const aiAgentFormSchema = insertAiAgentSchema.omit({
@@ -29,7 +37,7 @@ const aiAgentFormSchema = insertAiAgentSchema.omit({
   knowledgeBaseIds: true,
 }).extend({
   specializations: z.string().optional(),
-  knowledgeBaseIds: z.string().optional(),
+  knowledgeBaseIds: z.array(z.string()).optional(),
 });
 
 type AIAgentFormData = z.infer<typeof aiAgentFormSchema>;
@@ -38,11 +46,13 @@ interface AIAgentDialogProps {
   agent?: AiAgent;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  knowledgeArticles: KnowledgeArticle[];
 }
 
-function AIAgentDialog({ agent, open, onOpenChange }: AIAgentDialogProps) {
+function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgentDialogProps) {
   const { toast } = useToast();
   const isEdit = !!agent;
+  const [articleSearchQuery, setArticleSearchQuery] = useState("");
 
   const form = useForm<AIAgentFormData>({
     resolver: zodResolver(aiAgentFormSchema),
@@ -56,9 +66,14 @@ function AIAgentDialog({ agent, open, onOpenChange }: AIAgentDialogProps) {
       maxTokens: agent?.maxTokens ?? 1000,
       responseFormat: agent?.responseFormat || "conversational",
       specializations: agent?.specializations?.join(", ") || "",
-      knowledgeBaseIds: agent?.knowledgeBaseIds?.join(", ") || "",
+      knowledgeBaseIds: agent?.knowledgeBaseIds || [],
     },
   });
+
+  const filteredArticles = knowledgeArticles.filter(article => 
+    article.title.toLowerCase().includes(articleSearchQuery.toLowerCase()) ||
+    article.category.toLowerCase().includes(articleSearchQuery.toLowerCase())
+  );
 
   const createMutation = useMutation({
     mutationFn: (data: any) => apiRequest("/api/ai/agents", "POST", data),
@@ -105,9 +120,7 @@ function AIAgentDialog({ agent, open, onOpenChange }: AIAgentDialogProps) {
       specializations: data.specializations
         ? data.specializations.split(",").map((s) => s.trim()).filter((s) => s)
         : [],
-      knowledgeBaseIds: data.knowledgeBaseIds
-        ? data.knowledgeBaseIds.split(",").map((s) => s.trim()).filter((s) => s)
-        : [],
+      knowledgeBaseIds: data.knowledgeBaseIds || [],
     };
 
     if (isEdit) {
@@ -340,16 +353,91 @@ function AIAgentDialog({ agent, open, onOpenChange }: AIAgentDialogProps) {
                   name="knowledgeBaseIds"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Knowledge Base IDs (Optional)</FormLabel>
+                      <FormLabel>Knowledge Base Articles</FormLabel>
                       <FormControl>
-                        <Input
-                          placeholder="kb1, kb2, kb3 (comma-separated)"
-                          {...field}
-                          data-testid="input-knowledge-base-ids"
-                        />
+                        <div className="space-y-3">
+                          {field.value && field.value.length > 0 && (
+                            <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/30">
+                              {field.value.map((articleId: string) => {
+                                const article = knowledgeArticles.find(a => a.id === articleId);
+                                return (
+                                  <Badge 
+                                    key={articleId} 
+                                    variant="secondary"
+                                    className="flex items-center gap-1"
+                                  >
+                                    <BookOpen className="w-3 h-3" />
+                                    <span className="max-w-[150px] truncate">
+                                      {article?.title || articleId}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const currentValue = field.value || [];
+                                        field.onChange(currentValue.filter((id: string) => id !== articleId));
+                                      }}
+                                      className="ml-1 hover:text-destructive"
+                                      data-testid={`button-remove-article-${articleId}`}
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  </Badge>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <Input
+                            placeholder="Search articles..."
+                            value={articleSearchQuery}
+                            onChange={(e) => setArticleSearchQuery(e.target.value)}
+                            data-testid="input-search-articles"
+                          />
+                          <ScrollArea className="h-[200px] border rounded-md p-2">
+                            <div className="space-y-1">
+                              {filteredArticles.length === 0 ? (
+                                <p className="text-sm text-muted-foreground p-2 text-center">
+                                  No articles found
+                                </p>
+                              ) : (
+                                filteredArticles.map((article) => {
+                                  const currentValue = field.value || [];
+                                  const isSelected = currentValue.includes(article.id);
+                                  return (
+                                    <label
+                                      key={article.id}
+                                      className={`flex items-center gap-2 p-2 rounded-md cursor-pointer hover-elevate ${
+                                        isSelected ? 'bg-primary/10' : ''
+                                      }`}
+                                      data-testid={`article-option-${article.id}`}
+                                    >
+                                      <Checkbox
+                                        checked={isSelected}
+                                        onCheckedChange={(checked) => {
+                                          if (checked) {
+                                            field.onChange([...currentValue, article.id]);
+                                          } else {
+                                            field.onChange(currentValue.filter((id: string) => id !== article.id));
+                                          }
+                                        }}
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">{article.title}</p>
+                                        <p className="text-xs text-muted-foreground">{article.category}</p>
+                                      </div>
+                                      {!article.isActive && (
+                                        <Badge variant="outline" className="text-xs">Inactive</Badge>
+                                      )}
+                                    </label>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </ScrollArea>
+                        </div>
                       </FormControl>
                       <FormDescription>
-                        Specific knowledge bases this agent can access
+                        Select which knowledge base articles this agent can access ({field.value?.length || 0} selected)
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -389,6 +477,10 @@ export default function AIConfigurationPage() {
 
   const { data: agents = [], isLoading } = useQuery<AiAgent[]>({
     queryKey: ["/api/ai/agents"],
+  });
+
+  const { data: knowledgeArticles = [] } = useQuery<KnowledgeArticle[]>({
+    queryKey: ["/api/knowledge-base"],
   });
 
   const deleteMutation = useMutation({
@@ -547,7 +639,7 @@ export default function AIConfigurationPage() {
                           </p>
                         )}
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Temperature</span>
                             <p className="font-medium">{agent.temperature}</p>
@@ -563,6 +655,15 @@ export default function AIConfigurationPage() {
                           <div>
                             <span className="text-muted-foreground">Success Rate</span>
                             <p className="font-medium">{mockSuccessRate}%</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground flex items-center gap-1">
+                              <BookOpen className="w-3 h-3" />
+                              KB Articles
+                            </span>
+                            <p className="font-medium" data-testid={`agent-kb-count-${agent.id}`}>
+                              {agent.knowledgeBaseIds?.length || 0}
+                            </p>
                           </div>
                         </div>
 
@@ -628,6 +729,7 @@ export default function AIConfigurationPage() {
         agent={selectedAgent}
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
+        knowledgeArticles={knowledgeArticles}
       />
     </div>
   );
