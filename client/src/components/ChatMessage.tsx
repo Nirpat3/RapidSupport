@@ -30,41 +30,61 @@ interface ChatMessageProps {
   viewerRole?: 'customer' | 'agent' | 'admin'; // Role of the person viewing the message
 }
 
-// Helper function to convert URLs, markdown links, and bold text to formatted elements
+// Helper function to convert URLs, markdown links, images, and bold text to formatted elements
 export function linkifyText(text: string) {
   const elements: (string | JSX.Element)[] = [];
   let lastIndex = 0;
   
-  // Match markdown links: [text](url), bold text: **text**, and plain URLs
-  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  // Match markdown images first: ![alt](url), then markdown links: [text](url)
+  // Combined pattern to handle both in order of appearance
+  const markdownPattern = /(!?)\[([^\]]+)\]\(([^)]+)\)/g;
   
-  // First, handle markdown links
+  // Handle markdown images and links
   let match;
   
-  while ((match = markdownLinkRegex.exec(text)) !== null) {
-    const [fullMatch, linkText, linkUrl] = match;
+  while ((match = markdownPattern.exec(text)) !== null) {
+    const [fullMatch, isImage, altOrLinkText, url] = match;
     const matchStart = match.index;
     const matchEnd = matchStart + fullMatch.length;
     
-    // Add text before this link (with bold and URLs)
+    // Add text before this match (with bold and URLs)
     if (matchStart > lastIndex) {
       const beforeText = text.substring(lastIndex, matchStart);
       elements.push(...processTextWithFormats(beforeText, elements.length));
     }
     
-    // Add the markdown link
-    elements.push(
-      <a
-        key={`md-${elements.length}`}
-        href={linkUrl}
-        target={linkUrl.startsWith('/') ? undefined : '_blank'}
-        rel={linkUrl.startsWith('/') ? undefined : 'noopener noreferrer'}
-        className="text-primary underline hover:text-primary/80 transition-colors font-medium"
-        data-testid="markdown-link"
-      >
-        {linkText}
-      </a>
-    );
+    if (isImage === '!') {
+      // Render as an image
+      elements.push(
+        <div key={`img-${elements.length}`} className="my-3">
+          <img
+            src={url}
+            alt={altOrLinkText}
+            className="max-w-full h-auto rounded-lg border border-border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            style={{ maxHeight: '300px', objectFit: 'contain' }}
+            onClick={() => window.open(url, '_blank')}
+            data-testid="markdown-image"
+          />
+          {altOrLinkText && altOrLinkText !== 'Image' && (
+            <p className="text-xs text-muted-foreground mt-1 italic">{altOrLinkText}</p>
+          )}
+        </div>
+      );
+    } else {
+      // Render as a link
+      elements.push(
+        <a
+          key={`md-${elements.length}`}
+          href={url}
+          target={url.startsWith('/') ? undefined : '_blank'}
+          rel={url.startsWith('/') ? undefined : 'noopener noreferrer'}
+          className="text-primary underline hover:text-primary/80 transition-colors font-medium"
+          data-testid="markdown-link"
+        >
+          {altOrLinkText}
+        </a>
+      );
+    }
     
     lastIndex = matchEnd;
   }
