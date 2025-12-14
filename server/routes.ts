@@ -851,6 +851,22 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(403).json({ error: 'Access denied' });
       }
 
+      // Update customerLastViewedAt for read receipt tracking (async, don't block response)
+      storage.updateConversation(conversationId, {
+        customerLastViewedAt: new Date(),
+      }).catch(err => console.error('Failed to update customerLastViewedAt:', err));
+
+      // Broadcast read receipt to staff via WebSocket
+      const wsServer = (app as any).wsServer;
+      if (wsServer && wsServer.broadcastToStaff) {
+        wsServer.broadcastToStaff({
+          type: 'customer_read_receipt',
+          conversationId,
+          customerId,
+          viewedAt: new Date().toISOString(),
+        });
+      }
+
       // Get messages
       const messages = await storage.getMessagesByConversation(conversationId);
 
@@ -860,6 +876,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         status: conversation.status,
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,
+        customerLastViewedAt: conversation.customerLastViewedAt,
         messages: messages.map(msg => ({
           id: msg.id,
           content: msg.content,
@@ -872,6 +889,53 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Get portal conversation error:', error);
       res.status(500).json({ error: 'Failed to get conversation' });
+    }
+  });
+
+  // Mark conversation as read by customer (explicit read receipt)
+  app.post('/api/customer-portal/conversation/:conversationId/read', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const { conversationId } = req.params;
+
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      // Verify customer owns this conversation
+      if (conversation.customerId !== customerId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const viewedAt = new Date();
+      
+      // Update customerLastViewedAt
+      await storage.updateConversation(conversationId, {
+        customerLastViewedAt: viewedAt,
+      });
+
+      // Broadcast read receipt to staff via WebSocket
+      const wsServer = (app as any).wsServer;
+      if (wsServer && wsServer.broadcastToStaff) {
+        wsServer.broadcastToStaff({
+          type: 'customer_read_receipt',
+          conversationId,
+          customerId,
+          viewedAt: viewedAt.toISOString(),
+        });
+      }
+
+      res.json({ success: true, viewedAt: viewedAt.toISOString() });
+    } catch (error) {
+      console.error('Mark conversation as read error:', error);
+      res.status(500).json({ error: 'Failed to mark conversation as read' });
     }
   });
 

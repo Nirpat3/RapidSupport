@@ -133,6 +133,12 @@ export const conversations = pgTable("conversations", {
   aiAssistanceEnabled: boolean("ai_assistance_enabled").notNull().default(true), // Toggle AI auto-response
   contextData: text("context_data"), // JSON string for custom context from 3rd party integrations (product info, page context, etc.)
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
+  // Customer engagement tracking fields
+  lastCustomerReplyAt: timestamp("last_customer_reply_at"), // Last time customer sent a message
+  lastAgentReplyAt: timestamp("last_agent_reply_at"), // Last time agent/AI sent a message
+  customerLastViewedAt: timestamp("customer_last_viewed_at"), // Last time customer viewed conversation
+  autoFollowupSentAt: timestamp("auto_followup_sent_at"), // Last time auto-followup was sent
+  autoFollowupCount: integer("auto_followup_count").notNull().default(0), // Number of auto-followups sent
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -282,6 +288,46 @@ export const activityNotifications = pgTable("activity_notifications", {
   isRead: boolean("is_read").notNull().default(false),
   readAt: timestamp("read_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Email Queue table - smart batching for customer email notifications (prevents spam)
+export const emailQueue = pgTable("email_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  recipientEmail: text("recipient_email").notNull(),
+  recipientType: text("recipient_type").notNull(), // 'customer' | 'agent'
+  recipientId: varchar("recipient_id").notNull(), // customer_id or user_id
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
+  emailType: text("email_type").notNull(), // 'new_message' | 'followup' | 'digest' | 'conversation_closed'
+  subject: text("subject").notNull(),
+  content: text("content").notNull(), // HTML email content
+  messageIds: text("message_ids").array(), // IDs of messages included in this email (for batching)
+  scheduledFor: timestamp("scheduled_for").notNull(), // When to send this email
+  sentAt: timestamp("sent_at"), // When actually sent (null = pending)
+  status: text("status").notNull().default("pending"), // 'pending' | 'sent' | 'failed' | 'cancelled'
+  errorMessage: text("error_message"), // Error message if failed
+  attempts: integer("attempts").notNull().default(0), // Number of send attempts
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Customer Engagement Settings table - configurable settings for auto-followup and email notifications
+export const engagementSettings = pgTable("engagement_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  // Email notification settings
+  emailNotificationsEnabled: boolean("email_notifications_enabled").notNull().default(true),
+  emailBatchingDelayMinutes: integer("email_batching_delay_minutes").notNull().default(5), // Wait X min before sending
+  emailRateLimitHours: integer("email_rate_limit_hours").notNull().default(4), // Max 1 email per X hours per conversation
+  // Auto-followup settings
+  autoFollowupEnabled: boolean("auto_followup_enabled").notNull().default(true),
+  autoFollowupDelayHours: integer("auto_followup_delay_hours").notNull().default(24), // Send followup after X hours of inactivity
+  maxAutoFollowups: integer("max_auto_followups").notNull().default(3), // Max number of followups before giving up
+  // Auto-close settings
+  autoCloseEnabled: boolean("auto_close_enabled").notNull().default(true),
+  autoCloseDays: integer("auto_close_days").notNull().default(7), // Auto-close after X days of inactivity
+  // Templates
+  followupMessageTemplate: text("followup_message_template").default("Hi! Just checking in to see if you still need help with this. Please let us know if there's anything else we can assist you with."),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // AI Agents table - for configuring different AI assistant personalities and capabilities
@@ -1613,3 +1659,26 @@ export const insertMessageRatingSchema = createInsertSchema(messageRatings).omit
 
 export type InsertMessageRating = z.infer<typeof insertMessageRatingSchema>;
 export type MessageRating = typeof messageRatings.$inferSelect;
+
+// Email Queue insert schema and types
+export const insertEmailQueueSchema = createInsertSchema(emailQueue).omit({
+  id: true,
+  sentAt: true,
+  createdAt: true,
+});
+
+export type InsertEmailQueue = z.infer<typeof insertEmailQueueSchema>;
+export type EmailQueue = typeof emailQueue.$inferSelect;
+
+// Engagement Settings insert schema and types
+export const insertEngagementSettingsSchema = createInsertSchema(engagementSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateEngagementSettingsSchema = insertEngagementSettingsSchema.partial();
+
+export type InsertEngagementSettings = z.infer<typeof insertEngagementSettingsSchema>;
+export type UpdateEngagementSettings = z.infer<typeof updateEngagementSettingsSchema>;
+export type EngagementSettings = typeof engagementSettings.$inferSelect;
