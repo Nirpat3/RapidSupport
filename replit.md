@@ -4,6 +4,16 @@
 Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
 
 ## Recent Changes (Dec 14, 2025)
+- **Real-time Customer Portal Chat**:
+  - Replaced 5-second polling with WebSocket for instant message updates
+  - Added typing indicators (see when agents are typing)
+  - Live connection status indicator (shows "Live" when connected)
+  - WebSocket server now authenticates both staff and customer sessions
+- **DDoS/Spam Protection**:
+  - Global API rate limiter: 200 requests/minute per IP
+  - Message rate limiter: 30 messages/minute per IP
+  - Conversation creation limiter: 10 new conversations/hour per IP
+  - Applied to customer portal and anonymous chat endpoints
 - **Customer Portal Enhancements**:
   - Agent assignment status now displayed in conversations list (shows agent name or "Awaiting agent")
   - Priority badges (Urgent/High/Medium) shown on conversations
