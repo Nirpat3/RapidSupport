@@ -752,6 +752,32 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Customer portal unread message counts per conversation
+  app.get('/api/customer-portal/unread-counts', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      // Get unread counts using the existing storage method
+      const unreadCounts = await storage.getUnreadMessageCountsPerConversation(customerId);
+      
+      // Calculate total unread count
+      const totalUnread = unreadCounts.reduce((sum, item) => sum + item.unreadCount, 0);
+      
+      res.json({
+        totalUnread,
+        perConversation: unreadCounts,
+      });
+    } catch (error) {
+      console.error('Get customer portal unread counts error:', error);
+      res.status(500).json({ error: 'Failed to get unread counts' });
+    }
+  });
+
   // Customer portal all conversations
   app.get('/api/customer-portal/conversations', async (req, res) => {
     try {
@@ -978,6 +1004,20 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         customerLastViewedAt: viewedAt,
       });
 
+      // Mark all messages in this conversation as read for the customer
+      await storage.markAllConversationMessagesAsRead(conversationId, customerId);
+
+      // Get customer info for activity log
+      const customer = await storage.getCustomer(customerId);
+      const customerName = customer?.name || 'Customer';
+
+      // Create activity log entry for audit trail
+      await storage.createActivityLog({
+        conversationId,
+        action: 'customer_viewed',
+        details: `${customerName} viewed conversation at ${viewedAt.toISOString()}`,
+      });
+
       // Broadcast read receipt to staff via WebSocket
       const wsServer = (app as any).wsServer;
       if (wsServer && wsServer.broadcastToStaff) {
@@ -985,6 +1025,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           type: 'customer_read_receipt',
           conversationId,
           customerId,
+          customerName,
           viewedAt: viewedAt.toISOString(),
         });
       }
