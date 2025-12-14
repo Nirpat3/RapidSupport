@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip, Sparkles, Check, CreditCard, DollarSign, Wrench, HelpCircle, ArrowLeft, Bot, Loader2 } from "lucide-react";
+import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip, Sparkles, Check, CreditCard, DollarSign, Wrench, HelpCircle, ArrowLeft, Bot, Loader2, Wifi, WifiOff } from "lucide-react";
 import { CustomerInfoForm } from "./CustomerInfoForm";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageAttachments, type MessageAttachment } from "./MessageAttachments";
@@ -252,6 +252,13 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [aiTypingTimeout, setAiTypingTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
 
+  // WebSocket states for real-time updates
+  const [wsConnected, setWsConnected] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<{userId: string; userName: string}[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // IP address will be determined server-side for security
   const getClientIP = async (): Promise<string> => {
     // Server will determine IP address from request
@@ -288,7 +295,8 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
   const { data: messages = [], refetch: refetchMessages } = useQuery<ChatMessage[]>({
     queryKey: ['/api/customer-chat/messages', chatState.conversationId],
     enabled: !!chatState.conversationId && chatState.isOpen,
-    refetchInterval: chatState.isOpen ? 5000 : false, // Only poll when widget is open, every 5 seconds
+    // Only poll when widget is open AND WebSocket is not connected (fallback)
+    refetchInterval: chatState.isOpen && !wsConnected ? 5000 : false,
   });
 
   // Create customer and conversation
@@ -448,6 +456,153 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
       }
     };
   }, [aiTypingTimeout]);
+
+  // WebSocket connection for real-time updates (anonymous chat)
+  useEffect(() => {
+    // Only connect when we have an active conversation with customer credentials
+    if (!chatState.conversationId || !chatState.customerId || !chatState.sessionId || !chatState.isOpen) {
+      return;
+    }
+
+    const connectWebSocket = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      // Pass customerId and sessionId as query params for anonymous auth
+      const wsUrl = `${protocol}//${window.location.host}/ws/chat?customerId=${chatState.customerId}&sessionId=${chatState.sessionId}`;
+      
+      console.log('[CustomerChatWidget] Connecting to WebSocket:', wsUrl);
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('[CustomerChatWidget] WebSocket connected');
+        setWsConnected(true);
+        
+        // Join the conversation
+        ws.send(JSON.stringify({
+          type: 'join_conversation',
+          conversationId: chatState.conversationId
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('[CustomerChatWidget] WebSocket message:', data.type);
+          
+          switch (data.type) {
+            case 'new_message':
+              // Refetch messages when we get a new message for our conversation
+              if (data.conversationId === chatState.conversationId) {
+                refetchMessages();
+              }
+              break;
+            
+            case 'user_typing':
+              if (data.conversationId === chatState.conversationId && data.userId && data.userName) {
+                setTypingUsers(prev => {
+                  if (!prev.find(u => u.userId === data.userId)) {
+                    return [...prev, { userId: data.userId!, userName: data.userName! }];
+                  }
+                  return prev;
+                });
+              }
+              break;
+            
+            case 'user_stopped_typing':
+              if (data.userId) {
+                setTypingUsers(prev => prev.filter(u => u.userId !== data.userId));
+              }
+              break;
+            
+            case 'conversation_update':
+              if (data.conversationId === chatState.conversationId) {
+                refetchMessages();
+              }
+              break;
+            
+            case 'ai_stream_complete':
+              if (data.conversationId === chatState.conversationId) {
+                refetchMessages();
+              }
+              break;
+          }
+        } catch (error) {
+          console.error('[CustomerChatWidget] Error parsing WebSocket message:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('[CustomerChatWidget] WebSocket disconnected');
+        setWsConnected(false);
+        wsRef.current = null;
+        
+        // Attempt to reconnect after 3 seconds if still active
+        if (chatState.isOpen && chatState.conversationId) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connectWebSocket();
+          }, 3000);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('[CustomerChatWidget] WebSocket error:', error);
+      };
+    };
+
+    connectWebSocket();
+
+    return () => {
+      // Send stop_typing before leaving
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'stop_typing',
+          conversationId: chatState.conversationId
+        }));
+        wsRef.current.send(JSON.stringify({
+          type: 'leave_conversation',
+          conversationId: chatState.conversationId
+        }));
+        wsRef.current.close();
+      }
+      wsRef.current = null;
+      setWsConnected(false);
+      setTypingUsers([]);
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    };
+  }, [chatState.conversationId, chatState.customerId, chatState.sessionId, chatState.isOpen, refetchMessages]);
+
+  // Send typing indicator via WebSocket
+  const sendTypingIndicator = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && chatState.conversationId) {
+      wsRef.current.send(JSON.stringify({
+        type: 'typing',
+        conversationId: chatState.conversationId
+      }));
+      
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Stop typing after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'stop_typing',
+            conversationId: chatState.conversationId
+          }));
+        }
+      }, 2000);
+    }
+  }, [chatState.conversationId]);
 
   const handleOpenChat = () => {
     setChatState(prev => ({ ...prev, isOpen: true }));
@@ -612,10 +767,25 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
     )} data-testid="widget-chat">
       
       {/* Header */}
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 bg-primary text-primary-foreground rounded-t-lg">
-        <CardTitle className="text-sm font-medium" data-testid="title-chat-header">
-          Customer Support
-        </CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-2 pb-2 bg-primary text-primary-foreground rounded-t-lg">
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-sm font-medium" data-testid="title-chat-header">
+            Customer Support
+          </CardTitle>
+          {chatState.conversationId && (
+            <Badge 
+              variant="secondary" 
+              className={cn(
+                "text-xs gap-1",
+                wsConnected ? "bg-green-500/20 text-green-100" : "bg-yellow-500/20 text-yellow-100"
+              )}
+              data-testid="status-connection"
+            >
+              {wsConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+              {wsConnected ? "Live" : "Connecting..."}
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
@@ -765,6 +935,24 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
                     </div>
                   ))}
                   
+                  {/* Agent Typing Indicators (from WebSocket) */}
+                  {typingUsers.length > 0 && (
+                    <div className="flex justify-start" data-testid="agent-typing-indicator">
+                      <div className="max-w-[80%] rounded-lg px-3 py-2 text-sm bg-muted">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">
+                            {typingUsers.map(u => u.userName).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing
+                          </span>
+                          <div className="flex gap-1">
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                            <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* AI Typing Indicator */}
                   {isAiResponding && (
                     <div className="flex justify-start" data-testid="ai-typing-indicator">
@@ -943,7 +1131,10 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
 
                   <Input
                     value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
+                    onChange={(e) => {
+                      setMessageInput(e.target.value);
+                      sendTypingIndicator();
+                    }}
                     onKeyPress={handleKeyPress}
                     placeholder="Type your message..."
                     disabled={sendMessageMutation.isPending}
