@@ -12,7 +12,7 @@ interface AuthenticatedWebSocket extends WebSocket {
 }
 
 interface WebSocketMessage {
-  type: 'join_conversation' | 'leave_conversation' | 'new_message' | 'internal_message' | 'typing' | 'stop_typing' | 'user_online' | 'user_offline' | 'new_conversation' | 'unread_count_update';
+  type: 'join_conversation' | 'leave_conversation' | 'new_message' | 'internal_message' | 'typing' | 'stop_typing' | 'user_typing' | 'user_stopped_typing' | 'user_online' | 'user_offline' | 'new_conversation' | 'unread_count_update';
   conversationId?: string;
   messageId?: string;
   content?: string;
@@ -265,10 +265,12 @@ class ChatWebSocketServer {
         break;
       
       case 'typing':
+      case 'user_typing':
         this.handleTyping(ws, message.conversationId!, true);
         break;
       
       case 'stop_typing':
+      case 'user_stopped_typing':
         this.handleTyping(ws, message.conversationId!, false);
         break;
       
