@@ -191,9 +191,9 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
   });
 
   return (
-    <Sidebar className="border-r-0 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.15)]">
-      <SidebarHeader className="border-b border-sidebar-border/30">
-        <div className="flex items-center gap-3 px-4 py-5 mx-2 mt-2 rounded-xl glass-subtle">
+    <Sidebar className="border-r border-sidebar-border/50">
+      <SidebarHeader className="border-b border-sidebar-border/50">
+        <div className="flex items-center gap-3 px-4 py-5">
           <div className="relative">
             <div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center shadow-lg">
               <Sparkles className="w-5 h-5 text-white" />
@@ -224,7 +224,7 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
                   <SidebarMenuButton 
                     asChild
                     isActive={location === item.url}
-                    className="group relative transition-smooth rounded-lg data-[state=active]:bg-sidebar-primary/15 data-[state=active]:text-sidebar-primary"
+                    className="group relative transition-smooth rounded-lg data-[state=active]:bg-sidebar-accent data-[state=active]:text-sidebar-primary"
                     data-testid={`nav-${item.title.toLowerCase().replace(/ /g, '-')}`}
                   >
                     <Link href={item.url}>
@@ -257,7 +257,7 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
                   <SidebarMenuButton 
                     asChild
                     isActive={location === item.url}
-                    className="group relative transition-smooth rounded-lg data-[state=active]:bg-sidebar-primary/15 data-[state=active]:text-sidebar-primary"
+                    className="group relative transition-smooth rounded-lg data-[state=active]:bg-sidebar-accent data-[state=active]:text-sidebar-primary"
                     data-testid={`support-${item.title.toLowerCase().replace(' ', '-')}`}
                   >
                     <Link href={item.url}>
@@ -274,15 +274,15 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
       
       <SidebarFooter className="border-t border-sidebar-border/30 p-3">
         <div className="space-y-3">
-          <div className="flex items-center gap-3 p-3 rounded-xl glass-subtle">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent/50 border border-sidebar-border/50">
             <div className="relative">
-              <Avatar className="w-9 h-9 ring-2 ring-sidebar-primary/30 ring-offset-2 ring-offset-sidebar">
+              <Avatar className="w-9 h-9 ring-2 ring-sidebar-primary/20 ring-offset-2 ring-offset-sidebar">
                 <AvatarImage src={user.avatar} />
                 <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-medium">
                   {user.name.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-sidebar pulse-glow" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-sidebar" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-sidebar-foreground truncate" data-testid="user-name">
@@ -291,7 +291,7 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
               <div className="flex items-center gap-2 mt-0.5">
                 <Badge 
                   variant="secondary" 
-                  className="text-xs capitalize bg-sidebar-primary/20 text-sidebar-primary border-0 px-2 py-0"
+                  className="text-xs capitalize bg-sidebar-primary/10 text-sidebar-primary border-0 px-2 py-0"
                   data-testid="user-role"
                 >
                   {user.role}
