@@ -31,6 +31,7 @@ import {
   CheckCircle,
   AlertCircle,
   User,
+  Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,6 +57,9 @@ interface Conversation {
   assignedAgentId?: string;
   createdAt: string;
   updatedAt: string;
+  customerLastViewedAt?: string;
+  lastAgentReplyAt?: string;
+  autoFollowupCount?: number;
 }
 
 const statusIcons = {
@@ -774,6 +778,25 @@ export default function ConversationsPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Customer Read Receipt Indicator */}
+                {activeConversation.customerLastViewedAt && (
+                  <div 
+                    className="flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded-md"
+                    title={`Customer viewed: ${new Date(activeConversation.customerLastViewedAt).toLocaleString()}`}
+                    data-testid="indicator-customer-read-receipt"
+                  >
+                    <Eye className="w-3 h-3 text-accent" />
+                    <span>Viewed {formatDistanceToNow(new Date(activeConversation.customerLastViewedAt), { addSuffix: true })}</span>
+                  </div>
+                )}
+
+                {/* Auto Follow-up Count */}
+                {(activeConversation.autoFollowupCount ?? 0) > 0 && (
+                  <Badge variant="outline" className="text-xs" data-testid="badge-followup-count">
+                    {activeConversation.autoFollowupCount} follow-up{(activeConversation.autoFollowupCount ?? 0) > 1 ? 's' : ''} sent
+                  </Badge>
+                )}
+
                 {/* Status Selector */}
                 <Select
                   value={activeConversation.status}
