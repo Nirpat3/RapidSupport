@@ -86,6 +86,25 @@ export default function CustomerPortalChat() {
     enabled: !!conversationId,
   });
 
+  // Mark conversation as read when viewing it
+  const markAsReadMutation = useMutation({
+    mutationFn: async (convId: string) => {
+      return apiRequest(`/api/customer-portal/conversation/${convId}/read`, 'POST');
+    },
+    onSuccess: () => {
+      // Invalidate unread counts to update notification badge
+      queryClient.invalidateQueries({ queryKey: ['/api/customer-portal/unread-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/customer-portal/conversations'] });
+    },
+  });
+
+  // Mark as read when conversation is loaded
+  useEffect(() => {
+    if (conversationId && conversation) {
+      markAsReadMutation.mutate(conversationId);
+    }
+  }, [conversationId, conversation?.id]);
+
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);

@@ -790,6 +790,10 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       const conversations = await storage.getConversationsByCustomer(customerId);
       
+      // Get unread counts for all customer conversations
+      const unreadCounts = await storage.getUnreadMessageCountsPerConversation(customerId);
+      const unreadMap = new Map(unreadCounts.map(u => [u.conversationId, u.unreadCount]));
+      
       // Map all conversations - sort by priority first (urgent > high > medium > low), then by date
       const priorityOrder: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
       
@@ -805,7 +809,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       const allConversations = conversations
         .sort((a, b) => {
-          // First sort by priority
+          // First sort by unread (conversations with unread messages first)
+          const aUnread = unreadMap.get(a.id) || 0;
+          const bUnread = unreadMap.get(b.id) || 0;
+          if (aUnread > 0 && bUnread === 0) return -1;
+          if (bUnread > 0 && aUnread === 0) return 1;
+          // Then by priority
           const aPriority = priorityOrder[a.priority || 'low'] ?? 3;
           const bPriority = priorityOrder[b.priority || 'low'] ?? 3;
           if (aPriority !== bPriority) return aPriority - bPriority;
@@ -819,7 +828,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           priority: conv.priority || 'low',
           createdAt: conv.createdAt,
           updatedAt: conv.updatedAt,
-          unreadCount: 0, // Can implement unread tracking later
+          unreadCount: unreadMap.get(conv.id) || 0,
           assignedAgentId: conv.assignedAgentId || null,
           assignedAgentName: conv.assignedAgentId ? agentMap.get(conv.assignedAgentId)?.name || 'Support Agent' : null,
         }));
