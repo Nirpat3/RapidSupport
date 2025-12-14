@@ -1060,7 +1060,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
 
       // Broadcast new_message event so agent conversation view refreshes
+      // Get all staff user IDs to ensure they receive the message
       if (wsServer && wsServer.broadcastNewMessage) {
+        const allStaff = await storage.getAllUsers();
+        const staffUserIds = allStaff.map((u: any) => u.id);
+        
         wsServer.broadcastNewMessage(conversationId, {
           messageId: message.id,
           conversationId: conversationId,
@@ -1071,8 +1075,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           senderType: 'customer',
           timestamp: message.createdAt || new Date().toISOString(),
           status: message.status
-        });
-        console.log(`[portal-chat] Broadcast new_message event for customer message: ${message.id}`);
+        }, staffUserIds);
+        console.log(`[portal-chat] Broadcast new_message event for customer message: ${message.id} to ${staffUserIds.length} staff`);
       }
 
       // Trigger AI response asynchronously (don't block the response)
@@ -1104,7 +1108,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             });
             console.log(`[portal-chat] AI response created: ${aiMessage.id}`);
             
-            // Broadcast AI message via WebSocket
+            // Broadcast AI message via WebSocket - include customerId to ensure delivery
             if (wsServer && wsServer.broadcastNewMessage) {
               wsServer.broadcastNewMessage(conversationId, {
                 messageId: aiMessage.id,
@@ -1116,7 +1120,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
                 senderType: aiMessage.senderType,
                 timestamp: aiMessage.createdAt || aiMessageCreatedAt,
                 status: aiMessage.status
-              });
+              }, [customerId]);
             }
           }
         } catch (aiError) {
@@ -2711,6 +2715,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Broadcast the new message to WebSocket clients
       const wsServer = (req.app as any).wsServer;
       if (wsServer) {
+        // Include customerId as target to ensure delivery even if customer hasn't "joined" conversation
+        const targetUserIds = conversation.customerId ? [conversation.customerId] : [];
         wsServer.broadcastNewMessage(conversationId, {
           messageId: message.id,
           conversationId: message.conversationId,
@@ -2721,7 +2727,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           senderType: message.senderType,
           timestamp: message.timestamp,
           status: message.status
-        });
+        }, targetUserIds);
         
         // Broadcast unread count updates to affected users
         // Customer now has an unread message from the agent

@@ -402,11 +402,35 @@ class ChatWebSocketServer {
   }
 
   // Public method to broadcast new messages from HTTP API
-  public broadcastNewMessage(conversationId: string, messageData: any) {
-    this.broadcastToConversation(conversationId, {
+  // Now also accepts optional targetUserIds to ensure delivery even if user hasn't joined conversation
+  public broadcastNewMessage(conversationId: string, messageData: any, targetUserIds?: string[]) {
+    const message = {
       type: 'new_message',
       ...messageData
-    });
+    };
+    
+    // Broadcast to users who have joined this conversation
+    this.broadcastToConversation(conversationId, message);
+    
+    // Also send directly to target users who might be connected but not yet "joined"
+    if (targetUserIds && targetUserIds.length > 0) {
+      const conversationUsers = this.conversationConnections.get(conversationId) || new Set();
+      
+      targetUserIds.forEach(userId => {
+        // Only send if they haven't already received it via conversation broadcast
+        if (!conversationUsers.has(userId)) {
+          const userConnections = this.connections.get(userId);
+          if (userConnections) {
+            userConnections.forEach(ws => {
+              if (ws.readyState === WebSocket.OPEN) {
+                console.log(`[WS] Direct send to user ${ws.userName} (${userId}) for conversation ${conversationId}`);
+                ws.send(JSON.stringify(message));
+              }
+            });
+          }
+        }
+      });
+    }
   }
 
   // Public method to broadcast internal messages only to staff members

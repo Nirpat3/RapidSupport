@@ -4,6 +4,12 @@
 Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
 
 ## Recent Changes (Dec 14, 2025)
+- **WebSocket Real-Time Messaging Fix**:
+  - Fixed issue where messages weren't delivered instantly between customer portal and agent
+  - Enhanced `broadcastNewMessage` method to accept targetUserIds for direct delivery
+  - Agent messages now reliably reach customer portal users in real-time
+  - Customer portal messages now reliably reach agents in real-time
+  - No manual refresh needed - messages appear instantly on both sides
 - **AI Settings Controls**:
   - New "AI Settings" section on the Settings page (/settings)
   - Global AI toggle: Master switch to enable/disable all AI auto-responses
