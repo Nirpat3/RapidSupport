@@ -164,28 +164,36 @@ function AuthenticatedApp() {
   return (
     <NotificationProvider>
       <SidebarProvider style={style as React.CSSProperties}>
-        <div className="flex h-screen w-full max-w-full">
+        <div className="flex h-screen w-full max-w-full bg-background">
           <AppSidebar />
           <div className="flex flex-col flex-1 min-w-0">
-            <header className="flex items-center justify-between p-2 sm:p-4 border-b border-border bg-card min-w-0">
-              <div className="flex items-center gap-1 sm:gap-4 min-w-0 flex-1">
+            <header className="flex items-center justify-between p-2 sm:p-4 border-b border-border/50 glass-subtle min-w-0 sticky top-0 z-20">
+              <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
                 <SidebarTrigger data-testid="button-sidebar-toggle" className="flex-shrink-0" />
-                <div className="h-6 w-px bg-border hidden sm:block" />
-                <h2 className="font-semibold text-sm sm:text-lg truncate" data-testid="page-header">
-                  Support Board
-                </h2>
+                <div className="h-5 w-px bg-border/50 hidden sm:block" />
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">SB</span>
+                  </div>
+                  <h2 className="font-semibold text-sm sm:text-lg truncate hidden sm:block" data-testid="page-header">
+                    Support Board
+                  </h2>
+                </div>
               </div>
-              <div className="flex items-center gap-1 min-w-0 flex-shrink-0">
-                <span className="text-xs text-muted-foreground truncate hidden lg:block max-w-32" data-testid="text-user-name">
-                  {user?.name} ({user?.role})
-                </span>
-                <span className="text-xs text-muted-foreground truncate lg:hidden max-w-20" data-testid="text-user-name-short">
+              <div className="flex items-center gap-2 min-w-0 flex-shrink-0">
+                <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs text-muted-foreground truncate max-w-32" data-testid="text-user-name">
+                    {user?.name}
+                  </span>
+                </div>
+                <span className="text-xs text-muted-foreground truncate lg:hidden max-w-20 px-2" data-testid="text-user-name-short">
                   {user?.name?.split(' ')[0]}
                 </span>
                 <ThemeToggle />
                 <button 
                   onClick={logout}
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors px-1 ml-1"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/50"
                   data-testid="button-logout"
                 >
                   <span className="hidden sm:inline">Logout</span>
