@@ -71,17 +71,17 @@ const statusIcons = {
 };
 
 const statusColors = {
-  open: "text-primary",
-  pending: "text-highlight",
-  resolved: "text-accent",
+  open: "text-blue-500 dark:text-blue-400",
+  pending: "text-amber-500 dark:text-amber-400",
+  resolved: "text-emerald-500 dark:text-emerald-400",
   closed: "text-muted-foreground",
 };
 
 const priorityColors = {
-  low: "bg-primary/60",
-  medium: "bg-highlight/80",
-  high: "bg-highlight",
-  urgent: "bg-destructive",
+  low: "bg-slate-300 dark:bg-slate-600",
+  medium: "bg-amber-300 dark:bg-amber-500",
+  high: "bg-orange-400 dark:bg-orange-500",
+  urgent: "bg-rose-400 dark:bg-rose-500",
 };
 
 export default function ConversationsPage() {
@@ -611,10 +611,10 @@ export default function ConversationsPage() {
         ${showMobileList ? 'flex' : 'hidden md:flex'}
       `}>
         {/* Header */}
-        <div className="p-4 border-b flex-shrink-0 bg-gradient-to-b from-primary/5 to-transparent">
+        <div className="p-4 border-b flex-shrink-0 bg-gradient-to-b from-slate-100/50 dark:from-slate-800/30 to-transparent">
           <div className="flex items-center gap-2 mb-3">
-            <div className="p-1.5 rounded-lg bg-primary/10">
-              <MessageSquare className="w-5 h-5 text-primary" />
+            <div className="p-1.5 rounded-lg bg-slate-200/60 dark:bg-slate-700/50">
+              <MessageSquare className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             </div>
             <h1 className="text-lg font-semibold" data-testid="page-title">Conversations</h1>
           </div>
@@ -686,8 +686,8 @@ export default function ConversationsPage() {
 
           {/* Bulk Action Bar */}
           {selectedConversationIds.size > 0 && (
-            <div className="mt-3 p-2 bg-accent/10 rounded-lg flex items-center justify-between gap-2">
-              <div className="text-sm font-medium text-accent">
+            <div className="mt-3 p-2 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-between gap-2">
+              <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 {selectedConversationIds.size} selected
               </div>
               <div className="flex gap-1">
@@ -736,7 +736,7 @@ export default function ConversationsPage() {
                   <div
                     key={conversation.id}
                     className={`flex items-start gap-2 mb-1 p-2 rounded-lg transition-colors ${
-                      isSelected ? 'bg-primary/10' : ''
+                      isSelected ? 'bg-slate-100 dark:bg-slate-800' : ''
                     }`}
                   >
                     {/* Checkbox */}
@@ -750,11 +750,11 @@ export default function ConversationsPage() {
                     >
                       <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
                         isSelected 
-                          ? 'bg-primary border-primary' 
-                          : 'border-muted-foreground hover:border-primary'
+                          ? 'bg-slate-600 dark:bg-slate-400 border-slate-600 dark:border-slate-400' 
+                          : 'border-slate-400 dark:border-slate-500 hover:border-slate-600 dark:hover:border-slate-400'
                       }`}>
                         {isSelected && (
-                          <CheckCircle className="w-3 h-3 text-primary-foreground" />
+                          <CheckCircle className="w-3 h-3 text-white dark:text-slate-900" />
                         )}
                       </div>
                     </button>
@@ -764,7 +764,7 @@ export default function ConversationsPage() {
                       variant={isActive ? "secondary" : "ghost"}
                       className={`
                         flex-1 p-3 h-auto justify-start hover-elevate
-                        ${unreadCount > 0 ? 'bg-accent/50' : ''}
+                        ${unreadCount > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
                       `}
                       onClick={() => handleSelectConversation(conversation.id)}
                       data-testid={`conversation-${conversation.id}`}
@@ -918,7 +918,7 @@ export default function ConversationsPage() {
                             title={agent.name}
                             data-testid={`avatar-agent-${agentId}`}
                           >
-                            <AvatarFallback className="text-[10px] bg-primary/20 text-primary">
+                            <AvatarFallback className="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
                               {agent.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                             </AvatarFallback>
                           </Avatar>
@@ -975,10 +975,10 @@ export default function ConversationsPage() {
             />
           </>
         ) : (
-          <div className="flex-1 overflow-y-auto flex items-center justify-center text-muted-foreground bg-gradient-to-br from-primary/5 via-transparent to-accent/5">
+          <div className="flex-1 overflow-y-auto flex items-center justify-center text-muted-foreground bg-gradient-to-br from-slate-50 dark:from-slate-900/50 via-transparent to-slate-100/50 dark:to-slate-800/30">
             <div className="text-center">
-              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
-                <MessageSquare className="w-10 h-10 text-primary/60" />
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <MessageSquare className="w-10 h-10 text-slate-400 dark:text-slate-500" />
               </div>
               <p className="text-lg font-medium mb-1 text-foreground/80">No conversation selected</p>
               <p className="text-sm">Choose a conversation from the list to start messaging</p>
