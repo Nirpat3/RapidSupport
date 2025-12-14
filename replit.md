@@ -4,6 +4,15 @@
 Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
 
 ## Recent Changes (Dec 14, 2025)
+- **Customer Portal Notification & Read Tracking**:
+  - New unread message notification badge on Conversations nav item
+  - Shows red dot indicator on mobile, numeric badge on desktop
+  - Per-conversation unread counts displayed in conversation list
+  - Conversations with unread messages sorted to the top
+  - Messages automatically marked as read when customer views conversation
+  - Activity log entries created for audit trail when customer views messages
+  - WebSocket broadcast notifies agents when customer reads their messages
+  - Real-time cache invalidation keeps notification counts accurate
 - **WebSocket Real-Time Messaging Fix**:
   - Fixed issue where messages weren't delivered instantly between customer portal and agent
   - Enhanced `broadcastNewMessage` method to accept targetUserIds for direct delivery
