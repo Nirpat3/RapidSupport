@@ -97,6 +97,19 @@ export default function ChatInterface({
   const [proofreadResult, setProofreadResult] = useState<any>(null);
   const [isProofreading, setIsProofreading] = useState(false);
   
+  // AI Writing Assistance states
+  const [writingAssistance, setWritingAssistance] = useState<{
+    enhancedText: string;
+    suggestions: Array<{ style: string; text: string; description: string }>;
+    autoComplete: string;
+    improvements: string[];
+    hasChanges: boolean;
+  } | null>(null);
+  const [isLoadingWritingAssist, setIsLoadingWritingAssist] = useState(false);
+  const [showWritingAssist, setShowWritingAssist] = useState(false);
+  const writingAssistTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const writingAssistRequestIdRef = useRef<number>(0); // Track latest request to avoid stale responses
+  
   // AI Ticket Generation states
   const [aiTicketSuggestion, setAiTicketSuggestion] = useState<any>(null);
   const [isGeneratingTicket, setIsGeneratingTicket] = useState(false);
@@ -156,9 +169,78 @@ export default function ChatInterface({
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
+      if (writingAssistTimeoutRef.current) {
+        clearTimeout(writingAssistTimeoutRef.current);
+      }
       onTypingStop?.();
     };
   }, [onTypingStop]);
+
+  // Fetch writing assistance with debounce
+  const fetchWritingAssistance = async (text: string) => {
+    if (text.length < 10) {
+      setWritingAssistance(null);
+      setShowWritingAssist(false);
+      return;
+    }
+
+    // Track this request to guard against stale responses
+    const requestId = ++writingAssistRequestIdRef.current;
+    
+    setIsLoadingWritingAssist(true);
+    try {
+      const customerMessages = messages.filter(m => m.sender.role === 'customer');
+      const lastCustomerQuery = customerMessages.length > 0 
+        ? customerMessages[customerMessages.length - 1]?.content 
+        : '';
+      
+      const conversationHistory = messages.slice(-5).map(msg => 
+        `${msg.sender.role}: ${msg.content}`
+      );
+
+      const response = await apiRequest('/api/ai/writing-assist', 'POST', {
+        message: text,
+        conversationHistory,
+        customerQuery: lastCustomerQuery
+      });
+
+      // Only apply if this is still the latest request
+      if (requestId === writingAssistRequestIdRef.current && response.data) {
+        setWritingAssistance(response.data);
+        setShowWritingAssist(true);
+      }
+    } catch (error) {
+      console.error('Writing assistance failed:', error);
+    } finally {
+      // Only clear loading if this is still the latest request
+      if (requestId === writingAssistRequestIdRef.current) {
+        setIsLoadingWritingAssist(false);
+      }
+    }
+  };
+
+  // Debounced writing assistance trigger
+  const triggerWritingAssist = (text: string) => {
+    if (writingAssistTimeoutRef.current) {
+      clearTimeout(writingAssistTimeoutRef.current);
+    }
+    
+    if (text.length >= 10) {
+      writingAssistTimeoutRef.current = setTimeout(() => {
+        fetchWritingAssistance(text);
+      }, 1500); // 1.5 second debounce
+    } else {
+      setWritingAssistance(null);
+      setShowWritingAssist(false);
+    }
+  };
+
+  // Apply a writing suggestion
+  const applyWritingSuggestion = (text: string) => {
+    setNewMessage(text);
+    setShowWritingAssist(false);
+    setWritingAssistance(null);
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -232,6 +314,10 @@ export default function ChatInterface({
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
+    // Clear writing assistance debounce timer
+    if (writingAssistTimeoutRef.current) {
+      clearTimeout(writingAssistTimeoutRef.current);
+    }
     onTypingStop?.();
     
     // Send the message first
@@ -245,6 +331,9 @@ export default function ChatInterface({
     }
     setProofreadResult(null);
     setIsProofreadingOpen(false);
+    // Reset writing assistance state
+    setWritingAssistance(null);
+    setShowWritingAssist(false);
   };
 
   const handleProofreadMessage = async () => {
@@ -1141,6 +1230,10 @@ export default function ChatInterface({
                 value={newMessage}
                 onChange={(e) => {
                   setNewMessage(e.target.value);
+                  // Trigger AI writing assistance (debounced)
+                  if (!isInternalMode) {
+                    triggerWritingAssist(e.target.value);
+                  }
                   // Handle typing indicator - only for public messages (not internal)
                   if (!isInternalMode) {
                     // Clear previous timeout
@@ -1219,6 +1312,104 @@ export default function ChatInterface({
               )}
             </Button>
           </div>
+          
+          {/* AI Writing Assistance Panel */}
+          {(showWritingAssist || isLoadingWritingAssist) && !isInternalMode && (
+            <div className="mt-3 p-3 bg-muted/50 rounded-lg border" data-testid="panel-writing-assist">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium">AI Writing Assistant</span>
+                  {isLoadingWritingAssist && (
+                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowWritingAssist(false)}
+                  className="h-6 w-6 p-0"
+                  data-testid="button-close-writing-assist"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+              
+              {writingAssistance && (
+                <div className="space-y-3">
+                  {/* Enhanced Text */}
+                  {writingAssistance.hasChanges && writingAssistance.enhancedText !== newMessage && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground font-medium">Enhanced Version</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyWritingSuggestion(writingAssistance.enhancedText)}
+                          className="h-6 text-xs"
+                          data-testid="button-apply-enhanced"
+                        >
+                          <Check className="w-3 h-3 mr-1" />
+                          Apply
+                        </Button>
+                      </div>
+                      <p className="text-sm p-2 bg-background rounded border">{writingAssistance.enhancedText}</p>
+                      {writingAssistance.improvements.length > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          Improvements: {writingAssistance.improvements.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Auto-complete suggestion */}
+                  {writingAssistance.autoComplete && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground font-medium">Suggested Completion</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => applyWritingSuggestion(newMessage + ' ' + writingAssistance.autoComplete)}
+                          className="h-6 text-xs"
+                          data-testid="button-apply-autocomplete"
+                        >
+                          <Check className="w-3 h-3 mr-1" />
+                          Add
+                        </Button>
+                      </div>
+                      <p className="text-sm p-2 bg-background rounded border text-muted-foreground italic">
+                        ...{writingAssistance.autoComplete}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* Style Suggestions */}
+                  {writingAssistance.suggestions.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="text-xs text-muted-foreground font-medium">Response Styles</span>
+                      <div className="grid gap-2">
+                        {writingAssistance.suggestions.map((suggestion, index) => (
+                          <div 
+                            key={index} 
+                            className="p-2 bg-background rounded border hover-elevate cursor-pointer"
+                            onClick={() => applyWritingSuggestion(suggestion.text)}
+                            data-testid={`button-style-${suggestion.style}`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <Badge variant="secondary" className="text-xs capitalize">{suggestion.style}</Badge>
+                              <span className="text-xs text-muted-foreground">{suggestion.description}</span>
+                            </div>
+                            <p className="text-sm">{suggestion.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </form>
       </div>
 

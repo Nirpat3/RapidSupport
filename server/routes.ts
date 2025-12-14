@@ -3624,6 +3624,34 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Writing assistance endpoint - provides grammar, style suggestions, and auto-complete
+  app.post('/api/ai/writing-assist', requireAuth, async (req, res) => {
+    try {
+      const { message, conversationHistory, customerQuery } = req.body;
+      
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+
+      if (message.length < 3) {
+        return res.status(400).json({ error: 'Message must be at least 3 characters' });
+      }
+
+      const result = await AIService.generateWritingAssistance(message, {
+        conversationHistory: conversationHistory || [],
+        customerQuery: customerQuery || ''
+      });
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      console.error('Writing assistance failed:', error);
+      res.status(500).json({ error: 'Failed to generate writing assistance' });
+    }
+  });
+
   // Analyze conversation for ticket generation
   app.post('/api/ai/analyze-conversation', requireAuth, async (req, res) => {
     try {

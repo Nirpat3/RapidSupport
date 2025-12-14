@@ -446,6 +446,93 @@ If no improvements are needed, return hasChanges: false and suggestedText should
   }
 
   /**
+   * Writing assistance result interface
+   */
+  static async generateWritingAssistance(
+    message: string,
+    context?: {
+      conversationHistory?: string[];
+      customerQuery?: string;
+    }
+  ): Promise<{
+    enhancedText: string;
+    suggestions: Array<{ style: string; text: string; description: string }>;
+    autoComplete: string;
+    improvements: string[];
+    hasChanges: boolean;
+  }> {
+    try {
+      const brandConfig = await this.loadBrandConfig();
+      const brandVoicePrompt = this.buildBrandVoicePrompt(brandConfig);
+
+      const systemPrompt = `You are an AI writing assistant helping support agents craft better responses. Your role is to:
+1. Fix grammar, spelling, and punctuation errors
+2. Improve clarity and professional tone
+3. Suggest alternative response styles
+4. Provide auto-complete suggestions to help finish the message
+${brandVoicePrompt}
+
+Analyze the agent's draft message and provide helpful writing assistance.`;
+
+      const contextInfo = context?.customerQuery 
+        ? `Customer's question: "${context.customerQuery}"\n` 
+        : '';
+      
+      const historyInfo = context?.conversationHistory?.length 
+        ? `Recent conversation:\n${context.conversationHistory.slice(-3).join('\n')}\n` 
+        : '';
+
+      const userPrompt = `${contextInfo}${historyInfo}
+Agent's draft message:
+"${message}"
+
+Provide a JSON response with:
+- enhancedText: The improved version with grammar/clarity fixes (keep similar length)
+- suggestions: Array of 3 alternative response styles, each with:
+  - style: one of "formal", "friendly", "concise"
+  - text: The rewritten message in that style
+  - description: Brief explanation of this style (e.g., "More professional tone")
+- autoComplete: If the message seems incomplete, suggest how to finish it (otherwise empty string)
+- improvements: Array of specific improvements made to create enhancedText
+- hasChanges: Boolean indicating if any changes were suggested
+
+Keep all suggestions professional, helpful, and appropriate for customer support.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.4,
+        max_tokens: 2000,
+      });
+
+      let responseContent = completion.choices[0].message.content || '{}';
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
+      
+      return {
+        enhancedText: result.enhancedText || message,
+        suggestions: result.suggestions || [],
+        autoComplete: result.autoComplete || '',
+        improvements: result.improvements || [],
+        hasChanges: result.hasChanges || false,
+      };
+    } catch (error) {
+      console.error('Error generating writing assistance:', error);
+      return {
+        enhancedText: message,
+        suggestions: [],
+        autoComplete: '',
+        improvements: [],
+        hasChanges: false,
+      };
+    }
+  }
+
+  /**
    * Analyze a conversation and suggest ticket details
    */
   static async analyzeConversation(messages: Message[], customer?: any): Promise<ConversationAnalysis> {
