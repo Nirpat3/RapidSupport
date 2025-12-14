@@ -98,12 +98,13 @@ export default function CustomerPortalChat() {
     },
   });
 
-  // Mark as read when conversation is loaded
+  // Mark as read when conversation is loaded or when new messages arrive
   useEffect(() => {
-    if (conversationId && conversation) {
+    if (conversationId && conversation && conversation.messages?.length > 0) {
+      // Only mark as read if there are messages to read
       markAsReadMutation.mutate(conversationId);
     }
-  }, [conversationId, conversation?.id]);
+  }, [conversationId, conversation?.id, conversation?.messages?.length]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
