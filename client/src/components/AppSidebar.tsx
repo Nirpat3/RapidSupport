@@ -191,7 +191,7 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
   });
 
   return (
-    <Sidebar className="border-r border-sidebar-border/50">
+    <Sidebar className="border-r-0 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.15)]">
       <SidebarHeader className="border-b border-sidebar-border/30">
         <div className="flex items-center gap-3 px-4 py-5 mx-2 mt-2 rounded-xl glass-subtle">
           <div className="relative">

@@ -164,9 +164,9 @@ function AuthenticatedApp() {
   return (
     <NotificationProvider>
       <SidebarProvider style={style as React.CSSProperties}>
-        <div className="flex h-screen w-full max-w-full bg-background">
+        <div className="flex h-screen w-full max-w-full">
           <AppSidebar />
-          <div className="flex flex-col flex-1 min-w-0">
+          <div className="flex flex-col flex-1 min-w-0 bg-gradient-to-br from-background via-background to-muted/30">
             <header className="flex items-center justify-between p-2 sm:p-4 border-b border-border/50 glass-subtle min-w-0 sticky top-0 z-20">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
                 <SidebarTrigger data-testid="button-sidebar-toggle" className="flex-shrink-0" />
