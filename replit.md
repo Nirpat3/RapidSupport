@@ -4,6 +4,12 @@
 Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
 
 ## Recent Changes (Dec 14, 2025)
+- **Multi-Agent Assignment Tracking**:
+  - Conversations now track all agents who have responded (participatingAgentIds column)
+  - When any agent sends a message, they're automatically added to the participating agents list
+  - Staff conversations page displays participating agent avatars next to the assign selector
+  - Shows up to 5 agent avatars with overflow count for larger teams
+  - Works for both public and internal staff messages
 - **Agent-Initiated Conversations**:
   - Agents can now start conversations with registered customers from the Customer Profile page
   - Click "Send Message" button on any customer profile to open conversation dialog
