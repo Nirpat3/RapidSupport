@@ -68,8 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           title: "Login successful",
           description: `Welcome back, ${data.user.name}!`
         });
-        // Redirect to conversations page after successful login
-        window.location.href = '/conversations';
+        // Redirect to dashboard page after successful login
+        window.location.href = '/dashboard';
         return true;
       } else {
         const errorData = await response.json();
