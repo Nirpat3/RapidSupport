@@ -78,34 +78,66 @@ class ChatWebSocketServer {
         });
       });
 
-      if (!sessionData || !(sessionData as any).passport?.user) {
-        console.log('WebSocket connection rejected: invalid session');
+      if (!sessionData) {
+        console.log('WebSocket connection rejected: no session data');
         ws.close(1008, 'Invalid session');
         return;
       }
 
-      // Get user from authenticated session
-      const userId = (sessionData as any).passport.user;
-      const user = await storage.getUser(userId);
+      const session = sessionData as any;
       
-      if (!user) {
-        console.log('WebSocket connection rejected: user not found');
-        ws.close(1008, 'User not found');
+      // Check for staff/admin authentication (passport-based)
+      if (session.passport?.user) {
+        const userId = session.passport.user;
+        const user = await storage.getUser(userId);
+        
+        if (!user) {
+          console.log('WebSocket connection rejected: user not found');
+          ws.close(1008, 'User not found');
+          return;
+        }
+
+        // Store connection info for staff
+        ws.userId = user.id;
+        ws.userRole = user.role;
+        ws.userName = user.name;
+        
+        // Support multiple connections per user
+        if (!this.connections.has(user.id)) {
+          this.connections.set(user.id, new Set());
+        }
+        this.connections.get(user.id)!.add(ws);
+
+        console.log(`Staff ${user.name} (${user.role}) connected via WebSocket`);
+      }
+      // Check for customer portal authentication (customerId-based)
+      else if (session.customerId && session.userType === 'customer') {
+        const customer = await storage.getCustomer(session.customerId);
+        
+        if (!customer) {
+          console.log('WebSocket connection rejected: customer not found');
+          ws.close(1008, 'Customer not found');
+          return;
+        }
+
+        // Store connection info for customer
+        ws.userId = customer.id;
+        ws.userRole = 'customer';
+        ws.userName = customer.name;
+        
+        // Support multiple connections per customer
+        if (!this.connections.has(customer.id)) {
+          this.connections.set(customer.id, new Set());
+        }
+        this.connections.get(customer.id)!.add(ws);
+
+        console.log(`Customer ${customer.name} connected via WebSocket`);
+      }
+      else {
+        console.log('WebSocket connection rejected: invalid session - no user or customer');
+        ws.close(1008, 'Invalid session');
         return;
       }
-
-      // Store connection info
-      ws.userId = user.id;
-      ws.userRole = user.role;
-      ws.userName = user.name;
-      
-      // Support multiple connections per user
-      if (!this.connections.has(user.id)) {
-        this.connections.set(user.id, new Set());
-      }
-      this.connections.get(user.id)!.add(ws);
-
-      console.log(`User ${user.name} (${user.role}) connected via WebSocket`);
     } catch (error) {
       console.error('WebSocket authentication error:', error);
       ws.close(1008, 'Authentication failed');

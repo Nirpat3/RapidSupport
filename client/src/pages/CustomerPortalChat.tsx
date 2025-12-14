@@ -18,13 +18,27 @@ import {
   Paperclip,
   Smile,
   X,
-  Loader2
+  Loader2,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { renderFormattedContent } from "@/components/ChatMessage";
+
+interface WebSocketMessage {
+  type: string;
+  conversationId?: string;
+  messageId?: string;
+  content?: string;
+  userId?: string;
+  userName?: string;
+  userRole?: string;
+  timestamp?: string;
+  message?: any;
+}
 
 interface Message {
   id: string;
@@ -54,8 +68,13 @@ export default function CustomerPortalChat() {
   const [subject, setSubject] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<{userId: string; userName: string}[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const { data: customerData } = useQuery<{ customer: { id: string; name: string; email: string } }>({
@@ -75,14 +94,135 @@ export default function CustomerPortalChat() {
     scrollToBottom();
   }, [conversation?.messages, scrollToBottom]);
 
+  // WebSocket connection for real-time updates
   useEffect(() => {
-    if (conversationId) {
-      const interval = setInterval(() => {
-        refetchConversation();
-      }, 5000);
-      return () => clearInterval(interval);
-    }
+    if (!conversationId) return;
+
+    const connectWebSocket = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
+      
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('Customer portal WebSocket connected');
+        setWsConnected(true);
+        
+        // Join the conversation
+        ws.send(JSON.stringify({
+          type: 'join_conversation',
+          conversationId
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data: WebSocketMessage = JSON.parse(event.data);
+          
+          switch (data.type) {
+            case 'new_message':
+              // Refetch conversation to get the new message
+              if (data.conversationId === conversationId) {
+                refetchConversation();
+              }
+              break;
+            
+            case 'user_typing':
+              if (data.conversationId === conversationId && data.userId && data.userName) {
+                setTypingUsers(prev => {
+                  if (!prev.find(u => u.userId === data.userId)) {
+                    return [...prev, { userId: data.userId!, userName: data.userName! }];
+                  }
+                  return prev;
+                });
+              }
+              break;
+            
+            case 'user_stopped_typing':
+              if (data.userId) {
+                setTypingUsers(prev => prev.filter(u => u.userId !== data.userId));
+              }
+              break;
+            
+            case 'conversation_update':
+              if (data.conversationId === conversationId) {
+                refetchConversation();
+              }
+              break;
+            
+            case 'ai_stream_complete':
+              if (data.conversationId === conversationId) {
+                refetchConversation();
+              }
+              break;
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('Customer portal WebSocket disconnected');
+        setWsConnected(false);
+        wsRef.current = null;
+        
+        // Attempt to reconnect after 3 seconds
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (conversationId) {
+            connectWebSocket();
+          }
+        }, 3000);
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    };
+
+    connectWebSocket();
+
+    return () => {
+      // Leave conversation and close WebSocket
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: 'leave_conversation',
+          conversationId
+        }));
+        wsRef.current.close();
+      }
+      wsRef.current = null;
+      
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
   }, [conversationId, refetchConversation]);
+
+  // Send typing indicator
+  const sendTypingIndicator = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && conversationId) {
+      wsRef.current.send(JSON.stringify({
+        type: 'typing',
+        conversationId
+      }));
+      
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      
+      // Stop typing after 2 seconds of inactivity
+      typingTimeoutRef.current = setTimeout(() => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'stop_typing',
+            conversationId
+          }));
+        }
+      }, 2000);
+    }
+  }, [conversationId]);
 
   const createConversationMutation = useMutation({
     mutationFn: async (data: { subject: string; message: string }) => {
@@ -323,7 +463,17 @@ export default function CustomerPortalChat() {
               </p>
             </div>
           </div>
-          {conversation && getStatusBadge(conversation.status)}
+          <div className="flex items-center gap-2">
+            {conversation && getStatusBadge(conversation.status)}
+            <Badge 
+              variant={wsConnected ? "secondary" : "outline"} 
+              className={cn("gap-1", wsConnected ? "text-accent" : "text-muted-foreground")}
+              data-testid="status-connection"
+            >
+              {wsConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+              {wsConnected ? "Live" : "Connecting..."}
+            </Badge>
+          </div>
         </div>
 
         <Card className="flex-1 flex flex-col overflow-hidden">
@@ -373,6 +523,11 @@ export default function CustomerPortalChat() {
 
           {conversation?.status !== 'closed' && conversation?.status !== 'resolved' && (
             <div className="border-t p-4 space-y-2">
+              {typingUsers.length > 0 && (
+                <div className="text-sm text-muted-foreground animate-pulse" data-testid="status-typing">
+                  {typingUsers.map(u => u.userName).join(', ')} {typingUsers.length === 1 ? 'is' : 'are'} typing...
+                </div>
+              )}
               {selectedFiles.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {selectedFiles.map((file, index) => (
@@ -416,7 +571,10 @@ export default function CustomerPortalChat() {
                   <Input
                     placeholder="Type your message..."
                     value={message}
-                    onChange={(e) => setMessage(e.target.value)}
+                    onChange={(e) => {
+                      setMessage(e.target.value);
+                      sendTypingIndicator();
+                    }}
                     onKeyDown={handleKeyPress}
                     className="pr-10"
                     data-testid="input-message"

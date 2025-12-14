@@ -459,6 +459,40 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     legacyHeaders: false,
   });
 
+  // Global API rate limiter - prevents DDoS attacks
+  const globalApiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 200, // 200 requests per minute per IP
+    message: { error: 'Too many requests, please slow down.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => {
+      // Skip static assets and health checks
+      return req.path === '/api/health' || !req.path.startsWith('/api');
+    },
+  });
+
+  // Stricter rate limiter for message sending - prevents spam
+  const messageLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 30, // 30 messages per minute per IP
+    message: { error: 'You are sending messages too quickly. Please wait a moment.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Rate limiter for creating new conversations - prevents abuse
+  const conversationCreateLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // 10 new conversations per hour per IP
+    message: { error: 'You have reached the maximum number of new conversations. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Apply global rate limiter to all API routes
+  app.use('/api', globalApiLimiter);
+
   // CSRF protection middleware
   const csrfProtection = (req: any, res: any, next: any) => {
     // Skip CSRF for GET requests
@@ -802,7 +836,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Create new conversation for portal customer
-  app.post('/api/customer-portal/conversations/create', async (req, res) => {
+  app.post('/api/customer-portal/conversations/create', conversationCreateLimiter, async (req, res) => {
     try {
       const customerId = (req.session as any).customerId;
       const userType = (req.session as any).userType;
@@ -962,7 +996,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Send message to conversation for portal customer
-  app.post('/api/customer-portal/conversation/:conversationId/messages', async (req, res) => {
+  app.post('/api/customer-portal/conversation/:conversationId/messages', messageLimiter, async (req, res) => {
     try {
       const customerId = (req.session as any).customerId;
       const userType = (req.session as any).userType;
@@ -3182,7 +3216,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Send message from customer
-  app.post('/api/customer-chat/send-message', async (req, res) => {
+  app.post('/api/customer-chat/send-message', messageLimiter, async (req, res) => {
     try {
       const messageData = sendCustomerMessageSchema.parse(req.body);
       
