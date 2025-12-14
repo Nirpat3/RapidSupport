@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -213,9 +213,10 @@ function AuthenticatedApp() {
 
 function AppContent() {
   const { user, login, isLoading } = useAuth();
+  const [location] = useLocation();
   
-  // Check if we're on public routes
-  const pathname = window.location.pathname.replace(/\/$/, ''); // Remove trailing slash
+  // Check if we're on public routes - use wouter's reactive location
+  const pathname = location.replace(/\/$/, ''); // Remove trailing slash
   const isCustomerChatPage = pathname === '' || pathname === '/customer-chat';
   const isKnowledgeBasePage = pathname === '/knowledge-base';
   const isKnowledgeCategoryPage = pathname.startsWith('/knowledge-base/category/');
@@ -224,11 +225,11 @@ function AppContent() {
   const isMockupPage = pathname === '/mockup'; // Design mockup page - public
   
   // Knowledge base article public view
-  const isPublicArticlePage = window.location.pathname.startsWith('/kb/');
+  const isPublicArticlePage = pathname.startsWith('/kb/');
   
   // Customer portal pages (separate from staff portal - customers have their own login)
-  const isPortalLoginPage = window.location.pathname === '/portal/login';
-  const isPortalPage = window.location.pathname.startsWith('/portal') && window.location.pathname !== '/portal/login';
+  const isPortalLoginPage = pathname === '/portal/login';
+  const isPortalPage = pathname.startsWith('/portal') && pathname !== '/portal/login';
   
   // For customer chat page (now the landing page), render without authentication
   if (isCustomerChatPage) {

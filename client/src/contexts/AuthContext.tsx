@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useLocation } from 'wouter';
 
 interface User {
   id: string;
@@ -15,6 +16,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   isLoading: boolean;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   // Check if user is already authenticated on app load
   useEffect(() => {
@@ -46,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     console.log('[Login] Attempting login for:', email);
     try {
       const response = await fetch('/api/auth/login', {
@@ -68,8 +71,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           title: "Login successful",
           description: `Welcome back, ${data.user.name}!`
         });
-        // Redirect to dashboard page after successful login
-        window.location.href = '/dashboard';
+        // Use wouter navigation instead of full page reload to avoid 404 flash
+        setLocation('/dashboard');
         return true;
       } else {
         const errorData = await response.json();
@@ -90,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       return false;
     }
-  };
+  }, [toast, setLocation]);
 
   const logout = async (): Promise<void> => {
     try {
@@ -109,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );
