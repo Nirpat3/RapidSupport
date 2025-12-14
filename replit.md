@@ -4,6 +4,14 @@
 Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
 
 ## Recent Changes (Dec 14, 2025)
+- **Real-time Anonymous Chat Widget (CustomerChatWidget.tsx)**:
+  - Replaced 5-second HTTP polling with WebSocket for instant message updates
+  - WebSocket authenticates via URL query params: `?customerId=X&sessionId=Y`
+  - Added typing indicators (see when agents are typing)
+  - Live connection status indicator in header (shows "Live" when connected)
+  - Customer typing indicators sent to agents
+  - Proper cleanup: sends stop_typing, clears timers on unmount
+  - Created mobile app WebSocket integration documentation: `docs/mobile-websocket-integration.md`
 - **Real-time Customer Portal Chat**:
   - Replaced 5-second polling with WebSocket for instant message updates
   - Added typing indicators (see when agents are typing)
