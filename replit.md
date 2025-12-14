@@ -4,6 +4,13 @@
 Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
 
 ## Recent Changes (Dec 14, 2025)
+- **AI Settings Controls**:
+  - New "AI Settings" section on the Settings page (/settings)
+  - Global AI toggle: Master switch to enable/disable all AI auto-responses
+  - Context-specific toggles: Anonymous Chat Widget, Customer Portal, Staff Conversations
+  - Settings are persisted in the database (engagementSettings table)
+  - AI responses are blocked at the API level when disabled for each context
+  - When global AI is off, context toggles are visually disabled
 - **Multi-Agent Assignment Tracking**:
   - Conversations now track all agents who have responded (participatingAgentIds column)
   - When any agent sends a message, they're automatically added to the participating agents list
