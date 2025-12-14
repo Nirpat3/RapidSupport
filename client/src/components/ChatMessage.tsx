@@ -54,9 +54,9 @@ export function linkifyText(text: string) {
     }
     
     if (isImage === '!') {
-      // Render as an image
+      // Render as an image - use matchStart for unique key
       elements.push(
-        <div key={`img-${elements.length}`} className="my-3">
+        <div key={`img-${matchStart}-${url.slice(-10)}`} className="my-3">
           <img
             src={url}
             alt={altOrLinkText}
@@ -71,10 +71,10 @@ export function linkifyText(text: string) {
         </div>
       );
     } else {
-      // Render as a link
+      // Render as a link - use matchStart for unique key
       elements.push(
         <a
-          key={`md-${elements.length}`}
+          key={`md-${matchStart}-${url.slice(-10)}`}
           href={url}
           target={url.startsWith('/') ? undefined : '_blank'}
           rel={url.startsWith('/') ? undefined : 'noopener noreferrer'}
