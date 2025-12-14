@@ -245,10 +245,35 @@ async function processWhatsAppMessage(params: {
   await storage.createMessage({
     conversationId: activeConversation.id,
     content: text,
+    senderId: customer[0].id,
     senderType: 'customer',
-    scope: 'customer',
-    externalMessageId: messageId
+    scope: 'customer'
   });
+
+  // Check per-conversation AI toggle first
+  if (activeConversation.aiAssistanceEnabled === false) {
+    console.log(`WhatsApp: AI disabled for this conversation (per-conversation toggle) - learning mode`);
+    await storage.createActivityLog({
+      conversationId: activeConversation.id,
+      action: 'ai_observation',
+      details: `AI observed but did not respond (learning mode - per-conversation disabled): "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`
+    });
+    console.log(`WhatsApp message processed for ${from} (AI disabled)`);
+    return;
+  }
+
+  // Check global AI settings
+  const engagementSettings = await storage.getEngagementSettings();
+  if (engagementSettings?.aiGlobalEnabled === false) {
+    console.log(`WhatsApp: AI disabled globally - learning mode`);
+    await storage.createActivityLog({
+      conversationId: activeConversation.id,
+      action: 'ai_observation',
+      details: `AI observed but did not respond (learning mode - global AI disabled): "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`
+    });
+    console.log(`WhatsApp message processed for ${from} (global AI disabled)`);
+    return;
+  }
 
   // Generate AI response
   const aiResponse = await AIService.generateSmartAgentResponse(
@@ -260,6 +285,7 @@ async function processWhatsAppMessage(params: {
   await storage.createMessage({
     conversationId: activeConversation.id,
     content: aiResponse.response,
+    senderId: 'ai-system-agent-001',
     senderType: 'system',
     scope: 'customer'
   });
@@ -315,10 +341,35 @@ async function processTelegramMessage(params: {
   await storage.createMessage({
     conversationId: activeConversation.id,
     content: text,
+    senderId: customer[0].id,
     senderType: 'customer',
-    scope: 'customer',
-    externalMessageId: String(messageId)
+    scope: 'customer'
   });
+
+  // Check per-conversation AI toggle first
+  if (activeConversation.aiAssistanceEnabled === false) {
+    console.log(`Telegram: AI disabled for this conversation (per-conversation toggle) - learning mode`);
+    await storage.createActivityLog({
+      conversationId: activeConversation.id,
+      action: 'ai_observation',
+      details: `AI observed but did not respond (learning mode - per-conversation disabled): "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`
+    });
+    console.log(`Telegram message processed for chat ${chatId} (AI disabled)`);
+    return;
+  }
+
+  // Check global AI settings
+  const engagementSettings = await storage.getEngagementSettings();
+  if (engagementSettings?.aiGlobalEnabled === false) {
+    console.log(`Telegram: AI disabled globally - learning mode`);
+    await storage.createActivityLog({
+      conversationId: activeConversation.id,
+      action: 'ai_observation',
+      details: `AI observed but did not respond (learning mode - global AI disabled): "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`
+    });
+    console.log(`Telegram message processed for chat ${chatId} (global AI disabled)`);
+    return;
+  }
 
   // Generate AI response
   const aiResponse = await AIService.generateSmartAgentResponse(
@@ -330,6 +381,7 @@ async function processTelegramMessage(params: {
   await storage.createMessage({
     conversationId: activeConversation.id,
     content: aiResponse.response,
+    senderId: 'ai-system-agent-001',
     senderType: 'system',
     scope: 'customer'
   });
@@ -403,10 +455,35 @@ async function processMessengerMessage(params: {
   await storage.createMessage({
     conversationId: activeConversation.id,
     content: text,
+    senderId: customer[0].id,
     senderType: 'customer',
-    scope: 'customer',
-    externalMessageId: messageId
+    scope: 'customer'
   });
+
+  // Check per-conversation AI toggle first
+  if (activeConversation.aiAssistanceEnabled === false) {
+    console.log(`Messenger: AI disabled for this conversation (per-conversation toggle) - learning mode`);
+    await storage.createActivityLog({
+      conversationId: activeConversation.id,
+      action: 'ai_observation',
+      details: `AI observed but did not respond (learning mode - per-conversation disabled): "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`
+    });
+    console.log(`Messenger message processed for ${senderId} (AI disabled)`);
+    return;
+  }
+
+  // Check global AI settings
+  const engagementSettings = await storage.getEngagementSettings();
+  if (engagementSettings?.aiGlobalEnabled === false) {
+    console.log(`Messenger: AI disabled globally - learning mode`);
+    await storage.createActivityLog({
+      conversationId: activeConversation.id,
+      action: 'ai_observation',
+      details: `AI observed but did not respond (learning mode - global AI disabled): "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`
+    });
+    console.log(`Messenger message processed for ${senderId} (global AI disabled)`);
+    return;
+  }
 
   // Generate AI response
   const aiResponse = await AIService.generateSmartAgentResponse(
@@ -418,6 +495,7 @@ async function processMessengerMessage(params: {
   await storage.createMessage({
     conversationId: activeConversation.id,
     content: aiResponse.response,
+    senderId: 'ai-system-agent-001',
     senderType: 'system',
     scope: 'customer'
   });

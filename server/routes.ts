@@ -1178,7 +1178,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         }
         })();
       } else {
-        console.log(`[portal-chat] AI response skipped - AI is disabled for conversation: ${conversationId}`);
+        console.log(`[portal-chat] AI response skipped - AI is disabled for conversation: ${conversationId} (learning mode)`);
+        // Log for learning purposes when AI is disabled (per-conversation or global toggle)
+        const disabledReason = conversation?.aiAssistanceEnabled === false 
+          ? 'per-conversation toggle'
+          : !isAiEnabledForPortal 
+          ? 'global settings' 
+          : 'unknown';
+        await storage.createActivityLog({
+          conversationId,
+          action: 'ai_observation',
+          details: `AI observed but did not respond (learning mode - ${disabledReason}): "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"`
+        });
       }
 
       res.json({ messageId: message.id });
@@ -3695,6 +3706,36 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(403).json({ error: 'Access denied to this conversation' });
       }
 
+      // Check per-conversation AI toggle first (overrides global settings)
+      if (conversation.aiAssistanceEnabled === false) {
+        console.log(`[${requestId}] AI disabled for this specific conversation (per-conversation toggle) - learning mode`);
+        // Log for learning purposes but don't respond
+        await storage.createActivityLog({
+          conversationId,
+          action: 'ai_observation',
+          details: `AI observed but did not respond (learning mode): "${customerMessage.substring(0, 100)}${customerMessage.length > 100 ? '...' : ''}"`
+        });
+        return res.status(200).json({ response: null, aiDisabled: true, learningMode: true });
+      }
+
+      // Check global AI settings - determine context (anonymous vs portal)
+      const engagementSettings = await storage.getEngagementSettings();
+      const isAnonymous = conversation.isAnonymous;
+      const aiEnabledForContext = isAnonymous 
+        ? (engagementSettings?.aiGlobalEnabled !== false && engagementSettings?.aiAnonymousChatEnabled !== false)
+        : (engagementSettings?.aiGlobalEnabled !== false && engagementSettings?.aiCustomerPortalEnabled !== false);
+      
+      if (!aiEnabledForContext) {
+        console.log(`[${requestId}] AI disabled for ${isAnonymous ? 'anonymous chat' : 'customer portal'} (global settings) - learning mode`);
+        // Log for learning purposes when global settings disable AI
+        await storage.createActivityLog({
+          conversationId,
+          action: 'ai_observation',
+          details: `AI observed but did not respond (learning mode - global settings disabled for ${isAnonymous ? 'anonymous chat' : 'customer portal'}): "${customerMessage.substring(0, 100)}${customerMessage.length > 100 ? '...' : ''}"`
+        });
+        return res.status(200).json({ response: null, aiDisabled: true, learningMode: true });
+      }
+
       const wsServer = (app as any).wsServer;
       if (!wsServer) {
         console.log(`[${requestId}] ERROR: WebSocket server not available`);
@@ -3848,8 +3889,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       // Check per-conversation AI toggle first (overrides global settings)
       if (conversation.aiAssistanceEnabled === false) {
-        console.log(`[${requestId}] AI disabled for this specific conversation (per-conversation toggle)`);
-        return res.status(200).json({ response: null, aiDisabled: true });
+        console.log(`[${requestId}] AI disabled for this specific conversation (per-conversation toggle) - learning mode`);
+        // Log for learning purposes but don't respond
+        await storage.createActivityLog({
+          conversationId,
+          action: 'ai_observation',
+          details: `AI observed but did not respond (learning mode): "${customerMessage.substring(0, 100)}${customerMessage.length > 100 ? '...' : ''}"`
+        });
+        return res.status(200).json({ response: null, aiDisabled: true, learningMode: true });
       }
 
       // Check global AI settings - determine context (anonymous vs portal)
@@ -3860,8 +3907,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         : (engagementSettings?.aiGlobalEnabled !== false && engagementSettings?.aiCustomerPortalEnabled !== false);
       
       if (!aiEnabledForContext) {
-        console.log(`[${requestId}] AI disabled for ${isAnonymous ? 'anonymous chat' : 'customer portal'} (global settings)`);
-        return res.status(200).json({ response: null, aiDisabled: true });
+        console.log(`[${requestId}] AI disabled for ${isAnonymous ? 'anonymous chat' : 'customer portal'} (global settings) - learning mode`);
+        // Log for learning purposes when global settings disable AI
+        await storage.createActivityLog({
+          conversationId,
+          action: 'ai_observation',
+          details: `AI observed but did not respond (learning mode - global settings disabled for ${isAnonymous ? 'anonymous chat' : 'customer portal'}): "${customerMessage.substring(0, 100)}${customerMessage.length > 100 ? '...' : ''}"`
+        });
+        return res.status(200).json({ response: null, aiDisabled: true, learningMode: true });
       }
 
       console.log(`[${requestId}] Generating AI response...`);
@@ -8062,7 +8115,31 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.put('/api/engagement-settings', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
       const updates = req.body;
-      const updatedSettings = await storage.upsertEngagementSettings(updates);
+      
+      // Fetch existing settings first to properly merge with partial updates
+      let existingSettings = await storage.getEngagementSettings();
+      
+      // If no settings exist, create defaults first
+      if (!existingSettings) {
+        existingSettings = await storage.upsertEngagementSettings({
+          emailNotificationsEnabled: true,
+          emailBatchingDelayMinutes: 5,
+          emailRateLimitHours: 4,
+          autoFollowupEnabled: true,
+          autoFollowupDelayHours: 24,
+          maxAutoFollowups: 3,
+          autoCloseEnabled: true,
+          autoCloseDays: 7,
+          aiGlobalEnabled: true,
+          aiAnonymousChatEnabled: true,
+          aiCustomerPortalEnabled: true,
+          aiStaffConversationsEnabled: true,
+          followupMessageTemplate: "Hi! Just checking in to see if you still need help with this. Please let us know if there's anything else we can assist you with.",
+        });
+      }
+      
+      // Use updateEngagementSettings to merge partial updates with existing settings
+      const updatedSettings = await storage.updateEngagementSettings(existingSettings.id, updates);
       res.json(updatedSettings);
     } catch (error) {
       console.error('Failed to update engagement settings:', error);
