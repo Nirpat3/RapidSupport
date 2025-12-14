@@ -5886,6 +5886,154 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get popular/most-used knowledge base articles (public access)
+  app.get('/api/public/knowledge-base/popular', async (req, res) => {
+    try {
+      const { limit = '10' } = req.query;
+      const parsedLimit = Math.min(parseInt(limit as string) || 10, 20);
+      
+      // Get top articles by usage count
+      const topArticles = await storage.getTopKnowledgeArticles(parsedLimit);
+      
+      // Get full article data with tags
+      const articlesWithDetails = await Promise.all(
+        topArticles.map(async (article) => {
+          const fullArticle = await storage.getKnowledgeBase(article.id);
+          return {
+            id: article.id,
+            title: article.title,
+            category: article.category,
+            tags: fullArticle?.tags || [],
+            usageCount: article.usageCount || 0,
+            effectiveness: article.effectiveness || 0,
+            lastUsedAt: article.lastUsedAt
+          };
+        })
+      );
+      
+      res.json(articlesWithDetails);
+    } catch (error) {
+      console.error('Failed to fetch popular knowledge base articles:', error);
+      res.status(500).json({ error: 'Failed to fetch popular articles' });
+    }
+  });
+
+  // Get personalized article recommendations based on customer history
+  app.get('/api/public/knowledge-base/recommended', async (req, res) => {
+    try {
+      const { customerId, sessionId, limit = '6' } = req.query;
+      const parsedLimit = Math.min(parseInt(limit as string) || 6, 10);
+      
+      let relevantCategories: string[] = [];
+      let relevantTags: string[] = [];
+      
+      // Try to get customer's conversation history for personalization
+      if (customerId && typeof customerId === 'string') {
+        try {
+          const customerConversations = await storage.getConversationsByCustomerId(customerId);
+          
+          // Extract categories and topics from conversations
+          for (const conv of customerConversations.slice(0, 10)) {
+            // Get messages to analyze topics
+            const messages = await storage.getMessagesByConversation(conv.id);
+            const customerMessages = messages.filter(m => m.senderType === 'customer');
+            
+            // Simple keyword extraction from customer messages
+            const allContent = customerMessages.map(m => m.content).join(' ').toLowerCase();
+            
+            // Common topic keywords to match against
+            const topicKeywords = ['billing', 'payment', 'account', 'password', 'login', 
+              'technical', 'error', 'setup', 'installation', 'pricing', 'refund',
+              'subscription', 'upgrade', 'cancel', 'feature', 'integration', 'api'];
+            
+            topicKeywords.forEach(keyword => {
+              if (allContent.includes(keyword) && !relevantTags.includes(keyword)) {
+                relevantTags.push(keyword);
+              }
+            });
+          }
+        } catch (e) {
+          console.log('Could not get customer history for recommendations');
+        }
+      }
+      
+      // Get all active articles
+      const allArticles = await storage.getAllKnowledgeBase();
+      const activeArticles = allArticles.filter(a => a.isActive);
+      
+      // Score articles based on relevance to customer history
+      const scoredArticles = activeArticles.map(article => {
+        let score = 0;
+        
+        // Boost for matching categories
+        if (relevantCategories.includes(article.category.toLowerCase())) {
+          score += 10;
+        }
+        
+        // Boost for matching tags
+        const articleTags = (article.tags || []).map(t => t.toLowerCase());
+        relevantTags.forEach(tag => {
+          if (articleTags.includes(tag)) {
+            score += 5;
+          }
+          // Check if tag appears in title
+          if (article.title.toLowerCase().includes(tag)) {
+            score += 3;
+          }
+        });
+        
+        // Slight boost for popular articles
+        score += Math.min((article.usageCount || 0) / 10, 5);
+        
+        // Recency bonus
+        if (article.lastUsedAt) {
+          const daysSinceUse = (Date.now() - new Date(article.lastUsedAt).getTime()) / (1000 * 60 * 60 * 24);
+          if (daysSinceUse < 7) score += 2;
+        }
+        
+        return { ...article, score };
+      });
+      
+      // Sort by score and return top recommendations
+      const recommendations = scoredArticles
+        .filter(a => a.score > 0 || relevantTags.length === 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, parsedLimit)
+        .map(article => ({
+          id: article.id,
+          title: article.title,
+          category: article.category,
+          tags: article.tags || [],
+          usageCount: article.usageCount || 0,
+          score: article.score
+        }));
+      
+      // If no personalized recommendations, fall back to popular articles
+      if (recommendations.length === 0) {
+        const popular = await storage.getTopKnowledgeArticles(parsedLimit);
+        const fallbackRecs = await Promise.all(
+          popular.map(async (article) => {
+            const fullArticle = await storage.getKnowledgeBase(article.id);
+            return {
+              id: article.id,
+              title: article.title,
+              category: article.category,
+              tags: fullArticle?.tags || [],
+              usageCount: article.usageCount || 0,
+              score: 0
+            };
+          })
+        );
+        return res.json(fallbackRecs);
+      }
+      
+      res.json(recommendations);
+    } catch (error) {
+      console.error('Failed to fetch recommended articles:', error);
+      res.status(500).json({ error: 'Failed to fetch recommended articles' });
+    }
+  });
+
   // Public support search - AI-powered knowledge base search without authentication
   app.post('/api/public/support/search', async (req, res) => {
     try {
