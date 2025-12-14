@@ -900,9 +900,10 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(403).json({ error: 'Access denied' });
       }
 
-      // Check if conversation is closed
+      // Check if conversation is closed - reopen if so
       if (conversation.status === 'closed' || conversation.status === 'resolved') {
-        return res.status(400).json({ error: 'Cannot send message to closed conversation' });
+        console.log(`[portal-chat] Reopening closed conversation: ${conversationId}`);
+        await storage.updateConversationStatus(conversationId, 'open');
       }
 
       // Get customer info
@@ -922,6 +923,63 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       await storage.updateConversation(conversationId, {
         updatedAt: new Date().toISOString(),
       });
+
+      // Broadcast message notification to staff
+      const wsServer = (app as any).wsServer;
+      if (wsServer && wsServer.broadcastNewMessageToStaff) {
+        const fullConversation = await storage.getConversationWithCustomer(conversationId);
+        if (fullConversation && fullConversation.customer) {
+          wsServer.broadcastNewMessageToStaff(fullConversation, fullConversation.customer, {
+            id: message.id,
+            content: message.content,
+            senderType: message.senderType,
+            timestamp: message.timestamp
+          });
+        }
+      }
+
+      // Trigger AI response asynchronously (don't block the response)
+      (async () => {
+        try {
+          console.log(`[portal-chat] Generating AI response for conversation: ${conversationId}`);
+          const aiResponse = await AIService.generateSmartAgentResponse(
+            content,
+            conversationId
+          );
+          
+          if (aiResponse && aiResponse.response) {
+            // Create AI message with senderType 'ai' for proper frontend rendering
+            const SYSTEM_AI_AGENT_ID = 'ai-system-agent-001';
+            const aiMessageCreatedAt = new Date().toISOString();
+            const aiMessage = await storage.createMessage({
+              conversationId,
+              content: aiResponse.response,
+              senderId: SYSTEM_AI_AGENT_ID,
+              senderType: 'ai',
+              senderName: 'Alex (AI Assistant)',
+              createdAt: aiMessageCreatedAt,
+            });
+            console.log(`[portal-chat] AI response created: ${aiMessage.id}`);
+            
+            // Broadcast AI message via WebSocket
+            if (wsServer && wsServer.broadcastNewMessage) {
+              wsServer.broadcastNewMessage(conversationId, {
+                messageId: aiMessage.id,
+                conversationId: aiMessage.conversationId,
+                content: aiMessage.content,
+                userId: SYSTEM_AI_AGENT_ID,
+                userName: 'Alex (AI Assistant)',
+                userRole: 'ai',
+                senderType: aiMessage.senderType,
+                timestamp: aiMessage.createdAt || aiMessageCreatedAt,
+                status: aiMessage.status
+              });
+            }
+          }
+        } catch (aiError) {
+          console.error('[portal-chat] AI response generation failed:', aiError);
+        }
+      })();
 
       res.json({ messageId: message.id });
     } catch (error) {

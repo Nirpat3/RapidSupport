@@ -110,8 +110,33 @@ export default function CustomerPortalChat() {
     mutationFn: async (content: string) => {
       return await apiRequest(`/api/customer-portal/conversation/${conversationId}/messages`, 'POST', { content });
     },
-    onSuccess: () => {
+    onSuccess: async (data: { messageId: string }) => {
+      const currentFiles = selectedFiles;
       setMessage("");
+      setSelectedFiles([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      // Upload files if any
+      if (currentFiles.length > 0 && data.messageId) {
+        try {
+          const formData = new FormData();
+          formData.append('messageId', data.messageId);
+          currentFiles.forEach(file => {
+            formData.append('files', file);
+          });
+          
+          await fetch('/api/customer-chat/upload-files', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include',
+          });
+        } catch (uploadError) {
+          console.error('Failed to upload files:', uploadError);
+        }
+      }
+      
       refetchConversation();
     },
     onError: () => {
@@ -122,6 +147,23 @@ export default function CustomerPortalChat() {
       });
     },
   });
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      setSelectedFiles(prev => [...prev, ...files].slice(0, 5)); // Max 5 files
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
 
   const handleCreateConversation = () => {
     if (!subject.trim() || !message.trim()) {
@@ -136,8 +178,10 @@ export default function CustomerPortalChat() {
   };
 
   const handleSendMessage = () => {
-    if (!message.trim() || sendMessageMutation.isPending) return;
-    sendMessageMutation.mutate(message.trim());
+    if (sendMessageMutation.isPending) return;
+    const content = message.trim() || (selectedFiles.length > 0 ? '[Attachment]' : '');
+    if (!content) return;
+    sendMessageMutation.mutate(content);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -328,8 +372,44 @@ export default function CustomerPortalChat() {
           </ScrollArea>
 
           {conversation?.status !== 'closed' && conversation?.status !== 'resolved' && (
-            <div className="border-t p-4">
+            <div className="border-t p-4 space-y-2">
+              {selectedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {selectedFiles.map((file, index) => (
+                    <Badge key={index} variant="secondary" className="gap-1 pr-1">
+                      <span className="truncate max-w-32">{file.name}</span>
+                      <span className="text-xs opacity-70">({formatFileSize(file.size)})</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-4 w-4 ml-1"
+                        onClick={() => removeFile(index)}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.txt"
+                  className="hidden"
+                  data-testid="input-file"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={selectedFiles.length >= 5}
+                  data-testid="button-attach"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
                 <div className="relative flex-1">
                   <Input
                     placeholder="Type your message..."
@@ -355,7 +435,7 @@ export default function CustomerPortalChat() {
                 </div>
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!message.trim() || sendMessageMutation.isPending}
+                  disabled={(!message.trim() && selectedFiles.length === 0) || sendMessageMutation.isPending}
                   data-testid="button-send"
                 >
                   {sendMessageMutation.isPending ? (
