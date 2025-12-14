@@ -9,6 +9,7 @@ import { formatDistanceToNow } from "date-fns";
 
 export interface Conversation {
   id: string;
+  title?: string;
   customer: {
     id: string;
     name: string;
@@ -117,7 +118,7 @@ export default function ConversationList({
                   <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-start justify-between mb-1 gap-2">
                       <h3 className="font-medium text-sm sm:text-base leading-tight break-words" data-testid={`customer-name-${conversation.id}`}>
-                        {conversation.customer.name}
+                        {conversation.title || conversation.customer.name}
                       </h3>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         {conversation.priority !== 'low' && (

@@ -823,7 +823,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         })
         .map(conv => ({
           id: conv.id,
-          subject: conv.subject || 'Untitled Conversation',
+          subject: conv.title || 'Untitled Conversation',
           status: conv.status,
           priority: conv.priority || 'low',
           createdAt: conv.createdAt,
@@ -858,7 +858,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         .slice(0, 5)
         .map(conv => ({
           id: conv.id,
-          subject: conv.subject || 'Untitled Conversation',
+          subject: conv.title || 'Untitled Conversation',
           status: conv.status,
           lastMessageAt: conv.updatedAt,
           unreadCount: 0, // Can implement unread tracking later
@@ -895,10 +895,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Create conversation
       const conversation = await storage.createConversation({
         customerId: customerId,
-        subject: createData.subject,
+        title: createData.subject,
         status: 'open',
         priority: 'medium',
-        channel: 'portal',
       });
 
       // Create initial message
@@ -907,8 +906,6 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         content: createData.message,
         senderType: 'customer',
         senderId: customerId,
-        senderName: customer.name || customer.email || 'Customer',
-        createdAt: new Date().toISOString(),
       });
 
       res.json({ conversationId: conversation.id });
@@ -964,7 +961,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       res.json({
         id: conversation.id,
-        subject: conversation.subject || 'Untitled Conversation',
+        subject: conversation.title || 'Untitled Conversation',
         status: conversation.status,
         createdAt: conversation.createdAt,
         updatedAt: conversation.updatedAt,
