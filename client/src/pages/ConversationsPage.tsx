@@ -108,6 +108,13 @@ export default function ConversationsPage() {
     isStreaming: boolean;
   }>>(new Map());
 
+  // Typing indicators state - tracks who is typing in each conversation
+  const [typingUsers, setTypingUsers] = useState<Map<string, Array<{
+    userId: string;
+    userName: string;
+    userRole: string;
+  }>>>(new Map());
+
   // Reopen conversation dialog state
   const [isReopenDialogOpen, setIsReopenDialogOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -193,6 +200,38 @@ export default function ConversationsPage() {
           });
         }
         
+        // Handle typing indicators
+        else if (data.type === 'user_typing' && data.conversationId) {
+          setTypingUsers((prev) => {
+            const newMap = new Map(prev);
+            const current = newMap.get(data.conversationId) || [];
+            // Add user if not already in list
+            if (!current.some(u => u.userId === data.userId)) {
+              newMap.set(data.conversationId, [...current, {
+                userId: data.userId,
+                userName: data.userName,
+                userRole: data.userRole
+              }]);
+            }
+            return newMap;
+          });
+        }
+        
+        // Handle stop typing
+        else if (data.type === 'user_stopped_typing' && data.conversationId) {
+          setTypingUsers((prev) => {
+            const newMap = new Map(prev);
+            const current = newMap.get(data.conversationId) || [];
+            const filtered = current.filter(u => u.userId !== data.userId);
+            if (filtered.length === 0) {
+              newMap.delete(data.conversationId);
+            } else {
+              newMap.set(data.conversationId, filtered);
+            }
+            return newMap;
+          });
+        }
+        
         // Handle regular new message events (backward compatibility)
         else if (data.type === 'new_message' && data.conversationId) {
           if (data.conversationId === activeConversationId) {
@@ -202,6 +241,21 @@ export default function ConversationsPage() {
           }
           queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
           queryClient.invalidateQueries({ queryKey: ['/api/unread-counts'] });
+          
+          // Clear typing indicator for the sender when they send a message
+          if (data.userId) {
+            setTypingUsers((prev) => {
+              const newMap = new Map(prev);
+              const current = newMap.get(data.conversationId) || [];
+              const filtered = current.filter(u => u.userId !== data.userId);
+              if (filtered.length === 0) {
+                newMap.delete(data.conversationId);
+              } else {
+                newMap.set(data.conversationId, filtered);
+              }
+              return newMap;
+            });
+          }
         }
       } catch (error) {
         console.error('[ConversationsPage] Error parsing WebSocket message:', error);
@@ -889,6 +943,23 @@ export default function ConversationsPage() {
               streamingMessage={activeConversationId ? streamingMessages.get(activeConversationId) || null : null}
               conversationStatus={activeConversation.status}
               onStatusChange={(status) => updateStatusMutation.mutate({ conversationId: activeConversationId, status })}
+              typingUsers={activeConversationId ? typingUsers.get(activeConversationId) || [] : []}
+              onTypingStart={() => {
+                if (ws && ws.readyState === WebSocket.OPEN && activeConversationId) {
+                  ws.send(JSON.stringify({
+                    type: 'typing',
+                    conversationId: activeConversationId
+                  }));
+                }
+              }}
+              onTypingStop={() => {
+                if (ws && ws.readyState === WebSocket.OPEN && activeConversationId) {
+                  ws.send(JSON.stringify({
+                    type: 'stop_typing',
+                    conversationId: activeConversationId
+                  }));
+                }
+              }}
             />
           </>
         ) : (
