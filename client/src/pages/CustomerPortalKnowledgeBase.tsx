@@ -12,11 +12,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Search, FileText, BookOpen, Printer, Sparkles, HelpCircle } from "lucide-react";
+import { Search, FileText, BookOpen, Printer, Sparkles, HelpCircle, TrendingUp, User, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CustomerPortalLayout } from "@/components/CustomerPortalLayout";
 import { apiRequest } from "@/lib/queryClient";
 import ChatWidget from "@/components/ChatWidget";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface KnowledgeBaseArticle {
   id: string;
@@ -28,11 +29,14 @@ interface KnowledgeBaseArticle {
   lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
+  score?: number;
+  effectiveness?: number;
 }
 
 export default function CustomerPortalKnowledgeBase() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArticle, setSelectedArticle] = useState<KnowledgeBaseArticle | null>(null);
+  const { user } = useAuth();
 
   // Fetch all enabled articles
   const { data: articles = [], isLoading } = useQuery<KnowledgeBaseArticle[]>({
@@ -40,6 +44,24 @@ export default function CustomerPortalKnowledgeBase() {
     queryFn: async () => {
       return apiRequest('/api/public/knowledge-base', 'GET');
     },
+  });
+
+  // Fetch popular/most-used articles
+  const { data: popularArticles = [] } = useQuery<KnowledgeBaseArticle[]>({
+    queryKey: ['/api/public/knowledge-base/popular'],
+    queryFn: async () => {
+      return apiRequest('/api/public/knowledge-base/popular?limit=8', 'GET');
+    },
+  });
+
+  // Fetch personalized recommendations (for logged-in customers)
+  const { data: recommendedArticles = [] } = useQuery<KnowledgeBaseArticle[]>({
+    queryKey: ['/api/public/knowledge-base/recommended', user?.id],
+    queryFn: async () => {
+      const params = user?.id ? `?customerId=${user.id}&limit=6` : '?limit=6';
+      return apiRequest(`/api/public/knowledge-base/recommended${params}`, 'GET');
+    },
+    enabled: true,
   });
 
   // Fetch full article content when selected
@@ -124,6 +146,52 @@ export default function CustomerPortalKnowledgeBase() {
     }
   };
 
+  // Article card component for flat list display
+  const ArticleCard = ({ article, showScore = false }: { article: KnowledgeBaseArticle; showScore?: boolean }) => (
+    <Card
+      className="hover-elevate active-elevate-2 transition-all cursor-pointer group h-full"
+      onClick={() => setSelectedArticle(article)}
+      data-testid={`card-article-${article.id}`}
+    >
+      <CardHeader className="p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-base font-semibold group-hover:text-primary transition-colors mb-2 line-clamp-2">
+              {article.title}
+            </CardTitle>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              <Badge variant="outline" className="text-xs">
+                {article.category}
+              </Badge>
+              {article.tags?.slice(0, 2).map((tag, idx) => (
+                <Badge key={idx} variant="secondary" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+              {article.tags && article.tags.length > 2 && (
+                <Badge variant="secondary" className="text-xs">
+                  +{article.tags.length - 2}
+                </Badge>
+              )}
+            </div>
+            {article.usageCount && article.usageCount > 0 && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <TrendingUp className="h-3 w-3" />
+                <span>{article.usageCount} views</span>
+              </div>
+            )}
+          </div>
+          {article.usageCount && article.usageCount > 10 && (
+            <Badge variant="outline" className="gap-1 flex-shrink-0">
+              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+              Popular
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+    </Card>
+  );
+
   return (
     <CustomerPortalLayout>
       <div className="min-h-screen">
@@ -201,7 +269,7 @@ export default function CustomerPortalKnowledgeBase() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-8">
+            <div className="space-y-10">
               {/* Results Summary */}
               {searchQuery && (
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
@@ -209,6 +277,39 @@ export default function CustomerPortalKnowledgeBase() {
                   <span>
                     Found <strong className="text-foreground">{filteredArticles.length}</strong> {filteredArticles.length === 1 ? 'article' : 'articles'} matching "{searchQuery}"
                   </span>
+                </div>
+              )}
+
+              {/* Personalized Recommendations (for logged-in users or everyone) */}
+              {!searchQuery && recommendedArticles.length > 0 && (
+                <div>
+                  <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+                    <User className="h-6 w-6 text-primary" />
+                    Recommended For You
+                  </h2>
+                  <p className="text-muted-foreground mb-4 -mt-4">
+                    {user ? 'Based on your support history and interests' : 'Popular articles you might find helpful'}
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {recommendedArticles.map((article) => (
+                      <ArticleCard key={article.id} article={article} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Popular/Most Used Articles Section */}
+              {!searchQuery && popularArticles.length > 0 && (
+                <div>
+                  <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+                    <TrendingUp className="h-6 w-6 text-primary" />
+                    Most Popular Articles
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {popularArticles.map((article) => (
+                      <ArticleCard key={article.id} article={article} />
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -248,14 +349,14 @@ export default function CustomerPortalKnowledgeBase() {
                 </div>
               )}
 
-              {/* Articles by Category - Accordion */}
+              {/* All Articles - Accordion by Category (for browsing) */}
               <div>
                 <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
                   <BookOpen className="h-6 w-6 text-primary" />
                   {searchQuery ? 'Search Results' : 'All Articles'}
                 </h2>
 
-                <Accordion type="multiple" defaultValue={searchQuery ? categories : [categories[0]]} className="space-y-4">
+                <Accordion type="multiple" defaultValue={searchQuery ? categories : []} className="space-y-4">
                   {categories.map((category) => (
                     <AccordionItem
                       key={category}
@@ -300,7 +401,7 @@ export default function CustomerPortalKnowledgeBase() {
                                   </div>
                                   {article.usageCount && article.usageCount > 10 && (
                                     <Badge variant="outline" className="gap-1 flex-shrink-0">
-                                      <Sparkles className="h-3 w-3" />
+                                      <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                                       Popular
                                     </Badge>
                                   )}
