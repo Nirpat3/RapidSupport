@@ -141,7 +141,8 @@ const conversationCreateSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
-  status: z.enum(['open', 'pending', 'resolved', 'closed']).default('open')
+  status: z.enum(['open', 'pending', 'resolved', 'closed']).default('open'),
+  assignedAgentId: z.string().uuid('Invalid agent ID').optional()
 });
 
 const conversationStatusSchema = z.object({
@@ -1056,6 +1057,22 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             timestamp: message.timestamp
           });
         }
+      }
+
+      // Broadcast new_message event so agent conversation view refreshes
+      if (wsServer && wsServer.broadcastNewMessage) {
+        wsServer.broadcastNewMessage(conversationId, {
+          messageId: message.id,
+          conversationId: conversationId,
+          content: message.content,
+          userId: customerId,
+          userName: customer?.name || customer?.email || 'Customer',
+          userRole: 'customer',
+          senderType: 'customer',
+          timestamp: message.createdAt || new Date().toISOString(),
+          status: message.status
+        });
+        console.log(`[portal-chat] Broadcast new_message event for customer message: ${message.id}`);
       }
 
       // Trigger AI response asynchronously (don't block the response)
@@ -3048,13 +3065,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Conversation creation route
+  // Conversation creation route - allows agents to start conversations with customers
   app.post('/api/conversations', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
+      const user = req.user as any;
+      const { initialMessage, ...restBody } = req.body;
+      
       // Validate request body
       const conversationData = conversationCreateSchema.parse({
-        ...req.body,
-        title: req.body.title || 'New Conversation'
+        ...restBody,
+        title: restBody.title || restBody.subject || 'New Conversation',
+        assignedAgentId: restBody.assignedAgentId || user.id, // Auto-assign creating agent
       });
       
       // Check if customer exists
@@ -3064,6 +3085,44 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
       
       const conversation = await storage.createConversation(conversationData);
+      
+      // Broadcast new conversation to all staff so they see it immediately
+      const wsServer = (req.app as any).wsServer;
+      if (wsServer && wsServer.broadcastNewConversation) {
+        wsServer.broadcastNewConversation(conversation, customer, 'New conversation started by agent');
+      }
+      
+      // If initial message provided, create it as agent message
+      if (initialMessage && typeof initialMessage === 'string' && initialMessage.trim()) {
+        const message = await storage.createMessage({
+          conversationId: conversation.id,
+          content: initialMessage.trim(),
+          senderType: user.role === 'admin' ? 'admin' : 'agent',
+          senderId: user.id,
+          senderName: user.name,
+          createdAt: new Date().toISOString(),
+          scope: 'public'
+        });
+        
+        // Broadcast the message via WebSocket
+        const wsServer = (req.app as any).wsServer;
+        if (wsServer && wsServer.broadcastNewMessage) {
+          wsServer.broadcastNewMessage(conversation.id, {
+            messageId: message.id,
+            conversationId: conversation.id,
+            content: message.content,
+            userId: user.id,
+            userName: user.name,
+            userRole: user.role,
+            senderType: message.senderType,
+            timestamp: message.createdAt || new Date().toISOString(),
+            status: message.status
+          });
+        }
+        
+        console.log(`[conversations] Agent ${user.name} started conversation with customer ${customer.name}, initial message: ${message.id}`);
+      }
+      
       res.status(201).json(conversation);
     } catch (error) {
       if (error instanceof z.ZodError) {

@@ -82,6 +82,12 @@ export default function CustomerProfilePage() {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("overview");
   const [isAddTicketOpen, setIsAddTicketOpen] = useState(false);
+  const [isStartConversationOpen, setIsStartConversationOpen] = useState(false);
+  const [newConversation, setNewConversation] = useState({
+    subject: "",
+    message: "",
+    priority: "medium"
+  });
   const [newTicket, setNewTicket] = useState({
     title: "",
     description: "",
@@ -91,6 +97,48 @@ export default function CustomerProfilePage() {
   
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  
+  // Mutation for creating a new conversation
+  const createConversationMutation = useMutation({
+    mutationFn: async (data: { customerId: string; subject: string; initialMessage: string; priority: string }) => {
+      const response = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          customerId: data.customerId,
+          title: data.subject,
+          status: 'open',
+          priority: data.priority,
+          initialMessage: data.initialMessage
+        })
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create conversation');
+      }
+      return response.json();
+    },
+    onSuccess: (conversation) => {
+      toast({
+        title: "Conversation Started",
+        description: "Your message has been sent to the customer.",
+      });
+      setIsStartConversationOpen(false);
+      setNewConversation({ subject: "", message: "", priority: "medium" });
+      queryClient.invalidateQueries({ queryKey: ['/api/customers', id, 'conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+      // Navigate to the conversation
+      navigate(`/conversations?id=${conversation.id}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start conversation",
+        variant: "destructive",
+      });
+    }
+  });
   
   const handleTicketStatusChange = (ticketId: string, newStatus: 'open' | 'in-progress' | 'closed') => {
     const success = ticketApi.updateTicketStatus(ticketId, newStatus);
@@ -187,10 +235,72 @@ export default function CustomerProfilePage() {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" data-testid="button-send-message">
-            <MessageSquare className="w-4 h-4 mr-2" />
-            Send Message
-          </Button>
+          <Dialog open={isStartConversationOpen} onOpenChange={setIsStartConversationOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" data-testid="button-send-message">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Send Message
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Start Conversation with {customer.name}</DialogTitle>
+                <DialogDescription>
+                  Send a message to this customer. They will receive it in their customer portal.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="conv-subject">Subject</Label>
+                  <Input
+                    id="conv-subject"
+                    placeholder="What is this conversation about?"
+                    value={newConversation.subject}
+                    onChange={(e) => setNewConversation({...newConversation, subject: e.target.value})}
+                    data-testid="input-conversation-subject"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="conv-message">Message</Label>
+                  <Textarea
+                    id="conv-message"
+                    placeholder="Type your message to the customer..."
+                    value={newConversation.message}
+                    onChange={(e) => setNewConversation({...newConversation, message: e.target.value})}
+                    className="min-h-[120px]"
+                    data-testid="textarea-conversation-message"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsStartConversationOpen(false)} data-testid="button-cancel-conversation">
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => {
+                    if (!newConversation.subject.trim() || !newConversation.message.trim()) {
+                      toast({
+                        title: "Error",
+                        description: "Please enter both a subject and message.",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    createConversationMutation.mutate({
+                      customerId: customer.id,
+                      subject: newConversation.subject,
+                      initialMessage: newConversation.message,
+                      priority: newConversation.priority
+                    });
+                  }}
+                  disabled={createConversationMutation.isPending}
+                  data-testid="button-submit-conversation"
+                >
+                  {createConversationMutation.isPending ? 'Sending...' : 'Send Message'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Dialog open={isAddTicketOpen} onOpenChange={setIsAddTicketOpen}>
             <DialogTrigger asChild>
               <Button variant="default" size="sm" data-testid="button-create-ticket">
