@@ -115,9 +115,15 @@ import {
   type InsertKnowledgeGap,
   type AiTrainingQueue,
   type InsertAiTrainingQueue,
+  emailQueue,
+  engagementSettings,
+  type EmailQueue,
+  type InsertEmailQueue,
+  type EngagementSettings,
+  type InsertEngagementSettings,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, isNull, inArray, gte } from "drizzle-orm";
+import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
 import { KnowledgeRetrievalService } from "./knowledge-retrieval";
 
 // Updated interface for all CRUD operations
@@ -462,6 +468,24 @@ export interface IStorage {
   deleteAllUserPermissions(userId: string): Promise<void>;
   getUserPermissionForFeature(userId: string, feature: string): Promise<UserPermission | undefined>;
   getAllUsersWithPermissions(): Promise<Array<{ user: User; permissions: UserPermission[] }>>;
+
+  // Email Queue operations
+  createEmailQueueEntry(entry: InsertEmailQueue): Promise<EmailQueue>;
+  getPendingEmails(scheduledBefore?: Date): Promise<EmailQueue[]>;
+  getEmailQueueByConversation(conversationId: string, recipientId: string): Promise<EmailQueue | undefined>;
+  updateEmailQueueEntry(id: string, updates: Partial<EmailQueue>): Promise<void>;
+  cancelPendingEmailsForConversation(conversationId: string, recipientId: string): Promise<void>;
+  markEmailAsSent(id: string): Promise<void>;
+  markEmailAsFailed(id: string, errorMessage: string): Promise<void>;
+
+  // Engagement Settings operations
+  getEngagementSettings(organizationId?: string): Promise<EngagementSettings | undefined>;
+  upsertEngagementSettings(settings: InsertEngagementSettings): Promise<EngagementSettings>;
+  updateEngagementSettings(id: string, updates: Partial<InsertEngagementSettings>): Promise<EngagementSettings>;
+
+  // Follow-up tracking operations
+  getConversationsNeedingFollowup(delayHours: number, maxFollowups: number): Promise<Conversation[]>;
+  getInactiveConversationsForAutoClose(inactiveDays: number): Promise<Conversation[]>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -4046,6 +4070,158 @@ export class DatabaseStorage implements IStorage {
     }
 
     return result;
+  }
+
+  // Email Queue operations
+  async createEmailQueueEntry(entry: InsertEmailQueue): Promise<EmailQueue> {
+    const [created] = await db
+      .insert(emailQueue)
+      .values(entry)
+      .returning();
+    return created;
+  }
+
+  async getPendingEmails(scheduledBefore?: Date): Promise<EmailQueue[]> {
+    const conditions = [eq(emailQueue.status, 'pending')];
+    if (scheduledBefore) {
+      conditions.push(lte(emailQueue.scheduledFor, scheduledBefore));
+    }
+    return await db
+      .select()
+      .from(emailQueue)
+      .where(and(...conditions))
+      .orderBy(asc(emailQueue.scheduledFor));
+  }
+
+  async getEmailQueueByConversation(conversationId: string, recipientId: string): Promise<EmailQueue | undefined> {
+    const [entry] = await db
+      .select()
+      .from(emailQueue)
+      .where(
+        and(
+          eq(emailQueue.conversationId, conversationId),
+          eq(emailQueue.recipientId, recipientId),
+          eq(emailQueue.status, 'pending')
+        )
+      );
+    return entry;
+  }
+
+  async updateEmailQueueEntry(id: string, updates: Partial<EmailQueue>): Promise<void> {
+    await db
+      .update(emailQueue)
+      .set(updates)
+      .where(eq(emailQueue.id, id));
+  }
+
+  async cancelPendingEmailsForConversation(conversationId: string, recipientId: string): Promise<void> {
+    await db
+      .update(emailQueue)
+      .set({ status: 'cancelled' })
+      .where(
+        and(
+          eq(emailQueue.conversationId, conversationId),
+          eq(emailQueue.recipientId, recipientId),
+          eq(emailQueue.status, 'pending')
+        )
+      );
+  }
+
+  async markEmailAsSent(id: string): Promise<void> {
+    await db
+      .update(emailQueue)
+      .set({ status: 'sent', sentAt: new Date() })
+      .where(eq(emailQueue.id, id));
+  }
+
+  async markEmailAsFailed(id: string, errorMessage: string): Promise<void> {
+    await db
+      .update(emailQueue)
+      .set({ 
+        status: 'failed', 
+        errorMessage,
+        attempts: sql`${emailQueue.attempts} + 1`
+      })
+      .where(eq(emailQueue.id, id));
+  }
+
+  // Engagement Settings operations
+  async getEngagementSettings(organizationId?: string): Promise<EngagementSettings | undefined> {
+    const conditions = organizationId 
+      ? [eq(engagementSettings.organizationId, organizationId)]
+      : [isNull(engagementSettings.organizationId)];
+    
+    const [settings] = await db
+      .select()
+      .from(engagementSettings)
+      .where(and(...conditions));
+    return settings;
+  }
+
+  async upsertEngagementSettings(settings: InsertEngagementSettings): Promise<EngagementSettings> {
+    const existing = await this.getEngagementSettings(settings.organizationId ?? undefined);
+    
+    if (existing) {
+      const [updated] = await db
+        .update(engagementSettings)
+        .set({ ...settings, updatedAt: new Date() })
+        .where(eq(engagementSettings.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(engagementSettings)
+        .values(settings)
+        .returning();
+      return created;
+    }
+  }
+
+  async updateEngagementSettings(id: string, updates: Partial<InsertEngagementSettings>): Promise<EngagementSettings> {
+    const [updated] = await db
+      .update(engagementSettings)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(engagementSettings.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Follow-up tracking operations
+  async getConversationsNeedingFollowup(delayHours: number, maxFollowups: number): Promise<Conversation[]> {
+    const cutoffTime = new Date(Date.now() - delayHours * 60 * 60 * 1000);
+    
+    return await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          or(eq(conversations.status, 'open'), eq(conversations.status, 'pending')),
+          lt(conversations.autoFollowupCount, maxFollowups),
+          lte(conversations.lastAgentReplyAt, cutoffTime),
+          or(
+            isNull(conversations.lastCustomerReplyAt),
+            lt(conversations.lastCustomerReplyAt, conversations.lastAgentReplyAt)
+          ),
+          or(
+            isNull(conversations.autoFollowupSentAt),
+            lt(conversations.autoFollowupSentAt, conversations.lastAgentReplyAt)
+          )
+        )
+      );
+  }
+
+  async getInactiveConversationsForAutoClose(inactiveDays: number): Promise<Conversation[]> {
+    const cutoffTime = new Date(Date.now() - inactiveDays * 24 * 60 * 60 * 1000);
+    
+    return await db
+      .select()
+      .from(conversations)
+      .where(
+        and(
+          or(eq(conversations.status, 'open'), eq(conversations.status, 'pending')),
+          lte(conversations.updatedAt, cutoffTime)
+        )
+      );
   }
 
 }

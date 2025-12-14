@@ -7805,6 +7805,44 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Engagement Settings API routes
+  app.get('/api/engagement-settings', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      let settings = await storage.getEngagementSettings();
+      
+      // If no settings exist, create default settings
+      if (!settings) {
+        settings = await storage.upsertEngagementSettings({
+          emailNotificationsEnabled: true,
+          emailBatchingDelayMinutes: 5,
+          emailRateLimitHours: 4,
+          autoFollowupEnabled: true,
+          autoFollowupDelayHours: 24,
+          maxAutoFollowups: 3,
+          autoCloseEnabled: true,
+          autoCloseDays: 7,
+          followupMessageTemplate: "Hi! Just checking in to see if you still need help with this. Please let us know if there's anything else we can assist you with.",
+        });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      console.error('Failed to fetch engagement settings:', error);
+      res.status(500).json({ error: 'Failed to fetch engagement settings' });
+    }
+  });
+
+  app.put('/api/engagement-settings', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const updates = req.body;
+      const updatedSettings = await storage.upsertEngagementSettings(updates);
+      res.json(updatedSettings);
+    } catch (error) {
+      console.error('Failed to update engagement settings:', error);
+      res.status(500).json({ error: 'Failed to update engagement settings' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat
