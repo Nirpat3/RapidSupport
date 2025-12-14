@@ -779,6 +779,160 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Create new conversation for portal customer
+  app.post('/api/customer-portal/conversations/create', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const createData = z.object({
+        subject: z.string().min(1, 'Subject is required'),
+        message: z.string().min(1, 'Message is required'),
+      }).parse(req.body);
+
+      // Get customer info
+      const customer = await storage.getCustomer(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+
+      // Create conversation
+      const conversation = await storage.createConversation({
+        customerId: customerId,
+        subject: createData.subject,
+        status: 'open',
+        priority: 'medium',
+        channel: 'portal',
+      });
+
+      // Create initial message
+      await storage.createMessage({
+        conversationId: conversation.id,
+        content: createData.message,
+        senderType: 'customer',
+        senderId: customerId,
+        senderName: customer.name || customer.email || 'Customer',
+        createdAt: new Date().toISOString(),
+      });
+
+      res.json({ conversationId: conversation.id });
+    } catch (error) {
+      console.error('Create portal conversation error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0]?.message || 'Invalid request data' });
+      }
+      res.status(500).json({ error: 'Failed to create conversation' });
+    }
+  });
+
+  // Get single conversation with messages for portal customer
+  app.get('/api/customer-portal/conversation/:conversationId', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const { conversationId } = req.params;
+
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      // Verify customer owns this conversation
+      if (conversation.customerId !== customerId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Get messages
+      const messages = await storage.getMessagesByConversation(conversationId);
+
+      res.json({
+        id: conversation.id,
+        subject: conversation.subject || 'Untitled Conversation',
+        status: conversation.status,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+        messages: messages.map(msg => ({
+          id: msg.id,
+          content: msg.content,
+          senderType: msg.senderType,
+          senderName: msg.senderName || 'Support',
+          createdAt: msg.createdAt,
+          isRead: msg.isRead,
+        })),
+      });
+    } catch (error) {
+      console.error('Get portal conversation error:', error);
+      res.status(500).json({ error: 'Failed to get conversation' });
+    }
+  });
+
+  // Send message to conversation for portal customer
+  app.post('/api/customer-portal/conversation/:conversationId/messages', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const { conversationId } = req.params;
+      const { content } = z.object({
+        content: z.string().min(1, 'Message cannot be empty'),
+      }).parse(req.body);
+
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      // Verify customer owns this conversation
+      if (conversation.customerId !== customerId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Check if conversation is closed
+      if (conversation.status === 'closed' || conversation.status === 'resolved') {
+        return res.status(400).json({ error: 'Cannot send message to closed conversation' });
+      }
+
+      // Get customer info
+      const customer = await storage.getCustomer(customerId);
+
+      // Create message
+      const message = await storage.createMessage({
+        conversationId,
+        content,
+        senderType: 'customer',
+        senderId: customerId,
+        senderName: customer?.name || customer?.email || 'Customer',
+        createdAt: new Date().toISOString(),
+      });
+
+      // Update conversation timestamp
+      await storage.updateConversation(conversationId, {
+        updatedAt: new Date().toISOString(),
+      });
+
+      res.json({ messageId: message.id });
+    } catch (error) {
+      console.error('Send portal message error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0]?.message || 'Invalid request data' });
+      }
+      res.status(500).json({ error: 'Failed to send message' });
+    }
+  });
+
   // Update customer profile
   app.put('/api/customer-portal/profile', async (req, res) => {
     try {

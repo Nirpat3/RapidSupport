@@ -114,7 +114,7 @@ export default function CustomerPortalDashboard() {
             <CardDescription>Common tasks and shortcuts</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Link href="/customer-chat">
+            <Link href="/portal/chat">
               <Button className="w-full justify-between gap-2" data-testid="button-new-ticket">
                 <span className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
@@ -146,14 +146,14 @@ export default function CustomerPortalDashboard() {
               <div className="text-center py-8 text-muted-foreground">
                 <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>No conversations yet</p>
-                <Link href="/customer-chat">
+                <Link href="/portal/chat">
                   <Button variant="ghost" className="mt-2">Start your first conversation</Button>
                 </Link>
               </div>
             ) : (
               <div className="space-y-3">
                 {recentConversations.map((conv) => (
-                  <Link key={conv.id} href={`/portal/conversations/${conv.id}`}>
+                  <Link key={conv.id} href={`/portal/chat/${conv.id}`}>
                     <div 
                       className="flex items-center justify-between p-3 rounded-lg border hover-elevate active-elevate-2 cursor-pointer"
                       data-testid={`conversation-${conv.id}`}

@@ -5,6 +5,7 @@ import CustomerPortalProfile from "@/pages/CustomerPortalProfile";
 import CustomerPortalConversations from "@/pages/CustomerPortalConversations";
 import CustomerPortalFeedback from "@/pages/CustomerPortalFeedback";
 import CustomerPortalKnowledgeBase from "@/pages/CustomerPortalKnowledgeBase";
+import CustomerPortalChat from "@/pages/CustomerPortalChat";
 
 export function CustomerPortalRouter() {
   return (
@@ -12,6 +13,8 @@ export function CustomerPortalRouter() {
       <Route path="/portal/dashboard" component={CustomerPortalDashboard} />
       <Route path="/portal/profile" component={CustomerPortalProfile} />
       <Route path="/portal/conversations" component={CustomerPortalConversations} />
+      <Route path="/portal/chat/:conversationId" component={CustomerPortalChat} />
+      <Route path="/portal/chat" component={CustomerPortalChat} />
       <Route path="/portal/feedback" component={CustomerPortalFeedback} />
       <Route path="/portal/feeds" component={CustomerPortalFeed} />
       <Route path="/portal/knowledge-base" component={CustomerPortalKnowledgeBase} />

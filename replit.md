@@ -3,7 +3,14 @@
 ## Overview
 Support Board is a full-stack customer support platform for real-time chat, conversation management, and administrative oversight. It supports multiple user roles (admin, agent, customer) and includes features like conversation assignment, status tracking, priority management, and dashboard analytics. The platform offers internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base search, and advanced rich media input to deliver an efficient and user-friendly customer service solution.
 
-## Recent Changes (Nov 30, 2025)
+## Recent Changes (Dec 14, 2025)
+- **Customer Portal Chat**: Added dedicated portal chat page (`/portal/chat`) for authenticated customers
+  - New conversation creation form with subject and message fields
+  - View and reply to existing conversations at `/portal/chat/:conversationId`
+  - Fixed "Start New Conversation" button routing (was incorrectly linking to anonymous chat)
+  - Added API endpoints for portal conversation creation and messaging
+
+## Previous Changes (Nov 30, 2025)
 - **MAJOR REDESIGN**: Implemented "Conversation-First Intelligence" visual overhaul
   - Updated color system: Primary Indigo (243° 100% 40%), Accent Emerald (160° 84% 39%), highlights via Amber
   - Applied new color variables to both light and dark modes

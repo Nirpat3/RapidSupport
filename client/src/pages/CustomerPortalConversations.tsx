@@ -79,7 +79,7 @@ export default function CustomerPortalConversations() {
             <h2 className="text-3xl font-bold" data-testid="title-conversations">Conversations</h2>
             <p className="text-muted-foreground">View and manage your support conversations</p>
           </div>
-          <Link href="/customer-chat">
+          <Link href="/portal/chat">
             <Button className="gap-2" data-testid="button-new-conversation">
               <Plus className="h-4 w-4" />
               New Conversation
@@ -136,7 +136,7 @@ export default function CustomerPortalConversations() {
                     : 'No conversations yet'}
                 </p>
                 {!searchQuery && statusFilter === 'all' && (
-                  <Link href="/customer-chat">
+                  <Link href="/portal/chat">
                     <Button variant="outline">Start your first conversation</Button>
                   </Link>
                 )}
@@ -146,7 +146,7 @@ export default function CustomerPortalConversations() {
         ) : (
           <div className="space-y-3">
             {filteredConversations.map((conv) => (
-              <Link key={conv.id} href={`/portal/conversations/${conv.id}`}>
+              <Link key={conv.id} href={`/portal/chat/${conv.id}`}>
                 <Card className="hover-elevate active-elevate-2 cursor-pointer" data-testid={`conversation-${conv.id}`}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-4">

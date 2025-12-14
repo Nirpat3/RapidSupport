@@ -822,8 +822,8 @@ export class DatabaseStorage implements IStorage {
     
     // Automatically mark the message as read for the sender
     // (users shouldn't see their own messages as unread)
-    // Skip this for system messages as 'system' is not a real user
-    if (insertMessage.senderType !== 'system') {
+    // Skip this for system messages and customer messages as they're not in the users table
+    if (insertMessage.senderType !== 'system' && insertMessage.senderType !== 'customer') {
       await db.insert(messageReads).values({
         messageId: message.id,
         userId: insertMessage.senderId
