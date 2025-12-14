@@ -75,9 +75,15 @@ export default function SettingsPage() {
   });
 
   const handleAiSettingChange = (key: keyof typeof aiLocalSettings, value: boolean) => {
+    const previousSettings = { ...aiLocalSettings };
     const newSettings = { ...aiLocalSettings, [key]: value };
     setAiLocalSettings(newSettings);
-    updateAiSettings.mutate({ [key]: value });
+    
+    updateAiSettings.mutate({ [key]: value }, {
+      onError: () => {
+        setAiLocalSettings(previousSettings);
+      }
+    });
   };
   
   const handleLocalSettingChange = (key: string, value: boolean) => {
