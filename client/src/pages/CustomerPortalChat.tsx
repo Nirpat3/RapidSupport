@@ -20,7 +20,13 @@ import {
   X,
   Loader2,
   Wifi,
-  WifiOff
+  WifiOff,
+  RotateCcw,
+  History,
+  User,
+  UserCheck,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -58,6 +64,16 @@ interface Conversation {
   messages: Message[];
 }
 
+interface StatusChange {
+  id: string;
+  previousStatus: string;
+  newStatus: string;
+  changedBy: string;
+  changedByType: 'customer' | 'agent' | 'system';
+  reason?: string;
+  timestamp: string;
+}
+
 export default function CustomerPortalChat() {
   const [, setLocation] = useLocation();
   const [match, params] = useRoute('/portal/chat/:conversationId');
@@ -70,6 +86,7 @@ export default function CustomerPortalChat() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [wsConnected, setWsConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{userId: string; userName: string}[]>([]);
+  const [showStatusHistory, setShowStatusHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -84,6 +101,34 @@ export default function CustomerPortalChat() {
   const { data: conversation, isLoading: conversationLoading, refetch: refetchConversation } = useQuery<Conversation>({
     queryKey: ['/api/customer-portal/conversation', conversationId],
     enabled: !!conversationId,
+  });
+
+  // Fetch status change history
+  const { data: statusHistory = [] } = useQuery<StatusChange[]>({
+    queryKey: ['/api/customer-portal/conversation', conversationId, 'history'],
+    enabled: !!conversationId && (conversation?.status === 'resolved' || conversation?.status === 'closed'),
+  });
+
+  // Reopen conversation mutation
+  const reopenMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest(`/api/customer-portal/conversation/${conversationId}/reopen`, 'POST');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/customer-portal/conversation', conversationId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/customer-portal/conversations'] });
+      toast({
+        title: "Conversation reopened",
+        description: "You can now continue the conversation.",
+      });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to reopen conversation. Please try again.",
+      });
+    },
   });
 
   // Mark conversation as read when viewing it
@@ -632,8 +677,81 @@ export default function CustomerPortalChat() {
           )}
 
           {(conversation?.status === 'closed' || conversation?.status === 'resolved') && (
-            <div className="border-t p-4 text-center text-muted-foreground">
-              This conversation has been closed.
+            <div className="border-t p-4 space-y-4">
+              {/* Status change info */}
+              {statusHistory.length > 0 && (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setShowStatusHistory(!showStatusHistory)}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mx-auto"
+                    data-testid="button-toggle-history"
+                  >
+                    <History className="h-4 w-4" />
+                    <span>Status History</span>
+                    {showStatusHistory ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </button>
+                  
+                  {showStatusHistory && (
+                    <div className="space-y-2 bg-muted/50 rounded-lg p-3 max-w-md mx-auto">
+                      {statusHistory.map((change) => (
+                        <div key={change.id} className="flex items-start gap-2 text-sm">
+                          <div className={cn(
+                            "p-1 rounded-full mt-0.5",
+                            change.changedByType === 'customer' ? "bg-primary/20" : "bg-accent/20"
+                          )}>
+                            {change.changedByType === 'customer' ? (
+                              <User className="h-3 w-3 text-primary" />
+                            ) : (
+                              <UserCheck className="h-3 w-3 text-accent" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-foreground">
+                              <span className="font-medium">{change.changedBy}</span>
+                              {' changed status to '}
+                              <Badge variant="outline" className="text-xs">
+                                {change.newStatus.replace('_', ' ')}
+                              </Badge>
+                            </p>
+                            {change.reason && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{change.reason}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {change.timestamp && !isNaN(new Date(change.timestamp).getTime())
+                                ? format(new Date(change.timestamp), 'MMM d, yyyy h:mm a')
+                                : ''}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Closed message and reopen button */}
+              <div className="text-center space-y-3">
+                <p className="text-muted-foreground">
+                  This conversation has been marked as {conversation.status}.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Need more help? You can reopen this conversation to continue.
+                </p>
+                <Button
+                  onClick={() => reopenMutation.mutate()}
+                  disabled={reopenMutation.isPending}
+                  variant="outline"
+                  className="gap-2"
+                  data-testid="button-reopen"
+                >
+                  {reopenMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  Reopen Conversation
+                </Button>
+              </div>
             </div>
           )}
         </Card>
