@@ -1025,13 +1025,15 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
 
       // Trigger AI response asynchronously (don't block the response)
-      (async () => {
-        try {
-          console.log(`[portal-chat] Generating AI response for conversation: ${conversationId}`);
-          const aiResponse = await AIService.generateSmartAgentResponse(
-            content,
-            conversationId
-          );
+      // Only generate AI response if AI is enabled for this conversation
+      if (conversation && conversation.aiAssistanceEnabled !== false) {
+        (async () => {
+          try {
+            console.log(`[portal-chat] Generating AI response for conversation: ${conversationId}`);
+            const aiResponse = await AIService.generateSmartAgentResponse(
+              content,
+              conversationId
+            );
           
           if (aiResponse && aiResponse.response) {
             // Create AI message with senderType 'ai' for proper frontend rendering
@@ -1065,7 +1067,10 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         } catch (aiError) {
           console.error('[portal-chat] AI response generation failed:', aiError);
         }
-      })();
+        })();
+      } else {
+        console.log(`[portal-chat] AI response skipped - AI is disabled for conversation: ${conversationId}`);
+      }
 
       res.json({ messageId: message.id });
     } catch (error) {

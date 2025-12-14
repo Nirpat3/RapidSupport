@@ -391,7 +391,7 @@ export default function CustomerPortalChat() {
                   ))}
                 </div>
               )}
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -407,6 +407,8 @@ export default function CustomerPortalChat() {
                   onClick={() => fileInputRef.current?.click()}
                   disabled={selectedFiles.length >= 5}
                   data-testid="button-attach"
+                  tabIndex={-1}
+                  type="button"
                 >
                   <Paperclip className="h-4 w-4" />
                 </Button>
@@ -424,6 +426,9 @@ export default function CustomerPortalChat() {
                     size="icon"
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    tabIndex={-1}
+                    type="button"
+                    data-testid="button-emoji"
                   >
                     <Smile className="h-4 w-4" />
                   </Button>
