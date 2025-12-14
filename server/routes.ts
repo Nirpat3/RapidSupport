@@ -2316,6 +2316,23 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       await storage.updateConversationStatus(conversationId, status);
       
+      // Log the status change with user info for history tracking
+      if (previousStatus !== status) {
+        await storage.createActivityLog({
+          agentId: user.id,
+          conversationId,
+          action: 'status_changed',
+          details: JSON.stringify({
+            previousStatus,
+            newStatus: status,
+            changedBy: user.name,
+            changedByType: 'agent',
+            changedById: user.id,
+            reason: `Status changed by ${user.name}`
+          }),
+        });
+      }
+      
       // Verify the update
       const updatedConversation = await storage.getConversation(conversationId);
       console.log(`[PATCH /api/conversations/:id/status] Status after update: ${updatedConversation?.status}`);
