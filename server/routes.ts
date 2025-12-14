@@ -3846,6 +3846,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(403).json({ error: 'Access denied to this conversation' });
       }
 
+      // Check per-conversation AI toggle first (overrides global settings)
+      if (conversation.aiAssistanceEnabled === false) {
+        console.log(`[${requestId}] AI disabled for this specific conversation (per-conversation toggle)`);
+        return res.status(200).json({ response: null, aiDisabled: true });
+      }
+
       // Check global AI settings - determine context (anonymous vs portal)
       const engagementSettings = await storage.getEngagementSettings();
       const isAnonymous = conversation.isAnonymous;
@@ -3854,7 +3860,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         : (engagementSettings?.aiGlobalEnabled !== false && engagementSettings?.aiCustomerPortalEnabled !== false);
       
       if (!aiEnabledForContext) {
-        console.log(`[${requestId}] AI disabled for ${isAnonymous ? 'anonymous chat' : 'customer portal'}`);
+        console.log(`[${requestId}] AI disabled for ${isAnonymous ? 'anonymous chat' : 'customer portal'} (global settings)`);
         return res.status(200).json({ response: null, aiDisabled: true });
       }
 
