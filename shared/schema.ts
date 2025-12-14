@@ -327,6 +327,11 @@ export const engagementSettings = pgTable("engagement_settings", {
   autoCloseDays: integer("auto_close_days").notNull().default(7), // Auto-close after X days of inactivity
   // Templates
   followupMessageTemplate: text("followup_message_template").default("Hi! Just checking in to see if you still need help with this. Please let us know if there's anything else we can assist you with."),
+  // AI Settings - Global defaults for AI assistance
+  aiGlobalEnabled: boolean("ai_global_enabled").notNull().default(true), // Master toggle for all AI responses
+  aiAnonymousChatEnabled: boolean("ai_anonymous_chat_enabled").notNull().default(true), // AI for anonymous chat widget
+  aiCustomerPortalEnabled: boolean("ai_customer_portal_enabled").notNull().default(true), // AI for logged-in customer portal
+  aiStaffConversationsEnabled: boolean("ai_staff_conversations_enabled").notNull().default(true), // AI for staff-initiated conversations
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

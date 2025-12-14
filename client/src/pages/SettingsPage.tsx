@@ -1,17 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Settings, Bell, Shield, Palette, Globe } from "lucide-react";
+import { Bell, Shield, Palette, Globe, Bot, Loader2 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+interface EngagementSettings {
+  id: string;
+  aiGlobalEnabled: boolean;
+  aiAnonymousChatEnabled: boolean;
+  aiCustomerPortalEnabled: boolean;
+  aiStaffConversationsEnabled: boolean;
+}
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState({
+  const { toast } = useToast();
+  const [localSettings, setLocalSettings] = useState({
     emailNotifications: true,
     pushNotifications: false,
     soundAlerts: true,
@@ -19,15 +31,61 @@ export default function SettingsPage() {
     showOfflineAgents: false,
     enableChatTransfer: true
   });
+
+  const { data: aiSettings, isLoading: aiLoading } = useQuery<EngagementSettings>({
+    queryKey: ['/api/engagement-settings'],
+  });
+
+  const [aiLocalSettings, setAiLocalSettings] = useState({
+    aiGlobalEnabled: true,
+    aiAnonymousChatEnabled: true,
+    aiCustomerPortalEnabled: true,
+    aiStaffConversationsEnabled: true
+  });
+
+  useEffect(() => {
+    if (aiSettings) {
+      setAiLocalSettings({
+        aiGlobalEnabled: aiSettings.aiGlobalEnabled ?? true,
+        aiAnonymousChatEnabled: aiSettings.aiAnonymousChatEnabled ?? true,
+        aiCustomerPortalEnabled: aiSettings.aiCustomerPortalEnabled ?? true,
+        aiStaffConversationsEnabled: aiSettings.aiStaffConversationsEnabled ?? true
+      });
+    }
+  }, [aiSettings]);
+
+  const updateAiSettings = useMutation({
+    mutationFn: async (updates: Partial<EngagementSettings>) => {
+      return apiRequest('/api/engagement-settings', 'PUT', updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/engagement-settings'] });
+      toast({
+        title: "Settings saved",
+        description: "AI settings have been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to save AI settings. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleAiSettingChange = (key: keyof typeof aiLocalSettings, value: boolean) => {
+    const newSettings = { ...aiLocalSettings, [key]: value };
+    setAiLocalSettings(newSettings);
+    updateAiSettings.mutate({ [key]: value });
+  };
   
-  const handleSettingChange = (key: string, value: boolean) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-    console.log(`Setting ${key} changed to:`, value);
+  const handleLocalSettingChange = (key: string, value: boolean) => {
+    setLocalSettings(prev => ({ ...prev, [key]: value }));
   };
 
   return (
     <div className="p-6 space-y-6" data-testid="settings-page">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold" data-testid="settings-title">Settings</h1>
@@ -36,7 +94,94 @@ export default function SettingsPage() {
       </div>
       
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Profile Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="w-5 h-5" />
+              AI Settings
+            </CardTitle>
+            <CardDescription>
+              Control AI auto-response behavior for different chat contexts
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="ai-global">Global AI Responses</Label>
+                    <p className="text-sm text-muted-foreground">Master toggle for all AI auto-responses</p>
+                  </div>
+                  <Switch
+                    id="ai-global"
+                    checked={aiLocalSettings.aiGlobalEnabled}
+                    onCheckedChange={(value) => handleAiSettingChange('aiGlobalEnabled', value)}
+                    disabled={updateAiSettings.isPending}
+                    data-testid="switch-ai-global"
+                  />
+                </div>
+                
+                <Separator />
+                
+                <div className={`space-y-4 ${!aiLocalSettings.aiGlobalEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="ai-anonymous">Anonymous Chat Widget</Label>
+                      <p className="text-sm text-muted-foreground">AI for public chat widget visitors</p>
+                    </div>
+                    <Switch
+                      id="ai-anonymous"
+                      checked={aiLocalSettings.aiAnonymousChatEnabled}
+                      onCheckedChange={(value) => handleAiSettingChange('aiAnonymousChatEnabled', value)}
+                      disabled={updateAiSettings.isPending || !aiLocalSettings.aiGlobalEnabled}
+                      data-testid="switch-ai-anonymous"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="ai-portal">Customer Portal</Label>
+                      <p className="text-sm text-muted-foreground">AI for logged-in customer conversations</p>
+                    </div>
+                    <Switch
+                      id="ai-portal"
+                      checked={aiLocalSettings.aiCustomerPortalEnabled}
+                      onCheckedChange={(value) => handleAiSettingChange('aiCustomerPortalEnabled', value)}
+                      disabled={updateAiSettings.isPending || !aiLocalSettings.aiGlobalEnabled}
+                      data-testid="switch-ai-portal"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="ai-staff">Staff Conversations</Label>
+                      <p className="text-sm text-muted-foreground">AI for staff-initiated conversations</p>
+                    </div>
+                    <Switch
+                      id="ai-staff"
+                      checked={aiLocalSettings.aiStaffConversationsEnabled}
+                      onCheckedChange={(value) => handleAiSettingChange('aiStaffConversationsEnabled', value)}
+                      disabled={updateAiSettings.isPending || !aiLocalSettings.aiGlobalEnabled}
+                      data-testid="switch-ai-staff"
+                    />
+                  </div>
+                </div>
+                
+                {updateAiSettings.isPending && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -88,7 +233,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
         
-        {/* Notification Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -107,8 +251,8 @@ export default function SettingsPage() {
               </div>
               <Switch
                 id="email-notifications"
-                checked={settings.emailNotifications}
-                onCheckedChange={(value) => handleSettingChange('emailNotifications', value)}
+                checked={localSettings.emailNotifications}
+                onCheckedChange={(value) => handleLocalSettingChange('emailNotifications', value)}
                 data-testid="switch-email-notifications"
               />
             </div>
@@ -120,8 +264,8 @@ export default function SettingsPage() {
               </div>
               <Switch
                 id="push-notifications"
-                checked={settings.pushNotifications}
-                onCheckedChange={(value) => handleSettingChange('pushNotifications', value)}
+                checked={localSettings.pushNotifications}
+                onCheckedChange={(value) => handleLocalSettingChange('pushNotifications', value)}
                 data-testid="switch-push-notifications"
               />
             </div>
@@ -133,15 +277,14 @@ export default function SettingsPage() {
               </div>
               <Switch
                 id="sound-alerts"
-                checked={settings.soundAlerts}
-                onCheckedChange={(value) => handleSettingChange('soundAlerts', value)}
+                checked={localSettings.soundAlerts}
+                onCheckedChange={(value) => handleLocalSettingChange('soundAlerts', value)}
                 data-testid="switch-sound-alerts"
               />
             </div>
           </CardContent>
         </Card>
         
-        {/* Appearance */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -163,7 +306,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
         
-        {/* Chat Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -182,8 +324,8 @@ export default function SettingsPage() {
               </div>
               <Switch
                 id="auto-assign"
-                checked={settings.autoAssign}
-                onCheckedChange={(value) => handleSettingChange('autoAssign', value)}
+                checked={localSettings.autoAssign}
+                onCheckedChange={(value) => handleLocalSettingChange('autoAssign', value)}
                 data-testid="switch-auto-assign"
               />
             </div>
@@ -195,8 +337,8 @@ export default function SettingsPage() {
               </div>
               <Switch
                 id="show-offline"
-                checked={settings.showOfflineAgents}
-                onCheckedChange={(value) => handleSettingChange('showOfflineAgents', value)}
+                checked={localSettings.showOfflineAgents}
+                onCheckedChange={(value) => handleLocalSettingChange('showOfflineAgents', value)}
                 data-testid="switch-show-offline"
               />
             </div>
@@ -208,8 +350,8 @@ export default function SettingsPage() {
               </div>
               <Switch
                 id="chat-transfer"
-                checked={settings.enableChatTransfer}
-                onCheckedChange={(value) => handleSettingChange('enableChatTransfer', value)}
+                checked={localSettings.enableChatTransfer}
+                onCheckedChange={(value) => handleLocalSettingChange('enableChatTransfer', value)}
                 data-testid="switch-chat-transfer"
               />
             </div>

@@ -1076,8 +1076,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
 
       // Trigger AI response asynchronously (don't block the response)
-      // Only generate AI response if AI is enabled for this conversation
-      if (conversation && conversation.aiAssistanceEnabled !== false) {
+      // Only generate AI response if AI is enabled for this conversation AND globally for customer portal
+      const engagementSettings = await storage.getEngagementSettings();
+      const isAiEnabledForPortal = engagementSettings?.aiGlobalEnabled !== false && 
+                                   engagementSettings?.aiCustomerPortalEnabled !== false;
+      
+      if (conversation && conversation.aiAssistanceEnabled !== false && isAiEnabledForPortal) {
         (async () => {
           try {
             console.log(`[portal-chat] Generating AI response for conversation: ${conversationId}`);
@@ -3784,6 +3788,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       if (conversation.customerId !== customerId) {
         console.log(`[${requestId}] ERROR: Access denied - customer mismatch`);
         return res.status(403).json({ error: 'Access denied to this conversation' });
+      }
+
+      // Check global AI settings - determine context (anonymous vs portal)
+      const engagementSettings = await storage.getEngagementSettings();
+      const isAnonymous = conversation.isAnonymous;
+      const aiEnabledForContext = isAnonymous 
+        ? (engagementSettings?.aiGlobalEnabled !== false && engagementSettings?.aiAnonymousChatEnabled !== false)
+        : (engagementSettings?.aiGlobalEnabled !== false && engagementSettings?.aiCustomerPortalEnabled !== false);
+      
+      if (!aiEnabledForContext) {
+        console.log(`[${requestId}] AI disabled for ${isAnonymous ? 'anonymous chat' : 'customer portal'}`);
+        return res.status(200).json({ response: null, aiDisabled: true });
       }
 
       console.log(`[${requestId}] Generating AI response...`);
