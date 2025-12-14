@@ -8,6 +8,7 @@ interface AuthenticatedWebSocket extends WebSocket {
   userId?: string;
   userRole?: string;
   userName?: string;
+  isAnonymous?: boolean;
 }
 
 interface WebSocketMessage {
@@ -43,7 +44,55 @@ class ChatWebSocketServer {
   private async handleConnection(ws: AuthenticatedWebSocket, request: any) {
     console.log('New WebSocket connection established');
     
-    // Extract session cookie and validate user
+    // Parse URL for anonymous chat query parameters
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    const anonymousCustomerId = url.searchParams.get('customerId');
+    const anonymousSessionId = url.searchParams.get('sessionId');
+    
+    // If anonymous chat parameters are provided, authenticate via database
+    if (anonymousCustomerId && anonymousSessionId) {
+      try {
+        // Validate anonymous customer by checking sessionId matches in database
+        const anonymousCustomer = await storage.getAnonymousCustomer(anonymousCustomerId);
+        
+        if (!anonymousCustomer) {
+          console.log('WebSocket connection rejected: anonymous customer not found');
+          ws.close(1008, 'Customer not found');
+          return;
+        }
+        
+        // Verify sessionId matches (security check)
+        if (anonymousCustomer.sessionId !== anonymousSessionId) {
+          console.log('WebSocket connection rejected: sessionId mismatch');
+          ws.close(1008, 'Invalid session');
+          return;
+        }
+
+        // Store connection info for anonymous customer
+        ws.userId = anonymousCustomer.id;
+        ws.userRole = 'anonymous';
+        ws.userName = anonymousCustomer.name || 'Anonymous';
+        ws.isAnonymous = true;
+        
+        // Support multiple connections per customer
+        if (!this.connections.has(anonymousCustomer.id)) {
+          this.connections.set(anonymousCustomer.id, new Set());
+        }
+        this.connections.get(anonymousCustomer.id)!.add(ws);
+
+        console.log(`Anonymous customer ${anonymousCustomer.name} connected via WebSocket`);
+        
+        // Set up message and close handlers, then return
+        this.setupWebSocketHandlers(ws);
+        return;
+      } catch (error) {
+        console.error('Anonymous WebSocket authentication error:', error);
+        ws.close(1008, 'Authentication failed');
+        return;
+      }
+    }
+    
+    // Extract session cookie and validate user (for staff and authenticated customers)
     const cookies = request.headers.cookie ? parse(request.headers.cookie) : {};
     console.log('Available cookies:', Object.keys(cookies));
     let sessionId = cookies.sessionId;
@@ -143,6 +192,12 @@ class ChatWebSocketServer {
       ws.close(1008, 'Authentication failed');
       return;
     }
+    
+    // Set up message and close handlers
+    this.setupWebSocketHandlers(ws);
+  }
+  
+  private setupWebSocketHandlers(ws: AuthenticatedWebSocket) {
 
     // Notify others that user is online (only if this is the first connection for this user)
     const userConnections = this.connections.get(ws.userId!);

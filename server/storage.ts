@@ -209,6 +209,7 @@ export interface IStorage {
   getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent' | 'ai'; senderName: string; timestamp: string; attachments?: Attachment[] }>>;
   createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message>;
   findExistingCustomer(email: string, phone: string, company: string): Promise<Customer | undefined>;
+  getAnonymousCustomer(customerId: string): Promise<{ id: string; name: string; email: string; sessionId: string } | null>;
 
   // Attachment operations
   createAttachment(attachment: InsertAttachment): Promise<Attachment>;
@@ -1368,6 +1369,33 @@ export class DatabaseStorage implements IStorage {
       .from(customers)
       .where(eq(customers.email, email));
     return customer || undefined;
+  }
+
+  async getAnonymousCustomer(customerId: string): Promise<{ id: string; name: string; email: string; sessionId: string } | null> {
+    // Get customer and their most recent conversation's sessionId for verification
+    const [result] = await db
+      .select({
+        id: customers.id,
+        name: customers.name,
+        email: customers.email,
+        sessionId: conversations.sessionId,
+      })
+      .from(customers)
+      .innerJoin(conversations, eq(conversations.customerId, customers.id))
+      .where(eq(customers.id, customerId))
+      .orderBy(desc(conversations.createdAt))
+      .limit(1);
+
+    if (!result || !result.sessionId) {
+      return null;
+    }
+
+    return {
+      id: result.id,
+      name: result.name,
+      email: result.email,
+      sessionId: result.sessionId,
+    };
   }
 
   async createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }, wsServer?: any): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }> {
