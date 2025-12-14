@@ -6759,6 +6759,40 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             }
           });
           
+          // 📷 IMAGE EXTRACTION: Extract images from documents asynchronously
+          setImmediate(async () => {
+            try {
+              console.log(`[Image Extraction] Starting extraction for article ${article.id} from ${file.originalname}`);
+              const imageResult = await DocumentProcessor.extractImages(
+                file.path, 
+                file.originalname, 
+                file.mimetype, 
+                article.id
+              );
+              
+              if (imageResult.images.length > 0) {
+                // Save extracted images to database
+                for (const image of imageResult.images) {
+                  await storage.createKnowledgeBaseImage({
+                    knowledgeBaseId: article.id,
+                    filename: image.filename,
+                    originalName: image.originalName,
+                    mimeType: image.mimeType,
+                    size: image.size,
+                    filePath: image.filePath,
+                    description: image.description,
+                    displayOrder: image.displayOrder,
+                  });
+                }
+                console.log(`✅ Extracted ${imageResult.images.length} images from ${file.originalname} (${(imageResult.totalSize / 1024).toFixed(1)}KB total)`);
+              } else {
+                console.log(`ℹ️ No images found in ${file.originalname}`);
+              }
+            } catch (imageError) {
+              console.error(`⚠️ Warning: Failed to extract images from ${file.originalname}:`, imageError);
+            }
+          });
+          
           // Create FAQs if AI analysis generated them
           if (aiAnalysis && aiAnalysis.faqs && aiAnalysis.faqs.length > 0) {
             console.log(`[AI Analysis] Creating ${aiAnalysis.faqs.length} FAQs for article: ${article.title}`);
