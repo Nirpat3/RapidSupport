@@ -55,6 +55,7 @@ interface Conversation {
   status: string;
   priority: string;
   assignedAgentId?: string;
+  participatingAgentIds?: string[];
   createdAt: string;
   updatedAt: string;
   customerLastViewedAt?: string;
@@ -836,6 +837,40 @@ export default function ConversationsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+
+                {/* Participating Agents Display */}
+                {activeConversation.participatingAgentIds && activeConversation.participatingAgentIds.length > 0 && (
+                  <div className="flex items-center gap-1" data-testid="participating-agents">
+                    <span className="text-xs text-muted-foreground">Responded:</span>
+                    <div className="flex -space-x-1">
+                      {activeConversation.participatingAgentIds.slice(0, 5).map((agentId) => {
+                        const agent = staffMembers.find(s => s.id === agentId);
+                        return agent ? (
+                          <Avatar 
+                            key={agentId} 
+                            className="w-6 h-6 border-2 border-background"
+                            title={agent.name}
+                            data-testid={`avatar-agent-${agentId}`}
+                          >
+                            <AvatarFallback className="text-[10px] bg-primary/20 text-primary">
+                              {agent.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : null;
+                      })}
+                      {activeConversation.participatingAgentIds.length > 5 && (
+                        <Avatar 
+                          className="w-6 h-6 border-2 border-background"
+                          data-testid="avatar-agent-overflow"
+                        >
+                          <AvatarFallback className="text-[10px] bg-muted text-muted-foreground">
+                            +{activeConversation.participatingAgentIds.length - 5}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

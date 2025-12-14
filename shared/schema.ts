@@ -139,6 +139,7 @@ export const conversations = pgTable("conversations", {
   customerLastViewedAt: timestamp("customer_last_viewed_at"), // Last time customer viewed conversation
   autoFollowupSentAt: timestamp("auto_followup_sent_at"), // Last time auto-followup was sent
   autoFollowupCount: integer("auto_followup_count").notNull().default(0), // Number of auto-followups sent
+  participatingAgentIds: text("participating_agent_ids").array().default([]), // Array of agent IDs who have responded to this conversation
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

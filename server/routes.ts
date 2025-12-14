@@ -2701,6 +2701,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         details: `Sent ${senderType} message: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`
       });
 
+      // Track this agent as a participating agent in the conversation
+      await storage.addParticipatingAgent(conversationId, user.id);
+
       // Broadcast the new message to WebSocket clients
       const wsServer = (req.app as any).wsServer;
       if (wsServer) {
@@ -2855,6 +2858,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         content,
         scope: 'internal'
       });
+      
+      // Track this agent as a participating agent in the conversation
+      await storage.addParticipatingAgent(conversationId, user.id);
       
       // Broadcast internal message only to staff members via WebSocket
       const wsServer = (req.app as any).wsServer;

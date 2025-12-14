@@ -487,6 +487,9 @@ export interface IStorage {
   // Follow-up tracking operations
   getConversationsNeedingFollowup(delayHours: number, maxFollowups: number): Promise<Conversation[]>;
   getInactiveConversationsForAutoClose(inactiveDays: number): Promise<Conversation[]>;
+  
+  // Multi-agent participation tracking
+  addParticipatingAgent(conversationId: string, agentId: string): Promise<void>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -4250,6 +4253,25 @@ export class DatabaseStorage implements IStorage {
           lte(conversations.updatedAt, cutoffTime)
         )
       );
+  }
+
+  // Multi-agent participation tracking
+  async addParticipatingAgent(conversationId: string, agentId: string): Promise<void> {
+    const conversation = await this.getConversation(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation ${conversationId} not found`);
+    }
+    
+    const currentAgents = conversation.participatingAgentIds || [];
+    if (!currentAgents.includes(agentId)) {
+      await db
+        .update(conversations)
+        .set({
+          participatingAgentIds: [...currentAgents, agentId],
+          updatedAt: new Date()
+        })
+        .where(eq(conversations.id, conversationId));
+    }
   }
 
 }
