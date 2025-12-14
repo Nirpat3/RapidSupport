@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CustomerPortalLayout } from "@/components/CustomerPortalLayout";
 import { 
   MessageSquare, 
@@ -9,10 +10,12 @@ import {
   Clock, 
   AlertCircle,
   ArrowRight,
-  Plus
+  Plus,
+  Rss,
+  Megaphone
 } from "lucide-react";
 import { Link } from "wouter";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 
 export default function CustomerPortalDashboard() {
   // Get customer stats
@@ -34,6 +37,20 @@ export default function CustomerPortalDashboard() {
     unreadCount?: number;
   }>>({
     queryKey: ['/api/customer-portal/conversations/recent'],
+  });
+
+  // Get latest feeds/announcements for customers
+  const { data: feeds } = useQuery<Array<{
+    id: string;
+    content: string;
+    isUrgent: boolean;
+    createdAt: string;
+    author: {
+      id: string;
+      name: string;
+    };
+  }>>({
+    queryKey: ['/api/feed/posts/customer'],
   });
 
   const getStatusBadge = (status: string) => {
@@ -132,6 +149,72 @@ export default function CustomerPortalDashboard() {
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
+          </CardContent>
+        </Card>
+
+        {/* Latest Announcements */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Megaphone className="h-5 w-5" />
+                Latest Announcements
+              </CardTitle>
+              <CardDescription>Updates and news from our team</CardDescription>
+            </div>
+            <Link href="/portal/feeds">
+              <Button variant="outline" size="sm" className="gap-1" data-testid="button-view-all-feeds">
+                View All
+                <ArrowRight className="h-3 w-3" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {!feeds || feeds.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Rss className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p>No announcements yet</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {feeds.slice(0, 3).map((feed) => (
+                  <div 
+                    key={feed.id} 
+                    className="p-3 rounded-lg border"
+                    data-testid={`feed-${feed.id}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-8 w-8 flex-shrink-0">
+                        <AvatarFallback className="text-xs">
+                          {feed.author.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")
+                            .toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="font-medium text-sm">{feed.author.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(feed.createdAt), { addSuffix: true })}
+                          </span>
+                          {feed.isUrgent && (
+                            <Badge variant="destructive" className="text-xs">
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Urgent
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {feed.content}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

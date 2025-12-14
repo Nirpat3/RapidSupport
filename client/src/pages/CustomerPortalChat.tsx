@@ -273,7 +273,9 @@ export default function CustomerPortalChat() {
                 {conversation?.subject || 'Conversation'}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Started {conversation?.createdAt ? format(new Date(conversation.createdAt), 'MMM d, yyyy') : ''}
+                Started {conversation?.createdAt && !isNaN(new Date(conversation.createdAt).getTime()) 
+                  ? format(new Date(conversation.createdAt), 'MMM d, yyyy') 
+                  : ''}
               </p>
             </div>
           </div>
@@ -314,7 +316,9 @@ export default function CustomerPortalChat() {
                       "text-xs mt-1",
                       msg.senderType === 'customer' ? "text-primary-foreground/70" : "text-muted-foreground"
                     )}>
-                      {format(new Date(msg.createdAt), 'h:mm a')}
+                      {msg.createdAt && !isNaN(new Date(msg.createdAt).getTime()) 
+                        ? format(new Date(msg.createdAt), 'h:mm a')
+                        : ''}
                     </div>
                   </div>
                 </div>
