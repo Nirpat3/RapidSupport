@@ -2264,10 +2264,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(404).json({ error: 'Conversation not found' });
       }
       
-      // Authorization: only assigned agent or admin can toggle AI
-      if (user.role === 'agent' && conversation.assignedAgentId !== user.id) {
-        return res.status(403).json({ error: 'You can only toggle AI for conversations assigned to you' });
-      }
+      // Authorization: any staff member (agent or admin) can toggle AI for any conversation
       
       // Toggle AI assistance
       await storage.toggleAiAssistance(conversationId, enabled);
@@ -2670,11 +2667,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(404).json({ error: 'Conversation not found' });
       }
       
-      // Check access permissions - agents can message assigned OR unassigned conversations, admins can message any
-      // Agents cannot message conversations assigned to OTHER agents
-      if (user.role === 'agent' && conversation.assignedAgentId && conversation.assignedAgentId !== user.id) {
-        return res.status(403).json({ error: 'This conversation is assigned to another agent' });
-      }
+      // Any staff member (agent or admin) can message any conversation
       
       // Reopen conversation if it was closed
       if (conversation.status === 'closed') {
