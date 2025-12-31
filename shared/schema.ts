@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, unique, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, unique, customType, jsonb } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -342,6 +342,7 @@ export const aiAgents = pgTable("ai_agents", {
   name: text("name").notNull(), // e.g., "Technical Support Bot", "Billing Assistant"
   description: text("description"), // What this agent specializes in
   systemPrompt: text("system_prompt").notNull(), // AI personality and behavior instructions
+  greeting: text("greeting"), // Custom greeting message when starting conversations
   isActive: boolean("is_active").notNull().default(true),
   autoTakeoverThreshold: integer("auto_takeover_threshold").notNull().default(70), // Confidence threshold for automatic handoff to humans
   specializations: text("specializations").array(), // Categories this agent handles well
@@ -349,6 +350,10 @@ export const aiAgents = pgTable("ai_agents", {
   maxTokens: integer("max_tokens").notNull().default(1000),
   temperature: integer("temperature").notNull().default(30), // Stored as integer (0-100), divided by 100 for API
   responseFormat: text("response_format").notNull().default('conversational'), // 'conversational' | 'step_by_step' | 'faq' | 'technical' | 'bullet_points'
+  // Diagnostic flow settings for troubleshooting
+  diagnosticFlowEnabled: boolean("diagnostic_flow_enabled").notNull().default(false), // Enable multi-step troubleshooting
+  diagnosticQuestions: jsonb("diagnostic_questions"), // Array of {id, question, type, options?, followUpQuestionId?}
+  includeResourceLinks: boolean("include_resource_links").notNull().default(true), // Include links to knowledge base articles in responses
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -1117,6 +1122,7 @@ export const insertAiAgentSchema = createInsertSchema(aiAgents).pick({
   name: true,
   description: true,
   systemPrompt: true,
+  greeting: true,
   isActive: true,
   autoTakeoverThreshold: true,
   specializations: true,
@@ -1124,6 +1130,9 @@ export const insertAiAgentSchema = createInsertSchema(aiAgents).pick({
   maxTokens: true,
   temperature: true,
   responseFormat: true,
+  diagnosticFlowEnabled: true,
+  diagnosticQuestions: true,
+  includeResourceLinks: true,
   createdBy: true,
 });
 
