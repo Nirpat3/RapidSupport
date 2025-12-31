@@ -26,8 +26,16 @@ import {
   User,
   UserCheck,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  HelpCircle,
+  CreditCard,
+  Settings,
+  ShoppingBag,
+  Wrench,
+  Users,
+  type LucideIcon
 } from "lucide-react";
+import type { SupportCategory } from "@shared/schema";
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
@@ -74,6 +82,16 @@ interface StatusChange {
   timestamp: string;
 }
 
+const iconMap: Record<string, LucideIcon> = {
+  HelpCircle,
+  CreditCard,
+  Settings,
+  ShoppingBag,
+  Wrench,
+  Users,
+  MessageSquare,
+};
+
 export default function CustomerPortalChat() {
   const [, setLocation] = useLocation();
   const [match, params] = useRoute('/portal/chat/:conversationId');
@@ -87,6 +105,7 @@ export default function CustomerPortalChat() {
   const [wsConnected, setWsConnected] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{userId: string; userName: string}[]>([]);
   const [showStatusHistory, setShowStatusHistory] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -96,6 +115,11 @@ export default function CustomerPortalChat() {
 
   const { data: customerData } = useQuery<{ customer: { id: string; name: string; email: string } }>({
     queryKey: ['/api/portal/auth/me'],
+  });
+
+  const { data: supportCategories = [], isLoading: categoriesLoading } = useQuery<SupportCategory[]>({
+    queryKey: ['/api/support-categories/public'],
+    enabled: isCreating,
   });
 
   const { data: conversation, isLoading: conversationLoading, refetch: refetchConversation } = useQuery<Conversation>({
@@ -290,7 +314,7 @@ export default function CustomerPortalChat() {
   }, [conversationId]);
 
   const createConversationMutation = useMutation({
-    mutationFn: async (data: { subject: string; message: string }) => {
+    mutationFn: async (data: { subject: string; message: string; categoryId?: string }) => {
       return await apiRequest('/api/customer-portal/conversations/create', 'POST', data);
     },
     onSuccess: (data: { conversationId: string }) => {
@@ -379,8 +403,22 @@ export default function CustomerPortalChat() {
       });
       return;
     }
-    createConversationMutation.mutate({ subject: subject.trim(), message: message.trim() });
+    createConversationMutation.mutate({ 
+      subject: subject.trim(), 
+      message: message.trim(),
+      categoryId: selectedCategoryId || undefined
+    });
   };
+
+  const handleCategorySelect = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+  };
+
+  const handleBackToCategories = () => {
+    setSelectedCategoryId(null);
+  };
+
+  const selectedCategory = supportCategories.find(c => c.id === selectedCategoryId);
 
   const handleSendMessage = () => {
     if (sendMessageMutation.isPending) return;
@@ -430,62 +468,171 @@ export default function CustomerPortalChat() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setLocation('/portal/conversations')}
+              onClick={() => {
+                if (selectedCategoryId) {
+                  handleBackToCategories();
+                } else {
+                  setLocation('/portal/conversations');
+                }
+              }}
               data-testid="button-back"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
               <h2 className="text-2xl font-bold" data-testid="title-new-conversation">Start New Conversation</h2>
-              <p className="text-muted-foreground">Get help from our support team</p>
+              <p className="text-muted-foreground">
+                {selectedCategoryId ? selectedCategory?.name : 'Choose a category to get started'}
+              </p>
             </div>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>How can we help you?</CardTitle>
-              <CardDescription>
-                Describe your issue or question and we'll get back to you as soon as possible.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="subject" className="text-sm font-medium">Subject</label>
-                <Input
-                  id="subject"
-                  placeholder="Brief summary of your issue"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  data-testid="input-subject"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="message" className="text-sm font-medium">Message</label>
-                <Textarea
-                  id="message"
-                  placeholder="Describe your issue in detail..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  rows={6}
-                  data-testid="textarea-message"
-                />
-              </div>
-              <Button
-                onClick={handleCreateConversation}
-                disabled={createConversationMutation.isPending || !subject.trim() || !message.trim()}
-                className="w-full gap-2"
-                data-testid="button-submit"
-              >
-                {createConversationMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+          {!selectedCategoryId ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>What do you need help with?</CardTitle>
+                <CardDescription>
+                  Select a category below to connect with the right support team.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {categoriesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : supportCategories.length === 0 ? (
+                  <div className="text-center py-8">
+                    <HelpCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">No categories available</p>
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => setSelectedCategoryId('general')}
+                      data-testid="button-general-support"
+                    >
+                      Contact General Support
+                    </Button>
+                  </div>
                 ) : (
-                  <Send className="h-4 w-4" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {supportCategories.map((category) => {
+                      const IconComponent = iconMap[category.icon] || HelpCircle;
+                      return (
+                        <Button
+                          key={category.id}
+                          variant="outline"
+                          className="h-auto p-4 flex flex-col items-start gap-2 text-left"
+                          onClick={() => handleCategorySelect(category.id)}
+                          data-testid={`button-category-${category.slug}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="p-2 rounded-lg"
+                              style={{ backgroundColor: `${category.color}20` }}
+                            >
+                              <IconComponent 
+                                className="h-5 w-5" 
+                                style={{ color: category.color || '#6366f1' }}
+                              />
+                            </div>
+                            <span className="font-medium">{category.name}</span>
+                          </div>
+                          {category.description && (
+                            <p className="text-sm text-muted-foreground ml-9">
+                              {category.description}
+                            </p>
+                          )}
+                        </Button>
+                      );
+                    })}
+                  </div>
                 )}
-                Submit Request
-              </Button>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  {selectedCategory && (
+                    <div 
+                      className="p-2 rounded-lg"
+                      style={{ backgroundColor: `${selectedCategory.color}20` }}
+                    >
+                      {(() => {
+                        const IconComponent = iconMap[selectedCategory.icon] || HelpCircle;
+                        return <IconComponent className="h-5 w-5" style={{ color: selectedCategory.color || '#6366f1' }} />;
+                      })()}
+                    </div>
+                  )}
+                  <div>
+                    <CardTitle>{selectedCategory?.name || 'General Support'}</CardTitle>
+                    <CardDescription>
+                      Describe your issue or question and we'll get back to you as soon as possible.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {selectedCategory?.suggestedQuestions && selectedCategory.suggestedQuestions.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground">Common questions:</label>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedCategory.suggestedQuestions.slice(0, 3).map((q, i) => (
+                        <Button
+                          key={i}
+                          variant="secondary"
+                          size="sm"
+                          className="text-xs"
+                          onClick={() => {
+                            setSubject(q);
+                            setMessage(q);
+                          }}
+                          data-testid={`button-suggested-${i}`}
+                        >
+                          {q}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <label htmlFor="subject" className="text-sm font-medium">Subject</label>
+                  <Input
+                    id="subject"
+                    placeholder="Brief summary of your issue"
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    data-testid="input-subject"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="message" className="text-sm font-medium">Message</label>
+                  <Textarea
+                    id="message"
+                    placeholder="Describe your issue in detail..."
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    rows={6}
+                    data-testid="textarea-message"
+                  />
+                </div>
+                <Button
+                  onClick={handleCreateConversation}
+                  disabled={createConversationMutation.isPending || !subject.trim() || !message.trim()}
+                  className="w-full gap-2"
+                  data-testid="button-submit"
+                >
+                  {createConversationMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  Submit Request
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </CustomerPortalLayout>
     );

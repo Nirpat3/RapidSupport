@@ -884,6 +884,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const createData = z.object({
         subject: z.string().min(1, 'Subject is required'),
         message: z.string().min(1, 'Message is required'),
+        categoryId: z.string().optional(),
       }).parse(req.body);
 
       // Get customer info
@@ -892,21 +893,72 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(404).json({ error: 'Customer not found' });
       }
 
-      // Create conversation
+      // Get support category if provided
+      let supportCategory = null;
+      if (createData.categoryId && createData.categoryId !== 'general') {
+        supportCategory = await storage.getSupportCategory(createData.categoryId);
+      }
+
+      // Create conversation with category context
+      const conversationTitle = supportCategory 
+        ? `[${supportCategory.name}] ${createData.subject}`
+        : createData.subject;
+
       const conversation = await storage.createConversation({
         customerId: customerId,
-        title: createData.subject,
+        title: conversationTitle,
         status: 'open',
         priority: 'medium',
       });
 
+      // Store category context in conversation data if category was selected
+      if (supportCategory) {
+        await db
+          .update(conversations)
+          .set({
+            contextData: JSON.stringify({
+              categoryId: supportCategory.id,
+              categoryName: supportCategory.name,
+              aiAgentId: supportCategory.aiAgentId || null,
+            }),
+            updatedAt: new Date()
+          })
+          .where(eq(conversations.id, conversation.id));
+      }
+
       // Create initial message
-      await storage.createMessage({
+      const initialMessage = await storage.createMessage({
         conversationId: conversation.id,
         content: createData.message,
         senderType: 'customer',
         senderId: customerId,
       });
+
+      // If category has linked AI agent, trigger AI response
+      if (supportCategory?.aiAgentId) {
+        const aiAgent = await storage.getAiAgent(supportCategory.aiAgentId);
+        if (aiAgent && aiAgent.isActive) {
+          try {
+            const aiResponse = await AIService.generateSmartAgentResponse(
+              createData.message,
+              conversation.id,
+              aiAgent
+            );
+            
+            if (aiResponse.response && !aiResponse.requiresHumanTakeover) {
+              await storage.createMessage({
+                conversationId: conversation.id,
+                content: aiResponse.response,
+                senderType: 'ai',
+                senderId: aiAgent.id,
+                senderName: aiAgent.name,
+              });
+            }
+          } catch (aiError) {
+            console.error('AI response error:', aiError);
+          }
+        }
+      }
 
       res.json({ conversationId: conversation.id });
     } catch (error) {

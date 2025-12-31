@@ -32,7 +32,12 @@ import {
   AlertCircle,
   User,
   Eye,
+  BookOpen,
+  Bot,
+  UserCog,
 } from "lucide-react";
+import KnowledgeSearchDialog from "@/components/KnowledgeSearchDialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
@@ -62,6 +67,7 @@ interface Conversation {
   customerLastViewedAt?: string;
   lastAgentReplyAt?: string;
   autoFollowupCount?: number;
+  aiAssistanceEnabled?: boolean;
 }
 
 const statusIcons = {
@@ -119,6 +125,10 @@ export default function ConversationsPage() {
   // Reopen conversation dialog state
   const [isReopenDialogOpen, setIsReopenDialogOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  
+  // Knowledge search dialog state
+  const [isKnowledgeSearchOpen, setIsKnowledgeSearchOpen] = useState(false);
+  const [messageToInsert, setMessageToInsert] = useState<string | null>(null);
 
   // WebSocket setup
   useEffect(() => {
@@ -513,6 +523,56 @@ export default function ConversationsPage() {
     }
   });
 
+  // Toggle AI assistance mutation
+  const toggleAIMutation = useMutation({
+    mutationFn: async ({ conversationId, enabled }: { conversationId: string; enabled: boolean }) => {
+      return await apiRequest(`/api/conversations/${conversationId}/ai-assistance`, 'PATCH', { enabled });
+    },
+    onMutate: async ({ conversationId, enabled }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['/api/conversations'] });
+      
+      // Snapshot the previous value
+      const previousConversations = queryClient.getQueryData<Conversation[]>(['/api/conversations']);
+      
+      // Optimistically update the conversation
+      if (previousConversations) {
+        queryClient.setQueryData<Conversation[]>(['/api/conversations'], 
+          previousConversations.map(conv => 
+            conv.id === conversationId 
+              ? { ...conv, aiAssistanceEnabled: enabled }
+              : conv
+          )
+        );
+      }
+      
+      return { previousConversations };
+    },
+    onSuccess: (_, variables) => {
+      toast({
+        title: variables.enabled ? "AI Enabled" : "AI Disabled",
+        description: variables.enabled 
+          ? "AI will now assist with this conversation"
+          : "You have taken control of this conversation",
+      });
+    },
+    onError: (error: any, variables, context) => {
+      // Roll back on error
+      if (context?.previousConversations) {
+        queryClient.setQueryData(['/api/conversations'], context.previousConversations);
+      }
+      toast({
+        title: "Error",
+        description: error.message || "Failed to toggle AI assistance",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      // Refetch to ensure server state
+      queryClient.invalidateQueries({ queryKey: ['/api/conversations'] });
+    }
+  });
+
   // Bulk close conversations mutation
   const bulkCloseMutation = useMutation({
     mutationFn: async (conversationIds: string[]) => {
@@ -865,6 +925,51 @@ export default function ConversationsPage() {
                   </Badge>
                 )}
 
+                {/* Knowledge Search Button */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setIsKnowledgeSearchOpen(true)}
+                      data-testid="button-knowledge-search"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Search Knowledge Base</TooltipContent>
+                </Tooltip>
+
+                {/* Human Takeover Toggle */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={activeConversation.aiAssistanceEnabled !== false ? "outline" : "default"}
+                      size="icon"
+                      onClick={() => {
+                        const newEnabled = activeConversation.aiAssistanceEnabled === false;
+                        toggleAIMutation.mutate({ 
+                          conversationId: activeConversationId, 
+                          enabled: newEnabled 
+                        });
+                      }}
+                      disabled={toggleAIMutation.isPending}
+                      data-testid="button-toggle-ai"
+                    >
+                      {activeConversation.aiAssistanceEnabled !== false ? (
+                        <Bot className="w-4 h-4" />
+                      ) : (
+                        <UserCog className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {activeConversation.aiAssistanceEnabled !== false 
+                      ? "AI Active - Click to take over" 
+                      : "Human Control - Click to enable AI"}
+                  </TooltipContent>
+                </Tooltip>
+
                 {/* Status Selector */}
                 <Select
                   value={activeConversation.status}
@@ -973,6 +1078,8 @@ export default function ConversationsPage() {
                   }));
                 }
               }}
+              prefilledContent={messageToInsert}
+              onPrefilledContentUsed={() => setMessageToInsert(null)}
             />
           </>
         ) : (
@@ -1011,6 +1118,16 @@ export default function ConversationsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Knowledge Search Dialog */}
+      <KnowledgeSearchDialog
+        open={isKnowledgeSearchOpen}
+        onOpenChange={setIsKnowledgeSearchOpen}
+        onPasteArticle={(content) => {
+          setMessageToInsert(content);
+          setIsKnowledgeSearchOpen(false);
+        }}
+      />
     </div>
   );
 }

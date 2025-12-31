@@ -52,6 +52,8 @@ interface ChatInterfaceProps {
   typingUsers?: TypingUser[];
   onTypingStart?: () => void;
   onTypingStop?: () => void;
+  prefilledContent?: string | null;
+  onPrefilledContentUsed?: () => void;
 }
 
 const statusColors = {
@@ -71,9 +73,19 @@ export default function ChatInterface({
   onStatusChange,
   typingUsers = [],
   onTypingStart,
-  onTypingStop
+  onTypingStop,
+  prefilledContent,
+  onPrefilledContentUsed
 }: ChatInterfaceProps) {
   const [newMessage, setNewMessage] = useState("");
+  
+  // Handle prefilled content from knowledge search
+  useEffect(() => {
+    if (prefilledContent) {
+      setNewMessage(prev => prev ? `${prev}\n\n${prefilledContent}` : prefilledContent);
+      onPrefilledContentUsed?.();
+    }
+  }, [prefilledContent, onPrefilledContentUsed]);
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
