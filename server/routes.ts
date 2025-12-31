@@ -6361,6 +6361,44 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Serve knowledge base file for viewing (PDF, etc.)
+  app.get('/api/knowledge-base/:id/file', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const article = await storage.getKnowledgeBase(id);
+      
+      if (!article) {
+        return res.status(404).json({ error: 'Knowledge base article not found' });
+      }
+      
+      if (!article.filePath) {
+        return res.status(404).json({ error: 'No file associated with this article' });
+      }
+      
+      const resolvedPath = path.resolve(article.filePath);
+      const uploadDir = path.resolve('./uploads');
+      
+      // Security check - ensure file is within uploads directory
+      if (!resolvedPath.startsWith(uploadDir)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      if (!fs.existsSync(resolvedPath)) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      
+      // Set appropriate content type
+      const contentType = article.fileType || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${article.fileName || 'document'}"`);
+      
+      res.sendFile(resolvedPath);
+    } catch (error) {
+      console.error('Failed to serve knowledge base file:', error);
+      res.status(500).json({ error: 'Failed to serve file' });
+    }
+  });
+
   // Create new knowledge base article
   app.post('/api/knowledge-base', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {

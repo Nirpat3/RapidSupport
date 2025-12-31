@@ -79,6 +79,7 @@ import {
 import { ImageUpload } from "@/components/ImageUpload";
 import { VideoUpload } from "@/components/VideoUpload";
 import { YouTubeVideoInput } from "@/components/YouTubeVideoInput";
+import { PDFViewer } from "@/components/PDFViewer";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -143,6 +144,7 @@ interface KnowledgeArticle {
   sourceType: 'manual' | 'file' | 'url';
   fileName?: string;
   fileType?: string;
+  filePath?: string;
   sourceUrl?: string;
   assignedAgentIds?: string[];
   createdBy?: string;
@@ -1385,15 +1387,55 @@ export default function KnowledgeManagementPage() {
             </DialogHeader>
             
             <div className="space-y-4">
-              {/* Content */}
-              <div className="prose dark:prose-invert max-w-none">
-                <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {viewingArticle.content}
+              {/* PDF Viewer for file-type articles with PDF */}
+              {viewingArticle.sourceType === 'file' && viewingArticle.filePath && 
+               viewingArticle.fileType === 'application/pdf' ? (
+                <div className="h-[500px]">
+                  <PDFViewer 
+                    fileUrl={`/api/knowledge-base/${viewingArticle.id}/file`}
+                    fileName={viewingArticle.fileName}
+                  />
                 </div>
-              </div>
+              ) : viewingArticle.sourceType === 'file' && viewingArticle.filePath ? (
+                /* Non-PDF file - show download option with extracted content */
+                <div className="space-y-4">
+                  <div className="p-4 bg-muted rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <File className="w-8 h-8 text-muted-foreground" />
+                      <div>
+                        <div className="font-medium">{viewingArticle.fileName}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {viewingArticle.fileType || 'Document'}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => window.open(`/api/knowledge-base/${viewingArticle.id}/file`, '_blank')}
+                      data-testid="button-download-file"
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      View / Download
+                    </Button>
+                  </div>
+                  <div className="prose dark:prose-invert max-w-none">
+                    <div className="text-sm font-medium mb-2">Extracted Content:</div>
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed bg-muted/50 p-3 rounded-md max-h-[300px] overflow-y-auto">
+                      {viewingArticle.content}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Manual/URL articles - show content directly */
+                <div className="prose dark:prose-invert max-w-none">
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {viewingArticle.content}
+                  </div>
+                </div>
+              )}
 
-              {/* File Info */}
-              {viewingArticle.sourceType === 'file' && viewingArticle.fileName && (
+              {/* File Info - only show for file articles without viewer */}
+              {viewingArticle.sourceType === 'file' && viewingArticle.fileName && !viewingArticle.filePath && (
                 <div className="p-3 bg-muted rounded-md">
                   <div className="text-sm font-medium mb-1">File Information</div>
                   <div className="text-xs text-muted-foreground space-y-1">
