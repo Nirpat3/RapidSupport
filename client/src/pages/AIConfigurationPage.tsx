@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -263,6 +263,28 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
       includeResourceLinks: agent?.includeResourceLinks ?? true,
     },
   });
+
+  // Reset form when agent changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: agent?.name || "",
+        description: agent?.description || undefined,
+        systemPrompt: agent?.systemPrompt || "",
+        isActive: agent?.isActive ?? true,
+        autoTakeoverThreshold: agent?.autoTakeoverThreshold ?? 70,
+        temperature: agent?.temperature ?? 70,
+        maxTokens: agent?.maxTokens ?? 1000,
+        responseFormat: agent?.responseFormat || "conversational",
+        specializations: agent?.specializations?.join(", ") || "",
+        knowledgeBaseIds: agent?.knowledgeBaseIds || [],
+        greeting: agent?.greeting || "",
+        diagnosticFlowEnabled: agent?.diagnosticFlowEnabled ?? false,
+        diagnosticQuestions: (agent?.diagnosticQuestions as DiagnosticQuestion[]) || [],
+        includeResourceLinks: agent?.includeResourceLinks ?? true,
+      });
+    }
+  }, [open, agent, form]);
 
   const filteredArticles = knowledgeArticles.filter(article => 
     article.title.toLowerCase().includes(articleSearchQuery.toLowerCase()) ||
