@@ -1145,6 +1145,149 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
 
       // Get conversation history
       const messages = await storage.getMessagesByConversation(conversationId);
+      
+      // ✅ DIAGNOSTIC FLOW: Handle custom greeting and diagnostic questions
+      const diagnosticState = contextData?.diagnosticState || { currentQuestionId: null, answers: {}, completed: false };
+      const diagnosticQuestions = agent.diagnosticQuestions as Array<{
+        id: string;
+        question: string;
+        type: 'multiple_choice' | 'text' | 'yes_no';
+        options?: string[];
+        followUpQuestionId?: string;
+      }> | null;
+      
+      // Check if this is the first AI response (greeting scenario)
+      const isFirstResponse = session.messageCount === 0;
+      
+      // Handle diagnostic flow if enabled
+      if (agent.diagnosticFlowEnabled && diagnosticQuestions && diagnosticQuestions.length > 0) {
+        // Check if diagnostic flow is in progress or should start
+        if (!diagnosticState.completed) {
+          let responseText = '';
+          let nextQuestionId: string | null = null;
+          
+          if (isFirstResponse) {
+            // Start with greeting (if configured) and first diagnostic question
+            const greeting = agent.greeting || `Hello! I'm ${agent.name}, here to help you.`;
+            const firstQuestion = diagnosticQuestions[0];
+            nextQuestionId = firstQuestion.id;
+            
+            responseText = `${greeting}\n\nTo help you better, I have a few quick questions:\n\n**${firstQuestion.question}**`;
+            
+            // Add options for multiple choice questions
+            if (firstQuestion.type === 'multiple_choice' && firstQuestion.options) {
+              responseText += '\n' + firstQuestion.options.map((opt, i) => `${i + 1}. ${opt}`).join('\n');
+            } else if (firstQuestion.type === 'yes_no') {
+              responseText += '\n• Yes\n• No';
+            }
+            
+            // Update diagnostic state
+            const newState = { currentQuestionId: nextQuestionId, answers: {}, completed: false };
+            await storage.updateConversation(conversationId, {
+              contextData: JSON.stringify({ ...contextData, diagnosticState: newState })
+            });
+            
+            // Update session
+            await storage.updateAiAgentSession(session.id, {
+              messageCount: 1,
+              avgConfidence: 85,
+            });
+            
+            console.log(`[Diagnostic Flow] Started with question: ${firstQuestion.id}`);
+            
+            return {
+              response: responseText,
+              confidence: 85,
+              requiresHumanTakeover: false,
+              suggestedActions: [],
+              knowledgeUsed: [],
+              agentId: agent.id,
+              format: 'regular',
+              sessionId: session.id,
+              messageCount: 1,
+              avgConfidence: 85,
+              shouldLearn: false,
+            };
+          } else if (diagnosticState.currentQuestionId) {
+            // Process answer to current question and move to next
+            const currentQuestion = diagnosticQuestions.find(q => q.id === diagnosticState.currentQuestionId);
+            
+            if (currentQuestion) {
+              // Store the answer
+              diagnosticState.answers[currentQuestion.id] = customerMessage;
+              
+              // Find next question
+              let nextQuestion = null;
+              if (currentQuestion.followUpQuestionId) {
+                nextQuestion = diagnosticQuestions.find(q => q.id === currentQuestion.followUpQuestionId);
+              } else {
+                // Get next in sequence
+                const currentIdx = diagnosticQuestions.findIndex(q => q.id === currentQuestion.id);
+                if (currentIdx < diagnosticQuestions.length - 1) {
+                  nextQuestion = diagnosticQuestions[currentIdx + 1];
+                }
+              }
+              
+              if (nextQuestion) {
+                // Ask next question
+                responseText = `Got it, thank you!\n\n**${nextQuestion.question}**`;
+                
+                if (nextQuestion.type === 'multiple_choice' && nextQuestion.options) {
+                  responseText += '\n' + nextQuestion.options.map((opt, i) => `${i + 1}. ${opt}`).join('\n');
+                } else if (nextQuestion.type === 'yes_no') {
+                  responseText += '\n• Yes\n• No';
+                }
+                
+                // Update diagnostic state
+                const newState = { 
+                  currentQuestionId: nextQuestion.id, 
+                  answers: diagnosticState.answers, 
+                  completed: false 
+                };
+                await storage.updateConversation(conversationId, {
+                  contextData: JSON.stringify({ ...contextData, diagnosticState: newState })
+                });
+                
+                console.log(`[Diagnostic Flow] Moving to question: ${nextQuestion.id}`);
+                
+                return {
+                  response: responseText,
+                  confidence: 85,
+                  requiresHumanTakeover: false,
+                  suggestedActions: [],
+                  knowledgeUsed: [],
+                  agentId: agent.id,
+                  format: 'regular',
+                  sessionId: session.id,
+                  messageCount: session.messageCount + 1,
+                  avgConfidence: 85,
+                  shouldLearn: false,
+                };
+              } else {
+                // Diagnostic flow complete - mark as done and proceed with normal response
+                diagnosticState.completed = true;
+                const newState = { 
+                  currentQuestionId: null, 
+                  answers: diagnosticState.answers, 
+                  completed: true 
+                };
+                await storage.updateConversation(conversationId, {
+                  contextData: JSON.stringify({ ...contextData, diagnosticState: newState })
+                });
+                
+                console.log(`[Diagnostic Flow] Completed. Answers:`, diagnosticState.answers);
+                
+                // Enhance context data with diagnostic answers for AI response
+                contextData = { ...contextData, diagnosticState: newState, diagnosticAnswers: diagnosticState.answers };
+              }
+            }
+          }
+        }
+      } else if (isFirstResponse && agent.greeting) {
+        // No diagnostic flow, but has custom greeting - prepend greeting to first response
+        // This will be handled later when generating the response
+        contextData = { ...contextData, includeGreeting: true, greeting: agent.greeting };
+      }
       const conversationHistory = messages
         .filter(msg => msg.scope !== 'internal')
         .slice(-10)
@@ -1591,14 +1734,20 @@ The more details you can share, the better I can help you resolve this quickly!"
         }
       }
       
-      // Format reference links section
+      // Format reference links section (only if agent setting allows)
       let responseWithReferences = response;
-      if (uniqueArticles.size > 0 && !shouldForceHumanTakeover) {
+      const shouldIncludeLinks = agent.includeResourceLinks !== false; // Default to true
+      if (uniqueArticles.size > 0 && !shouldForceHumanTakeover && shouldIncludeLinks) {
         const references = Array.from(uniqueArticles.values())
           .map(article => `• [${article.title}](/kb/${article.id})`)
           .join('\n');
         
         responseWithReferences = `${response}\n\n**📚 Learn More:**\n${references}`;
+      }
+      
+      // Prepend greeting if configured (for first response without diagnostic flow)
+      if (contextData?.includeGreeting && contextData?.greeting) {
+        responseWithReferences = `${contextData.greeting}\n\n${responseWithReferences}`;
       }
       
       return {
@@ -2379,6 +2528,94 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
 
       // Get conversation history
       const messages = await storage.getMessagesByConversation(conversationId);
+      
+      // ✅ DIAGNOSTIC FLOW (Streaming): Handle custom greeting and diagnostic questions
+      const diagnosticState = contextData?.diagnosticState || { currentQuestionId: null, answers: {}, completed: false };
+      const diagnosticQuestions = agent.diagnosticQuestions as Array<{
+        id: string;
+        question: string;
+        type: 'multiple_choice' | 'text' | 'yes_no';
+        options?: string[];
+        followUpQuestionId?: string;
+      }> | null;
+      
+      const isFirstResponse = session.messageCount === 0;
+      
+      // Handle diagnostic flow if enabled
+      if (agent.diagnosticFlowEnabled && diagnosticQuestions && diagnosticQuestions.length > 0) {
+        if (!diagnosticState.completed) {
+          if (isFirstResponse) {
+            // Start with greeting and first diagnostic question
+            const greeting = agent.greeting || `Hello! I'm ${agent.name}, here to help you.`;
+            const firstQuestion = diagnosticQuestions[0];
+            
+            let responseText = `${greeting}\n\nTo help you better, I have a few quick questions:\n\n**${firstQuestion.question}**`;
+            
+            if (firstQuestion.type === 'multiple_choice' && firstQuestion.options) {
+              responseText += '\n' + firstQuestion.options.map((opt, i) => `${i + 1}. ${opt}`).join('\n');
+            } else if (firstQuestion.type === 'yes_no') {
+              responseText += '\n• Yes\n• No';
+            }
+            
+            const newState = { currentQuestionId: firstQuestion.id, answers: {}, completed: false };
+            await storage.updateConversation(conversationId, {
+              contextData: JSON.stringify({ ...contextData, diagnosticState: newState })
+            });
+            
+            await storage.updateAiAgentSession(session.id, { messageCount: 1, avgConfidence: 85 });
+            
+            yield { type: 'token', data: responseText };
+            yield { type: 'metadata', data: { confidence: 85, requiresHumanTakeover: false, agentId: agent.id, format: 'regular' } };
+            return;
+          } else if (diagnosticState.currentQuestionId) {
+            const currentQuestion = diagnosticQuestions.find(q => q.id === diagnosticState.currentQuestionId);
+            
+            if (currentQuestion) {
+              diagnosticState.answers[currentQuestion.id] = customerMessage;
+              
+              let nextQuestion = null;
+              if (currentQuestion.followUpQuestionId) {
+                nextQuestion = diagnosticQuestions.find(q => q.id === currentQuestion.followUpQuestionId);
+              } else {
+                const currentIdx = diagnosticQuestions.findIndex(q => q.id === currentQuestion.id);
+                if (currentIdx < diagnosticQuestions.length - 1) {
+                  nextQuestion = diagnosticQuestions[currentIdx + 1];
+                }
+              }
+              
+              if (nextQuestion) {
+                let responseText = `Got it, thank you!\n\n**${nextQuestion.question}**`;
+                
+                if (nextQuestion.type === 'multiple_choice' && nextQuestion.options) {
+                  responseText += '\n' + nextQuestion.options.map((opt, i) => `${i + 1}. ${opt}`).join('\n');
+                } else if (nextQuestion.type === 'yes_no') {
+                  responseText += '\n• Yes\n• No';
+                }
+                
+                const newState = { currentQuestionId: nextQuestion.id, answers: diagnosticState.answers, completed: false };
+                await storage.updateConversation(conversationId, {
+                  contextData: JSON.stringify({ ...contextData, diagnosticState: newState })
+                });
+                
+                yield { type: 'token', data: responseText };
+                yield { type: 'metadata', data: { confidence: 85, requiresHumanTakeover: false, agentId: agent.id, format: 'regular' } };
+                return;
+              } else {
+                diagnosticState.completed = true;
+                const newState = { currentQuestionId: null, answers: diagnosticState.answers, completed: true };
+                await storage.updateConversation(conversationId, {
+                  contextData: JSON.stringify({ ...contextData, diagnosticState: newState })
+                });
+                
+                contextData = { ...contextData, diagnosticState: newState, diagnosticAnswers: diagnosticState.answers };
+              }
+            }
+          }
+        }
+      } else if (isFirstResponse && agent.greeting) {
+        contextData = { ...contextData, includeGreeting: true, greeting: agent.greeting };
+      }
+      
       const conversationHistory = messages
         .filter(msg => msg.scope !== 'internal')
         .slice(-10)
@@ -2570,8 +2807,18 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
         stream: true, // Enable streaming
       });
 
-      // Stream tokens as they arrive
+      // Stream greeting first if configured (for first response without diagnostic flow)
       let fullResponse = '';
+      if (contextData?.includeGreeting && contextData?.greeting) {
+        const greetingWithNewline = `${contextData.greeting}\n\n`;
+        fullResponse += greetingWithNewline;
+        yield {
+          type: 'token',
+          data: greetingWithNewline
+        };
+      }
+
+      // Stream tokens as they arrive
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content || '';
         if (content) {
@@ -2620,7 +2867,8 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
       const isInstructionalQuery = instructionalKeywords.test(customerMessage);
       const finalFormat = (hasNumberedSteps || isInstructionalQuery) ? 'steps' : 'regular';
 
-      // Add reference links
+      // Add reference links (only if agent setting allows)
+      const shouldIncludeLinks = agent.includeResourceLinks !== false; // Default to true
       const uniqueArticles = new Map<string, { id: string; title: string }>();
       for (const result of searchResults.slice(0, 3)) {
         if (!uniqueArticles.has(result.chunk.knowledgeBaseId)) {
@@ -2631,7 +2879,7 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
         }
       }
       
-      if (uniqueArticles.size > 0 && !shouldForceHumanTakeover) {
+      if (uniqueArticles.size > 0 && !shouldForceHumanTakeover && shouldIncludeLinks) {
         const references = Array.from(uniqueArticles.values())
           .map(article => `• [${article.title}](/kb/${article.id})`)
           .join('\n');

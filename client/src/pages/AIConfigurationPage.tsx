@@ -30,14 +30,34 @@ interface KnowledgeArticle {
   isActive: boolean;
 }
 
+// Diagnostic question structure
+interface DiagnosticQuestion {
+  id: string;
+  question: string;
+  type: 'multiple_choice' | 'text' | 'yes_no';
+  options?: string[];
+  followUpQuestionId?: string;
+}
+
 // Extend the shared schema for UI-specific validation
 const aiAgentFormSchema = insertAiAgentSchema.omit({
   createdBy: true,
   specializations: true,
   knowledgeBaseIds: true,
+  diagnosticQuestions: true,
 }).extend({
   specializations: z.string().optional(),
   knowledgeBaseIds: z.array(z.string()).optional(),
+  greeting: z.string().optional(),
+  diagnosticFlowEnabled: z.boolean().optional(),
+  diagnosticQuestions: z.array(z.object({
+    id: z.string(),
+    question: z.string(),
+    type: z.enum(['multiple_choice', 'text', 'yes_no']),
+    options: z.array(z.string()).optional(),
+    followUpQuestionId: z.string().optional(),
+  })).optional(),
+  includeResourceLinks: z.boolean().optional(),
 });
 
 type AIAgentFormData = z.infer<typeof aiAgentFormSchema>;
@@ -47,6 +67,176 @@ interface AIAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   knowledgeArticles: KnowledgeArticle[];
+}
+
+interface DiagnosticQuestionsEditorProps {
+  questions: DiagnosticQuestion[];
+  onChange: (questions: DiagnosticQuestion[]) => void;
+}
+
+function DiagnosticQuestionsEditor({ questions, onChange }: DiagnosticQuestionsEditorProps) {
+  const addQuestion = () => {
+    const newQuestion: DiagnosticQuestion = {
+      id: `q_${Date.now()}`,
+      question: "",
+      type: "multiple_choice",
+      options: ["Option 1", "Option 2"],
+    };
+    onChange([...questions, newQuestion]);
+  };
+
+  const updateQuestion = (index: number, updates: Partial<DiagnosticQuestion>) => {
+    const updated = [...questions];
+    updated[index] = { ...updated[index], ...updates };
+    onChange(updated);
+  };
+
+  const removeQuestion = (index: number) => {
+    onChange(questions.filter((_, i) => i !== index));
+  };
+
+  const addOption = (questionIndex: number) => {
+    const updated = [...questions];
+    const current = updated[questionIndex].options || [];
+    updated[questionIndex].options = [...current, `Option ${current.length + 1}`];
+    onChange(updated);
+  };
+
+  const updateOption = (questionIndex: number, optionIndex: number, value: string) => {
+    const updated = [...questions];
+    if (updated[questionIndex].options) {
+      updated[questionIndex].options![optionIndex] = value;
+      onChange(updated);
+    }
+  };
+
+  const removeOption = (questionIndex: number, optionIndex: number) => {
+    const updated = [...questions];
+    if (updated[questionIndex].options) {
+      updated[questionIndex].options = updated[questionIndex].options!.filter((_, i) => i !== optionIndex);
+      onChange(updated);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-sm font-medium">Diagnostic Questions</h4>
+          <p className="text-xs text-muted-foreground">
+            Configure questions to ask customers for troubleshooting
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addQuestion}
+          data-testid="button-add-diagnostic-question"
+        >
+          <Plus className="w-4 h-4 mr-1" />
+          Add Question
+        </Button>
+      </div>
+
+      {questions.length === 0 ? (
+        <div className="border rounded-md p-6 text-center text-muted-foreground">
+          <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+          <p className="text-sm">No diagnostic questions configured</p>
+          <p className="text-xs">Add questions to guide troubleshooting conversations</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {questions.map((q, qIndex) => (
+            <Card key={q.id}>
+              <CardContent className="pt-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="shrink-0">Q{qIndex + 1}</Badge>
+                      <Input
+                        placeholder="What brand of equipment do you have?"
+                        value={q.question}
+                        onChange={(e) => updateQuestion(qIndex, { question: e.target.value })}
+                        className="flex-1"
+                        data-testid={`input-diagnostic-question-${qIndex}`}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Type:</span>
+                      <Select
+                        value={q.type}
+                        onValueChange={(value: DiagnosticQuestion['type']) => updateQuestion(qIndex, { type: value })}
+                      >
+                        <SelectTrigger className="w-[180px]" data-testid={`select-question-type-${qIndex}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="multiple_choice">Multiple Choice</SelectItem>
+                          <SelectItem value="yes_no">Yes/No</SelectItem>
+                          <SelectItem value="text">Open Text</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {q.type === "multiple_choice" && (
+                      <div className="pl-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">Options:</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => addOption(qIndex)}
+                            data-testid={`button-add-option-${qIndex}`}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </Button>
+                        </div>
+                        {q.options?.map((opt, optIndex) => (
+                          <div key={optIndex} className="flex items-center gap-2">
+                            <Input
+                              value={opt}
+                              onChange={(e) => updateOption(qIndex, optIndex, e.target.value)}
+                              placeholder={`Option ${optIndex + 1}`}
+                              className="flex-1"
+                              data-testid={`input-option-${qIndex}-${optIndex}`}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeOption(qIndex, optIndex)}
+                              disabled={q.options && q.options.length <= 2}
+                              data-testid={`button-remove-option-${qIndex}-${optIndex}`}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeQuestion(qIndex)}
+                    className="text-muted-foreground hover:text-destructive"
+                    data-testid={`button-remove-question-${qIndex}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgentDialogProps) {
@@ -67,6 +257,10 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
       responseFormat: agent?.responseFormat || "conversational",
       specializations: agent?.specializations?.join(", ") || "",
       knowledgeBaseIds: agent?.knowledgeBaseIds || [],
+      greeting: agent?.greeting || "",
+      diagnosticFlowEnabled: agent?.diagnosticFlowEnabled ?? false,
+      diagnosticQuestions: (agent?.diagnosticQuestions as DiagnosticQuestion[]) || [],
+      includeResourceLinks: agent?.includeResourceLinks ?? true,
     },
   });
 
@@ -121,6 +315,12 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
         ? data.specializations.split(",").map((s) => s.trim()).filter((s) => s)
         : [],
       knowledgeBaseIds: data.knowledgeBaseIds || [],
+      greeting: data.greeting || null,
+      diagnosticFlowEnabled: data.diagnosticFlowEnabled ?? false,
+      diagnosticQuestions: data.diagnosticQuestions && data.diagnosticQuestions.length > 0
+        ? data.diagnosticQuestions
+        : null,
+      includeResourceLinks: data.includeResourceLinks ?? true,
     };
 
     if (isEdit) {
@@ -143,9 +343,10 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="basic">Basic Info</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="basic">Basic</TabsTrigger>
                 <TabsTrigger value="behavior">Behavior</TabsTrigger>
+                <TabsTrigger value="interaction">Interaction</TabsTrigger>
                 <TabsTrigger value="advanced">Advanced</TabsTrigger>
               </TabsList>
 
@@ -273,6 +474,82 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
                     </FormItem>
                   )}
                 />
+              </TabsContent>
+
+              <TabsContent value="interaction" className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="greeting"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Custom Greeting</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Hello! I'm here to help you with any questions. What can I assist you with today?"
+                          rows={3}
+                          {...field}
+                          value={field.value || ""}
+                          data-testid="input-greeting"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        The initial message shown when a customer starts a conversation
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="includeResourceLinks"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Include Resource Links</FormLabel>
+                        <FormDescription>
+                          Automatically include links to relevant knowledge base articles in responses
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value ?? true}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-resource-links"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="diagnosticFlowEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">Diagnostic Flow</FormLabel>
+                        <FormDescription>
+                          Enable multi-step troubleshooting to ask clarifying questions before providing solutions
+                        </FormDescription>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value ?? false}
+                          onCheckedChange={field.onChange}
+                          data-testid="switch-diagnostic-flow"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch("diagnosticFlowEnabled") && (
+                  <DiagnosticQuestionsEditor
+                    questions={form.watch("diagnosticQuestions") || []}
+                    onChange={(questions) => form.setValue("diagnosticQuestions", questions)}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="advanced" className="space-y-4">
