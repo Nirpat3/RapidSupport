@@ -9271,6 +9271,84 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ========================================
+  // DOCUMENTATION GENERATOR API ENDPOINTS
+  // ========================================
+
+  const { documentationGeneratorService } = await import('./documentation-generator-service');
+
+  // Generate documentation for a specific integration (AI-powered)
+  app.post('/api/documentation/generate', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { integrationName, integrationType, providerName, features, additionalContext } = req.body;
+
+      if (!integrationName || !integrationType) {
+        return res.status(400).json({ error: 'integrationName and integrationType are required' });
+      }
+
+      const result = await documentationGeneratorService.createAndSaveDocumentation({
+        integrationName,
+        integrationType,
+        providerName,
+        features,
+        additionalContext
+      }, user.id);
+
+      res.json({ 
+        success: true, 
+        articleId: result.articleId, 
+        title: result.title,
+        message: `Documentation "${result.title}" created successfully`
+      });
+    } catch (error) {
+      console.error('Failed to generate documentation:', error);
+      res.status(500).json({ error: 'Failed to generate documentation' });
+    }
+  });
+
+  // Generate all channel setup guides (bulk)
+  app.post('/api/documentation/generate-channel-guides', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const results = await documentationGeneratorService.generateChannelSetupGuides(user.id);
+      
+      res.json({ 
+        success: true, 
+        created: results.length,
+        articles: results,
+        message: `Created ${results.length} channel setup documentation articles`
+      });
+    } catch (error) {
+      console.error('Failed to generate channel guides:', error);
+      res.status(500).json({ error: 'Failed to generate channel guides' });
+    }
+  });
+
+  // Preview documentation before saving (returns generated content without saving)
+  app.post('/api/documentation/preview', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { integrationName, integrationType, providerName, features, additionalContext } = req.body;
+
+      if (!integrationName || !integrationType) {
+        return res.status(400).json({ error: 'integrationName and integrationType are required' });
+      }
+
+      const preview = await documentationGeneratorService.generateIntegrationDocumentation({
+        integrationName,
+        integrationType,
+        providerName,
+        features,
+        additionalContext
+      });
+
+      res.json({ success: true, preview });
+    } catch (error) {
+      console.error('Failed to preview documentation:', error);
+      res.status(500).json({ error: 'Failed to generate preview' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat
