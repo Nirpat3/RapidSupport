@@ -39,7 +39,10 @@ import {
   brandConfig,
   workspaces,
   workspaceMembers,
+  organizations,
   type User,
+  type Organization,
+  type InsertOrganization,
   type InsertUser,
   type Workspace,
   type InsertWorkspace,
@@ -276,6 +279,13 @@ export interface IStorage {
   addWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember>;
   updateWorkspaceMember(id: string, updates: Partial<InsertWorkspaceMember>): Promise<WorkspaceMember>;
   removeWorkspaceMember(id: string): Promise<void>;
+
+  // Organization operations (for white-label branding)
+  getOrganization(id: string): Promise<Organization | undefined>;
+  getOrganizationBySlug(slug: string): Promise<Organization | undefined>;
+  getAllOrganizations(): Promise<Organization[]>;
+  createOrganization(org: InsertOrganization): Promise<Organization>;
+  updateOrganization(id: string, updates: Partial<InsertOrganization>): Promise<Organization>;
 
   // Knowledge Base operations
   getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined>;
@@ -2127,6 +2137,59 @@ export class DatabaseStorage implements IStorage {
       await db.delete(workspaceMembers).where(eq(workspaceMembers.id, id));
     } catch (error) {
       console.error('Error removing workspace member:', error);
+      throw error;
+    }
+  }
+
+  // Organization operations (for white-label branding)
+  async getOrganization(id: string): Promise<Organization | undefined> {
+    try {
+      const [org] = await db.select().from(organizations).where(eq(organizations.id, id));
+      return org || undefined;
+    } catch (error) {
+      console.error('Error fetching organization:', error);
+      return undefined;
+    }
+  }
+
+  async getOrganizationBySlug(slug: string): Promise<Organization | undefined> {
+    try {
+      const [org] = await db.select().from(organizations).where(eq(organizations.slug, slug));
+      return org || undefined;
+    } catch (error) {
+      console.error('Error fetching organization by slug:', error);
+      return undefined;
+    }
+  }
+
+  async getAllOrganizations(): Promise<Organization[]> {
+    try {
+      return await db.select().from(organizations).orderBy(desc(organizations.createdAt));
+    } catch (error) {
+      console.error('Error fetching all organizations:', error);
+      return [];
+    }
+  }
+
+  async createOrganization(org: InsertOrganization): Promise<Organization> {
+    try {
+      const [newOrg] = await db.insert(organizations).values(org).returning();
+      return newOrg;
+    } catch (error) {
+      console.error('Error creating organization:', error);
+      throw error;
+    }
+  }
+
+  async updateOrganization(id: string, updates: Partial<InsertOrganization>): Promise<Organization> {
+    try {
+      const [updatedOrg] = await db.update(organizations)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(organizations.id, id))
+        .returning();
+      return updatedOrg;
+    } catch (error) {
+      console.error('Error updating organization:', error);
       throw error;
     }
   }

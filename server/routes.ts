@@ -3393,6 +3393,115 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // ============================================
+  // ORGANIZATION BRANDING API ENDPOINTS (WHITE-LABEL)
+  // ============================================
+
+  // Public endpoint: Get organization branding by slug (for chat widget)
+  app.get('/api/organizations/:slug/branding', async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const org = await storage.getOrganizationBySlug(slug);
+      
+      if (!org) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+      
+      // Return only branding-related fields (public data)
+      res.json({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        logo: org.logo,
+        primaryColor: org.primaryColor,
+        secondaryColor: org.secondaryColor,
+        welcomeMessage: org.welcomeMessage,
+      });
+    } catch (error) {
+      console.error('Error fetching organization branding:', error);
+      res.status(500).json({ error: 'Failed to fetch organization branding' });
+    }
+  });
+
+  // Admin endpoint: Get all organizations
+  app.get('/api/admin/organizations', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const orgs = await storage.getAllOrganizations();
+      res.json(orgs);
+    } catch (error) {
+      console.error('Error fetching organizations:', error);
+      res.status(500).json({ error: 'Failed to fetch organizations' });
+    }
+  });
+
+  // Admin endpoint: Get single organization
+  app.get('/api/admin/organizations/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const org = await storage.getOrganization(id);
+      
+      if (!org) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+      
+      res.json(org);
+    } catch (error) {
+      console.error('Error fetching organization:', error);
+      res.status(500).json({ error: 'Failed to fetch organization' });
+    }
+  });
+
+  // Admin endpoint: Create organization
+  app.post('/api/admin/organizations', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const orgSchema = z.object({
+        name: z.string().min(1, 'Name is required'),
+        slug: z.string().min(1, 'Slug is required').regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens only'),
+        logo: z.string().optional(),
+        primaryColor: z.string().optional(),
+        secondaryColor: z.string().optional(),
+        welcomeMessage: z.string().optional(),
+      });
+      
+      const validatedData = orgSchema.parse(req.body);
+      const org = await storage.createOrganization(validatedData);
+      res.status(201).json(org);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid organization data', details: fromZodError(error).toString() });
+      }
+      console.error('Error creating organization:', error);
+      res.status(500).json({ error: 'Failed to create organization' });
+    }
+  });
+
+  // Admin endpoint: Update organization branding
+  app.put('/api/admin/organizations/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateSchema = z.object({
+        name: z.string().min(1).optional(),
+        slug: z.string().min(1).regex(/^[a-z0-9-]+$/).optional(),
+        logo: z.string().nullable().optional(),
+        primaryColor: z.string().optional(),
+        secondaryColor: z.string().optional(),
+        welcomeMessage: z.string().nullable().optional(),
+        aiEnabled: z.boolean().optional(),
+        knowledgeBaseEnabled: z.boolean().optional(),
+      });
+      
+      const validatedData = updateSchema.parse(req.body);
+      const org = await storage.updateOrganization(id, validatedData);
+      res.json(org);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid update data', details: fromZodError(error).toString() });
+      }
+      console.error('Error updating organization:', error);
+      res.status(500).json({ error: 'Failed to update organization' });
+    }
+  });
+
+  // ============================================
   // CUSTOMER CHAT WIDGET API ENDPOINTS
   // ============================================
 

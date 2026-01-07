@@ -131,6 +131,16 @@ interface ConversationDetails {
   assignedAgentId: string | null;
 }
 
+interface OrganizationBranding {
+  id: string;
+  name: string;
+  slug: string;
+  logo: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  welcomeMessage: string | null;
+}
+
 export default function CustomerChatPage() {
   const { t, i18n } = useTranslation();
   const [question, setQuestion] = useState("");
@@ -150,6 +160,16 @@ export default function CustomerChatPage() {
   // WebSocket state
   const [ws, setWs] = useState<WebSocket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  
+  // White-label branding: Get organization slug from URL query params
+  const urlParams = new URLSearchParams(window.location.search);
+  const orgSlug = urlParams.get('org');
+  
+  // Fetch organization branding if org slug is provided
+  const { data: branding } = useQuery<OrganizationBranding>({
+    queryKey: ['/api/organizations', orgSlug, 'branding'],
+    enabled: !!orgSlug,
+  });
 
   // Initialize chat state with localStorage persistence
   const [chatState, setChatState] = useState<ChatState>(() => {
@@ -709,16 +729,38 @@ export default function CustomerChatPage() {
   if (chatStarted && chatState.conversationId) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex flex-col">
-        {/* Header */}
-        <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10">
+        {/* Header with white-label branding support */}
+        <header 
+          className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10"
+          style={branding?.primaryColor ? { borderBottomColor: branding.primaryColor } : undefined}
+        >
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm">
-                  <Sparkles className="h-5 w-5 text-primary-foreground" />
-                </div>
+                {/* Organization logo or default icon */}
+                {branding?.logo ? (
+                  <img 
+                    src={branding.logo} 
+                    alt={branding.name} 
+                    className="h-10 w-10 rounded-xl object-contain shadow-sm"
+                    data-testid="img-org-logo"
+                  />
+                ) : (
+                  <div 
+                    className="h-10 w-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm"
+                    style={branding?.primaryColor ? { background: `linear-gradient(to bottom right, ${branding.primaryColor}, ${branding.primaryColor}CC)` } : undefined}
+                  >
+                    <Sparkles className="h-5 w-5 text-primary-foreground" />
+                  </div>
+                )}
                 <div>
-                  <h1 className="text-lg font-semibold" data-testid="title-support-chat">Support Chat</h1>
+                  <h1 
+                    className="text-lg font-semibold" 
+                    data-testid="title-support-chat"
+                    style={branding?.primaryColor ? { color: branding.primaryColor } : undefined}
+                  >
+                    {branding?.name ? `${branding.name} Support` : 'Support Chat'}
+                  </h1>
                   {chatState.customerInfo && (
                     <p className="text-xs text-muted-foreground">{chatState.customerInfo.name}</p>
                   )}
@@ -1012,16 +1054,36 @@ export default function CustomerChatPage() {
       {/* Hero Section */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
         <div className="max-w-4xl mx-auto">
-          {/* Header */}
+          {/* Header with white-label branding support */}
           <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-2xl mb-6">
-              <Sparkles className="h-8 w-8 text-primary" />
-            </div>
-            <h1 className="text-display mb-4" data-testid="title-hero">
-              {t('chat.welcomeTitle')}
+            {/* Organization logo or default icon */}
+            {branding?.logo ? (
+              <img 
+                src={branding.logo} 
+                alt={branding.name} 
+                className="w-16 h-16 rounded-2xl object-contain mx-auto mb-6 shadow-sm"
+                data-testid="img-org-logo-hero"
+              />
+            ) : (
+              <div 
+                className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-2xl mb-6"
+                style={branding?.primaryColor ? { backgroundColor: `${branding.primaryColor}1A` } : undefined}
+              >
+                <Sparkles 
+                  className="h-8 w-8 text-primary" 
+                  style={branding?.primaryColor ? { color: branding.primaryColor } : undefined}
+                />
+              </div>
+            )}
+            <h1 
+              className="text-display mb-4" 
+              data-testid="title-hero"
+              style={branding?.primaryColor ? { color: branding.primaryColor } : undefined}
+            >
+              {branding?.name ? `${branding.name} Support` : t('chat.welcomeTitle')}
             </h1>
             <p className="text-lg text-muted-foreground mb-6">
-              {t('chat.welcomeSubtitle')}
+              {branding?.welcomeMessage || t('chat.welcomeSubtitle')}
             </p>
             <div className="flex items-center justify-center gap-4 flex-wrap">
               <Button
