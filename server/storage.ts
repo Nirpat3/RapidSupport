@@ -37,8 +37,14 @@ import {
   activityNotifications,
   userPermissions,
   brandConfig,
+  workspaces,
+  workspaceMembers,
   type User,
   type InsertUser,
+  type Workspace,
+  type InsertWorkspace,
+  type WorkspaceMember,
+  type InsertWorkspaceMember,
   type Customer,
   type InsertCustomer,
   type BrandConfig,
@@ -252,6 +258,23 @@ export interface IStorage {
   // Brand Configuration operations
   getBrandConfig(): Promise<BrandConfig | undefined>;
   updateBrandConfig(updates: Partial<UpdateBrandConfig>): Promise<BrandConfig>;
+
+  // Workspace operations
+  getWorkspace(id: string): Promise<Workspace | undefined>;
+  getWorkspacesByOrganization(organizationId: string): Promise<Workspace[]>;
+  getAllWorkspaces(): Promise<Workspace[]>;
+  createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
+  updateWorkspace(id: string, updates: Partial<InsertWorkspace>): Promise<Workspace>;
+  deleteWorkspace(id: string): Promise<void>;
+
+  // Workspace Member operations
+  getWorkspaceMember(id: string): Promise<WorkspaceMember | undefined>;
+  getWorkspaceMembersByWorkspace(workspaceId: string): Promise<WorkspaceMember[]>;
+  getWorkspaceMembersByUser(userId: string): Promise<WorkspaceMember[]>;
+  getUserWorkspaces(userId: string): Promise<Array<{ workspace: Workspace; membership: WorkspaceMember }>>;
+  addWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember>;
+  updateWorkspaceMember(id: string, updates: Partial<InsertWorkspaceMember>): Promise<WorkspaceMember>;
+  removeWorkspaceMember(id: string): Promise<void>;
 
   // Knowledge Base operations
   getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined>;
@@ -1952,6 +1975,143 @@ export class DatabaseStorage implements IStorage {
       return updatedConfig;
     } catch (error) {
       console.error('Error updating brand config:', error);
+      throw error;
+    }
+  }
+
+  // Workspace operations
+  async getWorkspace(id: string): Promise<Workspace | undefined> {
+    try {
+      const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, id));
+      return workspace || undefined;
+    } catch (error) {
+      console.error('Error fetching workspace:', error);
+      return undefined;
+    }
+  }
+
+  async getWorkspacesByOrganization(organizationId: string): Promise<Workspace[]> {
+    try {
+      return await db.select().from(workspaces).where(eq(workspaces.organizationId, organizationId)).orderBy(desc(workspaces.createdAt));
+    } catch (error) {
+      console.error('Error fetching workspaces by organization:', error);
+      return [];
+    }
+  }
+
+  async getAllWorkspaces(): Promise<Workspace[]> {
+    try {
+      return await db.select().from(workspaces).orderBy(desc(workspaces.createdAt));
+    } catch (error) {
+      console.error('Error fetching all workspaces:', error);
+      return [];
+    }
+  }
+
+  async createWorkspace(workspace: InsertWorkspace): Promise<Workspace> {
+    try {
+      const [result] = await db.insert(workspaces).values(workspace).returning();
+      return result;
+    } catch (error) {
+      console.error('Error creating workspace:', error);
+      throw error;
+    }
+  }
+
+  async updateWorkspace(id: string, updates: Partial<InsertWorkspace>): Promise<Workspace> {
+    try {
+      const [result] = await db.update(workspaces).set({ ...updates, updatedAt: new Date() }).where(eq(workspaces.id, id)).returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating workspace:', error);
+      throw error;
+    }
+  }
+
+  async deleteWorkspace(id: string): Promise<void> {
+    try {
+      await db.delete(workspaces).where(eq(workspaces.id, id));
+    } catch (error) {
+      console.error('Error deleting workspace:', error);
+      throw error;
+    }
+  }
+
+  // Workspace Member operations
+  async getWorkspaceMember(id: string): Promise<WorkspaceMember | undefined> {
+    try {
+      const [member] = await db.select().from(workspaceMembers).where(eq(workspaceMembers.id, id));
+      return member || undefined;
+    } catch (error) {
+      console.error('Error fetching workspace member:', error);
+      return undefined;
+    }
+  }
+
+  async getWorkspaceMembersByWorkspace(workspaceId: string): Promise<WorkspaceMember[]> {
+    try {
+      return await db.select().from(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspaceId));
+    } catch (error) {
+      console.error('Error fetching workspace members:', error);
+      return [];
+    }
+  }
+
+  async getWorkspaceMembersByUser(userId: string): Promise<WorkspaceMember[]> {
+    try {
+      return await db.select().from(workspaceMembers).where(eq(workspaceMembers.userId, userId));
+    } catch (error) {
+      console.error('Error fetching user workspace memberships:', error);
+      return [];
+    }
+  }
+
+  async getUserWorkspaces(userId: string): Promise<Array<{ workspace: Workspace; membership: WorkspaceMember }>> {
+    try {
+      const memberships = await db.select().from(workspaceMembers).where(and(
+        eq(workspaceMembers.userId, userId),
+        eq(workspaceMembers.status, 'active')
+      ));
+      
+      const result: Array<{ workspace: Workspace; membership: WorkspaceMember }> = [];
+      for (const membership of memberships) {
+        const workspace = await this.getWorkspace(membership.workspaceId);
+        if (workspace) {
+          result.push({ workspace, membership });
+        }
+      }
+      return result;
+    } catch (error) {
+      console.error('Error fetching user workspaces:', error);
+      return [];
+    }
+  }
+
+  async addWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember> {
+    try {
+      const [result] = await db.insert(workspaceMembers).values(member).returning();
+      return result;
+    } catch (error) {
+      console.error('Error adding workspace member:', error);
+      throw error;
+    }
+  }
+
+  async updateWorkspaceMember(id: string, updates: Partial<InsertWorkspaceMember>): Promise<WorkspaceMember> {
+    try {
+      const [result] = await db.update(workspaceMembers).set(updates).where(eq(workspaceMembers.id, id)).returning();
+      return result;
+    } catch (error) {
+      console.error('Error updating workspace member:', error);
+      throw error;
+    }
+  }
+
+  async removeWorkspaceMember(id: string): Promise<void> {
+    try {
+      await db.delete(workspaceMembers).where(eq(workspaceMembers.id, id));
+    } catch (error) {
+      console.error('Error removing workspace member:', error);
       throw error;
     }
   }

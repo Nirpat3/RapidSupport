@@ -25,6 +25,7 @@ export async function ensureAdminExists() {
         password: hashedAdminPassword,
         name: 'Super Admin',
         role: 'admin',
+        isPlatformAdmin: true,
         status: 'online'
       });
 

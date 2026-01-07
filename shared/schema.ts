@@ -89,11 +89,40 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   name: text("name").notNull(),
   role: text("role").notNull().default("agent"), // 'agent' | 'admin'
+  isPlatformAdmin: boolean("is_platform_admin").notNull().default(false), // Platform-level admin who manages all organizations
   organizationId: varchar("organization_id").references(() => organizations.id), // Staff belong to organizations
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Workspaces table - sub-divisions within organizations
+export const workspaces = pgTable("workspaces", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  slug: text("slug").notNull(), // URL-friendly identifier
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  isDefault: boolean("is_default").notNull().default(false), // Default workspace for new org members
+  settings: jsonb("settings"), // Workspace-specific settings (JSON)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Workspace Members - junction table for users to workspaces (supports cross-org access)
+export const workspaceMembers = pgTable("workspace_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  role: text("role").notNull().default("member"), // 'owner' | 'admin' | 'member' | 'viewer'
+  invitedBy: varchar("invited_by").references(() => users.id),
+  invitedAt: timestamp("invited_at").notNull().defaultNow(),
+  joinedAt: timestamp("joined_at"),
+  status: text("status").notNull().default("pending"), // 'pending' | 'active' | 'suspended'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueUserWorkspace: unique().on(table.userId, table.workspaceId),
+}));
 
 // Customers table
 export const customers = pgTable("customers", {
@@ -355,6 +384,7 @@ export const aiAgents = pgTable("ai_agents", {
   diagnosticQuestions: jsonb("diagnostic_questions"), // Array of {id, question, type, options?, followUpQuestionId?}
   includeResourceLinks: boolean("include_resource_links").notNull().default(true), // Include links to knowledge base articles in responses
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
+  workspaceId: varchar("workspace_id").references(() => workspaces.id), // Workspace scoping for AI agents
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -406,6 +436,7 @@ export const knowledgeBase = pgTable("knowledge_base", {
   // Agent assignment
   assignedAgentIds: text("assigned_agent_ids").array(), // Which specific agents can access this knowledge
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
+  workspaceId: varchar("workspace_id").references(() => workspaces.id), // Workspace scoping for knowledge base articles
   createdBy: varchar("created_by").references(() => users.id),
   // Indexing status tracking
   indexingStatus: text("indexing_status").notNull().default("pending"), // 'pending' | 'indexing' | 'indexed' | 'failed'
@@ -922,7 +953,25 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   name: true,
   role: true,
+  isPlatformAdmin: true,
   organizationId: true,
+});
+
+export const insertWorkspaceSchema = createInsertSchema(workspaces).pick({
+  name: true,
+  description: true,
+  slug: true,
+  organizationId: true,
+  isDefault: true,
+  settings: true,
+});
+
+export const insertWorkspaceMemberSchema = createInsertSchema(workspaceMembers).pick({
+  userId: true,
+  workspaceId: true,
+  role: true,
+  invitedBy: true,
+  status: true,
 });
 
 export const insertCustomerSchema = createInsertSchema(customers).pick({
@@ -1360,6 +1409,10 @@ export type UpdateBrandConfig = z.infer<typeof updateBrandConfigSchema>;
 export type BrandConfig = typeof brandConfig.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
+export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
+export type Workspace = typeof workspaces.$inferSelect;
+export type InsertWorkspaceMember = z.infer<typeof insertWorkspaceMemberSchema>;
+export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Customer = typeof customers.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;

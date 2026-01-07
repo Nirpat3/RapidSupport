@@ -8489,6 +8489,135 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Workspace API routes
+  app.get('/api/workspaces', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      // Platform admins see all workspaces, others see only their workspaces
+      if (user.isPlatformAdmin) {
+        const workspaces = await storage.getAllWorkspaces();
+        res.json(workspaces);
+      } else {
+        const userWorkspaces = await storage.getUserWorkspaces(user.id);
+        res.json(userWorkspaces.map(uw => uw.workspace));
+      }
+    } catch (error) {
+      console.error('Failed to fetch workspaces:', error);
+      res.status(500).json({ error: 'Failed to fetch workspaces' });
+    }
+  });
+
+  app.get('/api/workspaces/:id', requireAuth, async (req, res) => {
+    try {
+      const workspace = await storage.getWorkspace(req.params.id);
+      if (!workspace) {
+        return res.status(404).json({ error: 'Workspace not found' });
+      }
+      res.json(workspace);
+    } catch (error) {
+      console.error('Failed to fetch workspace:', error);
+      res.status(500).json({ error: 'Failed to fetch workspace' });
+    }
+  });
+
+  app.post('/api/workspaces', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { name, description, slug, organizationId, isDefault, settings } = req.body;
+      const workspace = await storage.createWorkspace({
+        name,
+        description,
+        slug,
+        organizationId,
+        isDefault: isDefault || false,
+        settings,
+      });
+      res.status(201).json(workspace);
+    } catch (error) {
+      console.error('Failed to create workspace:', error);
+      res.status(500).json({ error: 'Failed to create workspace' });
+    }
+  });
+
+  app.put('/api/workspaces/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const workspace = await storage.updateWorkspace(req.params.id, req.body);
+      res.json(workspace);
+    } catch (error) {
+      console.error('Failed to update workspace:', error);
+      res.status(500).json({ error: 'Failed to update workspace' });
+    }
+  });
+
+  app.delete('/api/workspaces/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.deleteWorkspace(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to delete workspace:', error);
+      res.status(500).json({ error: 'Failed to delete workspace' });
+    }
+  });
+
+  // Workspace Members API routes
+  app.get('/api/workspaces/:id/members', requireAuth, async (req, res) => {
+    try {
+      const members = await storage.getWorkspaceMembersByWorkspace(req.params.id);
+      res.json(members);
+    } catch (error) {
+      console.error('Failed to fetch workspace members:', error);
+      res.status(500).json({ error: 'Failed to fetch workspace members' });
+    }
+  });
+
+  app.post('/api/workspaces/:id/members', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { userId, role } = req.body;
+      const member = await storage.addWorkspaceMember({
+        userId,
+        workspaceId: req.params.id,
+        role: role || 'member',
+        invitedBy: user.id,
+        status: 'pending',
+      });
+      res.status(201).json(member);
+    } catch (error) {
+      console.error('Failed to add workspace member:', error);
+      res.status(500).json({ error: 'Failed to add workspace member' });
+    }
+  });
+
+  app.put('/api/workspace-members/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const member = await storage.updateWorkspaceMember(req.params.id, req.body);
+      res.json(member);
+    } catch (error) {
+      console.error('Failed to update workspace member:', error);
+      res.status(500).json({ error: 'Failed to update workspace member' });
+    }
+  });
+
+  app.delete('/api/workspace-members/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.removeWorkspaceMember(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to remove workspace member:', error);
+      res.status(500).json({ error: 'Failed to remove workspace member' });
+    }
+  });
+
+  // User Workspaces - get all workspaces a user belongs to
+  app.get('/api/users/:userId/workspaces', requireAuth, async (req, res) => {
+    try {
+      const userWorkspaces = await storage.getUserWorkspaces(req.params.userId);
+      res.json(userWorkspaces);
+    } catch (error) {
+      console.error('Failed to fetch user workspaces:', error);
+      res.status(500).json({ error: 'Failed to fetch user workspaces' });
+    }
+  });
+
   // Engagement Settings API routes
   app.get('/api/engagement-settings', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
