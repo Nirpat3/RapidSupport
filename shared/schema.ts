@@ -2125,3 +2125,88 @@ export type ConversationWithChannel = Conversation & {
   channelContact?: ChannelContact;
   channelAccount?: ChannelAccount;
 };
+
+// ============================================
+// ONBOARDING AND PLATFORM ASSISTANT TABLES
+// ============================================
+
+// Onboarding Progress - Tracks user onboarding completion
+export const onboardingProgress = pgTable("onboarding_progress", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  organizationId: varchar("organization_id"),
+  workspaceId: varchar("workspace_id"),
+  
+  // Checklist item tracking
+  checklistItemId: text("checklist_item_id").notNull(), // e.g., 'profile', 'knowledge', 'ai_agent'
+  completed: boolean("completed").notNull().default(false),
+  completedAt: timestamp("completed_at"),
+  
+  // Optional context
+  metadata: jsonb("metadata"), // Additional data about completion
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userChecklistUnique: unique().on(table.userId, table.checklistItemId),
+}));
+
+// Platform Assistant Conversations - Stores assistant chat history
+export const platformAssistantConversations = pgTable("platform_assistant_conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  // Conversation state
+  title: text("title").default("New Conversation"),
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Platform Assistant Messages - Individual messages in assistant conversations
+export const platformAssistantMessages = pgTable("platform_assistant_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => platformAssistantConversations.id),
+  
+  role: text("role").notNull(), // 'user' | 'assistant'
+  content: text("content").notNull(),
+  
+  // For assistant messages with actions
+  actionType: text("action_type"), // 'navigate' | 'configure' | 'explain'
+  actionPayload: jsonb("action_payload"), // e.g., { path: '/settings', prefill: { ... } }
+  
+  // References to pages/features discussed
+  relatedPages: text("related_pages").array(), // Array of page paths
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Onboarding Progress insert schema and types
+export const insertOnboardingProgressSchema = createInsertSchema(onboardingProgress).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertOnboardingProgress = z.infer<typeof insertOnboardingProgressSchema>;
+export type OnboardingProgress = typeof onboardingProgress.$inferSelect;
+
+// Platform Assistant Conversation insert schema and types
+export const insertPlatformAssistantConversationSchema = createInsertSchema(platformAssistantConversations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPlatformAssistantConversation = z.infer<typeof insertPlatformAssistantConversationSchema>;
+export type PlatformAssistantConversation = typeof platformAssistantConversations.$inferSelect;
+
+// Platform Assistant Message insert schema and types
+export const insertPlatformAssistantMessageSchema = createInsertSchema(platformAssistantMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertPlatformAssistantMessage = z.infer<typeof insertPlatformAssistantMessageSchema>;
+export type PlatformAssistantMessage = typeof platformAssistantMessages.$inferSelect;

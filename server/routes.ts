@@ -9145,6 +9145,132 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   }
 
+  // ========================================
+  // PLATFORM ASSISTANT API ENDPOINTS
+  // ========================================
+
+  // Import platform assistant service
+  const { platformAssistantService } = await import('./platform-assistant-service');
+
+  // Chat with platform assistant
+  app.post('/api/platform-assistant/chat', requireAuth, async (req, res) => {
+    try {
+      const { message, conversationId, currentPath } = req.body;
+      const user = req.user as any;
+
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+
+      const context = {
+        userId: user.id,
+        userRole: user.role as 'admin' | 'agent' | 'customer',
+        currentPath,
+        organizationId: user.organizationId,
+        workspaceId: user.workspaceId,
+      };
+
+      const result = await platformAssistantService.chat(message, context, conversationId);
+      res.json(result);
+    } catch (error) {
+      console.error('Platform assistant chat error:', error);
+      res.status(500).json({ error: 'Failed to process request' });
+    }
+  });
+
+  // Get assistant conversations for user
+  app.get('/api/platform-assistant/conversations', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const conversations = await platformAssistantService.getConversations(user.id);
+      res.json(conversations);
+    } catch (error) {
+      console.error('Failed to get assistant conversations:', error);
+      res.status(500).json({ error: 'Failed to get conversations' });
+    }
+  });
+
+  // Get messages for a conversation
+  app.get('/api/platform-assistant/conversations/:id/messages', requireAuth, async (req, res) => {
+    try {
+      const messages = await platformAssistantService.getConversationMessages(req.params.id);
+      res.json(messages);
+    } catch (error) {
+      console.error('Failed to get assistant messages:', error);
+      res.status(500).json({ error: 'Failed to get messages' });
+    }
+  });
+
+  // Get suggested questions
+  app.get('/api/platform-assistant/suggestions', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const suggestions = platformAssistantService.getSuggestedQuestions(user.role);
+      res.json({ suggestions });
+    } catch (error) {
+      console.error('Failed to get suggestions:', error);
+      res.status(500).json({ error: 'Failed to get suggestions' });
+    }
+  });
+
+  // Get quick actions
+  app.get('/api/platform-assistant/quick-actions', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const actions = platformAssistantService.getQuickActions(user.role);
+      res.json({ actions });
+    } catch (error) {
+      console.error('Failed to get quick actions:', error);
+      res.status(500).json({ error: 'Failed to get quick actions' });
+    }
+  });
+
+  // ========================================
+  // ONBOARDING API ENDPOINTS
+  // ========================================
+
+  // Get onboarding progress
+  app.get('/api/onboarding/progress', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const progress = await platformAssistantService.getOnboardingProgress(user.id);
+      res.json(progress);
+    } catch (error) {
+      console.error('Failed to get onboarding progress:', error);
+      res.status(500).json({ error: 'Failed to get onboarding progress' });
+    }
+  });
+
+  // Mark onboarding item complete
+  app.post('/api/onboarding/complete', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { checklistItemId, metadata } = req.body;
+
+      if (!checklistItemId) {
+        return res.status(400).json({ error: 'checklistItemId is required' });
+      }
+
+      await platformAssistantService.markOnboardingComplete(user.id, checklistItemId, metadata);
+      const progress = await platformAssistantService.getOnboardingProgress(user.id);
+      res.json(progress);
+    } catch (error) {
+      console.error('Failed to mark onboarding complete:', error);
+      res.status(500).json({ error: 'Failed to update onboarding' });
+    }
+  });
+
+  // Get onboarding checklist definition
+  app.get('/api/onboarding/checklist', requireAuth, async (req, res) => {
+    try {
+      const { ONBOARDING_CHECKLIST } = await import('@shared/platform-documentation');
+      res.json({ checklist: ONBOARDING_CHECKLIST });
+    } catch (error) {
+      console.error('Failed to get onboarding checklist:', error);
+      res.status(500).json({ error: 'Failed to get checklist' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat

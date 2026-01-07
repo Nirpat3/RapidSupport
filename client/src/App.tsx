@@ -42,6 +42,7 @@ import InstallAppPage from "@/pages/InstallAppPage";
 import ChannelSettingsPage from "@/pages/ChannelSettingsPage";
 import LeadTrackingPage from "@/pages/LeadTrackingPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
+import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -220,6 +221,7 @@ function AuthenticatedApp() {
             </main>
           </div>
         </div>
+        <PlatformAssistantWidget />
       </SidebarProvider>
     </NotificationProvider>
   );
