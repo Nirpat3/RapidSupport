@@ -121,8 +121,8 @@ Return the response as JSON with this exact structure:
     return { articleId: article.id, title: article.title };
   }
 
-  async generateChannelSetupGuides(createdBy?: string): Promise<Array<{ articleId: string; title: string }>> {
-    const channels = [
+  getChannelDefinitions() {
+    return [
       {
         integrationName: 'WhatsApp Business',
         integrationType: 'messaging_channel' as const,
@@ -206,20 +206,24 @@ Support Board configuration:
 - Bot username`
       }
     ];
+  }
 
-    const results: Array<{ articleId: string; title: string }> = [];
+  async generateChannelSetupGuides(createdBy?: string): Promise<Array<{ articleId: string; title: string; error?: string }>> {
+    const channels = this.getChannelDefinitions();
 
-    for (const channel of channels) {
+    const promises = channels.map(async (channel) => {
       try {
         const result = await this.createAndSaveDocumentation(channel, createdBy);
-        results.push(result);
         console.log(`Created documentation: ${result.title}`);
-      } catch (error) {
+        return result;
+      } catch (error: any) {
         console.error(`Failed to create documentation for ${channel.integrationName}:`, error);
+        return { articleId: '', title: channel.integrationName, error: error.message || 'Failed to generate' };
       }
-    }
+    });
 
-    return results;
+    const results = await Promise.all(promises);
+    return results.filter(r => r.articleId !== '');
   }
 }
 
