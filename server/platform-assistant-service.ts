@@ -1,10 +1,12 @@
 import OpenAI from 'openai';
 import { db } from './db';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, ilike, or } from 'drizzle-orm';
 import { 
   platformAssistantConversations, 
   platformAssistantMessages,
   onboardingProgress,
+  knowledgeBase,
+  workspaces,
   type PlatformAssistantMessage,
   type PlatformAssistantConversation
 } from '@shared/schema';
@@ -18,6 +20,7 @@ import {
   type PageInfo,
   type ActionInfo
 } from '@shared/platform-documentation';
+import { storage } from './storage';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -43,6 +46,38 @@ interface ConversationContext {
 }
 
 export class PlatformAssistantService {
+  private async searchKnowledgeBase(query: string): Promise<Array<{ id: string; title: string; category: string; summary: string }>> {
+    try {
+      const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      if (keywords.length === 0) return [];
+
+      const primaryKeyword = keywords[0];
+      const titleMatch = ilike(knowledgeBase.title, `%${primaryKeyword}%`);
+
+      const results = await db.select({
+        id: knowledgeBase.id,
+        title: knowledgeBase.title,
+        category: knowledgeBase.category,
+      })
+        .from(knowledgeBase)
+        .where(and(
+          eq(knowledgeBase.isActive, true),
+          titleMatch
+        ))
+        .limit(3);
+
+      return results.map(r => ({
+        id: r.id,
+        title: r.title,
+        category: r.category,
+        summary: `Knowledge base article about ${r.category}`
+      }));
+    } catch (error) {
+      console.error('Knowledge base search error:', error);
+      return [];
+    }
+  }
+
   private buildSystemPrompt(context: ConversationContext): string {
     const rolePermissions = context.userRole === 'admin' 
       ? 'full access to all features including user management, settings, and configuration'
@@ -107,17 +142,18 @@ Always respond with valid JSON in this format:
 - If user asks to do something they don't have permission for, explain politely`;
   }
 
-  private buildContextualPrompt(
+  private async buildContextualPrompt(
     message: string, 
     context: ConversationContext,
     conversationHistory: PlatformAssistantMessage[]
-  ): string {
+  ): Promise<string> {
     const recentHistory = conversationHistory.slice(-10).map(m => 
       `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
     ).join('\n\n');
 
     const relevantPages = searchPages(message).slice(0, 5);
     const relevantActions = searchActions(message).slice(0, 3);
+    const relevantDocs = await this.searchKnowledgeBase(message);
 
     let contextInfo = '';
     
@@ -135,9 +171,16 @@ Always respond with valid JSON in this format:
       ).join('\n');
     }
 
+    if (relevantDocs.length > 0) {
+      contextInfo += '\n\n## Relevant Knowledge Base Articles:\n';
+      contextInfo += relevantDocs.map(doc => {
+        return `- **${doc.title}** (${doc.category})\n  [View Article](/knowledge-base?article=${doc.id})`;
+      }).join('\n');
+    }
+
     return `${recentHistory ? `## Previous Conversation:\n${recentHistory}\n\n` : ''}## User's Current Question:\n${message}${contextInfo}
 
-Please respond with a JSON object as specified in the system prompt.`;
+Please respond with a JSON object as specified in the system prompt. If documentation is available, include relevant setup instructions and link to the knowledge base article.`;
   }
 
   async chat(
@@ -170,7 +213,7 @@ Please respond with a JSON object as specified in the system prompt.`;
     });
 
     const systemPrompt = this.buildSystemPrompt(context);
-    const userPrompt = this.buildContextualPrompt(message, context, conversationHistory);
+    const userPrompt = await this.buildContextualPrompt(message, context, conversationHistory);
 
     try {
       const completion = await openai.chat.completions.create({
@@ -300,14 +343,63 @@ Please respond with a JSON object as specified in the system prompt.`;
       return { success: false, message: 'You do not have permission to perform this action' };
     }
 
-    return {
-      success: true,
-      message: `To ${action.name.toLowerCase()}, please go to the appropriate page. I've prepared the data for you.`,
-      data: {
-        redirectPath: this.getPathForAction(actionId),
-        prefillData: parameters
+    try {
+      switch (actionId) {
+        case 'create_workspace': {
+          if (!parameters.name) {
+            return { success: false, message: 'Workspace name is required' };
+          }
+          if (!context.organizationId) {
+            return { success: false, message: 'Organization context is required to create a workspace' };
+          }
+          const slug = parameters.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          const workspace = await storage.createWorkspace({
+            name: parameters.name,
+            description: parameters.description || `Workspace for ${parameters.name}`,
+            slug,
+            organizationId: context.organizationId,
+          });
+          return {
+            success: true,
+            message: `Successfully created workspace "${workspace.name}"!`,
+            data: { workspace, redirectPath: '/workspaces' }
+          };
+        }
+
+        case 'create_support_category': {
+          if (!parameters.name) {
+            return { success: false, message: 'Category name is required' };
+          }
+          const categorySlug = parameters.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          const category = await storage.createSupportCategory({
+            name: parameters.name,
+            slug: categorySlug,
+            description: parameters.description || '',
+            icon: parameters.icon || 'HelpCircle',
+            color: parameters.color || '#6366f1',
+            isActive: true,
+          });
+          return {
+            success: true,
+            message: `Successfully created support category "${category.name}"!`,
+            data: { category, redirectPath: '/support-categories' }
+          };
+        }
+
+        default:
+          return {
+            success: true,
+            message: `To ${action.name.toLowerCase()}, please go to the appropriate page. I've prepared the data for you.`,
+            data: {
+              redirectPath: this.getPathForAction(actionId),
+              prefillData: parameters
+            }
+          };
       }
-    };
+    } catch (error: any) {
+      console.error(`Failed to execute action ${actionId}:`, error);
+      return { success: false, message: error.message || 'Failed to execute action' };
+    }
   }
 
   private getPathForAction(actionId: string): string {
@@ -317,6 +409,7 @@ Please respond with a JSON object as specified in the system prompt.`;
       'create_support_category': '/support-categories',
       'create_user': '/user-management',
       'update_brand_voice': '/settings',
+      'create_workspace': '/workspaces',
     };
     return actionPaths[actionId] || '/dashboard';
   }

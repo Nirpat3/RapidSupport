@@ -1,0 +1,27 @@
+User-agent: *
+Allow: /
+Allow: /chat
+Allow: /public-knowledge-base
+Allow: /login
+Allow: /register
+Allow: /install-app
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /conversations
+Disallow: /customers
+Disallow: /knowledge
+Disallow: /knowledge-base
+Disallow: /ai-configuration
+Disallow: /ai-performance
+Disallow: /human-oversight
+Disallow: /analytics
+Disallow: /feedback
+Disallow: /user-management
+Disallow: /settings
+Disallow: /support-categories
+Disallow: /channels
+Disallow: /workspaces
+Disallow: /documentation
+Disallow: /widget-setup
+
+Sitemap: /sitemap.xml

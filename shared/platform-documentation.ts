@@ -485,6 +485,18 @@ export const PLATFORM_ACTIONS: ActionInfo[] = [
       { name: 'industry', type: 'string', required: false, description: 'Industry type' },
       { name: 'tone', type: 'string', required: false, description: 'Communication tone' }
     ]
+  },
+  {
+    id: 'create_workspace',
+    name: 'Create Workspace',
+    description: 'Create a new workspace (project) for organizing support operations',
+    endpoint: '/api/platform-assistant/execute-action',
+    method: 'POST',
+    requiredRole: 'admin',
+    parameters: [
+      { name: 'name', type: 'string', required: true, description: 'Workspace name (e.g., "Rapid")' },
+      { name: 'description', type: 'string', required: false, description: 'Workspace description' }
+    ]
   }
 ];
 

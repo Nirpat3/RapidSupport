@@ -9225,6 +9225,40 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Execute action via platform assistant (admin only for privileged actions)
+  app.post('/api/platform-assistant/execute-action', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { actionId, parameters } = req.body;
+
+      if (!actionId) {
+        return res.status(400).json({ error: 'actionId is required' });
+      }
+
+      if (!user.organizationId) {
+        return res.status(400).json({ error: 'Organization context is required' });
+      }
+
+      const context = {
+        userId: user.id,
+        userRole: user.role as 'admin' | 'agent' | 'customer',
+        organizationId: user.organizationId,
+        workspaceId: user.workspaceId,
+      };
+
+      const result = await platformAssistantService.executeAction(actionId, parameters || {}, context);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (error) {
+      console.error('Failed to execute action:', error);
+      res.status(500).json({ error: 'Failed to execute action' });
+    }
+  });
+
   // ========================================
   // ONBOARDING API ENDPOINTS
   // ========================================
