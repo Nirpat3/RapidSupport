@@ -37,7 +37,8 @@ import {
   Tags,
   Sparkles,
   Zap,
-  Smartphone
+  Smartphone,
+  Share2
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -127,6 +128,18 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     title: "Support Categories",
     url: "/support-categories",
     icon: Tags,
+    adminOnly: true
+  },
+  {
+    title: "External Channels",
+    url: "/channels",
+    icon: Share2,
+    adminOnly: true
+  },
+  {
+    title: "Lead Tracking",
+    url: "/leads",
+    icon: TrendingUp,
     adminOnly: true
   },
   {

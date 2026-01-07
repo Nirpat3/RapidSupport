@@ -17,7 +17,7 @@ import path from 'path';
 import fs from 'fs';
 import { AIService } from './ai-service';
 import { db } from './db';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { 
   insertCustomerSchema, 
   insertConversationSchema,
@@ -42,10 +42,13 @@ import {
   insertSupportCategorySchema,
   updateSupportCategorySchema,
   customers,
-  conversations
+  conversations,
+  channelContacts
 } from '@shared/schema';
 import { WebScraper } from './web-scraper';
 import { KnowledgeRetrievalService } from './knowledge-retrieval';
+import { channelService } from './channel-service';
+import { channelProviderFactory } from './channel-providers';
 
 // Route-specific validation schemas
 const messageCreateSchema = z.object({
@@ -8679,6 +8682,468 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.status(500).json({ error: 'Failed to update engagement settings' });
     }
   });
+
+  // ========================================
+  // EXTERNAL CHANNEL INTEGRATION ROUTES
+  // ========================================
+
+  // Channel Account Management
+  app.get('/api/channel-accounts', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const accounts = await channelService.getAllActiveChannelAccounts();
+      res.json(accounts);
+    } catch (error) {
+      console.error('Failed to fetch channel accounts:', error);
+      res.status(500).json({ error: 'Failed to fetch channel accounts' });
+    }
+  });
+
+  app.post('/api/channel-accounts', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const account = await channelService.createChannelAccount(req.body);
+      res.status(201).json(account);
+    } catch (error) {
+      console.error('Failed to create channel account:', error);
+      res.status(500).json({ error: 'Failed to create channel account' });
+    }
+  });
+
+  app.get('/api/channel-accounts/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const account = await channelService.getChannelAccount(req.params.id);
+      if (!account) {
+        return res.status(404).json({ error: 'Channel account not found' });
+      }
+      res.json(account);
+    } catch (error) {
+      console.error('Failed to fetch channel account:', error);
+      res.status(500).json({ error: 'Failed to fetch channel account' });
+    }
+  });
+
+  app.put('/api/channel-accounts/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const account = await channelService.updateChannelAccount(req.params.id, req.body);
+      if (!account) {
+        return res.status(404).json({ error: 'Channel account not found' });
+      }
+      res.json(account);
+    } catch (error) {
+      console.error('Failed to update channel account:', error);
+      res.status(500).json({ error: 'Failed to update channel account' });
+    }
+  });
+
+  app.delete('/api/channel-accounts/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await channelService.deleteChannelAccount(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete channel account:', error);
+      res.status(500).json({ error: 'Failed to delete channel account' });
+    }
+  });
+
+  app.post('/api/channel-accounts/:id/test', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const result = await channelService.testChannelConnection(req.params.id);
+      res.json(result);
+    } catch (error) {
+      console.error('Failed to test channel connection:', error);
+      res.status(500).json({ error: 'Failed to test channel connection' });
+    }
+  });
+
+  // Template Management
+  app.get('/api/channel-accounts/:id/templates', requireAuth, async (req, res) => {
+    try {
+      const templates = await channelService.getTemplatesByAccount(req.params.id);
+      res.json(templates);
+    } catch (error) {
+      console.error('Failed to fetch templates:', error);
+      res.status(500).json({ error: 'Failed to fetch templates' });
+    }
+  });
+
+  app.post('/api/channel-accounts/:id/templates', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const template = await channelService.createTemplate({
+        ...req.body,
+        channelAccountId: req.params.id,
+        createdBy: (req.user as any)?.id,
+      });
+      res.status(201).json(template);
+    } catch (error) {
+      console.error('Failed to create template:', error);
+      res.status(500).json({ error: 'Failed to create template' });
+    }
+  });
+
+  // Bot Control Routes
+  app.post('/api/conversations/:id/pause-bot', requireAuth, async (req, res) => {
+    try {
+      const { resumeInHours } = req.body;
+      const userId = (req.user as any)?.id;
+      await channelService.pauseBot(req.params.id, userId, resumeInHours);
+      res.json({ success: true, message: 'Bot paused' });
+    } catch (error) {
+      console.error('Failed to pause bot:', error);
+      res.status(500).json({ error: 'Failed to pause bot' });
+    }
+  });
+
+  app.post('/api/conversations/:id/resume-bot', requireAuth, async (req, res) => {
+    try {
+      await channelService.resumeBot(req.params.id);
+      res.json({ success: true, message: 'Bot resumed' });
+    } catch (error) {
+      console.error('Failed to resume bot:', error);
+      res.status(500).json({ error: 'Failed to resume bot' });
+    }
+  });
+
+  app.put('/api/conversations/:id/bot-mode', requireAuth, async (req, res) => {
+    try {
+      const { mode } = req.body;
+      if (!['auto', 'handoff', 'human_only'].includes(mode)) {
+        return res.status(400).json({ error: 'Invalid bot mode' });
+      }
+      await channelService.setBotMode(req.params.id, mode);
+      res.json({ success: true, mode });
+    } catch (error) {
+      console.error('Failed to set bot mode:', error);
+      res.status(500).json({ error: 'Failed to set bot mode' });
+    }
+  });
+
+  // Send template message
+  app.post('/api/conversations/:id/send-template', requireAuth, async (req, res) => {
+    try {
+      const { templateId, variables } = req.body;
+      const userId = (req.user as any)?.id;
+      const result = await channelService.sendTemplateMessage(
+        req.params.id,
+        templateId,
+        variables || {},
+        userId
+      );
+      res.json(result);
+    } catch (error) {
+      console.error('Failed to send template:', error);
+      res.status(500).json({ error: 'Failed to send template' });
+    }
+  });
+
+  // Check session window status
+  app.get('/api/conversations/:id/session-window', requireAuth, async (req, res) => {
+    try {
+      const isWithin = await channelService.checkSessionWindow(req.params.id);
+      res.json({ isWithinSessionWindow: isWithin });
+    } catch (error) {
+      console.error('Failed to check session window:', error);
+      res.status(500).json({ error: 'Failed to check session window' });
+    }
+  });
+
+  // ========================================
+  // LEAD TRACKING API ROUTES
+  // ========================================
+
+  // Get all leads (channel contacts)
+  app.get('/api/leads', requireAuth, async (req, res) => {
+    try {
+      const leads = await db.select().from(channelContacts)
+        .orderBy(desc(channelContacts.lastContactAt));
+      res.json(leads);
+    } catch (error) {
+      console.error('Failed to fetch leads:', error);
+      res.status(500).json({ error: 'Failed to fetch leads' });
+    }
+  });
+
+  // Get lead stats
+  app.get('/api/leads/stats', requireAuth, async (req, res) => {
+    try {
+      const leads = await db.select().from(channelContacts);
+      
+      const stats = {
+        total: leads.length,
+        new: leads.filter(l => l.leadStatus === 'new').length,
+        contacted: leads.filter(l => l.leadStatus === 'contacted').length,
+        qualified: leads.filter(l => l.leadStatus === 'qualified').length,
+        proposal: leads.filter(l => l.leadStatus === 'proposal').length,
+        negotiation: leads.filter(l => l.leadStatus === 'negotiation').length,
+        won: leads.filter(l => l.leadStatus === 'won').length,
+        lost: leads.filter(l => l.leadStatus === 'lost').length,
+        avgScore: leads.length > 0 
+          ? leads.reduce((sum, l) => sum + (l.leadScore || 0), 0) / leads.length 
+          : 0,
+      };
+      
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch lead stats:', error);
+      res.status(500).json({ error: 'Failed to fetch lead stats' });
+    }
+  });
+
+  // Get single lead
+  app.get('/api/leads/:id', requireAuth, async (req, res) => {
+    try {
+      const [lead] = await db.select().from(channelContacts)
+        .where(eq(channelContacts.id, req.params.id));
+      
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      res.json(lead);
+    } catch (error) {
+      console.error('Failed to fetch lead:', error);
+      res.status(500).json({ error: 'Failed to fetch lead' });
+    }
+  });
+
+  // Update lead
+  app.put('/api/leads/:id', requireAuth, async (req, res) => {
+    try {
+      const { leadStatus, leadScore, businessName, businessType, notes, tags } = req.body;
+      
+      const [updated] = await db.update(channelContacts)
+        .set({
+          leadStatus,
+          leadScore,
+          businessName,
+          businessType,
+          notes,
+          tags,
+          updatedAt: new Date(),
+        })
+        .where(eq(channelContacts.id, req.params.id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error('Failed to update lead:', error);
+      res.status(500).json({ error: 'Failed to update lead' });
+    }
+  });
+
+  // Get conversation channel metadata
+  app.get('/api/conversations/:id/channel-meta', requireAuth, async (req, res) => {
+    try {
+      const meta = await channelService.getConversationMeta(req.params.id);
+      if (!meta) {
+        // Return default web channel info if no meta exists
+        return res.json({
+          channelType: 'web',
+          botMode: 'auto',
+          isWithinSessionWindow: true,
+        });
+      }
+      res.json(meta);
+    } catch (error) {
+      console.error('Failed to get channel meta:', error);
+      res.status(500).json({ error: 'Failed to get channel meta' });
+    }
+  });
+
+  // ========================================
+  // WEBHOOK ENDPOINTS FOR EXTERNAL CHANNELS
+  // ========================================
+
+  // Webhook verification (GET) - for Meta webhook verification
+  app.get('/api/webhooks/channel/:accountId', async (req, res) => {
+    try {
+      const { accountId } = req.params;
+      const mode = req.query['hub.mode'];
+      const token = req.query['hub.verify_token'];
+      const challenge = req.query['hub.challenge'];
+
+      const account = await channelService.getChannelAccount(accountId);
+      
+      if (!account) {
+        console.log('Webhook verification: Account not found', accountId);
+        return res.status(404).send('Account not found');
+      }
+
+      if (mode === 'subscribe' && token === account.webhookVerifyToken) {
+        console.log('Webhook verified for account:', accountId);
+        return res.status(200).send(challenge);
+      }
+
+      console.log('Webhook verification failed for account:', accountId);
+      return res.status(403).send('Verification failed');
+    } catch (error) {
+      console.error('Webhook verification error:', error);
+      return res.status(500).send('Internal error');
+    }
+  });
+
+  // Webhook handler (POST) - for receiving messages
+  app.post('/api/webhooks/channel/:accountId', async (req, res) => {
+    const startTime = Date.now();
+    const { accountId } = req.params;
+    
+    try {
+      const account = await channelService.getChannelAccount(accountId);
+      
+      if (!account) {
+        await channelService.logWebhook(null, 'unknown', 'inbound', req.body, false, 'Account not found');
+        return res.status(404).send('Account not found');
+      }
+
+      // Acknowledge immediately to prevent timeout
+      res.status(200).send('EVENT_RECEIVED');
+
+      // Process webhook asynchronously
+      processWebhook(account, req.body, req.headers, startTime).catch(error => {
+        console.error('Webhook processing error:', error);
+      });
+
+    } catch (error) {
+      console.error('Webhook handler error:', error);
+      // Still return 200 to prevent retries
+      res.status(200).send('EVENT_RECEIVED');
+    }
+  });
+
+  // Async webhook processing function
+  async function processWebhook(account: any, payload: any, headers: any, startTime: number) {
+    try {
+      const provider = channelProviderFactory.getProvider(account.provider as 'meta_cloud' | 'twilio');
+      
+      // Parse inbound message
+      const inboundMessage = provider.parseInboundMessage(payload);
+      
+      if (inboundMessage) {
+        // Get or create contact
+        const contact = await channelService.getOrCreateContact(
+          account.id,
+          inboundMessage.senderId,
+          account.channelType,
+          inboundMessage.senderName,
+          inboundMessage.senderProfilePic,
+          inboundMessage.senderId
+        );
+
+        // Find or create customer
+        let customer = null;
+        if (contact.customerId) {
+          customer = await storage.getCustomer(contact.customerId);
+        }
+        
+        if (!customer) {
+          // Create customer from contact info
+          customer = await storage.createCustomer({
+            name: inboundMessage.senderName || `${account.channelType} User`,
+            email: contact.email || `${inboundMessage.senderId}@${account.channelType}.channel`,
+            phone: contact.phoneNumber,
+          });
+          
+          // Link contact to customer
+          await channelService.linkContactToCustomer(contact.id, customer.id);
+        }
+
+        // Find or create conversation
+        let conversation = await storage.findOpenConversationByCustomer(customer.id);
+        
+        if (!conversation) {
+          conversation = await storage.createConversation({
+            customerId: customer.id,
+            title: `${account.channelType.charAt(0).toUpperCase() + account.channelType.slice(1)} Conversation`,
+            status: 'open',
+            priority: 'medium',
+            isAnonymous: false,
+            aiAssistanceEnabled: account.autoResponseEnabled,
+          });
+        }
+
+        // Create or update conversation metadata
+        await channelService.getOrCreateConversationMeta(
+          conversation.id,
+          account.id,
+          contact.id,
+          account.channelType
+        );
+
+        // Refresh session window (customer sent a message)
+        await channelService.refreshSessionWindow(conversation.id);
+
+        // Save message
+        const message = await storage.createMessage({
+          conversationId: conversation.id,
+          senderId: customer.id,
+          senderType: 'customer',
+          content: inboundMessage.content,
+          scope: 'public',
+        });
+
+        // Log successful webhook
+        await channelService.logWebhook(
+          account.id,
+          'message',
+          'inbound',
+          payload,
+          true,
+          undefined,
+          Date.now() - startTime,
+          message.id,
+          conversation.id
+        );
+
+        // TODO: Trigger AI response if bot is enabled
+        // This would call the AI service to generate and send a response
+
+        return;
+      }
+
+      // Check for delivery status update
+      const statusUpdate = provider.parseDeliveryStatus(payload);
+      
+      if (statusUpdate) {
+        // Update message delivery status
+        // Find channel message by external ID and update
+        await channelService.logWebhook(
+          account.id,
+          'status',
+          'inbound',
+          payload,
+          true,
+          undefined,
+          Date.now() - startTime
+        );
+        return;
+      }
+
+      // Unknown webhook type
+      await channelService.logWebhook(
+        account.id,
+        'unknown',
+        'inbound',
+        payload,
+        false,
+        'Unknown webhook type',
+        Date.now() - startTime
+      );
+
+    } catch (error: any) {
+      console.error('Error processing webhook:', error);
+      await channelService.logWebhook(
+        account.id,
+        'error',
+        'inbound',
+        payload,
+        false,
+        error.message,
+        Date.now() - startTime
+      );
+    }
+  }
 
   const httpServer = createServer(app);
   

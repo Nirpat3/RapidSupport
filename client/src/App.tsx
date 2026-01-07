@@ -39,6 +39,8 @@ import DocumentationPage from "@/pages/DocumentationPage";
 import WidgetSetupPage from "@/pages/WidgetSetupPage";
 import MockupPage from "@/pages/MockupPage";
 import InstallAppPage from "@/pages/InstallAppPage";
+import ChannelSettingsPage from "@/pages/ChannelSettingsPage";
+import LeadTrackingPage from "@/pages/LeadTrackingPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import NotFound from "@/pages/not-found";
 
@@ -139,6 +141,16 @@ function Router() {
       <Route path="/settings">
         <PermissionGuard feature="settings">
           <SettingsPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/channels">
+        <PermissionGuard feature="settings">
+          <ChannelSettingsPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/leads">
+        <PermissionGuard feature="customers">
+          <LeadTrackingPage />
         </PermissionGuard>
       </Route>
       <Route path="/documentation">

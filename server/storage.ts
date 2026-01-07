@@ -165,6 +165,7 @@ export interface IStorage {
   getConversation(id: string): Promise<Conversation | undefined>;
   getConversationWithCustomer(id: string): Promise<any | null>;
   getConversationsByCustomer(customerId: string): Promise<Conversation[]>;
+  findOpenConversationByCustomer(customerId: string): Promise<Conversation | null>;
   getConversationsByAgent(agentId: string): Promise<Conversation[]>;
   getAllConversations(): Promise<Conversation[]>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
@@ -754,6 +755,20 @@ export class DatabaseStorage implements IStorage {
       .from(conversations)
       .where(eq(conversations.customerId, customerId))
       .orderBy(desc(conversations.updatedAt));
+  }
+
+  async findOpenConversationByCustomer(customerId: string): Promise<Conversation | null> {
+    const [result] = await db
+      .select()
+      .from(conversations)
+      .where(and(
+        eq(conversations.customerId, customerId),
+        eq(conversations.status, 'open')
+      ))
+      .orderBy(desc(conversations.updatedAt))
+      .limit(1);
+    
+    return result || null;
   }
 
   async getConversationsByAgent(agentId: string): Promise<any[]> {
