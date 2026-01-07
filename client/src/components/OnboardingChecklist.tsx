@@ -11,7 +11,13 @@ import {
   ArrowRight, 
   ChevronDown,
   Sparkles,
-  X
+  X,
+  Settings,
+  FileText,
+  Bot,
+  Smartphone,
+  Users,
+  MessageSquare
 } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
@@ -74,14 +80,15 @@ export default function OnboardingChecklist({ onDismiss, variant = 'full' }: Onb
   };
 
   const getCategoryIcon = (category: string) => {
+    const iconClass = "w-4 h-4";
     switch (category) {
-      case 'setup': return '⚙️';
-      case 'content': return '📝';
-      case 'ai': return '🤖';
-      case 'channels': return '📱';
-      case 'team': return '👥';
-      case 'usage': return '💬';
-      default: return '✨';
+      case 'setup': return <Settings className={iconClass} />;
+      case 'content': return <FileText className={iconClass} />;
+      case 'ai': return <Bot className={iconClass} />;
+      case 'channels': return <Smartphone className={iconClass} />;
+      case 'team': return <Users className={iconClass} />;
+      case 'usage': return <MessageSquare className={iconClass} />;
+      default: return <Sparkles className={iconClass} />;
     }
   };
 
@@ -90,7 +97,7 @@ export default function OnboardingChecklist({ onDismiss, variant = 'full' }: Onb
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
         <Card className="border-primary/20 bg-primary/5">
           <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer pb-2">
+            <CardHeader className="cursor-pointer pb-2" data-testid="button-expand-onboarding">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">

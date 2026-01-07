@@ -131,8 +131,16 @@ export default function PlatformAssistantWidget() {
   };
 
   const handleSuggestionClick = (suggestion: string) => {
-    setMessage(suggestion);
-    setTimeout(() => handleSend(), 100);
+    if (chatMutation.isPending) return;
+    
+    setLocalMessages(prev => [...prev, {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: suggestion,
+      createdAt: new Date().toISOString(),
+    }]);
+
+    chatMutation.mutate(suggestion);
   };
 
   const handleNavigate = (path: string) => {
@@ -360,7 +368,7 @@ export default function PlatformAssistantWidget() {
                 placeholder="Ask anything about Support Board..."
                 className="flex-1"
                 disabled={chatMutation.isPending}
-                data-testid="input-assistant-message"
+                data-testid="input-platform-assistant"
               />
               <Button 
                 type="submit" 
