@@ -1,0 +1,81 @@
+{
+  "nav": {
+    "home": "Home",
+    "chat": "Chat",
+    "knowledgeBase": "Knowledge Base",
+    "customerPortal": "Customer Portal",
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout"
+  },
+  "chat": {
+    "title": "Customer Support",
+    "welcomeTitle": "How can we help you today?",
+    "welcomeSubtitle": "Get instant answers from our AI assistant or connect with our support team",
+    "inputPlaceholder": "Ask a question or describe your issue...",
+    "getHelp": "Get Help",
+    "sending": "Sending...",
+    "popularQuestions": "Popular questions",
+    "continueConversation": "Continue your conversation",
+    "welcomeBack": "Welcome back",
+    "openChat": "Open Chat",
+    "startNewChat": "Start New Chat",
+    "browseKnowledgeBase": "Browse Knowledge Base",
+    "chatWithUs": "Chat with us"
+  },
+  "categories": {
+    "title": "How can we help?",
+    "subtitle": "Choose a topic to get started",
+    "billing": "Billing",
+    "billingDesc": "Billing and payment related questions",
+    "technical": "Technical Support",
+    "technicalDesc": "Technical issues and troubleshooting",
+    "sales": "Sales",
+    "salesDesc": "Sales inquiries and upgrades",
+    "general": "General",
+    "generalDesc": "General questions and information"
+  },
+  "knowledgeBase": {
+    "title": "Knowledge Base",
+    "subtitle": "Find answers to common questions",
+    "searchPlaceholder": "Search articles...",
+    "categories": "Categories",
+    "articles": "Articles",
+    "noResults": "No articles found",
+    "readMore": "Read more"
+  },
+  "common": {
+    "back": "Back",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "search": "Search"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "forgotPassword": "Forgot Password?",
+    "noAccount": "Don't have an account?",
+    "hasAccount": "Already have an account?",
+    "signUp": "Sign Up",
+    "signIn": "Sign In"
+  },
+  "language": {
+    "select": "Select Language",
+    "en": "English",
+    "es": "Spanish",
+    "de": "German",
+    "fr": "French",
+    "zh": "Chinese",
+    "hi": "Hindi"
+  }
+}

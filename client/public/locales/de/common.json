@@ -1,0 +1,81 @@
+{
+  "nav": {
+    "home": "Startseite",
+    "chat": "Chat",
+    "knowledgeBase": "Wissensdatenbank",
+    "customerPortal": "Kundenportal",
+    "login": "Anmelden",
+    "register": "Registrieren",
+    "logout": "Abmelden"
+  },
+  "chat": {
+    "title": "Kundenservice",
+    "welcomeTitle": "Wie können wir Ihnen heute helfen?",
+    "welcomeSubtitle": "Erhalten Sie sofortige Antworten von unserem KI-Assistenten oder verbinden Sie sich mit unserem Support-Team",
+    "inputPlaceholder": "Stellen Sie eine Frage oder beschreiben Sie Ihr Problem...",
+    "getHelp": "Hilfe erhalten",
+    "sending": "Senden...",
+    "popularQuestions": "Beliebte Fragen",
+    "continueConversation": "Gespräch fortsetzen",
+    "welcomeBack": "Willkommen zurück",
+    "openChat": "Chat öffnen",
+    "startNewChat": "Neuen Chat starten",
+    "browseKnowledgeBase": "Wissensdatenbank durchsuchen",
+    "chatWithUs": "Mit uns chatten"
+  },
+  "categories": {
+    "title": "Wie können wir helfen?",
+    "subtitle": "Wählen Sie ein Thema zum Starten",
+    "billing": "Abrechnung",
+    "billingDesc": "Fragen zu Abrechnung und Zahlung",
+    "technical": "Technischer Support",
+    "technicalDesc": "Technische Probleme und Fehlerbehebung",
+    "sales": "Verkauf",
+    "salesDesc": "Verkaufsanfragen und Upgrades",
+    "general": "Allgemein",
+    "generalDesc": "Allgemeine Fragen und Informationen"
+  },
+  "knowledgeBase": {
+    "title": "Wissensdatenbank",
+    "subtitle": "Finden Sie Antworten auf häufige Fragen",
+    "searchPlaceholder": "Artikel suchen...",
+    "categories": "Kategorien",
+    "articles": "Artikel",
+    "noResults": "Keine Artikel gefunden",
+    "readMore": "Mehr lesen"
+  },
+  "common": {
+    "back": "Zurück",
+    "cancel": "Abbrechen",
+    "submit": "Absenden",
+    "save": "Speichern",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "close": "Schließen",
+    "loading": "Laden...",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "search": "Suchen"
+  },
+  "auth": {
+    "login": "Anmelden",
+    "register": "Registrieren",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "forgotPassword": "Passwort vergessen?",
+    "noAccount": "Noch kein Konto?",
+    "hasAccount": "Bereits ein Konto?",
+    "signUp": "Registrieren",
+    "signIn": "Anmelden"
+  },
+  "language": {
+    "select": "Sprache auswählen",
+    "en": "Englisch",
+    "es": "Spanisch",
+    "de": "Deutsch",
+    "fr": "Französisch",
+    "zh": "Chinesisch",
+    "hi": "Hindi"
+  }
+}

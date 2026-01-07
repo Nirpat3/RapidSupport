@@ -1,0 +1,81 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "chat": "Chat",
+    "knowledgeBase": "Base de Connaissances",
+    "customerPortal": "Portail Client",
+    "login": "Connexion",
+    "register": "S'inscrire",
+    "logout": "Déconnexion"
+  },
+  "chat": {
+    "title": "Support Client",
+    "welcomeTitle": "Comment pouvons-nous vous aider aujourd'hui?",
+    "welcomeSubtitle": "Obtenez des réponses instantanées de notre assistant IA ou connectez-vous avec notre équipe de support",
+    "inputPlaceholder": "Posez une question ou décrivez votre problème...",
+    "getHelp": "Obtenir de l'aide",
+    "sending": "Envoi en cours...",
+    "popularQuestions": "Questions populaires",
+    "continueConversation": "Continuer votre conversation",
+    "welcomeBack": "Bon retour",
+    "openChat": "Ouvrir le Chat",
+    "startNewChat": "Démarrer un Nouveau Chat",
+    "browseKnowledgeBase": "Parcourir la Base de Connaissances",
+    "chatWithUs": "Discutez avec nous"
+  },
+  "categories": {
+    "title": "Comment pouvons-nous aider?",
+    "subtitle": "Choisissez un sujet pour commencer",
+    "billing": "Facturation",
+    "billingDesc": "Questions de facturation et paiement",
+    "technical": "Support Technique",
+    "technicalDesc": "Problèmes techniques et dépannage",
+    "sales": "Ventes",
+    "salesDesc": "Demandes commerciales et mises à niveau",
+    "general": "Général",
+    "generalDesc": "Questions générales et informations"
+  },
+  "knowledgeBase": {
+    "title": "Base de Connaissances",
+    "subtitle": "Trouvez des réponses aux questions fréquentes",
+    "searchPlaceholder": "Rechercher des articles...",
+    "categories": "Catégories",
+    "articles": "Articles",
+    "noResults": "Aucun article trouvé",
+    "readMore": "Lire la suite"
+  },
+  "common": {
+    "back": "Retour",
+    "cancel": "Annuler",
+    "submit": "Soumettre",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "close": "Fermer",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "search": "Rechercher"
+  },
+  "auth": {
+    "login": "Connexion",
+    "register": "S'inscrire",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "forgotPassword": "Mot de passe oublié?",
+    "noAccount": "Vous n'avez pas de compte?",
+    "hasAccount": "Vous avez déjà un compte?",
+    "signUp": "S'inscrire",
+    "signIn": "Se connecter"
+  },
+  "language": {
+    "select": "Sélectionner la langue",
+    "en": "Anglais",
+    "es": "Espagnol",
+    "de": "Allemand",
+    "fr": "Français",
+    "zh": "Chinois",
+    "hi": "Hindi"
+  }
+}

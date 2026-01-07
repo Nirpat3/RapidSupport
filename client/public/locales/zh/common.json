@@ -1,0 +1,81 @@
+{
+  "nav": {
+    "home": "首页",
+    "chat": "聊天",
+    "knowledgeBase": "知识库",
+    "customerPortal": "客户门户",
+    "login": "登录",
+    "register": "注册",
+    "logout": "退出"
+  },
+  "chat": {
+    "title": "客户支持",
+    "welcomeTitle": "今天我们能帮您什么?",
+    "welcomeSubtitle": "从我们的AI助手获得即时答案，或与我们的支持团队联系",
+    "inputPlaceholder": "提出问题或描述您的问题...",
+    "getHelp": "获取帮助",
+    "sending": "发送中...",
+    "popularQuestions": "热门问题",
+    "continueConversation": "继续您的对话",
+    "welcomeBack": "欢迎回来",
+    "openChat": "打开聊天",
+    "startNewChat": "开始新聊天",
+    "browseKnowledgeBase": "浏览知识库",
+    "chatWithUs": "与我们聊天"
+  },
+  "categories": {
+    "title": "我们如何帮助您?",
+    "subtitle": "选择一个主题开始",
+    "billing": "账单",
+    "billingDesc": "账单和付款相关问题",
+    "technical": "技术支持",
+    "technicalDesc": "技术问题和故障排除",
+    "sales": "销售",
+    "salesDesc": "销售咨询和升级",
+    "general": "一般",
+    "generalDesc": "一般问题和信息"
+  },
+  "knowledgeBase": {
+    "title": "知识库",
+    "subtitle": "查找常见问题的答案",
+    "searchPlaceholder": "搜索文章...",
+    "categories": "分类",
+    "articles": "文章",
+    "noResults": "未找到文章",
+    "readMore": "阅读更多"
+  },
+  "common": {
+    "back": "返回",
+    "cancel": "取消",
+    "submit": "提交",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "close": "关闭",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功",
+    "search": "搜索"
+  },
+  "auth": {
+    "login": "登录",
+    "register": "注册",
+    "email": "电子邮件",
+    "password": "密码",
+    "confirmPassword": "确认密码",
+    "forgotPassword": "忘记密码?",
+    "noAccount": "没有账户?",
+    "hasAccount": "已有账户?",
+    "signUp": "注册",
+    "signIn": "登录"
+  },
+  "language": {
+    "select": "选择语言",
+    "en": "英语",
+    "es": "西班牙语",
+    "de": "德语",
+    "fr": "法语",
+    "zh": "中文",
+    "hi": "印地语"
+  }
+}

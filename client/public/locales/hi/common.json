@@ -1,0 +1,81 @@
+{
+  "nav": {
+    "home": "होम",
+    "chat": "चैट",
+    "knowledgeBase": "ज्ञान आधार",
+    "customerPortal": "ग्राहक पोर्टल",
+    "login": "लॉग इन",
+    "register": "पंजीकरण",
+    "logout": "लॉग आउट"
+  },
+  "chat": {
+    "title": "ग्राहक सहायता",
+    "welcomeTitle": "आज हम आपकी कैसे मदद कर सकते हैं?",
+    "welcomeSubtitle": "हमारे AI सहायक से तुरंत जवाब पाएं या हमारी सहायता टीम से जुड़ें",
+    "inputPlaceholder": "एक प्रश्न पूछें या अपनी समस्या बताएं...",
+    "getHelp": "मदद लें",
+    "sending": "भेजा जा रहा है...",
+    "popularQuestions": "लोकप्रिय प्रश्न",
+    "continueConversation": "अपनी बातचीत जारी रखें",
+    "welcomeBack": "वापसी पर स्वागत है",
+    "openChat": "चैट खोलें",
+    "startNewChat": "नई चैट शुरू करें",
+    "browseKnowledgeBase": "ज्ञान आधार ब्राउज़ करें",
+    "chatWithUs": "हमसे चैट करें"
+  },
+  "categories": {
+    "title": "हम कैसे मदद कर सकते हैं?",
+    "subtitle": "शुरू करने के लिए एक विषय चुनें",
+    "billing": "बिलिंग",
+    "billingDesc": "बिलिंग और भुगतान संबंधी प्रश्न",
+    "technical": "तकनीकी सहायता",
+    "technicalDesc": "तकनीकी समस्याएं और समाधान",
+    "sales": "बिक्री",
+    "salesDesc": "बिक्री पूछताछ और अपग्रेड",
+    "general": "सामान्य",
+    "generalDesc": "सामान्य प्रश्न और जानकारी"
+  },
+  "knowledgeBase": {
+    "title": "ज्ञान आधार",
+    "subtitle": "सामान्य प्रश्नों के उत्तर खोजें",
+    "searchPlaceholder": "लेख खोजें...",
+    "categories": "श्रेणियां",
+    "articles": "लेख",
+    "noResults": "कोई लेख नहीं मिला",
+    "readMore": "और पढ़ें"
+  },
+  "common": {
+    "back": "वापस",
+    "cancel": "रद्द करें",
+    "submit": "जमा करें",
+    "save": "सहेजें",
+    "delete": "हटाएं",
+    "edit": "संपादित करें",
+    "close": "बंद करें",
+    "loading": "लोड हो रहा है...",
+    "error": "त्रुटि",
+    "success": "सफलता",
+    "search": "खोजें"
+  },
+  "auth": {
+    "login": "लॉग इन",
+    "register": "पंजीकरण",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "confirmPassword": "पासवर्ड की पुष्टि करें",
+    "forgotPassword": "पासवर्ड भूल गए?",
+    "noAccount": "खाता नहीं है?",
+    "hasAccount": "पहले से खाता है?",
+    "signUp": "साइन अप करें",
+    "signIn": "साइन इन करें"
+  },
+  "language": {
+    "select": "भाषा चुनें",
+    "en": "अंग्रेज़ी",
+    "es": "स्पेनिश",
+    "de": "जर्मन",
+    "fr": "फ्रेंच",
+    "zh": "चीनी",
+    "hi": "हिंदी"
+  }
+}
