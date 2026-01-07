@@ -62,6 +62,9 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Category-Based Customer Routing**: Customizable support categories allow customers to pre-select their issue, enabling specialized AI agent routing. Categories can be linked to specific AI agents and configured with suggested questions.
 - **Mobile-First Responsive Design**: All pages use responsive grid patterns (grid-cols-1 sm:grid-cols-2 lg:grid-cols-4/5) for optimal mobile experience. Tab navigation uses horizontal scrolling on mobile.
 - **PWA Support**: The app is installable as a Progressive Web App with manifest.json, theme colors (#6366f1), and app shortcuts. Install instructions available at /install-app.
+- **Platform Assistant AI**: An intelligent assistant for navigation and learning that can query knowledge base articles (returns metadata only for security), execute admin actions (create workspaces, support categories), and guide users through the platform.
+- **AI Documentation Generator**: Generates comprehensive setup guides for new integrations (WhatsApp Business, Facebook Messenger, Instagram DM) using OpenAI GPT-4o-mini with parallelized generation.
+- **SEO Optimization**: sitemap.xml (public routes only) and robots.txt configured to block private paths while allowing public content indexing.
 
 ## External Dependencies
 
