@@ -123,6 +123,11 @@ app.use((req, res, next) => {
   startFollowupScheduler(wsServer);
   console.log('Followup scheduler started for auto-followups and auto-close');
 
+  // Start the knowledge base scheduler for automatic reindexing
+  const { startKnowledgeScheduler } = await import('./knowledge-scheduler');
+  startKnowledgeScheduler();
+  console.log('Knowledge scheduler started for automatic article reindexing');
+
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.

@@ -9260,6 +9260,122 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // ========================================
+  // KNOWLEDGE BASE SCHEDULER & WEBHOOKS
+  // ========================================
+
+  // Get knowledge scheduler status
+  app.get('/api/knowledge-scheduler/status', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { getKnowledgeScheduler } = await import('./knowledge-scheduler');
+      const scheduler = getKnowledgeScheduler();
+      res.json(scheduler.getStatus());
+    } catch (error) {
+      console.error('Failed to get scheduler status:', error);
+      res.status(500).json({ error: 'Failed to get scheduler status' });
+    }
+  });
+
+  // Trigger manual reindex of stale articles
+  app.post('/api/knowledge-scheduler/process-stale', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { getKnowledgeScheduler } = await import('./knowledge-scheduler');
+      const scheduler = getKnowledgeScheduler();
+      const result = await scheduler.processStaleArticles();
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Failed to process stale articles:', error);
+      res.status(500).json({ error: 'Failed to process stale articles' });
+    }
+  });
+
+  // Force reindex all articles
+  app.post('/api/knowledge-scheduler/reindex-all', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { getKnowledgeScheduler } = await import('./knowledge-scheduler');
+      const scheduler = getKnowledgeScheduler();
+      const result = await scheduler.forceReindexAll();
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Failed to reindex all articles:', error);
+      res.status(500).json({ error: 'Failed to reindex all articles' });
+    }
+  });
+
+  // Webhook for external systems to trigger knowledge base updates (rate limited)
+  const webhookRateLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 5, // 5 requests per minute
+    message: { error: 'Too many webhook requests, please try again later' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.post('/api/webhooks/knowledge-base/update', webhookRateLimiter, async (req, res) => {
+    try {
+      // Require webhook secret to be configured
+      const webhookSecret = process.env.KB_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        console.warn('KB_WEBHOOK_SECRET not configured - webhook disabled');
+        return res.status(503).json({ error: 'Webhook not configured' });
+      }
+
+      const { secret, action, articleIds, timestamp } = req.body;
+
+      // Require and validate timestamp to prevent replay attacks (within 5 minutes)
+      if (!timestamp) {
+        return res.status(400).json({ error: 'timestamp is required' });
+      }
+      const requestTime = new Date(timestamp).getTime();
+      if (isNaN(requestTime)) {
+        return res.status(400).json({ error: 'Invalid timestamp format' });
+      }
+      const now = Date.now();
+      if (Math.abs(now - requestTime) > 5 * 60 * 1000) {
+        return res.status(401).json({ error: 'Request timestamp expired' });
+      }
+      
+      // Validate webhook secret
+      if (secret !== webhookSecret) {
+        return res.status(401).json({ error: 'Invalid webhook secret' });
+      }
+
+      const { getKnowledgeScheduler } = await import('./knowledge-scheduler');
+      const scheduler = getKnowledgeScheduler();
+
+      let result;
+      if (action === 'reindex-all') {
+        result = await scheduler.forceReindexAll();
+      } else if (action === 'reindex-stale') {
+        result = await scheduler.processStaleArticles();
+      } else if (action === 'reindex-articles' && Array.isArray(articleIds) && articleIds.length <= 50) {
+        const knowledgeRetrieval = KnowledgeRetrievalService.getInstance();
+        let processed = 0;
+        let errors = 0;
+        
+        for (const articleId of articleIds) {
+          try {
+            await knowledgeRetrieval.reindexArticle(articleId);
+            processed++;
+          } catch (err) {
+            errors++;
+            console.error(`Webhook: Failed to reindex article ${articleId}:`, err);
+          }
+        }
+        result = { processed, errors };
+      } else if (action === 'reindex-articles') {
+        return res.status(400).json({ error: 'articleIds must be an array with max 50 items' });
+      } else {
+        return res.status(400).json({ error: 'Invalid action. Use: reindex-all, reindex-stale, or reindex-articles' });
+      }
+
+      res.json({ success: true, ...result });
+    } catch (error) {
+      console.error('Webhook error:', error);
+      res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  });
+
+  // ========================================
   // ONBOARDING API ENDPOINTS
   // ========================================
 
