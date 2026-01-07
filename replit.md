@@ -65,6 +65,7 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Platform Assistant AI**: An intelligent assistant for navigation and learning that can query knowledge base articles (returns metadata only for security), execute admin actions (create workspaces, support categories), and guide users through the platform.
 - **AI Documentation Generator**: Generates comprehensive setup guides for new integrations (WhatsApp Business, Facebook Messenger, Instagram DM) using OpenAI GPT-4o-mini with parallelized generation.
 - **SEO Optimization**: sitemap.xml (public routes only) and robots.txt configured to block private paths while allowing public content indexing.
+- **Automatic Knowledge Base Reindexing**: Scheduled hourly processing of stale articles with vector embedding updates. Includes admin API endpoints for manual control and a secure webhook for external system triggers (rate-limited, timestamp validation, secret authentication).
 
 ## External Dependencies
 
