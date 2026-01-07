@@ -59,6 +59,7 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Customer Portal**: Authenticated self-service access for support history, profile management, and feedback.
 - **External Channel Integration**: Supports WhatsApp Business API, Telegram Bot, and Facebook Messenger via webhooks.
 - **Third-Party Integration API**: A RESTful API for embedding support chat with pre-filled customer data and multi-tenant support.
+- **White-Label Branding**: Vendors can customize the chat widget with their own logo, colors, and welcome message. Organizations are configured via the admin Branding page (/branding) and applied to the customer chat via URL parameter (`/chat?org=<slug>`). Branding includes: logo URL, primary/secondary colors, and custom welcome messages.
 - **Category-Based Customer Routing**: Customizable support categories allow customers to pre-select their issue, enabling specialized AI agent routing. Categories can be linked to specific AI agents and configured with suggested questions.
 - **Mobile-First Responsive Design**: All pages use responsive grid patterns (grid-cols-1 sm:grid-cols-2 lg:grid-cols-4/5) for optimal mobile experience. Tab navigation uses horizontal scrolling on mobile.
 - **PWA Support**: The app is installable as a Progressive Web App with manifest.json, theme colors (#6366f1), and app shortcuts. Install instructions available at /install-app.
