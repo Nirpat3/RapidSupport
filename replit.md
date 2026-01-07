@@ -18,6 +18,28 @@ The Staff Conversations Page features a clean, mobile-first 2-column layout on d
 ### Technical Implementations
 The backend is a Node.js Express.js application in TypeScript, providing a RESTful API with Zod validation and rate limiting. Authentication is session-based using Passport.js and Express sessions with a PostgreSQL store. A custom WebSocket server handles real-time communication. PostgreSQL, accessed via Drizzle ORM and Neon serverless for connection pooling, is the primary database. Authentication includes role-based access control (Admin, Agent, Customer) and anonymous customer support via `sessionId` and IP tracking.
 
+### Workspace Architecture (Multi-Tenant)
+The platform supports a hierarchical architecture: Platform Admins → Organizations → Workspaces.
+
+**Database Tables:**
+- `workspaces`: id, name, description, slug, organizationId, isDefault, settings (JSON)
+- `workspace_members`: id, userId, workspaceId, role ('owner' | 'admin' | 'member' | 'viewer'), status, invitedBy, timestamps
+- `users.isPlatformAdmin`: Boolean flag for platform-level administration
+
+**Workspace Scoping:**
+- AI agents (`ai_agents.workspaceId`) and knowledge base articles (`knowledge_base.workspaceId`) can be scoped to specific workspaces
+- Users can belong to multiple workspaces across different organizations
+- Platform admins see all workspaces; regular users see only their assigned workspaces
+
+**API Endpoints:**
+- `GET/POST /api/workspaces` - List/create workspaces (admin role required for POST)
+- `GET/PUT/DELETE /api/workspaces/:id` - Read/update/delete workspace
+- `GET/POST /api/workspaces/:id/members` - List/add workspace members
+- `PUT/DELETE /api/workspace-members/:id` - Update/remove members
+- `GET /api/users/:userId/workspaces` - Get all workspaces a user belongs to
+
+**Platform Admin:** Admin@ris.com / Admin$123 (isPlatformAdmin=true)
+
 ### Feature Specifications
 - **Real-time Communication**: A custom WebSocket server provides real-time chat, user presence, conversation routing, message broadcasting, and typing indicators.
 - **AI Capabilities**: A multi-agent AI response system (OpenAI GPT-4o-mini) enables intent classification, smart routing, and agent handoff. Features include 4-dimensional quality analysis, an AI Learning Dashboard, and RAG optimization for retrieval logging, answer grounding, and confidence thresholds.
