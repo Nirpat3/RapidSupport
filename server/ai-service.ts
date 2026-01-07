@@ -1045,11 +1045,16 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
 
   /**
    * Generate smart AI agent response with learning and knowledge base integration
+   * @param customerMessage The customer's message
+   * @param conversationId The conversation ID
+   * @param agentId Optional agent ID to use
+   * @param language Optional language code (e.g., 'en', 'es', 'de', 'fr', 'zh', 'hi') for response
    */
   static async generateSmartAgentResponse(
     customerMessage: string,
     conversationId: string,
-    agentId?: string
+    agentId?: string,
+    language?: string
   ): Promise<SmartAgentResponse> {
     const startTime = Date.now();
     
@@ -1651,10 +1656,24 @@ Example clarifying response for vague queries:
 
 The more details you can share, the better I can help you resolve this quickly!"`;
 
+      // Build system prompt with optional language instruction
+      let systemPrompt = agent.systemPrompt;
+      if (language && language !== 'en') {
+        const languageNames: Record<string, string> = {
+          'es': 'Spanish',
+          'de': 'German', 
+          'fr': 'French',
+          'zh': 'Chinese (Simplified)',
+          'hi': 'Hindi'
+        };
+        const languageName = languageNames[language] || language;
+        systemPrompt = `${agent.systemPrompt}\n\n**IMPORTANT LANGUAGE INSTRUCTION**: You MUST respond in ${languageName}. The user prefers ${languageName} language. Translate your entire response to ${languageName}.`;
+      }
+
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: agent.systemPrompt },
+          { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
         temperature: (agent.temperature || 30) / 100,

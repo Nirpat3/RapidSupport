@@ -326,7 +326,8 @@ const createAnonymousCustomerSchema = anonymousCustomerSchema.extend({
 const sendCustomerMessageSchema = z.object({
   conversationId: z.string().uuid('Invalid conversation ID'),
   customerId: z.string().uuid('Invalid customer ID'),
-  content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
+  content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long'),
+  language: z.string().optional() // e.g., 'en', 'es', 'de', 'fr', 'zh', 'hi'
 });
 
 // Third-party integration API schema
@@ -4087,10 +4088,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         conversationId: z.string().uuid(),
         customerMessage: z.string().min(1).max(5000), // Align with other message limits
         customerId: z.string().uuid(), // Required for authorization
-        agentId: z.string().uuid().optional()
+        agentId: z.string().uuid().optional(),
+        language: z.string().optional() // e.g., 'en', 'es', 'de', 'fr', 'zh', 'hi'
       });
 
-      const { conversationId, customerMessage, customerId, agentId } = smartResponseSchema.parse(req.body);
+      const { conversationId, customerMessage, customerId, agentId, language } = smartResponseSchema.parse(req.body);
       console.log(`[${requestId}] Validated - ConvID: ${conversationId}, Message: "${customerMessage.substring(0, 50)}..."`);
 
       // Check if conversation exists
@@ -4137,11 +4139,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
 
       console.log(`[${requestId}] Generating AI response...`);
-      // Generate AI response
+      // Generate AI response with optional language parameter
       const aiResponse = await AIService.generateSmartAgentResponse(
         customerMessage,
         conversationId,
-        agentId
+        agentId,
+        language
       );
       console.log(`[${requestId}] AI response generated. Length: ${aiResponse.response?.length || 0} chars`);
 

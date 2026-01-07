@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import ThemeToggle from "@/components/ThemeToggle";
 import { 
   Send, 
   Sparkles,
@@ -129,6 +132,7 @@ interface ConversationDetails {
 }
 
 export default function CustomerChatPage() {
+  const { t, i18n } = useTranslation();
   const [question, setQuestion] = useState("");
   const [showInfoDialog, setShowInfoDialog] = useState(false);
   const [pendingMessage, setPendingMessage] = useState("");
@@ -399,6 +403,7 @@ export default function CustomerChatPage() {
         conversationId: chatState.conversationId,
         customerMessage,
         customerId: chatState.customerId,
+        language: i18n.language, // Pass user's selected language for AI response
       });
       
       console.log(`[${mutationId}] ===== AI MUTATION RESPONSE RECEIVED =====`);
@@ -998,6 +1003,12 @@ export default function CustomerChatPage() {
   // Hero/Landing View
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30">
+      {/* Top Bar with Language Switcher */}
+      <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
+        <LanguageSwitcher />
+        <ThemeToggle />
+      </div>
+      
       {/* Hero Section */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
         <div className="max-w-4xl mx-auto">
@@ -1007,10 +1018,10 @@ export default function CustomerChatPage() {
               <Sparkles className="h-8 w-8 text-primary" />
             </div>
             <h1 className="text-display mb-4" data-testid="title-hero">
-              How can we help you today?
+              {t('chat.welcomeTitle')}
             </h1>
             <p className="text-lg text-muted-foreground mb-6">
-              Get instant answers from our AI assistant or connect with our support team
+              {t('chat.welcomeSubtitle')}
             </p>
             <div className="flex items-center justify-center gap-4 flex-wrap">
               <Button
@@ -1021,7 +1032,7 @@ export default function CustomerChatPage() {
                 data-testid="link-knowledge-base"
               >
                 <FileText className="h-4 w-4" />
-                Browse Knowledge Base
+                {t('chat.browseKnowledgeBase')}
               </Button>
               <Button
                 variant="ghost"
@@ -1031,7 +1042,7 @@ export default function CustomerChatPage() {
                 data-testid="link-portal-login"
               >
                 <LogIn className="h-4 w-4" />
-                Customer Portal
+                {t('nav.customerPortal')}
               </Button>
             </div>
           </div>
@@ -1045,10 +1056,10 @@ export default function CustomerChatPage() {
                     <MessageCircle className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold mb-1">Continue your conversation</h3>
+                    <h3 className="font-semibold mb-1">{t('chat.continueConversation')}</h3>
                     {(chatState.customerInfo || existingConversation?.customerInfo) && (
                       <p className="text-sm text-muted-foreground mb-4">
-                        Welcome back, {chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
+                        {t('chat.welcomeBack')}, {chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
                       </p>
                     )}
                     <div className="flex gap-2 flex-wrap">
@@ -1056,7 +1067,7 @@ export default function CustomerChatPage() {
                         onClick={() => setChatStarted(true)}
                         data-testid="button-continue-conversation"
                       >
-                        Open Chat
+                        {t('chat.openChat')}
                       </Button>
                       <Button 
                         onClick={() => {
@@ -1076,7 +1087,7 @@ export default function CustomerChatPage() {
                         variant="outline"
                         data-testid="button-new-conversation"
                       >
-                        Start New Chat
+                        {t('chat.startNewChat')}
                       </Button>
                     </div>
                   </div>
@@ -1102,7 +1113,7 @@ export default function CustomerChatPage() {
                         handleAskQuestion();
                       }
                     }}
-                    placeholder="Ask a question or describe your issue..."
+                    placeholder={t('chat.inputPlaceholder')}
                     className="pl-12 pr-4 h-14 text-base rounded-xl border-2 focus:border-primary transition-colors"
                     data-testid="input-hero-question"
                   />
@@ -1114,11 +1125,11 @@ export default function CustomerChatPage() {
                   data-testid="button-ask-question"
                 >
                   {sendMessageMutation.isPending || createCustomerMutation.isPending ? (
-                    "Sending..."
+                    t('chat.sending')
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4" />
-                      Get Help
+                      {t('chat.getHelp')}
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -1129,7 +1140,7 @@ export default function CustomerChatPage() {
 
           {/* Suggested Questions */}
           <div className="px-4">
-            <p className="text-center text-sm text-muted-foreground mb-4">Popular questions</p>
+            <p className="text-center text-sm text-muted-foreground mb-4">{t('chat.popularQuestions')}</p>
             <div className="flex flex-col gap-2 items-center">
               {suggestedQuestions.map((q, idx) => (
                 <Button
@@ -1156,10 +1167,10 @@ export default function CustomerChatPage() {
               <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <MessageCircle className="h-5 w-5 text-primary" />
               </div>
-              <span>How can we help?</span>
+              <span>{t('categories.title')}</span>
             </DialogTitle>
             <DialogDescription className="text-base">
-              Select a category to connect you with the right support team
+              {t('categories.subtitle')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-4">
@@ -1186,7 +1197,7 @@ export default function CustomerChatPage() {
           </div>
           <div className="flex justify-end pt-2">
             <Button variant="ghost" onClick={() => setShowCategoryDialog(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
           </div>
         </DialogContent>
