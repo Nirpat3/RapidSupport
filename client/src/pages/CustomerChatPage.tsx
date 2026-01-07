@@ -1128,16 +1128,16 @@ export default function CustomerChatPage() {
           </Card>
 
           {/* Suggested Questions */}
-          <div>
+          <div className="px-4">
             <p className="text-center text-sm text-muted-foreground mb-4">Popular questions</p>
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex flex-col gap-2 items-center">
               {suggestedQuestions.map((q, idx) => (
                 <Button
                   key={idx}
                   variant="outline"
                   size="sm"
                   onClick={() => setQuestion(q)}
-                  className="text-sm rounded-full"
+                  className="text-sm rounded-full max-w-full text-left whitespace-normal h-auto py-2 px-4"
                   data-testid={`button-suggested-${idx}`}
                 >
                   {q}
