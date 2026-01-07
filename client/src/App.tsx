@@ -38,6 +38,7 @@ import SupportCategoriesPage from "@/pages/SupportCategoriesPage";
 import DocumentationPage from "@/pages/DocumentationPage";
 import WidgetSetupPage from "@/pages/WidgetSetupPage";
 import MockupPage from "@/pages/MockupPage";
+import InstallAppPage from "@/pages/InstallAppPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import NotFound from "@/pages/not-found";
 
@@ -148,6 +149,7 @@ function Router() {
           <WidgetSetupPage />
         </PermissionGuard>
       </Route>
+      <Route path="/install-app" component={InstallAppPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -223,6 +225,7 @@ function AppContent() {
   const isChatEmbedPage = pathname === '/chat'; // Embeddable chat widget
   const isSupportCenterWidget = pathname === '/support-widget'; // Enhanced support center widget
   const isMockupPage = pathname === '/mockup'; // Design mockup page - public
+  const isInstallAppPage = pathname === '/install-app'; // Install app instructions page
   
   // Knowledge base article public view
   const isPublicArticlePage = pathname.startsWith('/kb/');
@@ -333,6 +336,18 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <MockupPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // For install app page, render without authentication
+  if (isInstallAppPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <InstallAppPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

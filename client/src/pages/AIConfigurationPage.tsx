@@ -938,7 +938,7 @@ export default function AIConfigurationPage() {
                           </p>
                         )}
 
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
                           <div>
                             <span className="text-muted-foreground">Temperature</span>
                             <p className="font-medium">{agent.temperature}</p>

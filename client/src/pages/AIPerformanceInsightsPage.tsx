@@ -306,7 +306,7 @@ export default function AIPerformanceInsightsPage() {
       </div>
 
       {/* Overview Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Responses</CardTitle>
@@ -357,19 +357,21 @@ export default function AIPerformanceInsightsPage() {
       </div>
 
       <Tabs defaultValue="performance" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="testing">AI Testing</TabsTrigger>
-          <TabsTrigger value="learning">Learning</TabsTrigger>
-          <TabsTrigger value="training">
-            Training
-            {(corrections.length > 0 || knowledgeGaps.length > 0) && (
-              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
-                {corrections.length + knowledgeGaps.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-4">
+            <TabsTrigger value="performance" className="flex-1 sm:flex-none">Performance</TabsTrigger>
+            <TabsTrigger value="testing" className="flex-1 sm:flex-none">AI Testing</TabsTrigger>
+            <TabsTrigger value="learning" className="flex-1 sm:flex-none">Learning</TabsTrigger>
+            <TabsTrigger value="training" className="flex-1 sm:flex-none">
+              Training
+              {(corrections.length > 0 || knowledgeGaps.length > 0) && (
+                <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
+                  {corrections.length + knowledgeGaps.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Performance Tab */}
         <TabsContent value="performance" className="space-y-4">
@@ -411,7 +413,7 @@ export default function AIPerformanceInsightsPage() {
                               )}
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                               <div>
                                 <div className="text-xs text-muted-foreground mb-1">Responses</div>
                                 <div className="font-semibold">{metric.totalResponses.toLocaleString()}</div>
@@ -632,7 +634,7 @@ export default function AIPerformanceInsightsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium">Avg Quality</CardTitle>

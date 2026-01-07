@@ -36,7 +36,8 @@ import {
   Code,
   Tags,
   Sparkles,
-  Zap
+  Zap,
+  Smartphone
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -140,6 +141,11 @@ const supportItems = [
     title: "Widget Setup",
     url: "/widget-setup",
     icon: Code
+  },
+  {
+    title: "Install App",
+    url: "/install-app",
+    icon: Smartphone
   },
   {
     title: "Documentation",

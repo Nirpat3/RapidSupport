@@ -149,26 +149,30 @@ export default function AgentAnalyticsPage() {
         </div>
 
         {/* Date Range Filter */}
-        <div className="flex gap-2 items-center">
-          <Label htmlFor="date-from">From:</Label>
-          <Input
-            id="date-from"
-            type="date"
-            value={dateRange.from}
-            onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-            className="w-40"
-            data-testid="input-date-from"
-          />
-          <Label htmlFor="date-to">To:</Label>
-          <Input
-            id="date-to"
-            type="date"
-            value={dateRange.to}
-            onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-            className="w-40"
-            data-testid="input-date-to"
-          />
-          <Button onClick={handleDateRangeUpdate} data-testid="button-update-date-range">
+        <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full md:w-auto">
+          <div className="flex gap-2 items-center w-full sm:w-auto">
+            <Label htmlFor="date-from" className="whitespace-nowrap">From:</Label>
+            <Input
+              id="date-from"
+              type="date"
+              value={dateRange.from}
+              onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+              className="flex-1 sm:w-36"
+              data-testid="input-date-from"
+            />
+          </div>
+          <div className="flex gap-2 items-center w-full sm:w-auto">
+            <Label htmlFor="date-to" className="whitespace-nowrap">To:</Label>
+            <Input
+              id="date-to"
+              type="date"
+              value={dateRange.to}
+              onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+              className="flex-1 sm:w-36"
+              data-testid="input-date-to"
+            />
+          </div>
+          <Button onClick={handleDateRangeUpdate} className="w-full sm:w-auto" data-testid="button-update-date-range">
             <CalendarIcon className="w-4 h-4 mr-2" />
             Update
           </Button>
@@ -176,17 +180,19 @@ export default function AgentAnalyticsPage() {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-          <TabsTrigger value="agents" data-testid="tab-agents">Agents</TabsTrigger>
-          <TabsTrigger value="knowledge" data-testid="tab-knowledge">Knowledge</TabsTrigger>
-          <TabsTrigger value="workload" data-testid="tab-workload">Workload</TabsTrigger>
-          <TabsTrigger value="performance" data-testid="tab-performance">Performance</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-5">
+            <TabsTrigger value="overview" className="flex-1 sm:flex-none" data-testid="tab-overview">Overview</TabsTrigger>
+            <TabsTrigger value="agents" className="flex-1 sm:flex-none" data-testid="tab-agents">Agents</TabsTrigger>
+            <TabsTrigger value="knowledge" className="flex-1 sm:flex-none" data-testid="tab-knowledge">Knowledge</TabsTrigger>
+            <TabsTrigger value="workload" className="flex-1 sm:flex-none" data-testid="tab-workload">Workload</TabsTrigger>
+            <TabsTrigger value="performance" className="flex-1 sm:flex-none" data-testid="tab-performance">Performance</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-6">
           {/* Overall Performance Metrics */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Interactions</CardTitle>
@@ -347,7 +353,7 @@ export default function AgentAnalyticsPage() {
                         <h3 className="font-semibold">{agent.agentName || 'Unknown Agent'}</h3>
                         <Badge variant="outline">{agent.interactions} interactions</Badge>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                         <div>
                           <span className="text-muted-foreground">Confidence:</span>
                           <span className={`ml-2 font-medium ${getPerformanceColor(agent.avgConfidence)}`}>
@@ -383,7 +389,7 @@ export default function AgentAnalyticsPage() {
 
         <TabsContent value="knowledge" className="space-y-6">
           {/* Knowledge Base Overview */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Articles</CardTitle>

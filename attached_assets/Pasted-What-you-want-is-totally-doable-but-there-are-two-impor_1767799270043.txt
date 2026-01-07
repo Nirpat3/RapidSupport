@@ -1,0 +1,139 @@
+What you want is totally doable — but there are two important WhatsApp realities that will shape the design:
+	1.	WhatsApp Business Platform is built around 1:1 customer conversations (shared inbox + multiple agents replying to the same customer thread). You can make it feel like a “group” internally by letting multiple Rapid agents collaborate inside your portal.
+	2.	Meta updated WhatsApp Business Solution terms effective Jan 15, 2026 to restrict “general-purpose AI assistants” from being distributed on WhatsApp. The good news: AI used to support your business’s customer service and sales workflows is still the normal/expected use case (agent + bot) — just don’t position it as an open-ended public AI assistant for anything/everything.  ￼
+
+Also: WhatsApp has a strict 24-hour customer service window — inside it you can reply freely; outside it you must use approved templates.  ￼
+
+⸻
+
+The best architecture for Rapid: “Shared Inbox + AI Copilot + Human Handoff”
+
+Core channels
+	•	Support number (WhatsApp Business Platform) → customer messages go into your portal
+	•	Sales number (WhatsApp Business Platform) → lead messages go into your portal
+
+Your portal (what your team uses)
+
+Think “Zendesk/Intercom style shared inbox,” but purpose-built for Rapid.
+
+Must-have portal features
+	•	Unified Inbox (Support + Sales), filters, tags, assignments, SLA timers
+	•	Conversation view (full thread, attachments, user profile, account/location, last orders, etc.)
+	•	Handoff controls
+	•	“Bot ON/OFF” per conversation
+	•	“Take over” button (locks bot out)
+	•	“Resume bot” (optional)
+	•	Collaboration
+	•	Internal notes (not sent to customer)
+	•	@mentions, escalation, supervisor override
+	•	Macros / Quick replies (common answers)
+	•	Audit log (who answered, when, what the bot suggested)
+
+⸻
+
+The AI bot behavior (support + sales)
+
+Support bot (FAQ / docs grounded)
+	•	Answers basic “how-to” questions using your Rapid FAQs + KB docs
+	•	Asks 1–2 clarifying questions when needed (version, device, module, store type)
+	•	If confidence is low: suggests and/or routes to human
+	•	Always includes “Want a human?” button/keyword (e.g., AGENT)
+
+Sales bot (qualification + demo + signup)
+	•	Handles:
+	•	product overview, modules, pricing tiers
+	•	“book demo” (Calendly/HubSpot meeting link)
+	•	“sign up” link + next steps
+	•	Captures lead fields:
+	•	business name, address/state, vertical (c-store/liquor/QSR), number of lanes/registers/sites
+	•	Handoff to human when:
+	•	enterprise pricing, multi-site, fuel controller topics, special promotions, custom integrations
+
+Important: keep AI “scoped” to Rapid sales/support, not a general-purpose assistant, to align with the updated WhatsApp terms posture.  ￼
+
+⸻
+
+WhatsApp rules you must design around
+
+1) The 24-hour window
+	•	When the user messages you, a 24-hour customer service window starts/reset.
+	•	Inside the window: normal free-form chat is allowed.
+	•	Outside the window: you can only re-engage using approved message templates.  ￼
+
+So your portal should show a countdown timer and have:
+	•	“Send template” button (re-open convo)
+	•	Template library (support follow-up, demo reminder, onboarding checklist, etc.)
+
+2) “Groups”
+
+Most businesses should assume API-driven group messaging is not generally available like normal WhatsApp groups.
+	•	Meta does have “group messaging” docs/paths, but eligibility can be restricted.  ￼
+	•	Twilio explicitly notes WhatsApp “Groups API” was deprecated and they offer a workaround using their Conversations product (not a real WhatsApp group in the normal sense).  ￼
+
+Best practical approach:
+	•	Keep customers in 1:1 WhatsApp threads (clean, compliant, works great for support and sales)
+	•	Inside your portal, allow multi-agent collaboration (so it feels like a group to your team)
+
+If you want “community” style updates, do that via templates/broadcast-style campaigns (with opt-in) rather than true groups.
+
+⸻
+
+Recommended system components (clean separation)
+	1.	WhatsApp Connector Service
+	•	Webhooks in
+	•	Send messages out
+	•	Template send
+	•	Media handling
+	2.	Conversation Orchestrator
+	•	Routing rules (support vs sales, VIP accounts, after-hours)
+	•	Assignments + queues
+	•	SLA timers + escalation
+	3.	AI Service
+	•	RAG over your FAQ/KB/docs
+	•	Confidence scoring + escalation rules
+	•	“Agent assist mode” (suggest replies without auto-sending if you want)
+	4.	Knowledge Base
+	•	Versioned FAQ documents
+	•	Structured Q/A + troubleshooting decision trees
+	5.	Portal Web App
+	•	Inbox UI, agent tools, bot toggle, notes, analytics
+	6.	CRM / Ticketing Integration
+	•	Create ticket, attach transcript, sync lead/contact
+
+⸻
+
+A smart rollout plan (fast MVP → enterprise-grade)
+
+Phase 1 (MVP)
+	•	2 WhatsApp numbers (Support + Sales)
+	•	Shared inbox portal
+	•	Bot answers FAQ + “AGENT” handoff
+	•	Demo link + signup link sending
+	•	Basic tagging + assignment
+
+Phase 2 (Operational)
+	•	RAG knowledge base with citations (“source: Rapid FAQ > Payments > Reconciliation”)
+	•	Templates library + 24h window timer
+	•	Lead qualification forms + CRM sync
+	•	Agent performance dashboards
+
+Phase 3 (Scale)
+	•	Multi-location customer profiles (store/site mapping)
+	•	Role-based access for marketing vs sales vs support
+	•	QA review, coaching, redaction, compliance logging
+	•	Multi-language support
+
+⸻
+
+What I need from you (so I can give you the exact build blueprint without guessing)
+
+Answer these in one message and I’ll map it into a concrete architecture + data model + routing rules:
+	1.	Do you want to build on Meta WhatsApp Business Platform (Cloud API) directly, or via a provider like Twilio / 360dialog / Infobip?
+	2.	Do you already have RapidRMS FAQs/docs in a place we can version (Google Docs, Notion, website KB), or is it mostly PDFs?
+	3.	For scheduling demos: are you using Calendly, HubSpot, or something else?
+
+If you reply with those 3, I’ll produce:
+	•	the portal feature spec (support + sales lanes)
+	•	conversation state machine (bot ↔ human handoff)
+	•	message template list (support + sales)
+	•	recommended stack (Node/Python) + integration map
