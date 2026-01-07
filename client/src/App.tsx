@@ -41,6 +41,7 @@ import MockupPage from "@/pages/MockupPage";
 import InstallAppPage from "@/pages/InstallAppPage";
 import ChannelSettingsPage from "@/pages/ChannelSettingsPage";
 import LeadTrackingPage from "@/pages/LeadTrackingPage";
+import BrandingSettingsPage from "@/pages/BrandingSettingsPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
 import NotFound from "@/pages/not-found";
@@ -160,6 +161,11 @@ function Router() {
       <Route path="/widget-setup">
         <PermissionGuard feature="settings">
           <WidgetSetupPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/branding">
+        <PermissionGuard feature="settings">
+          <BrandingSettingsPage />
         </PermissionGuard>
       </Route>
       <Route path="/install-app" component={InstallAppPage} />

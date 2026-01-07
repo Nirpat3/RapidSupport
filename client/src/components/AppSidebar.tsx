@@ -38,7 +38,8 @@ import {
   Sparkles,
   Zap,
   Smartphone,
-  Share2
+  Share2,
+  Palette
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -154,6 +155,12 @@ const supportItems = [
     title: "Widget Setup",
     url: "/widget-setup",
     icon: Code
+  },
+  {
+    title: "Branding",
+    url: "/branding",
+    icon: Palette,
+    adminOnly: true
   },
   {
     title: "Install App",
