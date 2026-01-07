@@ -1751,3 +1751,377 @@ export const updateEngagementSettingsSchema = insertEngagementSettingsSchema.par
 export type InsertEngagementSettings = z.infer<typeof insertEngagementSettingsSchema>;
 export type UpdateEngagementSettings = z.infer<typeof updateEngagementSettingsSchema>;
 export type EngagementSettings = typeof engagementSettings.$inferSelect;
+
+// ========================================
+// EXTERNAL CHANNEL INTEGRATION SCHEMA
+// ========================================
+
+// Channel type enum values
+export const CHANNEL_TYPES = ['whatsapp', 'facebook', 'instagram', 'web', 'api'] as const;
+export type ChannelType = typeof CHANNEL_TYPES[number];
+
+// Provider type enum values
+export const CHANNEL_PROVIDERS = ['meta_cloud', 'twilio', 'internal'] as const;
+export type ChannelProvider = typeof CHANNEL_PROVIDERS[number];
+
+// Bot mode enum values
+export const BOT_MODES = ['auto', 'handoff', 'human_only'] as const;
+export type BotMode = typeof BOT_MODES[number];
+
+// Channel Accounts table - stores connected messaging channel configurations
+export const channelAccounts = pgTable("channel_accounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // Display name (e.g., "Main WhatsApp Support")
+  channelType: text("channel_type").notNull(), // 'whatsapp' | 'facebook' | 'instagram'
+  provider: text("provider").notNull(), // 'meta_cloud' | 'twilio'
+  
+  // Workspace/Organization scoping
+  workspaceId: varchar("workspace_id").references(() => workspaces.id),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  
+  // Connection credentials (encrypted/secured in production)
+  phoneNumber: text("phone_number"), // For WhatsApp
+  phoneNumberId: text("phone_number_id"), // Meta WhatsApp Phone Number ID
+  businessAccountId: text("business_account_id"), // Meta Business Account ID
+  pageId: text("page_id"), // Facebook Page ID for Messenger/Instagram
+  accessToken: text("access_token"), // Meta access token (should be encrypted)
+  appSecret: text("app_secret"), // Meta app secret for webhook validation
+  webhookVerifyToken: text("webhook_verify_token"), // Webhook verification token
+  
+  // Twilio-specific fields
+  twilioAccountSid: text("twilio_account_sid"),
+  twilioAuthToken: text("twilio_auth_token"),
+  twilioMessagingSid: text("twilio_messaging_sid"),
+  
+  // AI Agent routing
+  defaultAiAgentId: varchar("default_ai_agent_id").references(() => aiAgents.id),
+  salesAiAgentId: varchar("sales_ai_agent_id").references(() => aiAgents.id),
+  supportAiAgentId: varchar("support_ai_agent_id").references(() => aiAgents.id),
+  
+  // Configuration
+  isActive: boolean("is_active").notNull().default(true),
+  autoResponseEnabled: boolean("auto_response_enabled").notNull().default(true),
+  defaultBotMode: text("default_bot_mode").notNull().default("auto"), // 'auto' | 'handoff' | 'human_only'
+  businessHoursOnly: boolean("business_hours_only").notNull().default(false),
+  businessHoursStart: text("business_hours_start").default("09:00"), // HH:MM format
+  businessHoursEnd: text("business_hours_end").default("17:00"), // HH:MM format
+  businessHoursTimezone: text("business_hours_timezone").default("UTC"),
+  
+  // Status tracking
+  status: text("status").notNull().default("pending"), // 'pending' | 'connected' | 'disconnected' | 'error'
+  lastError: text("last_error"),
+  lastHealthCheck: timestamp("last_health_check"),
+  webhookUrl: text("webhook_url"), // Generated webhook URL for this account
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Channel Contacts table - external channel customer identities
+export const channelContacts = pgTable("channel_contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelAccountId: varchar("channel_account_id").notNull().references(() => channelAccounts.id),
+  customerId: varchar("customer_id").references(() => customers.id), // Link to internal customer when identified
+  
+  // External identifiers
+  channelType: text("channel_type").notNull(), // 'whatsapp' | 'facebook' | 'instagram'
+  externalId: text("external_id").notNull(), // WhatsApp phone, Facebook PSID, Instagram IGSID
+  displayName: text("display_name"), // Name from the platform
+  profilePicUrl: text("profile_pic_url"), // Profile picture URL
+  
+  // Contact metadata
+  phoneNumber: text("phone_number"), // Normalized phone number for WhatsApp
+  email: text("email"), // If collected
+  
+  // Opt-in/consent tracking (important for compliance)
+  hasOptedIn: boolean("has_opted_in").notNull().default(true),
+  optInTimestamp: timestamp("opt_in_timestamp"),
+  optOutTimestamp: timestamp("opt_out_timestamp"),
+  
+  // Engagement tracking
+  firstContactAt: timestamp("first_contact_at").notNull().defaultNow(),
+  lastContactAt: timestamp("last_contact_at").notNull().defaultNow(),
+  messageCount: integer("message_count").notNull().default(0),
+  
+  // Lead qualification fields (internal CRM)
+  leadStatus: text("lead_status").default("new"), // 'new' | 'contacted' | 'qualified' | 'converted' | 'lost'
+  leadScore: integer("lead_score").default(0), // 0-100 qualification score
+  leadSource: text("lead_source"), // 'organic' | 'campaign' | 'referral'
+  businessName: text("business_name"), // Captured business name
+  businessType: text("business_type"), // Industry/vertical
+  numberOfLocations: integer("number_of_locations"), // For enterprise qualification
+  notes: text("notes"), // Agent notes about this contact
+  tags: text("tags").array(), // Custom tags for segmentation
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueChannelContact: unique().on(table.channelAccountId, table.externalId),
+}));
+
+// Extend conversations for channel support - Channel Conversation Metadata
+export const channelConversationMeta = pgTable("channel_conversation_meta", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id).unique(),
+  
+  // Channel linking
+  channelAccountId: varchar("channel_account_id").references(() => channelAccounts.id),
+  channelContactId: varchar("channel_contact_id").references(() => channelContacts.id),
+  channelType: text("channel_type").notNull().default("web"), // 'whatsapp' | 'facebook' | 'instagram' | 'web' | 'api'
+  externalConversationId: text("external_conversation_id"), // Provider's conversation/thread ID
+  
+  // Bot control
+  botMode: text("bot_mode").notNull().default("auto"), // 'auto' | 'handoff' | 'human_only'
+  botPausedAt: timestamp("bot_paused_at"), // When bot was manually paused
+  botPausedBy: varchar("bot_paused_by").references(() => users.id),
+  botResumeAt: timestamp("bot_resume_at"), // Scheduled auto-resume time
+  
+  // WhatsApp 24-hour window tracking
+  lastCustomerMessageAt: timestamp("last_customer_message_at"),
+  sessionExpiresAt: timestamp("session_expires_at"), // 24h after last customer message
+  isWithinSessionWindow: boolean("is_within_session_window").notNull().default(true),
+  
+  // Intent/routing metadata
+  detectedIntent: text("detected_intent"), // 'sales' | 'support' | 'billing' | 'general'
+  routedToAgentType: text("routed_to_agent_type"), // 'sales_bot' | 'support_bot' | 'human'
+  currentAiAgentId: varchar("current_ai_agent_id").references(() => aiAgents.id),
+  
+  // SLA tracking
+  slaPolicyId: varchar("sla_policy_id"),
+  slaDueAt: timestamp("sla_due_at"),
+  slaBreachedAt: timestamp("sla_breached_at"),
+  firstResponseAt: timestamp("first_response_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Channel Messages table - tracks external message metadata
+export const channelMessages = pgTable("channel_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  messageId: varchar("message_id").notNull().references(() => messages.id),
+  channelAccountId: varchar("channel_account_id").notNull().references(() => channelAccounts.id),
+  
+  // External identifiers
+  externalMessageId: text("external_message_id"), // Provider's message ID
+  direction: text("direction").notNull(), // 'inbound' | 'outbound'
+  
+  // Message type details
+  messageType: text("message_type").notNull().default("text"), // 'text' | 'image' | 'video' | 'audio' | 'document' | 'template' | 'interactive'
+  templateId: varchar("template_id"), // If sent using a template
+  templateName: text("template_name"),
+  templateLanguage: text("template_language"),
+  
+  // Media handling
+  mediaUrl: text("media_url"), // URL for media messages
+  mediaMimeType: text("media_mime_type"),
+  mediaSize: integer("media_size"),
+  localMediaPath: text("local_media_path"), // Local copy of media
+  
+  // Delivery tracking
+  deliveryStatus: text("delivery_status").notNull().default("sent"), // 'sent' | 'delivered' | 'read' | 'failed'
+  deliveredAt: timestamp("delivered_at"),
+  readAt: timestamp("read_at"),
+  failureReason: text("failure_reason"),
+  
+  // Cost tracking (for billing)
+  messageCategory: text("message_category"), // 'authentication' | 'marketing' | 'utility' | 'service'
+  estimatedCost: integer("estimated_cost"), // Cost in cents/microdollars
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Channel Templates table - WhatsApp/Meta approved message templates
+export const channelTemplates = pgTable("channel_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelAccountId: varchar("channel_account_id").notNull().references(() => channelAccounts.id),
+  
+  // Template identification
+  name: text("name").notNull(), // Template name/identifier
+  externalId: text("external_id"), // Provider's template ID
+  language: text("language").notNull().default("en"), // ISO language code
+  category: text("category").notNull(), // 'AUTHENTICATION' | 'MARKETING' | 'UTILITY'
+  
+  // Template content
+  headerType: text("header_type"), // 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT'
+  headerText: text("header_text"),
+  headerMediaUrl: text("header_media_url"),
+  bodyText: text("body_text").notNull(), // Template body with {{variable}} placeholders
+  footerText: text("footer_text"),
+  
+  // Buttons
+  buttonType: text("button_type"), // 'NONE' | 'QUICK_REPLY' | 'CALL_TO_ACTION'
+  buttons: jsonb("buttons"), // Array of button configurations
+  
+  // Approval status
+  status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected'
+  rejectionReason: text("rejection_reason"),
+  approvedAt: timestamp("approved_at"),
+  
+  // Usage tracking
+  usageCount: integer("usage_count").notNull().default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  
+  // Categorization
+  purpose: text("purpose"), // 'follow_up' | 'demo_reminder' | 'onboarding' | 'support_update'
+  tags: text("tags").array(),
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueTemplate: unique().on(table.channelAccountId, table.name, table.language),
+}));
+
+// Internal Leads table - CRM for lead tracking without external CRM
+export const internalLeads = pgTable("internal_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelContactId: varchar("channel_contact_id").references(() => channelContacts.id),
+  customerId: varchar("customer_id").references(() => customers.id),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  
+  // Lead information
+  companyName: text("company_name"),
+  contactName: text("contact_name"),
+  email: text("email"),
+  phone: text("phone"),
+  
+  // Qualification data
+  status: text("status").notNull().default("new"), // 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost'
+  source: text("source").notNull(), // 'whatsapp' | 'facebook' | 'instagram' | 'web' | 'manual'
+  qualificationScore: integer("qualification_score").default(0), // 0-100
+  
+  // Business details (for B2B)
+  industry: text("industry"),
+  companySize: text("company_size"), // 'small' | 'medium' | 'enterprise'
+  numberOfLocations: integer("number_of_locations"),
+  estimatedValue: integer("estimated_value"), // Deal value in cents
+  
+  // Product interest
+  productsInterested: text("products_interested").array(),
+  servicesInterested: text("services_interested").array(),
+  
+  // Sales process
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  nextFollowUpDate: timestamp("next_follow_up_date"),
+  lastContactDate: timestamp("last_contact_date"),
+  notes: text("notes"),
+  
+  // Outcome tracking
+  wonDate: timestamp("won_date"),
+  lostDate: timestamp("lost_date"),
+  lostReason: text("lost_reason"),
+  
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Channel Webhook Logs table - for debugging and auditing
+export const channelWebhookLogs = pgTable("channel_webhook_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelAccountId: varchar("channel_account_id").references(() => channelAccounts.id),
+  
+  // Request details
+  eventType: text("event_type").notNull(), // 'message' | 'status' | 'delivery' | 'read' | 'error'
+  direction: text("direction").notNull(), // 'inbound' | 'outbound'
+  rawPayload: jsonb("raw_payload"), // Complete webhook payload for debugging
+  
+  // Processing status
+  processedSuccessfully: boolean("processed_successfully").notNull().default(false),
+  errorMessage: text("error_message"),
+  processingTimeMs: integer("processing_time_ms"),
+  
+  // Linking
+  relatedMessageId: varchar("related_message_id"),
+  relatedConversationId: varchar("related_conversation_id"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Channel Account insert schema and types
+export const insertChannelAccountSchema = createInsertSchema(channelAccounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  webhookUrl: true,
+  lastHealthCheck: true,
+});
+
+export const updateChannelAccountSchema = insertChannelAccountSchema.partial();
+
+export type InsertChannelAccount = z.infer<typeof insertChannelAccountSchema>;
+export type UpdateChannelAccount = z.infer<typeof updateChannelAccountSchema>;
+export type ChannelAccount = typeof channelAccounts.$inferSelect;
+
+// Channel Contact insert schema and types
+export const insertChannelContactSchema = createInsertSchema(channelContacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertChannelContact = z.infer<typeof insertChannelContactSchema>;
+export type ChannelContact = typeof channelContacts.$inferSelect;
+
+// Channel Conversation Meta insert schema and types
+export const insertChannelConversationMetaSchema = createInsertSchema(channelConversationMeta).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertChannelConversationMeta = z.infer<typeof insertChannelConversationMetaSchema>;
+export type ChannelConversationMeta = typeof channelConversationMeta.$inferSelect;
+
+// Channel Message insert schema and types
+export const insertChannelMessageSchema = createInsertSchema(channelMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertChannelMessage = z.infer<typeof insertChannelMessageSchema>;
+export type ChannelMessage = typeof channelMessages.$inferSelect;
+
+// Channel Template insert schema and types
+export const insertChannelTemplateSchema = createInsertSchema(channelTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateChannelTemplateSchema = insertChannelTemplateSchema.partial();
+
+export type InsertChannelTemplate = z.infer<typeof insertChannelTemplateSchema>;
+export type UpdateChannelTemplate = z.infer<typeof updateChannelTemplateSchema>;
+export type ChannelTemplate = typeof channelTemplates.$inferSelect;
+
+// Internal Lead insert schema and types
+export const insertInternalLeadSchema = createInsertSchema(internalLeads).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateInternalLeadSchema = insertInternalLeadSchema.partial();
+
+export type InsertInternalLead = z.infer<typeof insertInternalLeadSchema>;
+export type UpdateInternalLead = z.infer<typeof updateInternalLeadSchema>;
+export type InternalLead = typeof internalLeads.$inferSelect;
+
+// Channel Webhook Log insert schema and types
+export const insertChannelWebhookLogSchema = createInsertSchema(channelWebhookLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertChannelWebhookLog = z.infer<typeof insertChannelWebhookLogSchema>;
+export type ChannelWebhookLog = typeof channelWebhookLogs.$inferSelect;
+
+// Conversation with channel info type
+export type ConversationWithChannel = Conversation & {
+  channelMeta?: ChannelConversationMeta;
+  channelContact?: ChannelContact;
+  channelAccount?: ChannelAccount;
+};
