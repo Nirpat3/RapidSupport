@@ -11,7 +11,7 @@ Preferred communication style: Simple, everyday language.
 ### UI/UX Decisions
 The frontend utilizes React 18, TypeScript, and Vite, built with Radix UI and Tailwind CSS following a shadcn/ui pattern for a custom, theme-aware design system (light/dark modes). The customer chat features a Perplexity-style interface with a hero input, progressive disclosure, suggested questions, and visual feature cards. The design incorporates an Indigo-Emerald-Amber color scheme, refined typography, independent scrolling, and mobile optimization. Floating chat widgets are integrated for AI assistance.
 
-The Public Knowledge Base is an FAQ-style interface with a search bar, category overview cards, accordion-style articles, smart search, and AI support via a floating ChatWidget. Articles include share, print, and PDF export functionality.
+The Public Knowledge Base is an FAQ-style interface with a search bar, category overview cards with article counts, accordion-style articles, smart search, and AI support via a floating ChatWidget. Articles include share, print, and PDF export functionality. Category cards navigate to dedicated `/knowledge-base/category/:category` pages for browsing articles within a category, with cross-category search capability. Article dialogs fetch full content asynchronously with loading states.
 
 The Staff Conversations Page features a clean, mobile-first 2-column layout on desktop, collapsing to a single view on mobile. It includes a conversation list with search, status filtering, unread tracking, real-time WebSocket updates, and controls for status and agent assignment.
 
