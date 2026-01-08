@@ -162,6 +162,7 @@ export const conversations = pgTable("conversations", {
   aiAssistanceEnabled: boolean("ai_assistance_enabled").notNull().default(true), // Toggle AI auto-response
   contextData: text("context_data"), // JSON string for custom context from 3rd party integrations (product info, page context, etc.)
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
+  customerLanguage: text("customer_language").default("en"), // Customer's preferred language for translation (ISO 639-1 code)
   // Customer engagement tracking fields
   lastCustomerReplyAt: timestamp("last_customer_reply_at"), // Last time customer sent a message
   lastAgentReplyAt: timestamp("last_agent_reply_at"), // Last time agent/AI sent a message
@@ -180,6 +181,8 @@ export const messages = pgTable("messages", {
   senderId: varchar("sender_id").notNull(),
   senderType: text("sender_type").notNull(), // 'customer' | 'agent' | 'admin' | 'system' | 'ai'
   content: text("content").notNull(),
+  translatedContent: text("translated_content"), // Translated version of content (null if no translation needed)
+  originalLanguage: text("original_language"), // ISO 639-1 code of original content language
   scope: text("scope").notNull().default("public"), // 'public' | 'internal' - internal messages are staff-only
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   status: text("status").notNull().default("sent"), // 'sent' | 'delivered' | 'read'
