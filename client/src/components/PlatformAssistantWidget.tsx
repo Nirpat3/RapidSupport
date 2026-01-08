@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet';
 import { 
   Sparkles, 
@@ -195,19 +195,25 @@ export default function PlatformAssistantWidget() {
     setLocalMessages([]);
   };
 
-  return (
+  // Use portal to render outside SidebarProvider's transform context
+  // This fixes mobile positioning issues caused by CSS transforms
+  return createPortal(
     <>
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
-        <SheetTrigger asChild>
-          <Button
-            size="icon"
-            className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-50 gradient-primary hover:opacity-90"
-            data-testid="button-platform-assistant"
-          >
-            <Sparkles className="h-6 w-6 text-white" />
-          </Button>
-        </SheetTrigger>
-        <SheetContent className="w-full sm:max-w-md p-0 flex flex-col">
+        <Button
+          size="icon"
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 h-12 w-12 sm:h-14 sm:w-14 rounded-full shadow-lg z-[9999] gradient-primary hover:opacity-90"
+          style={{ 
+            position: 'fixed',
+            bottom: 'max(1rem, env(safe-area-inset-bottom, 0px) + 1rem)',
+            right: 'max(1rem, env(safe-area-inset-right, 0px) + 1rem)'
+          }}
+          data-testid="button-platform-assistant"
+        >
+          <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+        </Button>
+        <SheetContent className="w-full sm:max-w-md p-0 flex flex-col z-[9999]">
           <SheetHeader className="px-4 py-3 border-b">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -382,6 +388,7 @@ export default function PlatformAssistantWidget() {
           </div>
         </SheetContent>
       </Sheet>
-    </>
+    </>,
+    document.body
   );
 }
