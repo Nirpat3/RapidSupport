@@ -2,14 +2,27 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDistanceToNow, format } from "date-fns";
-import { Sparkles, Lock, Info, ThumbsUp, ThumbsDown, Check, CheckCheck } from "lucide-react";
+import { Sparkles, Lock, Info, ThumbsUp, ThumbsDown, Check, CheckCheck, Languages } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState } from "react";
 
+// Language display names for translation indicator
+const languageNames: Record<string, string> = {
+  'en': 'English',
+  'es': 'Spanish',
+  'de': 'German',
+  'fr': 'French',
+  'zh': 'Chinese',
+  'hi': 'Hindi',
+  'gu': 'Gujarati'
+};
+
 export interface Message {
   id: string;
   content: string;
+  translatedContent?: string | null; // Translated version of the message
+  originalLanguage?: string | null; // ISO 639-1 code of original language
   sender: {
     id: string;
     name: string;
@@ -269,6 +282,27 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
   // Staff (agents and admins) can see all indicators, customers cannot
   const isStaffViewer = viewerRole === 'agent' || viewerRole === 'admin';
 
+  // Translation toggle state
+  const [showOriginal, setShowOriginal] = useState(false);
+  
+  // Determine if translation is available and which content to show
+  const hasTranslation = Boolean(message.translatedContent && message.originalLanguage);
+  const isCustomerMessage = message.sender.role === 'customer' || message.senderType === 'customer';
+  
+  // For staff viewing customer messages: show English translation by default, toggle to see original
+  // For customers viewing agent messages: show translated version by default, toggle to see English original
+  const shouldShowTranslation = hasTranslation && (
+    (isStaffViewer && isCustomerMessage) || // Staff sees English translations of customer messages
+    (!isStaffViewer && !isCustomerMessage && !isAI) // Customer sees translated agent messages
+  );
+  
+  // Determine display content based on translation state
+  const displayContent = shouldShowTranslation 
+    ? (showOriginal ? message.content : message.translatedContent!)
+    : message.content;
+    
+  const originalLangName = message.originalLanguage ? (languageNames[message.originalLanguage] || message.originalLanguage) : '';
+
   // Message rating state
   const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
 
@@ -382,7 +416,28 @@ export default function ChatMessage({ message, isCurrentUser = false, viewerRole
           }`}
           data-testid={`message-content-${message.id}`}
         >
-          {renderFormattedContent(message.content)}
+          {renderFormattedContent(displayContent)}
+          
+          {/* Translation toggle button */}
+          {shouldShowTranslation && (
+            <button
+              onClick={() => setShowOriginal(!showOriginal)}
+              className={`flex items-center gap-1 mt-2 text-[10px] hover:underline transition-colors ${
+                isCurrentUser 
+                  ? isAI 
+                    ? 'text-blue-600/70 dark:text-blue-300/70 hover:text-blue-600 dark:hover:text-blue-300' 
+                    : 'text-primary-foreground/70 hover:text-primary-foreground/90'
+                  : 'text-muted-foreground/70 hover:text-muted-foreground'
+              }`}
+              data-testid={`translation-toggle-${message.id}`}
+            >
+              <Languages className="w-3 h-3" />
+              {showOriginal 
+                ? (isStaffViewer ? 'Show English' : 'Show translation')
+                : (isStaffViewer ? `Show original (${originalLangName})` : 'Show original (English)')
+              }
+            </button>
+          )}
           
           {/* Inline timestamp and status for sent messages */}
           <div className={`flex items-center gap-1 mt-1 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>

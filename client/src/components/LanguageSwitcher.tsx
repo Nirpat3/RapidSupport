@@ -9,7 +9,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { SUPPORTED_LANGUAGES } from '@/lib/i18n';
 
-export default function LanguageSwitcher() {
+interface LanguageSwitcherProps {
+  onLanguageChange?: (langCode: string) => void;
+}
+
+export default function LanguageSwitcher({ onLanguageChange }: LanguageSwitcherProps = {}) {
   const { i18n, t } = useTranslation();
   
   const currentLanguage = SUPPORTED_LANGUAGES.find(lang => lang.code === i18n.language) 
@@ -17,6 +21,7 @@ export default function LanguageSwitcher() {
 
   const handleLanguageChange = (langCode: string) => {
     i18n.changeLanguage(langCode);
+    onLanguageChange?.(langCode);
   };
 
   return (

@@ -231,6 +231,25 @@ export default function CustomerChatPage() {
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [aiTypingTimeout, setAiTypingTimeout] = useState<NodeJS.Timeout | null>(null);
 
+  // Handle language change - notify backend so translations work correctly
+  const handleLanguageChange = async (langCode: string) => {
+    if (chatState.conversationId) {
+      try {
+        await fetch('/api/customer-chat/set-language', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            conversationId: chatState.conversationId,
+            language: langCode
+          })
+        });
+        console.log(`[CustomerChat] Set customer language to ${langCode} for conversation ${chatState.conversationId}`);
+      } catch (error) {
+        console.error('[CustomerChat] Failed to set language:', error);
+      }
+    }
+  };
+
   // Save chat state to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('customer-chat-state', JSON.stringify(chatState));
@@ -1067,7 +1086,7 @@ export default function CustomerChatPage() {
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30">
       {/* Top Bar with Language Switcher */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-        <LanguageSwitcher />
+        <LanguageSwitcher onLanguageChange={handleLanguageChange} />
         <ThemeToggle />
       </div>
       
