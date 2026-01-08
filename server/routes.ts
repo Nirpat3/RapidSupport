@@ -1148,6 +1148,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           status: message.status
         }, staffUserIds);
         console.log(`[portal-chat] Broadcast new_message event for customer message: ${message.id} to ${staffUserIds.length} staff`);
+        
+        // Send push notifications to offline staff
+        wsServer.sendPushNotificationForMessage(
+          conversationId,
+          message.content,
+          customer?.name || customer?.email || 'Customer',
+          { targetUserIds: staffUserIds }
+        );
       }
 
       // Trigger AI response asynchronously (don't block the response)
@@ -2843,6 +2851,29 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           timestamp: message.timestamp,
           status: message.status
         }, targetUserIds);
+        
+        // Send push notification to offline customer
+        if (conversation.customerId) {
+          wsServer.sendPushNotificationForMessage(
+            conversationId,
+            message.content,
+            user.name,
+            { 
+              targetUserIds: [conversation.customerId],
+              excludeSenderId: user.id
+            }
+          );
+        }
+        
+        // For anonymous customers, try to send via session
+        if (conversation.isAnonymous && conversation.sessionId) {
+          wsServer.sendPushNotificationForMessage(
+            conversationId,
+            message.content,
+            user.name,
+            { targetSessionId: conversation.sessionId }
+          );
+        }
         
         // Broadcast unread count updates to affected users
         // Customer now has an unread message from the agent

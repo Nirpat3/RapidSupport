@@ -211,6 +211,16 @@ export function registerCustomerChatRoutes({ app }: RouteContext) {
             timestamp: message.timestamp,
             status: message.status
           });
+          
+          // Send push notifications to offline staff
+          const allStaff = await storage.getAllUsers();
+          const staffUserIds = allStaff.map((u: any) => u.id);
+          wsServer.sendPushNotificationForMessage(
+            messageData.conversationId,
+            message.content,
+            conversation.customer.name,
+            { targetUserIds: staffUserIds }
+          );
         }
       }
       

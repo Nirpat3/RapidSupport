@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import AppSidebar from "@/components/AppSidebar";
 import ThemeToggle from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/NotificationBell";
 import LoginForm from "@/components/LoginForm";
 import ConversationsPage from "@/pages/ConversationsPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -212,6 +213,7 @@ function AuthenticatedApp() {
                 <span className="text-xs text-muted-foreground truncate lg:hidden max-w-20 px-2" data-testid="text-user-name-short">
                   {user?.name?.split(' ')[0]}
                 </span>
+                <NotificationBell />
                 <ThemeToggle />
                 <button 
                   onClick={logout}

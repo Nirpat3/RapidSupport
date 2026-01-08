@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
+import { NotificationBell } from "@/components/NotificationBell";
 import { 
   Send, 
   Sparkles,
@@ -1087,6 +1088,7 @@ export default function CustomerChatPage() {
       {/* Top Bar with Language Switcher */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
         <LanguageSwitcher onLanguageChange={handleLanguageChange} />
+        <NotificationBell sessionId={customer?.sessionId} />
         <ThemeToggle />
       </div>
       
