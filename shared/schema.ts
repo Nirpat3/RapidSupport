@@ -1057,6 +1057,7 @@ export const insertConversationSchema = createInsertSchema(conversations).pick({
   isAnonymous: true,
   sessionId: true,
   aiAssistanceEnabled: true,
+  customerLanguage: true,
 });
 
 // Anonymous conversation creation schema

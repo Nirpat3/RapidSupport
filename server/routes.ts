@@ -18,6 +18,9 @@ import fs from 'fs';
 import { AIService } from './ai-service';
 import { db } from './db';
 import { eq, desc } from 'drizzle-orm';
+import { registerAuthRoutes } from './routes/auth.routes';
+import { registerCustomerChatRoutes } from './routes/customer-chat.routes';
+import type { RouteContext } from './routes/types';
 import { 
   insertCustomerSchema, 
   insertConversationSchema,
@@ -545,190 +548,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     next();
   };
 
-  // Authentication routes
-  app.post('/api/auth/login', authLimiter, csrfProtection, (req, res, next) => {
-    passport.authenticate('local', (err: any, user: any, info: any) => {
-      if (err) {
-        return res.status(500).json({ error: 'Authentication error' });
-      }
-      if (!user) {
-        return res.status(401).json({ error: info?.message || 'Invalid credentials' });
-      }
-      
-      // Regenerate session to prevent fixation
-      req.session.regenerate((regenerateErr: any) => {
-        if (regenerateErr) {
-          console.error('Session regeneration error:', regenerateErr);
-          return res.status(500).json({ error: 'Session regeneration failed' });
-        }
-        
-        req.logIn(user, (loginErr) => {
-          if (loginErr) {
-            console.error('Login error:', loginErr);
-            return res.status(500).json({ error: 'Login failed' });
-          }
-          
-          // Save session explicitly to ensure it's persisted
-          req.session.save((saveErr) => {
-            if (saveErr) {
-              console.error('Session save error:', saveErr);
-              return res.status(500).json({ error: 'Session save failed' });
-            }
-            
-            console.log('✅ Login successful:', user.email, '| Session ID:', req.sessionID);
-            res.json({ user, message: 'Login successful' });
-          });
-        });
-      });
-    })(req, res, next);
-  });
-
-  app.post('/api/auth/logout', (req, res) => {
-    req.logout((err) => {
-      if (err) {
-        return res.status(500).json({ error: 'Logout failed' });
-      }
-      
-      // Destroy the session and clear cookie
-      req.session.destroy((destroyErr) => {
-        if (destroyErr) {
-          console.error('Session destroy error:', destroyErr);
-        }
-        
-        // Clear the session cookie
-        res.clearCookie('sessionId', {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax'
-        });
-        
-        res.json({ message: 'Logout successful' });
-      });
-    });
-  });
-
-  app.get('/api/auth/me', (req, res) => {
-    if (req.isAuthenticated()) {
-      res.json({ user: req.user });
-    } else {
-      res.status(401).json({ error: 'Not authenticated' });
-    }
-  });
-
-  // Customer portal authentication routes
-  app.post('/api/portal/auth/login', authLimiter, csrfProtection, async (req, res) => {
-    try {
-      const loginData = z.object({
-        email: z.string().email(),
-        password: z.string(),
-      }).parse(req.body);
-
-      // Find customer by email
-      const customer = await storage.getCustomerByEmail(loginData.email);
-      if (!customer) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      // Check if customer has portal access
-      if (!customer.hasPortalAccess || !customer.portalPassword) {
-        return res.status(403).json({ error: 'Portal access not granted. Please contact support.' });
-      }
-
-      // Check password
-      const isValidPassword = await compare(loginData.password, customer.portalPassword);
-      if (!isValidPassword) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-
-      // Update last login timestamp
-      await storage.updateCustomerPortalLastLogin(customer.id);
-
-      // Store customer info in session
-      req.session.regenerate((regenerateErr: any) => {
-        if (regenerateErr) {
-          return res.status(500).json({ error: 'Session regeneration failed' });
-        }
-
-        // Store customer ID and type in session
-        (req.session as any).customerId = customer.id;
-        (req.session as any).userType = 'customer';
-
-        // Return customer info (without password)
-        const { portalPassword: _, ...customerData } = customer;
-        res.json({ customer: customerData, message: 'Login successful' });
-      });
-    } catch (error) {
-      console.error('Customer portal login error:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data' });
-      }
-      res.status(500).json({ error: 'Login failed' });
-    }
-  });
-
-  app.post('/api/portal/auth/logout', (req, res) => {
-    req.session.destroy((err) => {
-      if (err) {
-        console.error('Customer portal logout error:', err);
-        return res.status(500).json({ error: 'Logout failed' });
-      }
-
-      res.clearCookie('sessionId', {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax'
-      });
-
-      res.json({ message: 'Logout successful' });
-    });
-  });
-
-  app.get('/api/portal/auth/me', async (req, res) => {
-    try {
-      const customerId = (req.session as any).customerId;
-      const userType = (req.session as any).userType;
-
-      if (!customerId || userType !== 'customer') {
-        return res.status(401).json({ error: 'Not authenticated' });
-      }
-
-      const customer = await storage.getCustomer(customerId);
-      if (!customer || !customer.hasPortalAccess) {
-        return res.status(401).json({ error: 'Portal access not granted' });
-      }
-
-      // Return customer info (without password)
-      const { portalPassword: _, ...customerData } = customer;
-      res.json({ customer: customerData });
-    } catch (error) {
-      console.error('Get customer portal auth error:', error);
-      res.status(500).json({ error: 'Failed to get customer info' });
-    }
-  });
-
-  // Set customer portal password (staff only)
-  app.post('/api/portal/set-password', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
-    try {
-      const passwordData = z.object({
-        customerId: z.string().uuid(),
-        password: z.string().min(6, "Password must be at least 6 characters"),
-      }).parse(req.body);
-
-      // Hash password
-      const hashedPassword = await hash(passwordData.password, 10);
-
-      // Update customer with hashed password and grant portal access
-      await storage.setCustomerPortalPassword(passwordData.customerId, hashedPassword);
-
-      res.json({ message: 'Portal access granted successfully' });
-    } catch (error) {
-      console.error('Set portal password error:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data' });
-      }
-      res.status(500).json({ error: 'Failed to set portal password' });
-    }
-  });
+  // Register modular auth routes (staff login/logout, customer portal auth)
+  registerAuthRoutes({ app, httpServer: null as any, wsServer: null as any });
 
   // Customer portal stats
   app.get('/api/customer-portal/stats', async (req, res) => {
@@ -3622,126 +3443,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // ============================================
-  // CUSTOMER CHAT WIDGET API ENDPOINTS
+  // CUSTOMER CHAT WIDGET API ENDPOINTS (Modular)
   // ============================================
+  // Customer chat routes are registered via registerCustomerChatRoutes() at startup
 
-  // Check for existing conversation by session/IP
-  app.get('/api/customer-chat/check-session/:sessionId', async (req, res) => {
-    try {
-      const { sessionId } = req.params;
-      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
-      
-      // First try to find by sessionId
-      let conversation = await storage.getConversationBySession(sessionId);
-      
-      // If not found by session, try to find by IP address
-      if (!conversation && clientIP !== 'unknown') {
-        conversation = await storage.getConversationByIP(clientIP);
-      }
-      
-      // Return conversation with IP address
-      if (conversation) {
-        res.json({
-          ...conversation,
-          ipAddress: clientIP
-        });
-      } else {
-        res.json({
-          conversationId: null,
-          customerId: null,
-          customerInfo: null,
-          ipAddress: clientIP
-        });
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to check session' });
-    }
-  });
-
-  // Get personalized suggested questions
-  app.get('/api/customer-chat/suggested-questions', async (req, res) => {
-    try {
-      const { customerId, sessionId } = req.query;
-      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
-      
-      const questions = await AIService.generatePersonalizedQuestions(
-        customerId as string | null,
-        sessionId as string || '',
-        clientIP
-      );
-      
-      res.json({ questions });
-    } catch (error) {
-      console.error('Failed to generate personalized questions:', error);
-      res.status(500).json({ 
-        error: 'Failed to generate suggested questions',
-        questions: [
-          "How do I reset my password?",
-          "What are your pricing plans?",
-          "How can I upgrade my account?",
-          "I need help with billing",
-        ]
-      });
-    }
-  });
-
-  // Create anonymous customer and conversation
-  app.post('/api/customer-chat/create-customer', async (req, res) => {
-    try {
-      console.log('=== Customer Creation Request Started ===');
-      console.log('Request body:', JSON.stringify(req.body, null, 2));
-      
-      // If no sessionId provided, generate one
-      if (!req.body.sessionId) {
-        req.body.sessionId = randomUUID();
-        console.log('Generated sessionId:', req.body.sessionId);
-      }
-      
-      // Get client IP from request instead of client-provided value
-      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
-      req.body.ipAddress = clientIP;
-      console.log('Client IP set to:', clientIP);
-      
-      console.log('Validating customer data with schema...');
-      const customerData = createAnonymousCustomerSchema.parse(req.body);
-      console.log('Schema validation passed:', JSON.stringify(customerData, null, 2));
-      console.log('contextData from customerData:', customerData.contextData);
-      console.log('contextData type:', typeof customerData.contextData);
-      
-      console.log('Calling storage.createAnonymousCustomer...');
-      const wsServer = (app as any).wsServer;
-      const dataToPass = {
-        ...customerData,
-        sessionId: req.body.sessionId
-      };
-      console.log('Data being passed to storage:', JSON.stringify(dataToPass, null, 2));
-      console.log('contextData in dataToPass:', dataToPass.contextData);
-      const result = await storage.createAnonymousCustomer(dataToPass, wsServer);
-      
-      console.log('Customer created successfully - ID:', result.customerId);
-      console.log('=== Customer Creation Request Completed ===');
-      res.status(201).json(result);
-    } catch (error) {
-      console.error('=== Customer Creation Failed ===');
-      console.error('Error type:', error instanceof z.ZodError ? 'Validation error' : 'Server error');
-      console.error('Full error details:', error);
-      console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-      console.error('Request body that failed:', JSON.stringify(req.body, null, 2));
-      
-      if (error instanceof z.ZodError) {
-        console.error('Zod validation errors:', error.errors);
-        return res.status(400).json({ 
-          error: 'Invalid customer data', 
-          details: fromZodError(error).toString() 
-        });
-      }
-      console.error('=== End Customer Creation Error ===');
-      res.status(500).json({ error: 'Failed to create customer' });
-    }
-  });
-
-  // Get messages for customer conversation
-  app.get('/api/customer-chat/messages/:conversationId', async (req, res) => {
+  // PLACEHOLDER_CUSTOMER_CHAT_REMOVAL_1 - Get messages for customer conversation was here
+  app.get('/api/customer-chat-placeholder-messages/:conversationId', async (req, res) => {
     try {
       const { conversationId } = req.params;
       console.log(`[customer-chat/messages] Fetching messages for conversation: ${conversationId}`);
@@ -9848,6 +9555,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   
   // Store WebSocket server reference for use in message broadcasting
   (app as any).wsServer = wsServer;
+
+  // Register modular routes
+  const routeContext: RouteContext = { app, httpServer, wsServer };
+  registerAuthRoutes(routeContext);
+  registerCustomerChatRoutes(routeContext);
 
   return { server: httpServer, wsServer };
 }
