@@ -1003,8 +1003,8 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       
       return {
         response,
-        confidence: result.confidence || 50,
-        requiresHumanTakeover: result.requiresHumanTakeover || true,
+        confidence: result.confidence ?? 50,
+        requiresHumanTakeover: result.requiresHumanTakeover ?? false,
         suggestedActions: result.suggestedActions || ['Connect with human agent'],
         format: finalFormat,
       };
@@ -2255,8 +2255,8 @@ The more details you can share, the better I can help you resolve this quickly!"
       case 'instructional':
         return {
           ...baseOptions,
-          maxResults: 6, // ⚡ Reduced from 10 to 6 for faster performance
-          minScore: 0.25, // ✅ Increased for better quality
+          maxResults: 8, // Increased for better coverage
+          minScore: 0.15, // Lowered to catch more relevant results
           requireSteps: true,
           expandScope: true, // Instructional content might be in various articles
         };
@@ -2264,8 +2264,8 @@ The more details you can share, the better I can help you resolve this quickly!"
       case 'troubleshooting':
         return {
           ...baseOptions,
-          maxResults: 6, // ⚡ Reduced from 10 to 6 for faster performance
-          minScore: 0.3, // ✅ Increased for accuracy
+          maxResults: 8, // Increased for better coverage
+          minScore: 0.15, // Lowered to catch more relevant results
           requireSteps: true, // Troubleshooting often involves steps
           expandScope: true, // Issues might span multiple topics
         };
@@ -2332,13 +2332,16 @@ The more details you can share, the better I can help you resolve this quickly!"
     return enhancedResults
       .sort((a, b) => b.score - a.score)
       .filter(result => {
-        // ✅ More stringent filtering thresholds
-        if (analysis.complexity === 'high') {
-          return result.score > 0.25; // ✅ Increased from 0.2
+        // Relaxed thresholds to catch more relevant results
+        if (analysis.type === 'instructional' || analysis.type === 'troubleshooting') {
+          return result.score > 0.12; // Lower threshold for how-to queries
         }
-        return result.score > 0.25; // ⚡ Increased from 0.2 for quality
+        if (analysis.complexity === 'high') {
+          return result.score > 0.18;
+        }
+        return result.score > 0.2;
       })
-      .slice(0, analysis.complexity === 'high' ? 6 : 5); // ⚡ Reduced from 10/8 to 6/5 for speed
+      .slice(0, analysis.complexity === 'high' ? 8 : 6);
   }
 
   /**

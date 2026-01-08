@@ -2547,7 +2547,25 @@ export class DatabaseStorage implements IStorage {
   async createKnowledgeChunksBatch(chunks: InsertKnowledgeChunk[]): Promise<KnowledgeChunk[]> {
     try {
       if (chunks.length === 0) return [];
-      const createdChunks = await db.insert(knowledgeChunks).values(chunks).returning();
+      const createdChunks = await db.insert(knowledgeChunks)
+        .values(chunks)
+        .onConflictDoUpdate({
+          target: knowledgeChunks.id,
+          set: {
+            content: sql`excluded.content`,
+            title: sql`excluded.title`,
+            category: sql`excluded.category`,
+            tags: sql`excluded.tags`,
+            priority: sql`excluded.priority`,
+            wordCount: sql`excluded.word_count`,
+            sourceTitle: sql`excluded.source_title`,
+            sourceCategory: sql`excluded.source_category`,
+            chunkTitle: sql`excluded.chunk_title`,
+            hasStructure: sql`excluded.has_structure`,
+            embedding: sql`excluded.embedding`,
+          }
+        })
+        .returning();
       return createdChunks;
     } catch (error) {
       console.error('Error creating knowledge chunks batch:', error);
