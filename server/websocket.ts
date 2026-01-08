@@ -3,6 +3,7 @@ import { Server } from 'http';
 import { parse } from 'cookie';
 import { storage } from './storage';
 import { unsign } from 'cookie-signature';
+import { sendPushToUser, sendPushToSession, isPushEnabled, type PushPayload } from './push-notification-service';
 
 interface AuthenticatedWebSocket extends WebSocket {
   userId?: string;
@@ -711,6 +712,88 @@ class ChatWebSocketServer {
         }
       });
     });
+  }
+
+  /**
+   * Check if a user is currently connected via WebSocket
+   */
+  public isUserOnline(userId: string): boolean {
+    const connections = this.connections.get(userId);
+    if (!connections || connections.size === 0) return false;
+    
+    // Check if at least one connection is open
+    const connectionArray = Array.from(connections);
+    for (let i = 0; i < connectionArray.length; i++) {
+      if (connectionArray[i].readyState === WebSocket.OPEN) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Send push notification for a new message to users who are offline
+   * This is called after broadcasting via WebSocket to catch users who aren't connected
+   */
+  public async sendPushNotificationForMessage(
+    conversationId: string,
+    messageContent: string,
+    senderName: string,
+    options: {
+      targetUserIds?: string[];
+      targetSessionId?: string;
+      excludeSenderId?: string;
+    } = {}
+  ) {
+    if (!isPushEnabled()) return;
+
+    const { targetUserIds, targetSessionId, excludeSenderId } = options;
+
+    // Truncate message for notification
+    const truncatedContent = messageContent.length > 100 
+      ? messageContent.substring(0, 100) + '...' 
+      : messageContent;
+
+    const payload: PushPayload = {
+      title: senderName,
+      body: truncatedContent,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-72.png',
+      url: `/conversations?id=${conversationId}`,
+      tag: `message-${conversationId}`,
+    };
+
+    // Send to specific session (for anonymous customers)
+    if (targetSessionId) {
+      try {
+        await sendPushToSession(targetSessionId, payload, {
+          type: 'message',
+          referenceId: conversationId,
+        });
+      } catch (error) {
+        console.error('Failed to send push to session:', error);
+      }
+    }
+
+    // Send to offline users
+    if (targetUserIds && targetUserIds.length > 0) {
+      for (const userId of targetUserIds) {
+        // Skip sender
+        if (userId === excludeSenderId) continue;
+        
+        // Only send push if user is offline
+        if (!this.isUserOnline(userId)) {
+          try {
+            await sendPushToUser(userId, payload, {
+              type: 'message',
+              referenceId: conversationId,
+            });
+          } catch (error) {
+            console.error(`Failed to send push to user ${userId}:`, error);
+          }
+        }
+      }
+    }
   }
 }
 
