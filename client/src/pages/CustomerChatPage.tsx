@@ -1088,7 +1088,7 @@ export default function CustomerChatPage() {
       {/* Top Bar with Language Switcher */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
         <LanguageSwitcher onLanguageChange={handleLanguageChange} />
-        <NotificationBell sessionId={customer?.sessionId} />
+        <NotificationBell sessionId={chatState.sessionId} />
         <ThemeToggle />
       </div>
       
