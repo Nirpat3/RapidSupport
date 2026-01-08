@@ -1,16 +1,21 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, FileText, BookOpen, Printer, HelpCircle, TrendingUp, Star, FolderOpen, ArrowRight, ExternalLink, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Separator } from "@/components/ui/separator";
+import { 
+  Search, FileText, BookOpen, Printer, TrendingUp, Eye, Clock, 
+  ThumbsUp, ThumbsDown, Loader2, X, Filter
+} from "lucide-react";
 import { CustomerPortalLayout } from "@/components/CustomerPortalLayout";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import ChatWidget from "@/components/ChatWidget";
-import { useLocation } from "wouter";
+import { formatDistanceToNow } from "date-fns";
 
 interface KnowledgeBaseArticle {
   id: string;
@@ -19,29 +24,26 @@ interface KnowledgeBaseArticle {
   category: string;
   tags: string[];
   usageCount?: number;
+  effectiveness?: number;
   lastUsedAt?: string;
   createdAt: string;
   updatedAt: string;
   score?: number;
-  effectiveness?: number;
+  helpful?: number;
+  notHelpful?: number;
 }
 
 export default function CustomerPortalKnowledgeBase() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedArticle, setSelectedArticle] = useState<KnowledgeBaseArticle | null>(null);
-  const [, setLocation] = useLocation();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("popular");
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<string, 'helpful' | 'not_helpful'>>({});
 
   const { data: articles = [], isLoading } = useQuery<KnowledgeBaseArticle[]>({
     queryKey: ['/api/public/knowledge-base'],
     queryFn: async () => {
       return apiRequest('/api/public/knowledge-base', 'GET');
-    },
-  });
-
-  const { data: popularArticles = [] } = useQuery<KnowledgeBaseArticle[]>({
-    queryKey: ['/api/public/knowledge-base/popular'],
-    queryFn: async () => {
-      return apiRequest('/api/public/knowledge-base/popular?limit=6', 'GET');
     },
   });
 
@@ -54,40 +56,54 @@ export default function CustomerPortalKnowledgeBase() {
     },
   });
 
-  const filteredArticles = useMemo(() => {
+  const feedbackMutation = useMutation({
+    mutationFn: async ({ articleId, helpful }: { articleId: string; helpful: boolean }) => {
+      return apiRequest(`/api/public/knowledge-base/${articleId}/feedback`, 'POST', { helpful });
+    },
+    onSuccess: (_, variables) => {
+      setFeedbackGiven(prev => ({
+        ...prev,
+        [variables.articleId]: variables.helpful ? 'helpful' : 'not_helpful'
+      }));
+      queryClient.invalidateQueries({ queryKey: ['/api/public/knowledge-base'] });
+    },
+  });
+
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    articles.forEach(a => cats.add(a.category));
+    return Array.from(cats).sort();
+  }, [articles]);
+
+  const popularArticles = useMemo(() => {
+    return [...articles]
+      .sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))
+      .slice(0, 50);
+  }, [articles]);
+
+  const allArticles = useMemo(() => {
+    return [...articles].sort((a, b) => a.title.localeCompare(b.title));
+  }, [articles]);
+
+  const filteredByCategory = useMemo(() => {
+    if (!selectedCategory) return activeTab === 'popular' ? popularArticles : allArticles;
+    const source = activeTab === 'popular' ? popularArticles : allArticles;
+    return source.filter(a => a.category === selectedCategory);
+  }, [selectedCategory, activeTab, popularArticles, allArticles]);
+
+  const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
-    
     const query = searchQuery.toLowerCase();
     return articles.filter(article =>
       article.title.toLowerCase().includes(query) ||
       article.category.toLowerCase().includes(query) ||
       article.tags?.some(tag => tag.toLowerCase().includes(query)) ||
       article.content?.toLowerCase().includes(query)
-    );
+    ).sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0));
   }, [articles, searchQuery]);
 
-  const articlesByCategory = useMemo(() => {
-    const grouped: Record<string, KnowledgeBaseArticle[]> = {};
-    
-    articles.forEach(article => {
-      if (!grouped[article.category]) {
-        grouped[article.category] = [];
-      }
-      grouped[article.category].push(article);
-    });
-    
-    return grouped;
-  }, [articles]);
-
-  const categories = useMemo(() => {
-    return Object.entries(articlesByCategory)
-      .map(([name, arts]) => ({
-        name,
-        count: arts.length,
-        popularArticle: arts.sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))[0]
-      }))
-      .sort((a, b) => b.count - a.count);
-  }, [articlesByCategory]);
+  const isSearching = searchQuery.trim().length > 0;
+  const displayedArticles = isSearching ? searchResults : filteredByCategory;
 
   const handlePrint = () => {
     const articleToPrint = fullArticle || selectedArticle;
@@ -121,11 +137,86 @@ export default function CustomerPortalKnowledgeBase() {
     }
   };
 
-  const navigateToCategory = (categoryName: string) => {
-    setLocation(`/knowledge-base/category/${encodeURIComponent(categoryName)}`);
+  const handleFeedback = (articleId: string, helpful: boolean) => {
+    if (!feedbackGiven[articleId]) {
+      feedbackMutation.mutate({ articleId, helpful });
+    }
   };
 
-  const isSearching = searchQuery.trim().length > 0;
+  const getHelpfulnessScore = (article: KnowledgeBaseArticle) => {
+    const helpful = article.helpful || 0;
+    const notHelpful = article.notHelpful || 0;
+    const total = helpful + notHelpful;
+    if (total === 0) return null;
+    return Math.round((helpful / total) * 100);
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateStr), { addSuffix: true });
+    } catch {
+      return '';
+    }
+  };
+
+  const ArticleCard = ({ article }: { article: KnowledgeBaseArticle }) => {
+    const helpfulnessScore = getHelpfulnessScore(article);
+    
+    return (
+      <Card
+        className="hover-elevate active-elevate-2 transition-all cursor-pointer group"
+        onClick={() => setSelectedArticle(article)}
+        data-testid={`card-article-${article.id}`}
+      >
+        <CardHeader className="p-4">
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <FileText className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                <CardTitle className="text-base font-semibold group-hover:text-primary transition-colors line-clamp-2">
+                  {article.title}
+                </CardTitle>
+              </div>
+              {(article.usageCount || 0) > 10 && (
+                <Badge variant="outline" className="gap-1 flex-shrink-0 text-amber-600 border-amber-300">
+                  <TrendingUp className="h-3 w-3" />
+                  Popular
+                </Badge>
+              )}
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="text-xs">
+                {article.category}
+              </Badge>
+              {article.tags?.slice(0, 2).map((tag, idx) => (
+                <Badge key={idx} variant="outline" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                <span>Updated {formatDate(article.updatedAt)}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                <span>{article.usageCount || 0} views</span>
+              </div>
+              {helpfulnessScore !== null && (
+                <div className="flex items-center gap-1">
+                  <ThumbsUp className="h-3 w-3" />
+                  <span>{helpfulnessScore}% helpful</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  };
 
   return (
     <CustomerPortalLayout>
@@ -148,253 +239,168 @@ export default function CustomerPortalKnowledgeBase() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search articles across all categories..."
+                placeholder="Search articles, categories, or topics..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 pr-4 h-14 text-base bg-background shadow-sm"
+                className="pl-12 pr-12 h-14 text-base bg-background shadow-sm"
                 data-testid="input-search-knowledge"
               />
               {searchQuery && (
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
                   className="absolute right-2 top-1/2 -translate-y-1/2"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => setSearchQuery("")}
                   data-testid="button-clear-search"
                 >
-                  Clear
+                  <X className="h-4 w-4" />
                 </Button>
               )}
             </div>
           </div>
         </div>
 
-        <div className="container max-w-5xl mx-auto px-4 py-8 sm:py-12">
+        <div className="container max-w-5xl mx-auto px-4 py-8">
           {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="text-center space-y-4">
-                <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-muted-foreground">Loading knowledge base...</p>
-              </div>
-            </div>
-          ) : isSearching ? (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <Search className="h-4 w-4" />
-                <span>
-                  Found <strong className="text-foreground">{filteredArticles.length}</strong> {filteredArticles.length === 1 ? 'article' : 'articles'} matching "{searchQuery}"
-                </span>
-              </div>
-
-              {filteredArticles.length === 0 ? (
-                <Card className="py-12">
-                  <CardContent className="text-center space-y-4">
-                    <HelpCircle className="h-16 w-16 text-muted-foreground mx-auto opacity-50" />
-                    <div>
-                      <h3 className="text-xl font-semibold mb-2">No results found</h3>
-                      <p className="text-muted-foreground">
-                        Try adjusting your search terms or browse categories below
-                      </p>
-                    </div>
-                    <Button variant="outline" onClick={() => setSearchQuery('')} data-testid="button-clear-search-empty">
-                      Clear Search
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="grid gap-3">
-                  {filteredArticles.map((article) => (
-                    <Card
-                      key={article.id}
-                      className="hover-elevate active-elevate-2 transition-all cursor-pointer group"
-                      onClick={() => setSelectedArticle(article)}
-                      data-testid={`card-search-result-${article.id}`}
-                    >
-                      <CardHeader className="p-4">
-                        <div className="flex items-start gap-3">
-                          <FileText className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <CardTitle className="text-base font-semibold group-hover:text-primary transition-colors mb-1">
-                              {article.title}
-                            </CardTitle>
-                            <div className="flex flex-wrap gap-1.5">
-                              <Badge variant="outline" className="text-xs">
-                                {article.category}
-                              </Badge>
-                              {article.tags?.slice(0, 2).map((tag, idx) => (
-                                <Badge key={idx} variant="secondary" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                          {article.usageCount && article.usageCount > 10 && (
-                            <Badge variant="outline" className="gap-1 flex-shrink-0">
-                              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                              Popular
-                            </Badge>
-                          )}
-                        </div>
-                      </CardHeader>
-                    </Card>
-                  ))}
-                </div>
-              )}
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="space-y-12">
-              {popularArticles.length > 0 && (
-                <section>
-                  <div className="flex items-center gap-2 mb-6">
-                    <TrendingUp className="h-6 w-6 text-primary" />
-                    <h2 className="text-2xl font-semibold">Frequently Asked Questions</h2>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {popularArticles.map((article) => (
-                      <Card
-                        key={article.id}
-                        className="hover-elevate active-elevate-2 transition-all cursor-pointer group h-full"
-                        onClick={() => setSelectedArticle(article)}
-                        data-testid={`card-faq-${article.id}`}
-                      >
-                        <CardHeader className="p-4">
-                          <div className="flex items-start gap-3">
-                            <HelpCircle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                            <div className="flex-1 min-w-0">
-                              <CardTitle className="text-base font-medium group-hover:text-primary transition-colors line-clamp-2">
-                                {article.title}
-                              </CardTitle>
-                              <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                                <Badge variant="secondary" className="text-xs">
-                                  {article.category}
-                                </Badge>
-                                {article.usageCount && (
-                                  <span className="flex items-center gap-1">
-                                    <TrendingUp className="h-3 w-3" />
-                                    {article.usageCount} views
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </CardHeader>
-                      </Card>
-                    ))}
-                  </div>
-                </section>
-              )}
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <Button
+                  variant={selectedCategory === null ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedCategory(null)}
+                  className="flex-shrink-0"
+                  data-testid="filter-all"
+                >
+                  All Categories
+                </Button>
+                {categories.map((cat) => (
+                  <Button
+                    key={cat}
+                    variant={selectedCategory === cat ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedCategory(cat)}
+                    className="flex-shrink-0"
+                    data-testid={`filter-category-${cat.replace(/\s+/g, '-').toLowerCase()}`}
+                  >
+                    {cat}
+                  </Button>
+                ))}
+              </div>
 
-              <section>
-                <div className="flex items-center gap-2 mb-6">
-                  <FolderOpen className="h-6 w-6 text-primary" />
-                  <h2 className="text-2xl font-semibold">Browse by Category</h2>
-                </div>
-                <p className="text-muted-foreground mb-6 -mt-4">
-                  Select a category to explore all related articles
-                </p>
-                
-                {categories.length === 0 ? (
-                  <Card className="py-12">
-                    <CardContent className="text-center space-y-4">
-                      <HelpCircle className="h-16 w-16 text-muted-foreground mx-auto opacity-50" />
-                      <div>
-                        <h3 className="text-xl font-semibold mb-2">No categories available</h3>
-                        <p className="text-muted-foreground">
-                          Check back later for helpful articles and guides
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {categories.map((category) => (
-                      <Card
-                        key={category.name}
-                        className="hover-elevate active-elevate-2 transition-all cursor-pointer group"
-                        onClick={() => navigateToCategory(category.name)}
-                        data-testid={`card-category-${category.name.replace(/\s+/g, '-').toLowerCase()}`}
-                      >
-                        <CardHeader className="p-5">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-2">
-                                <FileText className="h-5 w-5 text-primary flex-shrink-0" />
-                                <CardTitle className="text-lg font-semibold group-hover:text-primary transition-colors">
-                                  {category.name}
-                                </CardTitle>
-                              </div>
-                              <CardDescription className="text-sm mb-3">
-                                {category.count} {category.count === 1 ? 'article' : 'articles'} available
-                              </CardDescription>
-                              {category.popularArticle && (
-                                <div className="text-xs text-muted-foreground line-clamp-1">
-                                  Popular: {category.popularArticle.title}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex flex-col items-end gap-2">
-                              <Badge variant="secondary" className="text-sm font-semibold">
-                                {category.count}
-                              </Badge>
-                              <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                            </div>
-                          </div>
-                        </CardHeader>
-                      </Card>
-                    ))}
+              {isSearching ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold flex items-center gap-2">
+                      <Search className="h-5 w-5 text-primary" />
+                      Search Results
+                    </h2>
+                    <Badge variant="outline">{searchResults.length} found</Badge>
                   </div>
-                )}
-              </section>
-
-              {articles.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between gap-4 mb-6">
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="h-6 w-6 text-primary" />
-                      <h2 className="text-2xl font-semibold">All Articles</h2>
+                  
+                  {searchResults.length === 0 ? (
+                    <Card className="py-12">
+                      <CardContent className="text-center space-y-4">
+                        <Search className="h-16 w-16 text-muted-foreground mx-auto opacity-50" />
+                        <div>
+                          <h3 className="text-xl font-semibold mb-2">No articles found</h3>
+                          <p className="text-muted-foreground">
+                            Try different keywords or browse categories
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid gap-4">
+                      {searchResults.map((article) => (
+                        <ArticleCard key={article.id} article={article} />
+                      ))}
                     </div>
-                    <Badge variant="outline" className="text-sm">
-                      {articles.length} total
-                    </Badge>
-                  </div>
-                  <div className="grid gap-3">
-                    {articles.slice(0, 10).map((article) => (
-                      <Card
-                        key={article.id}
-                        className="hover-elevate active-elevate-2 transition-all cursor-pointer group"
-                        onClick={() => setSelectedArticle(article)}
-                        data-testid={`card-article-${article.id}`}
-                      >
-                        <CardHeader className="p-4">
-                          <div className="flex items-start gap-3">
-                            <FileText className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                            <div className="flex-1 min-w-0">
-                              <CardTitle className="text-base font-semibold group-hover:text-primary transition-colors mb-1">
-                                {article.title}
-                              </CardTitle>
-                              <div className="flex flex-wrap gap-1.5">
-                                <Badge variant="outline" className="text-xs">
-                                  {article.category}
-                                </Badge>
-                                {article.tags?.slice(0, 2).map((tag, idx) => (
-                                  <Badge key={idx} variant="secondary" className="text-xs">
-                                    {tag}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                            <ExternalLink className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                  )}
+                </div>
+              ) : (
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                  <TabsList className="grid w-full max-w-md grid-cols-2">
+                    <TabsTrigger value="popular" className="gap-2" data-testid="tab-popular">
+                      <TrendingUp className="h-4 w-4" />
+                      Popular Articles
+                    </TabsTrigger>
+                    <TabsTrigger value="all" className="gap-2" data-testid="tab-all">
+                      <FileText className="h-4 w-4" />
+                      All Articles
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="popular" className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-semibold flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5 text-primary" />
+                        {selectedCategory ? `Popular in ${selectedCategory}` : 'Most Viewed Articles'}
+                      </h2>
+                      <Badge variant="outline">{filteredByCategory.length} articles</Badge>
+                    </div>
+                    
+                    {filteredByCategory.length === 0 ? (
+                      <Card className="py-12">
+                        <CardContent className="text-center space-y-4">
+                          <FileText className="h-16 w-16 text-muted-foreground mx-auto opacity-50" />
+                          <div>
+                            <h3 className="text-xl font-semibold mb-2">No articles in this category</h3>
+                            <p className="text-muted-foreground">
+                              Try selecting a different category
+                            </p>
                           </div>
-                        </CardHeader>
+                          <Button variant="outline" onClick={() => setSelectedCategory(null)}>
+                            View All Categories
+                          </Button>
+                        </CardContent>
                       </Card>
-                    ))}
-                    {articles.length > 10 && (
-                      <p className="text-center text-sm text-muted-foreground py-4">
-                        Browse categories above to see all {articles.length} articles
-                      </p>
+                    ) : (
+                      <div className="grid gap-4">
+                        {filteredByCategory.map((article) => (
+                          <ArticleCard key={article.id} article={article} />
+                        ))}
+                      </div>
                     )}
-                  </div>
-                </section>
+                  </TabsContent>
+
+                  <TabsContent value="all" className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-semibold flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-primary" />
+                        {selectedCategory ? `Articles in ${selectedCategory}` : 'All Articles'}
+                      </h2>
+                      <Badge variant="outline">{filteredByCategory.length} articles</Badge>
+                    </div>
+                    
+                    {filteredByCategory.length === 0 ? (
+                      <Card className="py-12">
+                        <CardContent className="text-center space-y-4">
+                          <FileText className="h-16 w-16 text-muted-foreground mx-auto opacity-50" />
+                          <div>
+                            <h3 className="text-xl font-semibold mb-2">No articles found</h3>
+                            <p className="text-muted-foreground">
+                              Try selecting a different category
+                            </p>
+                          </div>
+                          <Button variant="outline" onClick={() => setSelectedCategory(null)}>
+                            View All Categories
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="grid gap-4">
+                        {filteredByCategory.map((article) => (
+                          <ArticleCard key={article.id} article={article} />
+                        ))}
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
               )}
             </div>
           )}
@@ -405,17 +411,27 @@ export default function CustomerPortalKnowledgeBase() {
             <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
               <DialogHeader>
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <DialogTitle className="text-2xl mb-3" data-testid="title-article-view">
+                  <div className="flex-1 min-w-0 space-y-3">
+                    <DialogTitle className="text-2xl" data-testid="title-article-view">
                       {(fullArticle || selectedArticle).title}
                     </DialogTitle>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline">{(fullArticle || selectedArticle).category}</Badge>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{(fullArticle || selectedArticle).category}</Badge>
                       {(fullArticle || selectedArticle).tags?.map((tag, idx) => (
-                        <Badge key={idx} variant="secondary" className="text-xs">
+                        <Badge key={idx} variant="outline" className="text-xs">
                           {tag}
                         </Badge>
                       ))}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        <span>Updated {formatDate((fullArticle || selectedArticle).updatedAt)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Eye className="h-4 w-4" />
+                        <span>{(fullArticle || selectedArticle).usageCount || 0} views</span>
+                      </div>
                     </div>
                   </div>
                   <Button
@@ -430,6 +446,7 @@ export default function CustomerPortalKnowledgeBase() {
                   </Button>
                 </div>
               </DialogHeader>
+              
               <ScrollArea className="flex-1 pr-4">
                 {isLoadingArticle && !fullArticle ? (
                   <div className="flex items-center justify-center py-8">
@@ -443,6 +460,50 @@ export default function CustomerPortalKnowledgeBase() {
                   />
                 )}
               </ScrollArea>
+
+              <Separator className="my-4" />
+              
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Was this article helpful?
+                </div>
+                <div className="flex items-center gap-2">
+                  {feedbackGiven[selectedArticle.id] ? (
+                    <Badge variant="outline" className="gap-1">
+                      {feedbackGiven[selectedArticle.id] === 'helpful' ? (
+                        <><ThumbsUp className="h-3 w-3" /> Thanks for your feedback!</>
+                      ) : (
+                        <><ThumbsDown className="h-3 w-3" /> Thanks for your feedback!</>
+                      )}
+                    </Badge>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => handleFeedback(selectedArticle.id, true)}
+                        disabled={feedbackMutation.isPending}
+                        data-testid="button-helpful"
+                      >
+                        <ThumbsUp className="h-4 w-4" />
+                        Yes
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => handleFeedback(selectedArticle.id, false)}
+                        disabled={feedbackMutation.isPending}
+                        data-testid="button-not-helpful"
+                      >
+                        <ThumbsDown className="h-4 w-4" />
+                        No
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
             </DialogContent>
           </Dialog>
         )}

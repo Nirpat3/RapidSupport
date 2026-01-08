@@ -6334,6 +6334,10 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         category: article.category,
         tags: article.tags || [],
         usageCount: article.usageCount || 0,
+        effectiveness: article.effectiveness || 50,
+        helpful: article.helpful || 0,
+        notHelpful: article.notHelpful || 0,
+        lastUsedAt: article.lastUsedAt,
         createdAt: article.createdAt,
         updatedAt: article.updatedAt
       }));
@@ -6517,6 +6521,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         content: article.content,
         category: article.category,
         tags: article.tags,
+        usageCount: article.usageCount || 0,
+        effectiveness: article.effectiveness || 50,
+        helpful: article.helpful || 0,
+        notHelpful: article.notHelpful || 0,
+        lastUsedAt: article.lastUsedAt,
         createdAt: article.createdAt,
         updatedAt: article.updatedAt
       };
@@ -6525,6 +6534,37 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to fetch public knowledge base article:', error);
       res.status(500).json({ error: 'Failed to fetch knowledge base article' });
+    }
+  });
+
+  // Submit feedback for a knowledge base article
+  app.post('/api/public/knowledge-base/:id/feedback', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { helpful } = req.body;
+      
+      if (typeof helpful !== 'boolean') {
+        return res.status(400).json({ error: 'Helpful field must be a boolean' });
+      }
+      
+      const article = await storage.getKnowledgeBase(id);
+      if (!article || !article.isActive) {
+        return res.status(404).json({ error: 'Article not found' });
+      }
+      
+      // Update the article's feedback counts
+      const currentHelpful = article.helpful || 0;
+      const currentNotHelpful = article.notHelpful || 0;
+      
+      await storage.updateKnowledgeBase(id, {
+        helpful: helpful ? currentHelpful + 1 : currentHelpful,
+        notHelpful: helpful ? currentNotHelpful : currentNotHelpful + 1,
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to submit article feedback:', error);
+      res.status(500).json({ error: 'Failed to submit feedback' });
     }
   });
 

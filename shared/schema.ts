@@ -426,6 +426,8 @@ export const knowledgeBase = pgTable("knowledge_base", {
   priority: integer("priority").notNull().default(50), // Higher priority = more likely to be used
   usageCount: integer("usage_count").notNull().default(0), // Track how often this knowledge is referenced
   effectiveness: integer("effectiveness").notNull().default(50), // Track how effective this knowledge is (0-100)
+  helpful: integer("helpful").notNull().default(0), // Positive feedback count
+  notHelpful: integer("not_helpful").notNull().default(0), // Negative feedback count
   // File upload support
   sourceType: text("source_type").notNull().default("manual"), // 'manual' | 'file' | 'url'
   fileName: text("file_name"), // Original filename for file uploads

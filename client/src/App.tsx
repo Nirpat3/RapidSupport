@@ -16,6 +16,7 @@ import CustomerProfilePage from "@/pages/CustomerProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import CustomerChatPage from "@/pages/CustomerChatPage";
 import SupportPage from "@/pages/SupportPage";
+import CustomerPortalKnowledgeBase from "@/pages/CustomerPortalKnowledgeBase";
 import EmbedChatWidget from "@/pages/EmbedChatWidget";
 import SupportCenterWidget from "@/pages/SupportCenterWidget";
 import AIConfigurationPage from "@/pages/AIConfigurationPage";
@@ -271,7 +272,7 @@ function AppContent() {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <SupportPage />
+          <CustomerPortalKnowledgeBase />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
