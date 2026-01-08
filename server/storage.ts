@@ -216,8 +216,8 @@ export interface IStorage {
   getConversationBySession(sessionId: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null>;
   getConversationByIP(ipAddress: string): Promise<{ conversationId: string; customerId: string; customerInfo: AnonymousCustomer } | null>;
   createAnonymousCustomer(customerData: AnonymousCustomer & { sessionId: string }): Promise<{ customerId: string; conversationId: string; customerInfo: AnonymousCustomer }>;
-  getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; senderType: 'customer' | 'agent' | 'ai'; senderName: string; timestamp: string; attachments?: Attachment[] }>>;
-  createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message>;
+  getCustomerChatMessages(conversationId: string): Promise<Array<{ id: string; content: string; translatedContent?: string | null; originalLanguage?: string | null; senderType: 'customer' | 'agent' | 'ai'; senderName: string; timestamp: string; attachments?: Attachment[] }>>;
+  createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string; translatedContent?: string | null; originalLanguage?: string | null }): Promise<Message>;
   findExistingCustomer(email: string, phone: string, company: string): Promise<Customer | undefined>;
   getAnonymousCustomer(customerId: string): Promise<{ id: string; name: string; email: string; sessionId: string } | null>;
 
@@ -1595,6 +1595,8 @@ export class DatabaseStorage implements IStorage {
         return {
           id: message.id,
           content: message.content,
+          translatedContent: message.translatedContent,
+          originalLanguage: message.originalLanguage,
           senderType,
           senderName,
           timestamp: message.timestamp.toISOString(),
@@ -1606,7 +1608,7 @@ export class DatabaseStorage implements IStorage {
     return messagesWithAttachments;
   }
 
-  async createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string }): Promise<Message> {
+  async createCustomerMessage(messageData: { conversationId: string; customerId: string; content: string; translatedContent?: string | null; originalLanguage?: string | null }): Promise<Message> {
     const [message] = await db
       .insert(messages)
       .values({
@@ -1614,6 +1616,8 @@ export class DatabaseStorage implements IStorage {
         senderId: messageData.customerId,
         senderType: 'customer',
         content: messageData.content,
+        translatedContent: messageData.translatedContent || null,
+        originalLanguage: messageData.originalLanguage || null,
         scope: 'public',
         status: 'sent',
       })
