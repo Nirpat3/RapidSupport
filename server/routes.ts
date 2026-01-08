@@ -3463,6 +3463,85 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Dynamic PWA manifest endpoint - serves organization-branded manifest
+  app.get('/manifest.json', async (req, res) => {
+    try {
+      const { org: orgSlug } = req.query;
+      
+      // Default manifest (fallback)
+      const defaultManifest = {
+        name: "Support Board",
+        short_name: "Support Board",
+        description: "Professional customer support platform with real-time chat, conversation management, and admin dashboard.",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#ffffff",
+        theme_color: "#6366f1",
+        orientation: "portrait-primary",
+        icons: [
+          { src: "/icons/icon-72.png", sizes: "72x72", type: "image/png", purpose: "any maskable" },
+          { src: "/icons/icon-96.png", sizes: "96x96", type: "image/png", purpose: "any maskable" },
+          { src: "/icons/icon-128.png", sizes: "128x128", type: "image/png", purpose: "any maskable" },
+          { src: "/icons/icon-144.png", sizes: "144x144", type: "image/png", purpose: "any maskable" },
+          { src: "/icons/icon-152.png", sizes: "152x152", type: "image/png", purpose: "any maskable" },
+          { src: "/icons/icon-180.png", sizes: "180x180", type: "image/png", purpose: "any maskable" },
+          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+          { src: "/icons/icon-384.png", sizes: "384x384", type: "image/png", purpose: "any maskable" },
+          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+        ],
+        categories: ["business", "productivity"],
+        shortcuts: [
+          { name: "Conversations", short_name: "Conversations", url: "/conversations", description: "View customer conversations" },
+          { name: "Dashboard", short_name: "Dashboard", url: "/dashboard", description: "View the dashboard" },
+          { name: "Knowledge Base", short_name: "Knowledge", url: "/knowledge", description: "Manage knowledge base" }
+        ]
+      };
+      
+      // If org slug provided, customize manifest with org branding
+      if (orgSlug && typeof orgSlug === 'string') {
+        const org = await storage.getOrganizationBySlug(orgSlug);
+        
+        if (org) {
+          const brandedManifest = {
+            ...defaultManifest,
+            name: org.name,
+            short_name: org.name.length > 12 ? org.name.substring(0, 12) : org.name,
+            description: org.welcomeMessage || `${org.name} - Customer Support`,
+            theme_color: org.primaryColor || defaultManifest.theme_color,
+            start_url: `/?org=${orgSlug}`,
+            // Use org logo for icons if available
+            ...(org.logo && {
+              icons: [
+                { src: org.logo, sizes: "192x192", type: "image/png", purpose: "any" },
+                { src: org.logo, sizes: "512x512", type: "image/png", purpose: "any" },
+                // Keep default icons as fallback for different sizes
+                ...defaultManifest.icons
+              ]
+            })
+          };
+          
+          res.setHeader('Content-Type', 'application/manifest+json');
+          return res.json(brandedManifest);
+        }
+      }
+      
+      res.setHeader('Content-Type', 'application/manifest+json');
+      res.json(defaultManifest);
+    } catch (error) {
+      console.error('Error generating manifest:', error);
+      // Return default manifest on error
+      res.setHeader('Content-Type', 'application/manifest+json');
+      res.json({
+        name: "Support Board",
+        short_name: "Support Board",
+        start_url: "/",
+        display: "standalone",
+        theme_color: "#6366f1",
+        background_color: "#ffffff"
+      });
+    }
+  });
+
   // Admin endpoint: Get all organizations
   app.get('/api/admin/organizations', requireAuth, requireRole(['admin']), async (req, res) => {
     try {

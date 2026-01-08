@@ -15,8 +15,39 @@
     <meta name="theme-color" content="#6366f1" />
     <meta name="msapplication-TileColor" content="#6366f1" />
     
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
+    <!-- PWA Manifest - dynamically set based on org parameter -->
+    <link rel="manifest" href="/manifest.json" id="pwa-manifest" />
+    <script>
+      // Update manifest link with org parameter if present
+      (function() {
+        var params = new URLSearchParams(window.location.search);
+        var org = params.get('org');
+        if (org) {
+          var manifestLink = document.getElementById('pwa-manifest');
+          if (manifestLink) {
+            manifestLink.href = '/manifest.json?org=' + encodeURIComponent(org);
+          }
+          // Also update theme-color meta tag dynamically
+          fetch('/api/organizations/' + encodeURIComponent(org) + '/branding')
+            .then(function(res) { return res.json(); })
+            .then(function(branding) {
+              if (branding.primaryColor) {
+                var themeColor = document.querySelector('meta[name="theme-color"]');
+                if (themeColor) themeColor.content = branding.primaryColor;
+                var tileColor = document.querySelector('meta[name="msapplication-TileColor"]');
+                if (tileColor) tileColor.content = branding.primaryColor;
+              }
+              if (branding.name) {
+                var appName = document.querySelector('meta[name="application-name"]');
+                if (appName) appName.content = branding.name;
+                var appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+                if (appleTitle) appleTitle.content = branding.name;
+              }
+            })
+            .catch(function() {});
+        }
+      })();
+    </script>
     
     <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png" />
