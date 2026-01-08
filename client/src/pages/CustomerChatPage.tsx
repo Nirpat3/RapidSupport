@@ -69,6 +69,26 @@ const DEFAULT_CATEGORIES: CategoryOption[] = [
   { id: 'general', label: 'General', description: 'Other questions and feedback', icon: HelpCircle, color: 'text-primary', suggestedQuestions: [], aiAgentId: null },
 ];
 
+// Helper to translate category names and descriptions
+const getCategoryTranslation = (t: (key: string) => string, categoryId: string, field: 'name' | 'description'): string | null => {
+  const categoryKeyMap: Record<string, { name: string; desc: string }> = {
+    'billing': { name: 'categories.billing', desc: 'categories.billingDesc' },
+    'technical': { name: 'categories.technical', desc: 'categories.technicalDesc' },
+    'sales': { name: 'categories.sales', desc: 'categories.salesDesc' },
+    'general': { name: 'categories.general', desc: 'categories.generalDesc' },
+    'technical-support': { name: 'categories.technical', desc: 'categories.technicalDesc' },
+  };
+  
+  const slug = categoryId.toLowerCase().replace(/\s+/g, '-');
+  const mapping = categoryKeyMap[slug];
+  if (!mapping) return null;
+  
+  const key = field === 'name' ? mapping.name : mapping.desc;
+  const translated = t(key);
+  // Return null if translation key is returned (meaning no translation found)
+  return translated !== key ? translated : null;
+};
+
 const getColorClass = (color: string | null): string => {
   const colorMap: Record<string, string> = {
     blue: 'text-primary',
@@ -1251,8 +1271,12 @@ export default function CustomerChatPage() {
                   )}>
                     <Icon className={cn("h-6 w-6", category.color)} />
                   </div>
-                  <span className="font-semibold text-sm mb-1">{category.label}</span>
-                  <span className="text-xs text-muted-foreground leading-relaxed">{category.description}</span>
+                  <span className="font-semibold text-sm mb-1">
+                    {getCategoryTranslation(t, category.id, 'name') || category.label}
+                  </span>
+                  <span className="text-xs text-muted-foreground leading-relaxed">
+                    {getCategoryTranslation(t, category.id, 'description') || category.description}
+                  </span>
                 </button>
               );
             })}
@@ -1273,10 +1297,10 @@ export default function CustomerChatPage() {
               <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
                 <User className="h-5 w-5 text-primary" />
               </div>
-              <span>Just a few details</span>
+              <span>{t('customerInfo.title')}</span>
             </DialogTitle>
             <DialogDescription className="text-base">
-              Help us provide better support by sharing your contact information
+              {t('customerInfo.subtitle')}
             </DialogDescription>
           </DialogHeader>
           <div className="mb-4 flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
@@ -1292,14 +1316,16 @@ export default function CustomerChatPage() {
                   )}>
                     <Icon className={cn("h-4 w-4", cat.color)} />
                   </div>
-                  <span className="text-sm font-medium">{cat.label}</span>
+                  <span className="text-sm font-medium">
+                    {getCategoryTranslation(t, cat.id, 'name') || cat.label}
+                  </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={handleBackToCategories}
                     className="ml-auto text-xs"
                   >
-                    Change
+                    {t('common.change')}
                   </Button>
                 </>
               );

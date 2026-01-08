@@ -55,7 +55,12 @@
     "loading": "Chargement...",
     "error": "Erreur",
     "success": "Succès",
-    "search": "Rechercher"
+    "search": "Rechercher",
+    "change": "Modifier"
+  },
+  "customerInfo": {
+    "title": "Juste quelques détails",
+    "subtitle": "Aidez-nous à mieux vous aider en partageant vos coordonnées"
   },
   "auth": {
     "login": "Connexion",

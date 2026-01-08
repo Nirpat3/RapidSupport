@@ -55,7 +55,12 @@
     "loading": "加载中...",
     "error": "错误",
     "success": "成功",
-    "search": "搜索"
+    "search": "搜索",
+    "change": "更改"
+  },
+  "customerInfo": {
+    "title": "只需几个细节",
+    "subtitle": "分享您的联系方式以帮助我们提供更好的支持"
   },
   "auth": {
     "login": "登录",

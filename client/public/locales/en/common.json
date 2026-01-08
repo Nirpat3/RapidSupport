@@ -55,7 +55,12 @@
     "loading": "Loading...",
     "error": "Error",
     "success": "Success",
-    "search": "Search"
+    "search": "Search",
+    "change": "Change"
+  },
+  "customerInfo": {
+    "title": "Just a few details",
+    "subtitle": "Help us provide better support by sharing your contact information"
   },
   "auth": {
     "login": "Login",

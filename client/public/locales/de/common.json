@@ -55,7 +55,12 @@
     "loading": "Laden...",
     "error": "Fehler",
     "success": "Erfolg",
-    "search": "Suchen"
+    "search": "Suchen",
+    "change": "Ändern"
+  },
+  "customerInfo": {
+    "title": "Nur ein paar Details",
+    "subtitle": "Helfen Sie uns, besseren Support zu bieten, indem Sie Ihre Kontaktdaten teilen"
   },
   "auth": {
     "login": "Anmelden",

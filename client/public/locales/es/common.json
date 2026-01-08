@@ -55,7 +55,12 @@
     "loading": "Cargando...",
     "error": "Error",
     "success": "Éxito",
-    "search": "Buscar"
+    "search": "Buscar",
+    "change": "Cambiar"
+  },
+  "customerInfo": {
+    "title": "Solo unos detalles",
+    "subtitle": "Ayúdanos a brindarte mejor soporte compartiendo tu información de contacto"
   },
   "auth": {
     "login": "Iniciar Sesión",

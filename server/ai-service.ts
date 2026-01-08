@@ -1528,6 +1528,9 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         ? `\nCustom Context Data:\n${JSON.stringify(contextData, null, 2)}\n(Use this information to provide personalized, context-aware responses)\n`
         : '';
 
+      // Extract language preference from context data
+      const language = contextData?.language || 'en';
+
       // Calculate knowledge quality score for confidence adjustment
       const knowledgeQuality = this.calculateKnowledgeQuality(searchResults);
 
