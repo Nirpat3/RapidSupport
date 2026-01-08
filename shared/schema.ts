@@ -2216,3 +2216,76 @@ export const insertPlatformAssistantMessageSchema = createInsertSchema(platformA
 
 export type InsertPlatformAssistantMessage = z.infer<typeof insertPlatformAssistantMessageSchema>;
 export type PlatformAssistantMessage = typeof platformAssistantMessages.$inferSelect;
+
+// ============================================
+// PUSH NOTIFICATIONS TABLES
+// ============================================
+
+// Push Subscriptions - Store web push subscription info for users
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id), // null for anonymous customers
+  sessionId: varchar("session_id"), // For anonymous customer notifications
+  
+  // Push subscription data from browser
+  endpoint: text("endpoint").notNull(),
+  p256dhKey: text("p256dh_key").notNull(), // Public key
+  authKey: text("auth_key").notNull(), // Auth secret
+  
+  // Device info
+  userAgent: text("user_agent"),
+  deviceType: text("device_type"), // 'mobile' | 'tablet' | 'desktop'
+  
+  // Notification preferences
+  enabledTypes: text("enabled_types").array().default(sql`ARRAY['message', 'mention', 'assignment']::text[]`),
+  
+  // Status
+  isActive: boolean("is_active").notNull().default(true),
+  lastUsedAt: timestamp("last_used_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Push Notification Logs - Track sent notifications
+export const pushNotificationLogs = pgTable("push_notification_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  subscriptionId: varchar("subscription_id").notNull().references(() => pushSubscriptions.id),
+  
+  // Notification content
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  icon: text("icon"),
+  url: text("url"), // Click action URL
+  
+  // Notification type
+  type: text("type").notNull(), // 'message' | 'mention' | 'assignment' | 'status'
+  referenceId: varchar("reference_id"), // Message ID, conversation ID, etc.
+  
+  // Delivery status
+  status: text("status").notNull().default("pending"), // 'pending' | 'sent' | 'failed' | 'clicked'
+  error: text("error"), // Error message if failed
+  sentAt: timestamp("sent_at"),
+  clickedAt: timestamp("clicked_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Push Subscription insert schema and types
+export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+
+// Push Notification Log insert schema and types
+export const insertPushNotificationLogSchema = createInsertSchema(pushNotificationLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertPushNotificationLog = z.infer<typeof insertPushNotificationLogSchema>;
+export type PushNotificationLog = typeof pushNotificationLogs.$inferSelect;
