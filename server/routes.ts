@@ -1255,10 +1255,35 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Get customer info
       const customer = await storage.getCustomer(customerId);
 
+      // Handle translation for customer messages
+      let translatedContent: string | null = null;
+      let originalLanguage: string | null = null;
+      const customerLanguage = (conversation as any).customerLanguage || 'en';
+      
+      // If customer language is not English, translate to English for agents
+      if (customerLanguage !== 'en') {
+        console.log(`[portal-chat] Customer language is ${customerLanguage}, translating to English`);
+        const translation = await AIService.translateText(content, 'en', customerLanguage);
+        translatedContent = translation.translatedText;
+        originalLanguage = customerLanguage;
+      } else if (content.length > 10) {
+        // Detect language if not set
+        const detection = await AIService.detectLanguage(content);
+        if (detection.language !== 'en' && detection.confidence > 70) {
+          console.log(`[portal-chat] Detected non-English: ${detection.language}`);
+          originalLanguage = detection.language;
+          await storage.updateConversation(conversationId, { customerLanguage: detection.language });
+          const translation = await AIService.translateText(content, 'en', detection.language);
+          translatedContent = translation.translatedText;
+        }
+      }
+
       // Create message
       const message = await storage.createMessage({
         conversationId,
         content,
+        translatedContent,
+        originalLanguage,
         senderType: 'customer',
         senderId: customerId,
         senderName: customer?.name || customer?.email || 'Customer',
@@ -2939,12 +2964,26 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       // Determine sender type from user role
       const senderType = user.role === 'admin' ? 'admin' : 'agent';
       
+      // Check if translation is needed (customer language is not English)
+      let translatedContent: string | null = null;
+      let originalLanguage: string | null = 'en'; // Agent messages are assumed to be in English
+      
+      const customerLanguage = (conversation as any).customerLanguage || 'en';
+      if (customerLanguage && customerLanguage !== 'en') {
+        console.log(`[POST /api/messages] Translating agent message from English to ${customerLanguage}`);
+        const translation = await AIService.translateText(content, customerLanguage, 'en');
+        translatedContent = translation.translatedText;
+        console.log(`[POST /api/messages] Translation complete: "${content.substring(0, 50)}..." → "${translatedContent?.substring(0, 50)}..."`);
+      }
+      
       console.log(`[POST /api/messages] Creating message with senderId=${user.id}, senderType=${senderType}, scope=public`);
       const message = await storage.createMessage({
         conversationId,
         senderId: user.id,
         senderType,
         content,
+        translatedContent,
+        originalLanguage,
         scope: 'public'
       });
       console.log(`[POST /api/messages] Message created successfully: ${message.id}`);
@@ -2974,6 +3013,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           messageId: message.id,
           conversationId: message.conversationId,
           content: message.content,
+          translatedContent: (message as any).translatedContent,
+          originalLanguage: (message as any).originalLanguage,
           userId: message.senderId,
           userName: user.name,
           userRole: user.role,
@@ -3652,7 +3693,48 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         await storage.updateConversationStatus(messageData.conversationId, 'open');
       }
       
-      const message = await storage.createCustomerMessage(messageData);
+      // Get customer language from conversation or detect it
+      let customerLanguage = (existingConversation as any)?.customerLanguage || 'en';
+      let translatedContent: string | null = null;
+      let originalLanguage: string | null = null;
+      
+      // If customer language is not English, translate message to English for agents
+      if (customerLanguage !== 'en') {
+        console.log(`[send-message] Customer language is ${customerLanguage}, translating to English for agents`);
+        const translation = await AIService.translateText(messageData.content, 'en', customerLanguage);
+        translatedContent = translation.translatedText;
+        originalLanguage = translation.detectedLanguage || customerLanguage;
+        console.log(`[send-message] Translation complete: "${messageData.content.substring(0, 50)}..." → "${translatedContent?.substring(0, 50)}..."`);
+      } else {
+        // Detect language if we haven't set it yet and message is long enough
+        if (messageData.content.length > 10) {
+          const detection = await AIService.detectLanguage(messageData.content);
+          if (detection.language !== 'en' && detection.confidence > 70) {
+            console.log(`[send-message] Detected non-English language: ${detection.language} (confidence: ${detection.confidence})`);
+            customerLanguage = detection.language;
+            originalLanguage = detection.language;
+            
+            // Update conversation with detected language
+            await storage.updateConversation(messageData.conversationId, {
+              customerLanguage: customerLanguage
+            });
+            
+            // Translate to English for agents
+            const translation = await AIService.translateText(messageData.content, 'en', customerLanguage);
+            translatedContent = translation.translatedText;
+            console.log(`[send-message] Translation complete: "${messageData.content.substring(0, 50)}..." → "${translatedContent?.substring(0, 50)}..."`);
+          }
+        }
+      }
+      
+      // Add translation fields to message data
+      const enhancedMessageData = {
+        ...messageData,
+        translatedContent,
+        originalLanguage
+      };
+      
+      const message = await storage.createCustomerMessage(enhancedMessageData);
       
       // Get conversation and customer details for notifications
       const conversation = await storage.getConversationWithCustomer(messageData.conversationId);
@@ -3666,6 +3748,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           wsServer.broadcastNewMessageToStaff(conversation, conversation.customer, {
             id: message.id,
             content: message.content,
+            translatedContent: (message as any).translatedContent,
+            originalLanguage: (message as any).originalLanguage,
             senderType: message.senderType,
             timestamp: message.timestamp
           });
@@ -3677,6 +3761,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             messageId: message.id,
             conversationId: message.conversationId,
             content: message.content,
+            translatedContent: (message as any).translatedContent,
+            originalLanguage: (message as any).originalLanguage,
             userId: message.senderId,
             userName: conversation.customer.name,
             userRole: 'customer',
@@ -3803,6 +3889,30 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
   // REMOVED: /api/customer-chat/send-ai-message endpoint for security
   // AI messages are now created server-side in /api/ai/smart-response to prevent client spoofing
+
+  // Set customer language preference for a conversation
+  app.post('/api/customer-chat/set-language', async (req, res) => {
+    try {
+      const { conversationId, language } = z.object({
+        conversationId: z.string().uuid(),
+        language: z.string().min(2).max(5),
+      }).parse(req.body);
+      
+      console.log(`[set-language] Setting customer language to ${language} for conversation ${conversationId}`);
+      
+      await storage.updateConversation(conversationId, {
+        customerLanguage: language
+      });
+      
+      res.json({ success: true, language });
+    } catch (error) {
+      console.error('[set-language] Error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid request data' });
+      }
+      res.status(500).json({ error: 'Failed to set language' });
+    }
+  });
 
   // Get conversation status for customer (public endpoint - no auth required)
   app.get('/api/customer-chat/conversation/:id/status', async (req, res) => {

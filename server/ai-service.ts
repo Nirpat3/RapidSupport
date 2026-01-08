@@ -79,6 +79,12 @@ export interface QualityScores {
   completenessScore: number;
 }
 
+export interface TranslationResult {
+  translatedText: string;
+  detectedLanguage: string;
+  confidence: number;
+}
+
 const RESPONSE_FORMATS = {
   conversational: {
     prompt: "Respond in a friendly, conversational tone. Be warm and personable while maintaining professionalism. Use natural language and avoid overly formal phrasing. Structure with intro, details, and next steps.",
@@ -228,6 +234,110 @@ Provide a JSON response with:
         confidence: 30,
         reasoning: 'Error occurred during classification, defaulting to general',
       };
+    }
+  }
+
+  /**
+   * Translate text between languages using OpenAI
+   * Used for automatic translation pipeline between customers and agents
+   */
+  static async translateText(
+    text: string, 
+    targetLanguage: string, 
+    sourceLanguage?: string
+  ): Promise<TranslationResult> {
+    const languageNames: Record<string, string> = {
+      'en': 'English',
+      'es': 'Spanish',
+      'de': 'German', 
+      'fr': 'French',
+      'zh': 'Chinese (Simplified)',
+      'hi': 'Hindi',
+      'gu': 'Gujarati'
+    };
+
+    const targetLangName = languageNames[targetLanguage] || targetLanguage;
+    const sourceLangName = sourceLanguage ? (languageNames[sourceLanguage] || sourceLanguage) : 'auto-detected';
+
+    try {
+      const systemPrompt = `You are a professional translator. Translate the given text to ${targetLangName}. 
+Preserve the meaning, tone, and formatting of the original text. 
+If the text is already in ${targetLangName}, return it as-is.
+Also detect the source language of the original text.
+
+Respond with JSON format:
+{
+  "translatedText": "the translated text",
+  "detectedLanguage": "ISO 639-1 code of source language (e.g., en, es, de, fr, zh, hi, gu)",
+  "confidence": 0-100 confidence score
+}`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Translate to ${targetLangName}:\n\n${text}` }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+      });
+
+      let responseContent = completion.choices[0].message.content || '{}';
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
+      
+      console.log(`[Translation] ${sourceLangName} → ${targetLangName}: "${text.substring(0, 50)}..." → "${result.translatedText?.substring(0, 50)}..."`);
+      
+      return {
+        translatedText: result.translatedText || text,
+        detectedLanguage: result.detectedLanguage || 'en',
+        confidence: result.confidence || 80,
+      };
+    } catch (error) {
+      console.error('[Translation] Error translating text:', error);
+      return {
+        translatedText: text,
+        detectedLanguage: sourceLanguage || 'en',
+        confidence: 0,
+      };
+    }
+  }
+
+  /**
+   * Detect the language of given text
+   */
+  static async detectLanguage(text: string): Promise<{ language: string; confidence: number }> {
+    try {
+      const systemPrompt = `You are a language detection system. Analyze the given text and identify its language.
+Respond with JSON format:
+{
+  "language": "ISO 639-1 code (e.g., en, es, de, fr, zh, hi, gu)",
+  "confidence": 0-100 confidence score
+}`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Detect language:\n\n${text}` }
+        ],
+        temperature: 0.1,
+        max_tokens: 100,
+      });
+
+      let responseContent = completion.choices[0].message.content || '{}';
+      responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
+      
+      const result = JSON.parse(responseContent);
+      
+      return {
+        language: result.language || 'en',
+        confidence: result.confidence || 50,
+      };
+    } catch (error) {
+      console.error('[Language Detection] Error:', error);
+      return { language: 'en', confidence: 0 };
     }
   }
 
