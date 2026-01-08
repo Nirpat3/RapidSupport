@@ -1216,7 +1216,8 @@ export default function ChatInterface({
             </div>
           )}
           
-          <div className="flex items-end gap-2">
+          {/* Stacked layout: Textarea on top, action icons on bottom */}
+          <div className="rounded-lg border bg-background overflow-hidden">
             <input
               ref={fileInputRef}
               type="file"
@@ -1226,103 +1227,116 @@ export default function ChatInterface({
               className="hidden"
               data-testid="input-file"
             />
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              type="button" 
-              onClick={() => fileInputRef.current?.click()}
-              data-testid="button-attach"
-            >
-              <Paperclip className="w-4 h-4" />
-            </Button>
             
-            <div className="flex-1">
-              <Textarea
-                placeholder={isInternalMode ? "Type internal message (staff only)..." : "Type your message..."}
-                value={newMessage}
-                onChange={(e) => {
-                  setNewMessage(e.target.value);
-                  // Trigger AI writing assistance (debounced)
-                  if (!isInternalMode) {
-                    triggerWritingAssist(e.target.value);
+            {/* Textarea on top */}
+            <Textarea
+              placeholder={isInternalMode ? "Type internal message (staff only)..." : "Type your message..."}
+              value={newMessage}
+              onChange={(e) => {
+                setNewMessage(e.target.value);
+                // Trigger AI writing assistance (debounced)
+                if (!isInternalMode) {
+                  triggerWritingAssist(e.target.value);
+                }
+                // Handle typing indicator - only for public messages (not internal)
+                if (!isInternalMode) {
+                  // Clear previous timeout
+                  if (typingTimeoutRef.current) {
+                    clearTimeout(typingTimeoutRef.current);
                   }
-                  // Handle typing indicator - only for public messages (not internal)
-                  if (!isInternalMode) {
-                    // Clear previous timeout
-                    if (typingTimeoutRef.current) {
-                      clearTimeout(typingTimeoutRef.current);
-                    }
-                    
-                    if (e.target.value.trim() && onTypingStart) {
-                      onTypingStart();
-                      // Stop typing after 2 seconds of inactivity
-                      typingTimeoutRef.current = setTimeout(() => {
-                        onTypingStop?.();
-                      }, 2000);
-                    } else if (!e.target.value.trim() && onTypingStop) {
-                      onTypingStop();
-                    }
+                  
+                  if (e.target.value.trim() && onTypingStart) {
+                    onTypingStart();
+                    // Stop typing after 2 seconds of inactivity
+                    typingTimeoutRef.current = setTimeout(() => {
+                      onTypingStop?.();
+                    }, 2000);
+                  } else if (!e.target.value.trim() && onTypingStop) {
+                    onTypingStop();
                   }
-                }}
-                onKeyDown={(e) => {
-                  // Tab key focuses the send button
-                  if (e.key === 'Tab' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendButtonRef.current?.focus();
+                }
+              }}
+              onKeyDown={(e) => {
+                // Tab key focuses the send button
+                if (e.key === 'Tab' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendButtonRef.current?.focus();
+                }
+                // Enter key sends the message (Shift+Enter for new line)
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (newMessage.trim() || selectedFiles.length > 0) {
+                    sendButtonRef.current?.click();
                   }
-                  // Enter key sends the message (Shift+Enter for new line)
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (newMessage.trim() || selectedFiles.length > 0) {
-                      sendButtonRef.current?.click();
-                    }
-                  }
-                }}
-                className={`resize-none ${isInternalMode ? "border-amber-300 dark:border-amber-700" : ""}`}
-                rows={2}
-                data-testid="input-message"
-              />
+                }
+              }}
+              className={`resize-none border-0 focus-visible:ring-0 rounded-none min-h-[60px] ${isInternalMode ? "bg-amber-50/50 dark:bg-amber-950/30" : ""}`}
+              rows={2}
+              data-testid="input-message"
+            />
+            
+            {/* Action icons row on bottom */}
+            <div className="flex items-center justify-between px-2 py-1.5 border-t bg-muted/30">
+              {/* Left side actions */}
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  type="button" 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-8 w-8"
+                  title="Attach file"
+                  data-testid="button-attach"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </Button>
+                
+                <Button 
+                  type="button"
+                  variant={isInternalMode ? "default" : "ghost"}
+                  size="icon"
+                  onClick={() => setIsInternalMode(!isInternalMode)}
+                  className="h-8 w-8"
+                  title={isInternalMode ? "Switch to public message" : "Switch to internal message (staff only)"}
+                  data-testid="button-toggle-internal"
+                >
+                  <MessageSquareText className="w-4 h-4" />
+                </Button>
+                
+                <Button 
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleProofreadMessage}
+                  disabled={!newMessage.trim() || isProofreading}
+                  className="h-8 w-8"
+                  title="AI proofread"
+                  data-testid="button-proofread"
+                >
+                  {isProofreading ? (
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+              
+              {/* Right side - Send button */}
+              <Button 
+                ref={sendButtonRef}
+                type="submit" 
+                size="icon"
+                className="h-8 w-8"
+                disabled={(!newMessage.trim() && selectedFiles.length === 0) || isUploadingFiles}
+                data-testid="button-send"
+              >
+                {isUploadingFiles ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </Button>
             </div>
-            
-            <Button 
-              type="button"
-              variant={isInternalMode ? "default" : "outline"}
-              size="icon"
-              onClick={() => setIsInternalMode(!isInternalMode)}
-              title={isInternalMode ? "Switch to public message" : "Switch to internal message (staff only)"}
-              data-testid="button-toggle-internal"
-            >
-              <MessageSquareText className="w-4 h-4" />
-            </Button>
-            
-            <Button 
-              type="button"
-              variant="outline"
-              size="icon"
-              onClick={handleProofreadMessage}
-              disabled={!newMessage.trim() || isProofreading}
-              data-testid="button-proofread"
-            >
-              {isProofreading ? (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-            </Button>
-            
-            <Button 
-              ref={sendButtonRef}
-              type="submit" 
-              size="icon"
-              disabled={(!newMessage.trim() && selectedFiles.length === 0) || isUploadingFiles}
-              data-testid="button-send"
-            >
-              {isUploadingFiles ? (
-                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </Button>
           </div>
           
           {/* AI Writing Assistance Panel */}
