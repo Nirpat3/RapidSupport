@@ -9,7 +9,7 @@ i18n
   .use(initReactI18next)
   .init({
     fallbackLng: 'en',
-    supportedLngs: ['en', 'es', 'de', 'fr', 'zh', 'hi'],
+    supportedLngs: ['en', 'es', 'de', 'fr', 'zh', 'hi', 'gu'],
     debug: false,
     ns: ['common'],
     defaultNS: 'common',
@@ -38,4 +38,5 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'fr', name: 'French', nativeName: 'Français' },
   { code: 'zh', name: 'Chinese', nativeName: '中文' },
   { code: 'hi', name: 'Hindi', nativeName: 'हिंदी' },
+  { code: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી' },
 ];

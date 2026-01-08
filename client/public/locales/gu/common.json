@@ -1,0 +1,87 @@
+{
+  "nav": {
+    "home": "હોમ",
+    "chat": "ચેટ",
+    "knowledgeBase": "જ્ઞાન આધાર",
+    "customerPortal": "ગ્રાહક પોર્ટલ",
+    "login": "લૉગિન",
+    "register": "નોંધણી",
+    "logout": "લૉગઆઉટ"
+  },
+  "chat": {
+    "title": "ગ્રાહક સહાય",
+    "welcomeTitle": "અમે આજે તમને કેવી રીતે મદદ કરી શકીએ?",
+    "welcomeSubtitle": "અમારા AI સહાયકથી તાત્કાલિક જવાબો મેળવો અથવા અમારી સહાય ટીમ સાથે જોડાઓ",
+    "inputPlaceholder": "પ્રશ્ન પૂછો અથવા તમારી સમસ્યા વર્ણવો...",
+    "getHelp": "મદદ મેળવો",
+    "sending": "મોકલી રહ્યા છીએ...",
+    "popularQuestions": "લોકપ્રિય પ્રશ્નો",
+    "continueConversation": "તમારી વાતચીત ચાલુ રાખો",
+    "welcomeBack": "પાછા આવ્યાનું સ્વાગત છે",
+    "openChat": "ચેટ ખોલો",
+    "startNewChat": "નવી ચેટ શરૂ કરો",
+    "browseKnowledgeBase": "જ્ઞાન આધાર બ્રાઉઝ કરો",
+    "chatWithUs": "અમારી સાથે ચેટ કરો"
+  },
+  "categories": {
+    "title": "અમે કેવી રીતે મદદ કરી શકીએ?",
+    "subtitle": "શરૂ કરવા માટે વિષય પસંદ કરો",
+    "billing": "બિલિંગ",
+    "billingDesc": "બિલિંગ અને ચુકવણી સંબંધિત પ્રશ્નો",
+    "technical": "ટેકનિકલ સપોર્ટ",
+    "technicalDesc": "ટેકનિકલ સમસ્યાઓ અને સમાધાન",
+    "sales": "વેચાણ",
+    "salesDesc": "વેચાણ પૂછપરછ અને અપગ્રેડ",
+    "general": "સામાન્ય",
+    "generalDesc": "સામાન્ય પ્રશ્નો અને માહિતી"
+  },
+  "knowledgeBase": {
+    "title": "જ્ઞાન આધાર",
+    "subtitle": "સામાન્ય પ્રશ્નોના જવાબો શોધો",
+    "searchPlaceholder": "લેખો શોધો...",
+    "categories": "કેટેગરીઝ",
+    "articles": "લેખો",
+    "noResults": "કોઈ લેખ મળ્યા નથી",
+    "readMore": "વધુ વાંચો"
+  },
+  "common": {
+    "back": "પાછળ",
+    "cancel": "રદ કરો",
+    "submit": "સબમિટ કરો",
+    "save": "સાચવો",
+    "delete": "કાઢી નાખો",
+    "edit": "સંપાદિત કરો",
+    "close": "બંધ કરો",
+    "loading": "લોડ થઈ રહ્યું છે...",
+    "error": "ભૂલ",
+    "success": "સફળતા",
+    "search": "શોધો",
+    "change": "બદલો"
+  },
+  "customerInfo": {
+    "title": "થોડી વિગતો",
+    "subtitle": "વધુ સારી સહાય પ્રદાન કરવા માટે તમારી સંપર્ક માહિતી શેર કરો"
+  },
+  "auth": {
+    "login": "લૉગિન",
+    "register": "નોંધણી કરો",
+    "email": "ઈમેલ",
+    "password": "પાસવર્ડ",
+    "confirmPassword": "પાસવર્ડ કન્ફર્મ કરો",
+    "forgotPassword": "પાસવર્ડ ભૂલી ગયા?",
+    "noAccount": "ખાતું નથી?",
+    "hasAccount": "પહેલેથી ખાતું છે?",
+    "signUp": "સાઇન અપ કરો",
+    "signIn": "સાઇન ઇન કરો"
+  },
+  "language": {
+    "select": "ભાષા પસંદ કરો",
+    "en": "અંગ્રેજી",
+    "es": "સ્પેનિશ",
+    "de": "જર્મન",
+    "fr": "ફ્રેન્ચ",
+    "zh": "ચાઇનીઝ",
+    "hi": "હિન્દી",
+    "gu": "ગુજરાતી"
+  }
+}

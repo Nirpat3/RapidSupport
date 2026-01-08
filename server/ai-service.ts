@@ -1667,7 +1667,8 @@ The more details you can share, the better I can help you resolve this quickly!"
           'de': 'German', 
           'fr': 'French',
           'zh': 'Chinese (Simplified)',
-          'hi': 'Hindi'
+          'hi': 'Hindi',
+          'gu': 'Gujarati'
         };
         const languageName = languageNames[language] || language;
         systemPrompt = `${agent.systemPrompt}\n\n**IMPORTANT LANGUAGE INSTRUCTION**: You MUST respond in ${languageName}. The user prefers ${languageName} language. Translate your entire response to ${languageName}.`;
