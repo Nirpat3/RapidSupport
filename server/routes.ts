@@ -448,6 +448,174 @@ async function processFileForAITraining(
   }
 }
 
+/**
+ * Process document import for Documentation Framework
+ * Extracts text and uses AI to generate structured markdown with YAML front-matter
+ */
+async function processDocumentImport(
+  importJobId: string,
+  uploadedFile: any,
+  workspaceId: string,
+  userId: string
+): Promise<void> {
+  try {
+    console.log(`[DocImport] Starting document import job ${importJobId} for ${uploadedFile.originalName}`);
+    
+    // Update job status to processing
+    await storage.updateDocumentImportJob(importJobId, { 
+      status: 'processing',
+      progress: 10,
+      processingStartedAt: new Date()
+    });
+
+    // Extract text content
+    const documentContent = await DocumentProcessor.extractText(
+      uploadedFile.filePath,
+      uploadedFile.originalName,
+      uploadedFile.mimeType
+    );
+
+    await storage.updateDocumentImportJob(importJobId, { progress: 30 });
+    
+    console.log(`[DocImport] Extracted ${documentContent.metadata?.wordCount || 0} words from ${uploadedFile.originalName}`);
+
+    // Use AI to generate structured document
+    const openai = await getOpenAIClient();
+    const aiResponse = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a technical documentation specialist. Convert the provided document content into a structured format with YAML front-matter and markdown body.
+
+Output format:
+\`\`\`yaml
+---
+title: [Extract or infer title from content]
+summary: [1-2 sentence summary]
+domain: [Choose: api, integration, workflow, troubleshooting, general]
+intent: [Choose: how-to, reference, concept, tutorial, troubleshooting]
+accessLevel: internal
+tags: [array of relevant keywords]
+---
+\`\`\`
+
+[Clean, well-formatted markdown content with proper headings, code blocks, and lists]
+
+Guidelines:
+- Extract meaningful structure from the source content
+- Use proper heading hierarchy (## for main sections, ### for subsections)
+- Preserve code examples with appropriate language tags
+- Create bullet lists for steps or options
+- Add horizontal rules between major sections if appropriate
+- Keep the content accurate and complete`
+        },
+        {
+          role: 'user',
+          content: `Convert this document:\n\nFilename: ${uploadedFile.originalName}\n\nContent:\n${documentContent.content.substring(0, 15000)}`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 4000,
+    });
+
+    await storage.updateDocumentImportJob(importJobId, { progress: 60 });
+
+    const aiContent = aiResponse.choices[0]?.message?.content || '';
+    
+    // Parse the AI response
+    let title = uploadedFile.originalName.replace(/\.[^/.]+$/, '');
+    let summary = '';
+    let domain = 'general';
+    let intent = 'reference';
+    let tags: string[] = [];
+    let markdownContent = aiContent;
+    
+    // Try to extract YAML front-matter
+    const yamlMatch = aiContent.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    if (yamlMatch) {
+      const yamlSection = yamlMatch[1];
+      markdownContent = yamlMatch[2].trim();
+      
+      // Parse YAML fields
+      const titleMatch = yamlSection.match(/title:\s*(.+)/);
+      const summaryMatch = yamlSection.match(/summary:\s*(.+)/);
+      const domainMatch = yamlSection.match(/domain:\s*(\w+)/);
+      const intentMatch = yamlSection.match(/intent:\s*(\w+)/);
+      const tagsMatch = yamlSection.match(/tags:\s*\[([^\]]+)\]/);
+      
+      if (titleMatch) title = titleMatch[1].trim().replace(/^["']|["']$/g, '');
+      if (summaryMatch) summary = summaryMatch[1].trim().replace(/^["']|["']$/g, '');
+      if (domainMatch) domain = domainMatch[1].trim();
+      if (intentMatch) intent = intentMatch[1].trim();
+      if (tagsMatch) tags = tagsMatch[1].split(',').map(t => t.trim().replace(/^["']|["']$/g, ''));
+    }
+
+    await storage.updateDocumentImportJob(importJobId, { progress: 70 });
+
+    // Generate slug from title
+    const slug = title.toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 50);
+
+    // Create the document
+    const document = await storage.createDocument({
+      workspaceId,
+      slug: slug + '-' + Date.now(),
+      title,
+      summary,
+      status: 'draft',
+      accessLevel: 'internal',
+      tags,
+      createdBy: userId,
+    });
+
+    await storage.updateDocumentImportJob(importJobId, { progress: 80 });
+
+    // Create the initial version
+    const version = await storage.createDocumentVersion({
+      documentId: document.id,
+      version: '1.0.0',
+      versionNumber: 1,
+      content: markdownContent,
+      yamlFrontmatter: yamlMatch ? yamlMatch[1] : null,
+      status: 'pending_review',
+      isAiGenerated: true,
+      createdBy: userId,
+    });
+
+    await storage.updateDocumentImportJob(importJobId, { progress: 90 });
+
+    // Add to review queue
+    await storage.createDocumentReviewQueueEntry({
+      documentVersionId: version.id,
+      status: 'pending',
+      isAiGenerated: true,
+      aiConfidence: 75,
+      needsReview: true,
+    });
+
+    // Update job as completed
+    await storage.updateDocumentImportJob(importJobId, {
+      status: 'completed',
+      progress: 100,
+      documentsCreated: 1,
+      documentsNeedingReview: 1,
+      processingCompletedAt: new Date(),
+    });
+
+    console.log(`[DocImport] Successfully completed import job ${importJobId} - created document ${document.id}`);
+  } catch (error) {
+    console.error(`[DocImport] Error processing import job ${importJobId}:`, error);
+    await storage.updateDocumentImportJob(importJobId, {
+      status: 'failed',
+      errorMessage: error instanceof Error ? error.message : String(error),
+      processingCompletedAt: new Date(),
+    });
+  }
+}
+
 export async function registerRoutes(app: Express, sessionStore?: any): Promise<{ server: Server, wsServer?: any }> {
   // Rate limiting for authentication
   const authLimiter = rateLimit({
@@ -10117,6 +10285,59 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to export documents for AI:', error);
       res.status(500).json({ error: 'Failed to export documents' });
+    }
+  });
+
+  // Document Import Upload endpoint - uploads file and starts AI conversion
+  app.post('/api/docs/import-jobs/upload', requireAuth, requireRole(['admin', 'agent']), upload.single('file'), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const file = req.file;
+      const workspaceId = req.body.workspaceId;
+      
+      if (!file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'workspaceId is required' });
+      }
+      
+      // Determine file type from extension
+      const ext = file.originalname.toLowerCase().split('.').pop();
+      const fileType = ext === 'pdf' ? 'pdf' : ext === 'docx' ? 'docx' : ext === 'txt' ? 'txt' : 'unknown';
+      
+      if (fileType === 'unknown') {
+        return res.status(400).json({ error: 'Unsupported file type. Only PDF, DOCX, and TXT are supported.' });
+      }
+      
+      // Create the uploaded file record
+      const uploadedFile = await storage.createFile({
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        filePath: file.path,
+        createdBy: user.id,
+      });
+      
+      // Create the import job
+      const importJob = await storage.createDocumentImportJob({
+        sourceFileId: uploadedFile.id,
+        sourceFileName: file.originalname,
+        sourceFileType: fileType,
+        status: 'pending',
+        progress: 0,
+        workspaceId: workspaceId,
+        createdBy: user.id,
+      });
+      
+      // Process the file asynchronously
+      processDocumentImport(importJob.id, uploadedFile, workspaceId, user.id);
+      
+      res.status(201).json(importJob);
+    } catch (error) {
+      console.error('Failed to start document import:', error);
+      res.status(500).json({ error: 'Failed to start document import' });
     }
   });
 

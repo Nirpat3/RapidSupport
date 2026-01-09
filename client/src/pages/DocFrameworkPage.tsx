@@ -125,6 +125,51 @@ interface DocumentVersion {
   publishedAt: string | null;
 }
 
+interface ImportJob {
+  id: string;
+  sourceFileId: string;
+  sourceFileName: string;
+  sourceFileType: string;
+  status: string;
+  progress: number;
+  documentsCreated: number;
+  documentsNeedingReview: number;
+  errorMessage: string | null;
+  processingStartedAt: string | null;
+  processingCompletedAt: string | null;
+  workspaceId: string;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ReviewQueueItem {
+  id: string;
+  documentVersionId: string;
+  status: string;
+  reviewerId: string | null;
+  reviewNotes: string | null;
+  isAiGenerated: boolean;
+  aiConfidence: number | null;
+  needsReview: boolean;
+  decidedAt: string | null;
+  createdAt: string;
+  version: {
+    id: string;
+    documentId: string;
+    version: string;
+    content: string;
+    yamlFrontmatter: string | null;
+  };
+  document: {
+    id: string;
+    title: string;
+    slug: string;
+    status: string;
+    accessLevel: string;
+  };
+}
+
 const createDocSchema = z.object({
   title: z.string().min(1, "Title is required"),
   slug: z.string().min(1, "Slug is required").regex(/^[a-z0-9-]+$/, "Slug must be lowercase alphanumeric with hyphens"),
@@ -203,6 +248,108 @@ export default function DocFrameworkPage() {
     queryKey: ['/api/docs/documents', selectedDoc?.id, 'versions'],
     enabled: !!selectedDoc,
   });
+
+  const buildImportJobsUrl = () => {
+    const params = new URLSearchParams();
+    if (selectedWorkspaceId) params.append('workspaceId', selectedWorkspaceId);
+    return `/api/docs/import-jobs?${params.toString()}`;
+  };
+
+  const { data: importJobs = [], isLoading: importJobsLoading } = useQuery<ImportJob[]>({
+    queryKey: [buildImportJobsUrl()],
+    enabled: !!selectedWorkspaceId,
+    refetchInterval: 5000,
+  });
+
+  const buildReviewQueueUrl = () => {
+    const params = new URLSearchParams();
+    if (selectedWorkspaceId) params.append('workspaceId', selectedWorkspaceId);
+    params.append('status', 'pending');
+    return `/api/docs/review-queue?${params.toString()}`;
+  };
+
+  const { data: reviewQueue = [], isLoading: reviewQueueLoading } = useQuery<ReviewQueueItem[]>({
+    queryKey: [buildReviewQueueUrl()],
+    enabled: !!selectedWorkspaceId,
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async (reviewId: string) => {
+      return apiRequest(`/api/docs/review-queue/${reviewId}/approve`, 'POST', { notes: '' });
+    },
+    onSuccess: () => {
+      toast({ title: "Document approved", description: "The document is now published" });
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && (key.startsWith('/api/docs/review-queue') || key.startsWith('/api/docs/documents'));
+        }
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Approval failed", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async ({ reviewId, notes }: { reviewId: string; notes: string }) => {
+      return apiRequest(`/api/docs/review-queue/${reviewId}/reject`, 'POST', { notes });
+    },
+    onSuccess: () => {
+      toast({ title: "Document rejected" });
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.startsWith('/api/docs/review-queue');
+        }
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Rejection failed", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('workspaceId', selectedWorkspaceId || '');
+      
+      const response = await fetch('/api/docs/import-jobs/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Document uploaded", description: "AI processing started..." });
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.startsWith('/api/docs/import-jobs');
+        }
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Upload failed", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const handleFileUpload = (file: File) => {
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({ title: "File too large", description: "Maximum file size is 10MB", variant: "destructive" });
+      return;
+    }
+    uploadMutation.mutate(file);
+  };
 
   const createForm = useForm<z.infer<typeof createDocSchema>>({
     resolver: zodResolver(createDocSchema),
@@ -707,27 +854,205 @@ export default function DocFrameworkPage() {
         </TabsContent>
 
         <TabsContent value="import">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="w-5 h-5" />
-                Document Import Queue
-              </CardTitle>
-              <CardDescription>
-                Upload documents (PDF, DOCX, TXT) for AI processing and conversion
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12 text-muted-foreground">
-                <Upload className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p className="text-lg font-medium mb-2">Drop files here to import</p>
-                <p className="text-sm mb-4">Supported formats: PDF, DOCX, TXT</p>
-                <p className="text-sm">
-                  AI will extract content, generate YAML front-matter, and create structured markdown
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="w-5 h-5" />
+                  Upload Document
+                </CardTitle>
+                <CardDescription>
+                  Upload documents (PDF, DOCX, TXT) for AI processing and conversion
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div 
+                  className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors hover:border-primary hover:bg-muted/50"
+                  onClick={() => document.getElementById('doc-import-file')?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-primary', 'bg-muted/50'); }}
+                  onDragLeave={(e) => { e.currentTarget.classList.remove('border-primary', 'bg-muted/50'); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove('border-primary', 'bg-muted/50');
+                    const file = e.dataTransfer.files[0];
+                    if (file) handleFileUpload(file);
+                  }}
+                >
+                  <Upload className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
+                  <p className="font-medium mb-1">Drop file here or click to browse</p>
+                  <p className="text-sm text-muted-foreground">Supported: PDF, DOCX, TXT (max 10MB)</p>
+                </div>
+                <input
+                  id="doc-import-file"
+                  type="file"
+                  accept=".pdf,.docx,.txt"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file);
+                    e.target.value = '';
+                  }}
+                />
+                {uploadMutation.isPending && (
+                  <div className="mt-4 flex items-center justify-center gap-2 text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Uploading and processing...</span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  Import Jobs
+                </CardTitle>
+                <CardDescription>
+                  Track the status of document imports
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {importJobsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : importJobs.length > 0 ? (
+                  <div className="space-y-3">
+                    {importJobs.map((job) => (
+                      <div key={job.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div className="flex items-center gap-3">
+                          <FileText className="w-5 h-5 text-muted-foreground" />
+                          <div>
+                            <div className="font-medium">{job.sourceFileName}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {new Date(job.createdAt).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {job.status === 'processing' && (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span className="text-sm">{job.progress}%</span>
+                            </div>
+                          )}
+                          {job.status === 'completed' && (
+                            <Badge className="bg-green-600">
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Completed
+                            </Badge>
+                          )}
+                          {job.status === 'failed' && (
+                            <Badge variant="destructive">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Failed
+                            </Badge>
+                          )}
+                          {job.status === 'pending' && (
+                            <Badge variant="secondary">
+                              <Clock className="w-3 h-3 mr-1" />
+                              Pending
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>No import jobs yet</p>
+                    <p className="text-sm">Upload a document to start an import</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Eye className="w-5 h-5" />
+                  Review Queue
+                  {reviewQueue.length > 0 && (
+                    <Badge variant="secondary">{reviewQueue.length}</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Approve or reject AI-generated documents before publishing
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {reviewQueueLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : reviewQueue.length > 0 ? (
+                  <div className="space-y-4">
+                    {reviewQueue.map((item) => (
+                      <div key={item.id} className="border rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h4 className="font-medium">{item.document.title}</h4>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="secondary" className="text-xs">
+                                v{item.version.version}
+                              </Badge>
+                              {item.isAiGenerated && (
+                                <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
+                                  AI Generated
+                                </Badge>
+                              )}
+                              {item.aiConfidence && (
+                                <span className="text-xs text-muted-foreground">
+                                  {item.aiConfidence}% confidence
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-300 text-red-600 hover:bg-red-50"
+                              onClick={() => rejectMutation.mutate({ reviewId: item.id, notes: 'Rejected by admin' })}
+                              disabled={rejectMutation.isPending || approveMutation.isPending}
+                            >
+                              <Trash2 className="w-3 h-3 mr-1" />
+                              Reject
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => approveMutation.mutate(item.id)}
+                              disabled={approveMutation.isPending || rejectMutation.isPending}
+                            >
+                              {approveMutation.isPending ? (
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                              )}
+                              Approve
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="bg-muted rounded p-3 text-sm max-h-40 overflow-y-auto">
+                          <pre className="whitespace-pre-wrap font-mono text-xs">
+                            {item.version.content.substring(0, 500)}
+                            {item.version.content.length > 500 && '...'}
+                          </pre>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <CheckCircle2 className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                    <p>No items pending review</p>
+                    <p className="text-sm">AI-generated documents will appear here for approval</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
