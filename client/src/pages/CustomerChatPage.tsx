@@ -28,7 +28,9 @@ import {
   Image as ImageIcon,
   FileText,
   MessageSquarePlus,
-  LogIn
+  LogIn,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { CustomerInfoForm } from "@/components/CustomerInfoForm";
@@ -232,6 +234,9 @@ export default function CustomerChatPage() {
   // AI response state
   const [isAiResponding, setIsAiResponding] = useState(false);
   const [aiTypingTimeout, setAiTypingTimeout] = useState<NodeJS.Timeout | null>(null);
+  
+  // Header collapse state - auto-collapse when messages exist
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
 
   // Handle language change - notify backend so translations work correctly
   const handleLanguageChange = async (langCode: string) => {
@@ -285,6 +290,13 @@ export default function CustomerChatPage() {
     enabled: !!chatState.conversationId,
     refetchInterval: chatStarted ? 1000 : false, // Poll more frequently for real-time feel
   });
+  
+  // Auto-collapse header when there are messages (gives more room for conversation)
+  useEffect(() => {
+    if (messages.length > 0 && chatStarted) {
+      setIsHeaderCollapsed(true);
+    }
+  }, [messages.length, chatStarted]);
 
   // Fetch conversation details to check status (using public endpoint)
   const { data: conversationDetails } = useQuery<ConversationDetails>({
@@ -791,76 +803,142 @@ export default function CustomerChatPage() {
   if (chatStarted && chatState.conversationId) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex flex-col">
-        {/* Header with white-label branding support */}
+        {/* Collapsible Header */}
         <header 
-          className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10"
+          className={cn(
+            "border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10 transition-all duration-300",
+            isHeaderCollapsed ? "py-1" : "py-0"
+          )}
           style={branding?.primaryColor ? { borderBottomColor: branding.primaryColor } : undefined}
         >
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                {/* Organization logo or default icon */}
-                {branding?.logo ? (
-                  <img 
-                    src={branding.logo} 
-                    alt={branding.name} 
-                    className="h-10 w-10 rounded-xl object-contain shadow-sm"
-                    data-testid="img-org-logo"
-                  />
-                ) : (
-                  <div 
-                    className="h-10 w-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm"
-                    style={branding?.primaryColor ? { background: `linear-gradient(to bottom right, ${branding.primaryColor}, ${branding.primaryColor}CC)` } : undefined}
-                  >
-                    <Sparkles className="h-5 w-5 text-primary-foreground" />
-                  </div>
-                )}
-                <div>
-                  <h1 
-                    className="text-lg font-semibold" 
-                    data-testid="title-support-chat"
-                    style={branding?.primaryColor ? { color: branding.primaryColor } : undefined}
-                  >
-                    {branding?.name ? `${branding.name} Support` : 'Support Chat'}
-                  </h1>
-                  {chatState.customerInfo && (
-                    <p className="text-xs text-muted-foreground">{chatState.customerInfo.name}</p>
+          {isHeaderCollapsed ? (
+            // Collapsed header - minimal bar with essential controls
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex items-center justify-between h-10">
+                <div className="flex items-center gap-2">
+                  {/* Small logo */}
+                  {branding?.logo ? (
+                    <img 
+                      src={branding.logo} 
+                      alt={branding.name} 
+                      className="h-6 w-6 rounded-lg object-contain"
+                      data-testid="img-org-logo-collapsed"
+                    />
+                  ) : (
+                    <div 
+                      className="h-6 w-6 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center"
+                      style={branding?.primaryColor ? { background: `linear-gradient(to bottom right, ${branding.primaryColor}, ${branding.primaryColor}CC)` } : undefined}
+                    >
+                      <Sparkles className="h-3 w-3 text-primary-foreground" />
+                    </div>
                   )}
-                  {existingConversation?.ipAddress && (
-                    <p className="text-xs text-muted-foreground" data-testid="text-user-ip">
-                      Your IP: {existingConversation.ipAddress}
-                    </p>
-                  )}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {branding?.name || 'Support'}
+                  </span>
+                  <Badge className="gap-1 h-5 text-xs bg-accent text-accent-foreground">
+                    <div className="w-1.5 h-1.5 bg-accent-foreground/80 rounded-full animate-pulse" />
+                    <span className="hidden sm:inline">Online</span>
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleStartNewConversation}
+                    title="New Chat"
+                    data-testid="button-new-conversation-collapsed"
+                  >
+                    <MessageSquarePlus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsHeaderCollapsed(false)}
+                    title="Expand header"
+                    data-testid="button-expand-header"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => window.location.href = '/portal/login'}
-                  className="gap-2"
-                  data-testid="button-portal-login"
-                >
-                  <LogIn className="h-4 w-4" />
-                  <span className="hidden sm:inline">Portal</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleStartNewConversation}
-                  className="gap-2"
-                  data-testid="button-new-conversation"
-                >
-                  <MessageSquarePlus className="h-4 w-4" />
-                  <span className="hidden sm:inline">New Chat</span>
-                </Button>
-                <Badge className="gap-1.5 bg-accent text-accent-foreground">
-                  <div className="w-2 h-2 bg-accent-foreground/80 rounded-full animate-pulse" />
-                  <span className="hidden sm:inline">Online</span>
-                </Badge>
+            </div>
+          ) : (
+            // Expanded header - full view
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  {/* Organization logo or default icon */}
+                  {branding?.logo ? (
+                    <img 
+                      src={branding.logo} 
+                      alt={branding.name} 
+                      className="h-10 w-10 rounded-xl object-contain shadow-sm"
+                      data-testid="img-org-logo"
+                    />
+                  ) : (
+                    <div 
+                      className="h-10 w-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm"
+                      style={branding?.primaryColor ? { background: `linear-gradient(to bottom right, ${branding.primaryColor}, ${branding.primaryColor}CC)` } : undefined}
+                    >
+                      <Sparkles className="h-5 w-5 text-primary-foreground" />
+                    </div>
+                  )}
+                  <div>
+                    <h1 
+                      className="text-lg font-semibold" 
+                      data-testid="title-support-chat"
+                      style={branding?.primaryColor ? { color: branding.primaryColor } : undefined}
+                    >
+                      {branding?.name ? `${branding.name} Support` : 'Support Chat'}
+                    </h1>
+                    {chatState.customerInfo && (
+                      <p className="text-xs text-muted-foreground">{chatState.customerInfo.name}</p>
+                    )}
+                    {existingConversation?.ipAddress && (
+                      <p className="text-xs text-muted-foreground" data-testid="text-user-ip">
+                        Your IP: {existingConversation.ipAddress}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => window.location.href = '/portal/login'}
+                    className="gap-2"
+                    data-testid="button-portal-login"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span className="hidden sm:inline">Portal</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStartNewConversation}
+                    className="gap-2"
+                    data-testid="button-new-conversation"
+                  >
+                    <MessageSquarePlus className="h-4 w-4" />
+                    <span className="hidden sm:inline">New Chat</span>
+                  </Button>
+                  <Badge className="gap-1.5 bg-accent text-accent-foreground">
+                    <div className="w-2 h-2 bg-accent-foreground/80 rounded-full animate-pulse" />
+                    <span className="hidden sm:inline">Online</span>
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsHeaderCollapsed(true)}
+                    title="Collapse header"
+                    data-testid="button-collapse-header"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </header>
 
         {/* Messages Area */}
