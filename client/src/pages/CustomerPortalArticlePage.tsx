@@ -5,13 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ArrowLeft, FileText, Printer, Eye, Clock, 
-  ThumbsUp, ThumbsDown, Loader2, CheckCircle2, BookOpen
+  ThumbsUp, ThumbsDown, Loader2, CheckCircle2, BookOpen,
+  Download, FileIcon
 } from "lucide-react";
 import { CustomerPortalLayout } from "@/components/CustomerPortalLayout";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import ChatWidget from "@/components/ChatWidget";
+import DocumentViewer from "@/components/DocumentViewer";
 import { formatDistanceToNow } from "date-fns";
 
 interface KnowledgeBaseArticle {
@@ -28,6 +31,10 @@ interface KnowledgeBaseArticle {
   score?: number;
   helpful?: number;
   notHelpful?: number;
+  sourceType?: string;
+  fileName?: string;
+  fileType?: string;
+  hasFile?: boolean;
 }
 
 interface FormattedStep {
@@ -545,9 +552,70 @@ export default function CustomerPortalArticlePage() {
 
               <Separator />
 
-              <div className="py-4" data-testid="content-article">
-                <ArticleContent content={article.content || ''} />
-              </div>
+              {article.hasFile && article.fileType?.includes('pdf') ? (
+                <div className="py-4" data-testid="content-article">
+                  <Tabs defaultValue="document" className="w-full">
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="document" className="gap-2">
+                        <FileIcon className="h-4 w-4" />
+                        Original Document
+                      </TabsTrigger>
+                      <TabsTrigger value="text" className="gap-2">
+                        <FileText className="h-4 w-4" />
+                        Text Version
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="document">
+                      <DocumentViewer
+                        fileUrl={`/api/public/knowledge-base/${article.id}/file`}
+                        fileName={article.fileName}
+                        fileType={article.fileType}
+                      />
+                    </TabsContent>
+                    <TabsContent value="text">
+                      <ArticleContent content={article.content || ''} />
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              ) : article.hasFile ? (
+                <div className="py-4" data-testid="content-article">
+                  <Card className="mb-4 bg-muted/30">
+                    <CardContent className="py-4">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <FileIcon className="h-8 w-8 text-primary" />
+                          <div>
+                            <p className="font-medium">{article.fileName || 'Original Document'}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Download the original document for the best viewing experience
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = `/api/public/knowledge-base/${article.id}/file`;
+                            link.download = article.fileName || 'document';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                          Download Original
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <ArticleContent content={article.content || ''} />
+                </div>
+              ) : (
+                <div className="py-4" data-testid="content-article">
+                  <ArticleContent content={article.content || ''} />
+                </div>
+              )}
 
               <Separator />
 

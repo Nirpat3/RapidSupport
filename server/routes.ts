@@ -6265,13 +6265,63 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         notHelpful: article.notHelpful || 0,
         lastUsedAt: article.lastUsedAt,
         createdAt: article.createdAt,
-        updatedAt: article.updatedAt
+        updatedAt: article.updatedAt,
+        sourceType: article.sourceType,
+        fileName: article.fileName,
+        fileType: article.fileType,
+        hasFile: article.sourceType === 'file' && !!article.filePath
       };
       
       res.json(publicArticle);
     } catch (error) {
       console.error('Failed to fetch public knowledge base article:', error);
       res.status(500).json({ error: 'Failed to fetch knowledge base article' });
+    }
+  });
+
+  // Public endpoint to serve knowledge base file (for customer portal document viewer)
+  app.get('/api/public/knowledge-base/:id/file', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const article = await storage.getKnowledgeBase(id);
+      
+      if (!article) {
+        return res.status(404).json({ error: 'Article not found' });
+      }
+      
+      // Only serve files for active articles
+      if (!article.isActive) {
+        return res.status(404).json({ error: 'Article not found' });
+      }
+      
+      // Check if article has a file
+      if (article.sourceType !== 'file' || !article.filePath) {
+        return res.status(404).json({ error: 'No file associated with this article' });
+      }
+      
+      // Resolve the file path
+      const uploadDir = path.resolve('./uploads');
+      const resolvedPath = path.resolve(article.filePath);
+      
+      // Security check: ensure the file is within the uploads directory
+      if (!resolvedPath.startsWith(uploadDir)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Check if file exists
+      if (!fs.existsSync(resolvedPath)) {
+        return res.status(404).json({ error: 'File not found' });
+      }
+      
+      // Set appropriate content type
+      const contentType = article.fileType || 'application/octet-stream';
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `inline; filename="${article.fileName || 'document'}"`);
+      
+      res.sendFile(resolvedPath);
+    } catch (error) {
+      console.error('Failed to serve public knowledge base file:', error);
+      res.status(500).json({ error: 'Failed to serve file' });
     }
   });
 
