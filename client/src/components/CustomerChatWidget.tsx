@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { MessageCircle, Send, X, Minimize2, Maximize2, Paperclip, Sparkles, Check, CreditCard, DollarSign, Wrench, HelpCircle, ArrowLeft, Bot, Loader2, Wifi, WifiOff, Mic } from "lucide-react";
 import VoiceConversationDialog from "./VoiceConversationDialog";
+import { useWorkspaceFeatures } from "@/hooks/useWorkspaceFeatures";
 import { CustomerInfoForm } from "./CustomerInfoForm";
 import { EmojiPicker } from "./EmojiPicker";
 import { MessageAttachments, type MessageAttachment } from "./MessageAttachments";
@@ -243,6 +244,9 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Check if voice features are enabled for this workspace
+  const { voiceChatEnabled } = useWorkspaceFeatures();
   
   // Voice conversation dialog state
   const [showVoiceDialog, setShowVoiceDialog] = useState(false);
@@ -1116,17 +1120,19 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
                     />
 
                     {/* Voice Conversation Button */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setShowVoiceDialog(true)}
-                      disabled={sendMessageMutation.isPending}
-                      className="h-9 w-9"
-                      data-testid="button-voice"
-                      title="Start voice conversation"
-                    >
-                      <Mic className="h-4 w-4" />
-                    </Button>
+                    {voiceChatEnabled && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowVoiceDialog(true)}
+                        disabled={sendMessageMutation.isPending}
+                        className="h-9 w-9"
+                        data-testid="button-voice"
+                        title="Start voice conversation"
+                      >
+                        <Mic className="h-4 w-4" />
+                      </Button>
+                    )}
 
                     {/* AI Proofread Button for Customer */}
                     <Button

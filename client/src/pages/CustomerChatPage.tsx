@@ -36,6 +36,7 @@ import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { CustomerInfoForm } from "@/components/CustomerInfoForm";
 import { ConversationRatingDialog } from "@/components/ConversationRatingDialog";
 import VoiceConversationDialog from "@/components/VoiceConversationDialog";
+import { useWorkspaceFeatures } from "@/hooks/useWorkspaceFeatures";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { AnonymousCustomer, SupportCategory as SupportCategoryType } from "@shared/schema";
@@ -173,6 +174,9 @@ export default function CustomerChatPage() {
   const [pendingMessage, setPendingMessage] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Check if voice features are enabled for this workspace
+  const { voiceChatEnabled } = useWorkspaceFeatures();
   
   // File upload, emoji, camera, voice states
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -1164,16 +1168,18 @@ export default function CustomerChatPage() {
                     )}
                   </div>
                   
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setShowVoiceDialog(true)}
-                    title="Start voice conversation"
-                    data-testid="button-voice"
-                  >
-                    <Mic className="h-4 w-4" />
-                  </Button>
+                  {voiceChatEnabled && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowVoiceDialog(true)}
+                      title="Start voice conversation"
+                      data-testid="button-voice"
+                    >
+                      <Mic className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
                 
                 <Button
@@ -1397,16 +1403,18 @@ export default function CustomerChatPage() {
                       )}
                     </div>
                     
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setShowVoiceDialog(true)}
-                      title="Start voice conversation"
-                      data-testid="button-hero-voice"
-                    >
-                      <Mic className="h-4 w-4" />
-                    </Button>
+                    {voiceChatEnabled && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setShowVoiceDialog(true)}
+                        title="Start voice conversation"
+                        data-testid="button-hero-voice"
+                      >
+                        <Mic className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                   
                   <Button
