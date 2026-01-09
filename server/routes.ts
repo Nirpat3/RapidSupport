@@ -11517,6 +11517,208 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================================================
+  // RESOLUTION HISTORY API ENDPOINTS
+  // Track successful solutions to customer issues
+  // ============================================================================
+
+  // Validation schemas for resolution records
+  const createResolutionRecordSchema = z.object({
+    customerId: z.string().uuid(),
+    conversationId: z.string().uuid().optional(),
+    organizationId: z.string().uuid().optional(),
+    workspaceId: z.string().uuid().optional(),
+    issueCategory: z.string().min(1).max(100),
+    issueType: z.string().max(100).optional(),
+    issueDescription: z.string().max(2000).optional(),
+    solutionSource: z.enum(['kb_article', 'manual_steps', 'external_link', 'agent_action']),
+    solutionReference: z.string().uuid().optional(),
+    solutionTitle: z.string().max(200).optional(),
+    solutionSteps: z.string().max(5000).optional(),
+    solutionExternalUrl: z.string().url().optional(),
+    outcome: z.enum(['resolved', 'partially_resolved', 'not_resolved']).default('resolved'),
+    resolutionTimeMinutes: z.number().int().positive().optional(),
+    agentNotes: z.string().max(2000).optional(),
+    tags: z.array(z.string()).optional()
+  });
+
+  const updateResolutionRecordSchema = createResolutionRecordSchema.partial().extend({
+    customerFeedback: z.string().max(2000).optional()
+  });
+
+  // Create a resolution record
+  app.post('/api/resolutions', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const validation = createResolutionRecordSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const currentUserId = (req.user as any)?.id;
+      const record = await storage.createResolutionRecord({
+        ...validation.data,
+        resolvedBy: currentUserId
+      });
+
+      res.status(201).json(record);
+    } catch (error) {
+      console.error('Failed to create resolution record:', error);
+      res.status(500).json({ error: 'Failed to create resolution record' });
+    }
+  });
+
+  // Get resolution record by ID
+  app.get('/api/resolutions/:id', requireAuth, async (req, res) => {
+    try {
+      const record = await storage.getResolutionRecord(req.params.id);
+      if (!record) {
+        return res.status(404).json({ error: 'Resolution record not found' });
+      }
+      res.json(record);
+    } catch (error) {
+      console.error('Failed to fetch resolution record:', error);
+      res.status(500).json({ error: 'Failed to fetch resolution record' });
+    }
+  });
+
+  // Get resolutions for a customer
+  app.get('/api/customers/:customerId/resolutions', requireAuth, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const resolutions = await storage.getResolutionsByCustomer(req.params.customerId, limit);
+      res.json(resolutions);
+    } catch (error) {
+      console.error('Failed to fetch customer resolutions:', error);
+      res.status(500).json({ error: 'Failed to fetch resolutions' });
+    }
+  });
+
+  // Get resolution summary for a customer (for agent dashboard)
+  app.get('/api/customers/:customerId/resolution-summary', requireAuth, async (req, res) => {
+    try {
+      const summary = await storage.getResolutionSummaryForCustomer(req.params.customerId);
+      res.json(summary);
+    } catch (error) {
+      console.error('Failed to fetch resolution summary:', error);
+      res.status(500).json({ error: 'Failed to fetch summary' });
+    }
+  });
+
+  // Get resolutions for a specific issue category
+  app.get('/api/customers/:customerId/resolutions/category/:category', requireAuth, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 5;
+      const resolutions = await storage.getResolutionsByCustomerIssue(
+        req.params.customerId,
+        req.params.category,
+        limit
+      );
+      res.json(resolutions);
+    } catch (error) {
+      console.error('Failed to fetch category resolutions:', error);
+      res.status(500).json({ error: 'Failed to fetch resolutions' });
+    }
+  });
+
+  // Get successful resolutions for AI context (proven solutions)
+  app.get('/api/customers/:customerId/successful-resolutions', requireAuth, async (req, res) => {
+    try {
+      const issueCategory = req.query.issueCategory as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 3;
+      const resolutions = await storage.getSuccessfulResolutions(
+        req.params.customerId,
+        issueCategory,
+        limit
+      );
+      res.json(resolutions);
+    } catch (error) {
+      console.error('Failed to fetch successful resolutions:', error);
+      res.status(500).json({ error: 'Failed to fetch resolutions' });
+    }
+  });
+
+  // Update resolution record
+  app.put('/api/resolutions/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const validation = updateResolutionRecordSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const existing = await storage.getResolutionRecord(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Resolution record not found' });
+      }
+
+      const updated = await storage.updateResolutionRecord(req.params.id, validation.data);
+      res.json(updated);
+    } catch (error) {
+      console.error('Failed to update resolution record:', error);
+      res.status(500).json({ error: 'Failed to update resolution record' });
+    }
+  });
+
+  // Update resolution outcome (quick action for agents)
+  app.patch('/api/resolutions/:id/outcome', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const outcomeSchema = z.object({
+        outcome: z.enum(['resolved', 'partially_resolved', 'not_resolved']),
+        customerFeedback: z.string().max(2000).optional()
+      });
+      const validation = outcomeSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const existing = await storage.getResolutionRecord(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Resolution record not found' });
+      }
+
+      const updated = await storage.updateResolutionOutcome(
+        req.params.id,
+        validation.data.outcome,
+        validation.data.customerFeedback
+      );
+      res.json(updated);
+    } catch (error) {
+      console.error('Failed to update resolution outcome:', error);
+      res.status(500).json({ error: 'Failed to update outcome' });
+    }
+  });
+
+  // Delete resolution record (soft delete)
+  app.delete('/api/resolutions/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const existing = await storage.getResolutionRecord(req.params.id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Resolution record not found' });
+      }
+
+      await storage.deleteResolutionRecord(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete resolution record:', error);
+      res.status(500).json({ error: 'Failed to delete resolution record' });
+    }
+  });
+
+  // Get resolutions by workspace (for analytics)
+  app.get('/api/workspaces/:workspaceId/resolutions', requireAuth, async (req, res) => {
+    try {
+      const options = {
+        outcome: req.query.outcome as string | undefined,
+        issueCategory: req.query.issueCategory as string | undefined,
+        limit: parseInt(req.query.limit as string) || 50
+      };
+      const resolutions = await storage.getResolutionsByWorkspace(req.params.workspaceId, options);
+      res.json(resolutions);
+    } catch (error) {
+      console.error('Failed to fetch workspace resolutions:', error);
+      res.status(500).json({ error: 'Failed to fetch resolutions' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat
