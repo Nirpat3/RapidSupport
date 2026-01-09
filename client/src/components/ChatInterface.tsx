@@ -610,190 +610,206 @@ export default function ChatInterface({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-background">
-      {/* Enhanced Chat Header - Collapsible */}
+      {/* Enhanced Chat Header - Collapsible with inline actions */}
       <div className="sticky top-0 z-10 border-b border-border bg-card">
-        {/* Collapsed Header - Compact View */}
+        {/* Collapsed Header - Compact View with Actions */}
         {isHeaderCollapsed ? (
-          <div className="px-3 py-2 flex items-center justify-between">
+          <div className="px-3 py-2 flex items-center justify-between gap-2">
             <button 
               onClick={() => setIsHeaderCollapsed(false)}
-              className="flex items-center gap-2 hover:bg-muted/50 rounded-lg p-1 transition-colors"
+              className="flex items-center gap-2 hover:bg-muted/50 rounded-lg p-1 transition-colors min-w-0 flex-1"
               data-testid="button-expand-header"
             >
-              <Avatar className="w-7 h-7">
+              <Avatar className="w-7 h-7 flex-shrink-0">
                 <AvatarImage src={customer?.avatar} />
                 <AvatarFallback className="text-xs font-medium">
                   {customer?.name?.split(' ').map(n => n[0]).join('') || 'U'}
                 </AvatarFallback>
               </Avatar>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">{customer?.name || 'Unknown'}</span>
-                <span className={`w-2 h-2 rounded-full ${
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-medium text-sm truncate">{customer?.name || 'Unknown'}</span>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
                   customer?.status === 'online' ? 'bg-green-500' :
                   customer?.status === 'away' ? 'bg-yellow-500' :
                   customer?.status === 'busy' ? 'bg-red-500' :
                   'bg-gray-400'
                 }`} />
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </div>
             </button>
+            
+            {/* Action buttons in collapsed view */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Button 
+                variant={aiAssistanceEnabled ? "default" : "outline"}
+                size="icon"
+                onClick={handleToggleAI}
+                disabled={isTogglingAi}
+                data-testid="button-toggle-ai"
+                aria-label={`${aiAssistanceEnabled ? 'Disable' : 'Enable'} AI assistance`}
+              >
+                <Sparkles className="w-4 h-4" />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" data-testid="button-more-actions">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuLabel>Quick Actions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setIsCreateTicketOpen(true)}>
+                    <Ticket className="w-4 h-4 mr-2" />
+                    Create Ticket
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setIsInternalChatOpen(true)}>
+                    <MessageSquareText className="w-4 h-4 mr-2" />
+                    Team Chat
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setIsKnowledgeSearchOpen(true)}>
+                    <BookOpen className="w-4 h-4 mr-2" />
+                    Knowledge Base
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setIsCorrectionDialogOpen(true)} disabled={!messages.some(m => m.senderType === 'ai')}>
+                    <GraduationCap className="w-4 h-4 mr-2" />
+                    Teach AI
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setIsFollowupOpen(true)}>
+                    <Clock className="w-4 h-4 mr-2" />
+                    Schedule Follow-up
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleTakeOver} disabled={isTakingOver}>
+                    <UserCheck className="w-4 h-4 mr-2" />
+                    {isTakingOver ? 'Assigning...' : 'Assign to Me'}
+                  </DropdownMenuItem>
+                  {(conversationStatus === 'closed' || conversationStatus === 'resolved') && onStatusChange && (
+                    <DropdownMenuItem onClick={() => onStatusChange('open')}>
+                      <Check className="w-4 h-4 mr-2" />
+                      Reopen Conversation
+                    </DropdownMenuItem>
+                  )}
+                  {conversationStatus !== 'closed' && (
+                    <DropdownMenuItem onClick={() => setIsCloseDialogOpen(true)}>
+                      <X className="w-4 h-4 mr-2" />
+                      Close Conversation
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         ) : (
-          /* Expanded Header - Full Details */
-          <div className="p-4 pb-3">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="w-10 h-10">
+          /* Expanded Header - Full Details with Actions */
+          <div className="p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <Avatar className="w-10 h-10 flex-shrink-0">
                   <AvatarImage src={customer?.avatar} />
                   <AvatarFallback className="text-sm font-medium">
                     {customer?.name?.split(' ').map(n => n[0]).join('') || 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <div>
+                <div className="min-w-0">
                   <Link href={`/customers/${customer.id}`} className="hover-elevate inline-block">
-                    <h3 className="font-semibold text-lg hover:text-primary transition-colors cursor-pointer" data-testid="chat-customer-name">
+                    <h3 className="font-semibold text-base hover:text-primary transition-colors cursor-pointer truncate" data-testid="chat-customer-name">
                       {customer?.name || 'Unknown Customer'}
                     </h3>
                   </Link>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Building className="w-3 h-3" />
-                    <span>{customer?.company || 'No company provided'}</span>
-                  </div>
-                  <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <span className={`w-2 h-2 rounded-full ${
-                        customer?.status === 'online' ? 'bg-green-500' :
-                        customer?.status === 'away' ? 'bg-yellow-500' :
-                        customer?.status === 'busy' ? 'bg-red-500' :
-                        'bg-gray-400'
-                      }`} />
-                      <span className="capitalize">{customer?.status || 'offline'}</span>
-                    </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className={`w-2 h-2 rounded-full ${
+                      customer?.status === 'online' ? 'bg-green-500' :
+                      customer?.status === 'away' ? 'bg-yellow-500' :
+                      customer?.status === 'busy' ? 'bg-red-500' :
+                      'bg-gray-400'
+                    }`} />
+                    <span className="capitalize">{customer?.status || 'offline'}</span>
                     {customer?.email && (
-                      <div className="flex items-center gap-1">
-                        <Mail className="w-3 h-3" />
-                        <span>{customer.email}</span>
-                      </div>
+                      <>
+                        <span>•</span>
+                        <span className="truncate">{customer.email}</span>
+                      </>
                     )}
                   </div>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsHeaderCollapsed(true)}
-                className="flex-shrink-0"
-                data-testid="button-collapse-header"
-              >
-                <ChevronUp className="w-4 h-4" />
-              </Button>
+              
+              {/* Action buttons aligned right */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Button 
+                  variant={aiAssistanceEnabled ? "default" : "outline"}
+                  size="icon"
+                  onClick={handleToggleAI}
+                  disabled={isTogglingAi}
+                  data-testid="button-toggle-ai-expanded"
+                  aria-label={`${aiAssistanceEnabled ? 'Disable' : 'Enable'} AI assistance`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" data-testid="button-more-actions-expanded">
+                      <MoreHorizontal className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel>Quick Actions</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setIsCreateTicketOpen(true)}>
+                      <Ticket className="w-4 h-4 mr-2" />
+                      Create Ticket
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsInternalChatOpen(true)}>
+                      <MessageSquareText className="w-4 h-4 mr-2" />
+                      Team Chat
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsKnowledgeSearchOpen(true)}>
+                      <BookOpen className="w-4 h-4 mr-2" />
+                      Knowledge Base
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsCorrectionDialogOpen(true)} disabled={!messages.some(m => m.senderType === 'ai')}>
+                      <GraduationCap className="w-4 h-4 mr-2" />
+                      Teach AI
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setIsFollowupOpen(true)}>
+                      <Clock className="w-4 h-4 mr-2" />
+                      Schedule Follow-up
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleTakeOver} disabled={isTakingOver}>
+                      <UserCheck className="w-4 h-4 mr-2" />
+                      {isTakingOver ? 'Assigning...' : 'Assign to Me'}
+                    </DropdownMenuItem>
+                    {(conversationStatus === 'closed' || conversationStatus === 'resolved') && onStatusChange && (
+                      <DropdownMenuItem onClick={() => onStatusChange('open')}>
+                        <Check className="w-4 h-4 mr-2" />
+                        Reopen Conversation
+                      </DropdownMenuItem>
+                    )}
+                    {conversationStatus !== 'closed' && (
+                      <DropdownMenuItem onClick={() => setIsCloseDialogOpen(true)}>
+                        <X className="w-4 h-4 mr-2" />
+                        Close Conversation
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsHeaderCollapsed(true)}
+                  data-testid="button-collapse-header"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
         )}
+      </div>
 
-        {/* Action Buttons Row - Cleaned Up */}
-        <div className="px-4 pb-3">
-          <div className="flex items-center justify-between gap-2">
-            {/* AI Toggle - Keep visible as it's frequently used */}
-            <Button 
-              variant={aiAssistanceEnabled ? "default" : "outline"}
-              size="sm"
-              className="text-xs sm:text-sm"
-              onClick={handleToggleAI}
-              disabled={isTogglingAi}
-              data-testid="button-toggle-ai"
-              aria-label={`${aiAssistanceEnabled ? 'Disable' : 'Enable'} AI assistance`}
-            >
-              <Sparkles className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">{aiAssistanceEnabled ? 'AI On' : 'AI Off'}</span>
-            </Button>
-
-            {/* Actions Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" data-testid="button-more-actions">
-                  <MoreHorizontal className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Actions</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>Quick Actions</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                
-                <DropdownMenuItem onClick={() => setIsCreateTicketOpen(true)} data-testid="dropdown-create-ticket">
-                  <Ticket className="w-4 h-4 mr-2" />
-                  Create Ticket
-                </DropdownMenuItem>
-                
-                <DropdownMenuItem onClick={() => setIsInternalChatOpen(true)} data-testid="dropdown-team-chat">
-                  <MessageSquareText className="w-4 h-4 mr-2" />
-                  Team Chat
-                </DropdownMenuItem>
-                
-                <DropdownMenuItem onClick={() => setIsKnowledgeSearchOpen(true)} data-testid="dropdown-knowledge-base">
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  Knowledge Base
-                </DropdownMenuItem>
-                
-                <DropdownMenuItem 
-                  onClick={() => setIsCorrectionDialogOpen(true)} 
-                  disabled={!messages.some(m => m.senderType === 'ai')}
-                  data-testid="dropdown-teach-ai"
-                >
-                  <GraduationCap className="w-4 h-4 mr-2" />
-                  Teach AI
-                </DropdownMenuItem>
-
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Conversation</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                
-                <DropdownMenuItem onClick={() => setIsFollowupOpen(true)} data-testid="dropdown-schedule-followup">
-                  <Clock className="w-4 h-4 mr-2" />
-                  Schedule Follow-up
-                </DropdownMenuItem>
-                
-                <DropdownMenuItem onClick={handleTakeOver} disabled={isTakingOver} data-testid="dropdown-assign-agent">
-                  <UserCheck className="w-4 h-4 mr-2" />
-                  {isTakingOver ? 'Assigning...' : 'Assign to Me'}
-                </DropdownMenuItem>
-                
-                {/* Reopen - shown for closed/resolved conversations */}
-                {(conversationStatus === 'closed' || conversationStatus === 'resolved') && onStatusChange && (
-                  <DropdownMenuItem 
-                    onClick={() => onStatusChange('open')} 
-                    data-testid="dropdown-reopen-conversation"
-                  >
-                    <Check className="w-4 h-4 mr-2" />
-                    Reopen Conversation
-                  </DropdownMenuItem>
-                )}
-                
-                {/* Close - hidden for already closed conversations */}
-                {conversationStatus !== 'closed' && (
-                  <DropdownMenuItem onClick={() => setIsCloseDialogOpen(true)} data-testid="dropdown-close-conversation">
-                    <X className="w-4 h-4 mr-2" />
-                    Close Conversation
-                  </DropdownMenuItem>
-                )}
-
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Contact</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                
-                <DropdownMenuItem data-testid="dropdown-call-customer">
-                  <Phone className="w-4 h-4 mr-2" />
-                  Call Customer
-                </DropdownMenuItem>
-                
-                <DropdownMenuItem data-testid="dropdown-video-call">
-                  <Video className="w-4 h-4 mr-2" />
-                  Video Call
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Hidden Dialogs and Popovers - Triggered from dropdown */}
+      {/* Hidden Dialogs and Popovers - Triggered from dropdown */}
             <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
               <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
