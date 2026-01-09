@@ -195,13 +195,14 @@ export default function VoiceConversationDialog({
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     const recognition = new SpeechRecognition();
     
-    // Only use continuous mode when user explicitly selects it
-    // Push-to-talk uses non-continuous to prevent iOS Safari freezes
-    recognition.continuous = voiceMode === 'continuous';
+    // Use continuous mode for both - we'll handle the stopping manually
+    // Non-continuous mode on iOS Safari doesn't process results reliably
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = language;
 
     recognition.onstart = () => {
+      console.log('[Voice] Recognition started, mode:', voiceMode);
       setIsListening(true);
       setTranscript('');
       accumulatedTranscriptRef.current = '';
@@ -221,6 +222,8 @@ export default function VoiceConversationDialog({
         }
       }
       
+      console.log('[Voice] Result - final:', finalTranscript, 'interim:', interimTranscript);
+      
       if (finalTranscript) {
         accumulatedTranscriptRef.current += ' ' + finalTranscript;
         accumulatedTranscriptRef.current = accumulatedTranscriptRef.current.trim();
@@ -228,6 +231,7 @@ export default function VoiceConversationDialog({
       
       const displayText = accumulatedTranscriptRef.current + (interimTranscript ? ' ' + interimTranscript : '');
       setTranscript(displayText.trim());
+      console.log('[Voice] Display text:', displayText.trim());
       
       lastSpeechTimestampRef.current = Date.now();
       
@@ -253,8 +257,10 @@ export default function VoiceConversationDialog({
     };
 
     recognition.onend = () => {
+      console.log('[Voice] Recognition ended naturally');
       setIsListening(false);
       clearTimers();
+      setIsPushToTalkActive(false);
     };
 
     recognitionRef.current = recognition;
@@ -264,15 +270,25 @@ export default function VoiceConversationDialog({
   const stopListening = useCallback((shouldSend: boolean = true) => {
     clearTimers();
     
+    // Capture the text before stopping recognition
+    const textToSend = accumulatedTranscriptRef.current.trim() || transcript.trim();
+    console.log('[Voice] stopListening called, shouldSend:', shouldSend, 'text:', textToSend);
+    
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        // Use abort() for cleaner stop on iOS Safari to prevent freezes
+        if (voiceMode === 'pushToTalk' && recognitionRef.current.abort) {
+          recognitionRef.current.abort();
+        } else {
+          recognitionRef.current.stop();
+        }
+      } catch (e) {
+        console.log('[Voice] Error stopping recognition:', e);
+      }
+      recognitionRef.current = null;
     }
     setIsListening(false);
     setIsPushToTalkActive(false);
-    
-    // Use transcript state (includes interim results) if accumulated is empty
-    // This ensures we capture speech even if final results haven't come through yet
-    const textToSend = accumulatedTranscriptRef.current.trim() || transcript.trim();
     
     if (shouldSend && textToSend) {
       sendMessage(textToSend);
@@ -280,7 +296,7 @@ export default function VoiceConversationDialog({
       setTranscript('');
       accumulatedTranscriptRef.current = '';
     }
-  }, [sendMessage, clearTimers, transcript]);
+  }, [sendMessage, clearTimers, transcript, voiceMode]);
 
   const toggleListening = useCallback(() => {
     if (voiceMode === 'continuous') {
