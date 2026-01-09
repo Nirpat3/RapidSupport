@@ -12,6 +12,8 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'gpt-3.5-turbo': { input: 0.50, output: 1.50 },
   'text-embedding-3-small': { input: 0.02, output: 0 },
   'text-embedding-3-large': { input: 0.13, output: 0 },
+  'tts-1': { input: 15.00, output: 0 }, // $15 per 1M characters
+  'tts-1-hd': { input: 30.00, output: 0 }, // $30 per 1M characters
 };
 
 // Calculate cost based on model and token counts
@@ -3177,5 +3179,182 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
         }
       };
     }
+  }
+
+  /**
+   * Convert text to speech using OpenAI TTS API
+   * Returns audio as base64 encoded string
+   */
+  static async textToSpeech(
+    text: string,
+    options?: {
+      voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+      model?: 'tts-1' | 'tts-1-hd';
+      speed?: number;
+      conversationId?: string;
+    }
+  ): Promise<{ audio: string; format: string }> {
+    const startTime = Date.now();
+    const voice = options?.voice || 'nova'; // Nova is friendly and natural
+    const model = options?.model || 'tts-1'; // Standard quality for faster response
+    const speed = options?.speed || 1.0;
+
+    try {
+      const response = await openai.audio.speech.create({
+        model,
+        voice,
+        input: text,
+        speed,
+        response_format: 'mp3'
+      });
+
+      const latencyMs = Date.now() - startTime;
+
+      // Track TTS usage (characters instead of tokens)
+      const charCount = text.length;
+      try {
+        const tokenRecord: InsertAiTokenUsage = {
+          conversationId: options?.conversationId,
+          model,
+          operation: 'text_to_speech',
+          promptTokens: charCount, // Using char count for TTS
+          completionTokens: 0,
+          totalTokens: charCount,
+          costUsd: ((charCount / 1_000_000) * MODEL_PRICING[model].input).toFixed(6),
+          latencyMs,
+          occurredAt: new Date()
+        };
+        await storage.createAiTokenUsage(tokenRecord);
+      } catch (e) {
+        console.error('[TTS] Failed to track usage:', e);
+      }
+
+      // Convert to base64
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const audio = buffer.toString('base64');
+
+      console.log(`[TTS] Generated ${charCount} chars in ${latencyMs}ms`);
+
+      return { audio, format: 'mp3' };
+    } catch (error) {
+      console.error('[TTS] Error generating speech:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate a conversational voice response optimized for spoken delivery
+   * Uses more natural, human-like phrasing suitable for TTS
+   */
+  static async generateVoiceResponse(
+    customerMessage: string,
+    conversationHistory: Array<{ role: string; content: string }>,
+    agentId?: string,
+    language: string = 'en'
+  ): Promise<{
+    response: string;
+    knowledgeLinks: Array<{ id: string; title: string }>;
+    confidence: number;
+    requiresHumanTakeover: boolean;
+  }> {
+    // Get agent or default
+    let agent: AiAgent | undefined;
+    if (agentId) {
+      agent = await storage.getAiAgentById(agentId);
+    }
+    if (!agent) {
+      const agents = await storage.getAiAgents();
+      agent = agents.find(a => a.name.includes('General')) || agents[0];
+    }
+
+    if (!agent) {
+      return {
+        response: "I'm sorry, I couldn't process that. Let me connect you with a human agent.",
+        knowledgeLinks: [],
+        confidence: 0,
+        requiresHumanTakeover: true
+      };
+    }
+
+    // Search knowledge base
+    const searchResults = await knowledgeRetrieval.search(customerMessage, {
+      limit: 3,
+      minSimilarity: 0.5
+    });
+
+    // Build context from knowledge
+    const knowledgeContext = searchResults.map(r => 
+      `[${r.chunk.title}]: ${r.chunk.content.substring(0, 500)}`
+    ).join('\n\n');
+
+    // Language instruction
+    const languageNames: Record<string, string> = {
+      'es': 'Spanish', 'de': 'German', 'fr': 'French',
+      'zh': 'Chinese', 'hi': 'Hindi', 'gu': 'Gujarati'
+    };
+    const langInstruction = language !== 'en' 
+      ? `Respond in ${languageNames[language] || language}.` 
+      : '';
+
+    const systemPrompt = `You are a friendly, helpful voice assistant. Your responses will be spoken aloud, so:
+- Use natural, conversational language
+- Avoid markdown formatting, bullets, or numbered lists
+- Keep responses concise (2-4 sentences max)
+- Use contractions and casual phrasing
+- If giving steps, phrase them naturally like "First, you'll want to... Then..."
+- Be warm and personable
+
+${langInstruction}
+
+KNOWLEDGE BASE:
+${knowledgeContext || 'No specific knowledge available for this query.'}
+
+If the knowledge base doesn't help, acknowledge this and offer to connect them with a human.`;
+
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      ...conversationHistory.slice(-6).map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      })),
+      { role: 'user' as const, content: customerMessage }
+    ];
+
+    const startTime = Date.now();
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      temperature: 0.7,
+      max_tokens: 300
+    });
+    const latencyMs = Date.now() - startTime;
+
+    // Track token usage
+    await trackTokenUsage(
+      completion.usage,
+      'gpt-4o-mini',
+      'voice_response',
+      { latencyMs }
+    );
+
+    const response = completion.choices[0].message.content || 
+      "I'm sorry, I didn't catch that. Could you repeat?";
+
+    // Extract knowledge links
+    const knowledgeLinks = searchResults.slice(0, 2).map(r => ({
+      id: r.chunk.knowledgeBaseId,
+      title: r.chunk.metadata.sourceTitle || r.chunk.title
+    }));
+
+    const shouldHandoff = searchResults.length === 0 || 
+      response.toLowerCase().includes('connect you with') ||
+      response.toLowerCase().includes('human agent');
+
+    return {
+      response,
+      knowledgeLinks,
+      confidence: searchResults.length > 0 ? 70 : 30,
+      requiresHumanTakeover: shouldHandoff
+    };
   }
 }

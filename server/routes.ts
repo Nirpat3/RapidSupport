@@ -10606,6 +10606,103 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // ============================================================================
+  // VOICE CONVERSATION API ENDPOINTS
+  // ============================================================================
+
+  // Text-to-Speech endpoint
+  app.post('/api/voice/tts', async (req, res) => {
+    try {
+      const { text, voice, conversationId } = req.body;
+      
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: 'Text is required' });
+      }
+      
+      if (text.length > 4096) {
+        return res.status(400).json({ error: 'Text too long (max 4096 characters)' });
+      }
+      
+      const result = await AIService.textToSpeech(text, {
+        voice: voice || 'nova',
+        conversationId
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error('TTS error:', error);
+      res.status(500).json({ error: 'Failed to generate speech' });
+    }
+  });
+
+  // Voice conversation endpoint - generates AI response optimized for voice
+  app.post('/api/voice/chat', async (req, res) => {
+    try {
+      const { message, conversationHistory, agentId, language, conversationId } = req.body;
+      
+      if (!message || typeof message !== 'string') {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+      
+      // Generate voice-optimized response
+      const aiResponse = await AIService.generateVoiceResponse(
+        message,
+        conversationHistory || [],
+        agentId,
+        language || 'en'
+      );
+      
+      // Generate TTS audio for the response
+      const ttsResult = await AIService.textToSpeech(aiResponse.response, {
+        voice: 'nova',
+        conversationId
+      });
+      
+      // If there's an active conversation, save the messages
+      if (conversationId) {
+        try {
+          // Save customer message
+          await storage.createMessage({
+            conversationId,
+            content: message,
+            senderType: 'customer',
+            metadata: { modality: 'voice', language: language || 'en' }
+          });
+          
+          // Save AI response with KB links
+          const kbLinks = aiResponse.knowledgeLinks.length > 0
+            ? `\n\n**Related Resources:**\n${aiResponse.knowledgeLinks.map(l => `- [${l.title}](/kb/${l.id})`).join('\n')}`
+            : '';
+          
+          await storage.createMessage({
+            conversationId,
+            content: aiResponse.response + kbLinks,
+            senderType: 'ai',
+            metadata: { 
+              modality: 'voice', 
+              confidence: aiResponse.confidence,
+              knowledgeLinks: aiResponse.knowledgeLinks
+            }
+          });
+        } catch (e) {
+          console.error('[Voice] Failed to save messages:', e);
+        }
+      }
+      
+      res.json({
+        response: aiResponse.response,
+        audio: ttsResult.audio,
+        audioFormat: ttsResult.format,
+        knowledgeLinks: aiResponse.knowledgeLinks,
+        confidence: aiResponse.confidence,
+        requiresHumanTakeover: aiResponse.requiresHumanTakeover
+      });
+    } catch (error) {
+      console.error('Voice chat error:', error);
+      res.status(500).json({ error: 'Failed to process voice request' });
+    }
+  });
+
+  // ============================================================================
   // AI TOKEN USAGE & BILLING API ENDPOINTS
   // ============================================================================
 
