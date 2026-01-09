@@ -3,11 +3,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Mic, MicOff, Volume2, VolumeX, X, Loader2, MessageSquare, ExternalLink } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Mic, MicOff, Volume2, VolumeX, Loader2, ExternalLink, Hand, Radio } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
+
+type VoiceMode = 'pushToTalk' | 'continuous';
 
 interface VoiceMessage {
   id: string;
@@ -47,10 +50,19 @@ export default function VoiceConversationDialog({
   const [language, setLanguage] = useState('en-US');
   const [messages, setMessages] = useState<VoiceMessage[]>([]);
   const [audioMuted, setAudioMuted] = useState(false);
+  const [voiceMode, setVoiceMode] = useState<VoiceMode>(() => {
+    const saved = localStorage.getItem('voiceMode');
+    return (saved === 'pushToTalk' || saved === 'continuous') ? saved : 'pushToTalk';
+  });
+  const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
   
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSpeechTimestampRef = useRef<number>(0);
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const accumulatedTranscriptRef = useRef<string>('');
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -59,6 +71,21 @@ export default function VoiceConversationDialog({
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    localStorage.setItem('voiceMode', voiceMode);
+  }, [voiceMode]);
+
+  const clearTimers = useCallback(() => {
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  }, []);
 
   const voiceChatMutation = useMutation({
     mutationFn: async (message: string) => {
@@ -122,6 +149,22 @@ export default function VoiceConversationDialog({
     }
   }, []);
 
+  const sendMessage = useCallback((text: string) => {
+    if (!text.trim()) return;
+    
+    const userMessage: VoiceMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text.trim(),
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setIsProcessing(true);
+    voiceChatMutation.mutate(text.trim());
+    setTranscript('');
+    accumulatedTranscriptRef.current = '';
+  }, [voiceChatMutation]);
+
   const startListening = useCallback(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       alert('Voice recognition is not supported in your browser. Please use Chrome or Edge.');
@@ -138,6 +181,8 @@ export default function VoiceConversationDialog({
     recognition.onstart = () => {
       setIsListening(true);
       setTranscript('');
+      accumulatedTranscriptRef.current = '';
+      lastSpeechTimestampRef.current = Date.now();
     };
 
     recognition.onresult = (event: any) => {
@@ -153,49 +198,93 @@ export default function VoiceConversationDialog({
         }
       }
       
-      setTranscript(finalTranscript || interimTranscript);
+      if (finalTranscript) {
+        accumulatedTranscriptRef.current += ' ' + finalTranscript;
+        accumulatedTranscriptRef.current = accumulatedTranscriptRef.current.trim();
+      }
+      
+      const displayText = accumulatedTranscriptRef.current + (interimTranscript ? ' ' + interimTranscript : '');
+      setTranscript(displayText.trim());
+      
+      lastSpeechTimestampRef.current = Date.now();
+      
+      if (voiceMode === 'continuous') {
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current);
+        }
+        silenceTimerRef.current = setTimeout(() => {
+          if (accumulatedTranscriptRef.current.trim()) {
+            sendMessage(accumulatedTranscriptRef.current);
+            if (recognitionRef.current) {
+              recognitionRef.current.stop();
+            }
+          }
+        }, 2500);
+      }
     };
 
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
+      clearTimers();
     };
 
     recognition.onend = () => {
       setIsListening(false);
+      clearTimers();
     };
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [language]);
+  }, [language, voiceMode, sendMessage, clearTimers]);
 
-  const stopListening = useCallback(() => {
+  const stopListening = useCallback((shouldSend: boolean = true) => {
+    clearTimers();
+    
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
     setIsListening(false);
+    setIsPushToTalkActive(false);
     
-    if (transcript.trim()) {
-      const userMessage: VoiceMessage = {
-        id: crypto.randomUUID(),
-        role: 'user',
-        content: transcript,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, userMessage]);
-      setIsProcessing(true);
-      voiceChatMutation.mutate(transcript);
+    if (shouldSend && accumulatedTranscriptRef.current.trim()) {
+      sendMessage(accumulatedTranscriptRef.current);
+    } else {
       setTranscript('');
+      accumulatedTranscriptRef.current = '';
     }
-  }, [transcript, voiceChatMutation]);
+  }, [sendMessage, clearTimers]);
 
   const toggleListening = useCallback(() => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
+    if (voiceMode === 'continuous') {
+      if (isListening) {
+        stopListening(true);
+      } else {
+        startListening();
+      }
     }
-  }, [isListening, startListening, stopListening]);
+  }, [isListening, startListening, stopListening, voiceMode]);
+
+  const handlePushToTalkStart = useCallback(() => {
+    if (voiceMode !== 'pushToTalk' || isProcessing || isSpeaking) return;
+    
+    holdTimerRef.current = setTimeout(() => {
+      setIsPushToTalkActive(true);
+      startListening();
+    }, 150);
+  }, [voiceMode, isProcessing, isSpeaking, startListening]);
+
+  const handlePushToTalkEnd = useCallback(() => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    
+    if (isPushToTalkActive && isListening) {
+      stopListening(true);
+    }
+    setIsPushToTalkActive(false);
+  }, [isPushToTalkActive, isListening, stopListening]);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -214,13 +303,16 @@ export default function VoiceConversationDialog({
   useEffect(() => {
     if (!open) {
       stopAudio();
+      clearTimers();
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
       setIsListening(false);
+      setIsPushToTalkActive(false);
       setTranscript('');
+      accumulatedTranscriptRef.current = '';
     }
-  }, [open, stopAudio]);
+  }, [open, stopAudio, clearTimers]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -257,11 +349,15 @@ export default function VoiceConversationDialog({
 
         <ScrollArea className="flex-1 p-4">
           <div className="space-y-4">
-            {messages.length === 0 && !isListening && (
+            {messages.length === 0 && !isListening && !isPushToTalkActive && (
               <div className="flex flex-col items-center justify-center h-48 text-center text-muted-foreground">
                 <Mic className="w-12 h-12 mb-4 opacity-50" />
                 <p className="text-lg font-medium">Start a voice conversation</p>
-                <p className="text-sm">Click the microphone button below and speak</p>
+                <p className="text-sm">
+                  {voiceMode === 'pushToTalk' 
+                    ? 'Hold the button below and speak'
+                    : 'Click to start - auto-sends after you stop speaking'}
+                </p>
               </div>
             )}
 
@@ -341,6 +437,28 @@ export default function VoiceConversationDialog({
 
         <div className="p-4 border-t">
           <div className="flex flex-col items-center gap-3">
+            <ToggleGroup
+              type="single"
+              value={voiceMode}
+              onValueChange={(value) => value && setVoiceMode(value as VoiceMode)}
+              className="bg-muted rounded-lg p-1"
+            >
+              <ToggleGroupItem
+                value="pushToTalk"
+                className="data-[state=on]:bg-background data-[state=on]:shadow-sm px-3 gap-1.5"
+              >
+                <Hand className="w-4 h-4" />
+                <span className="text-xs">Push to Talk</span>
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="continuous"
+                className="data-[state=on]:bg-background data-[state=on]:shadow-sm px-3 gap-1.5"
+              >
+                <Radio className="w-4 h-4" />
+                <span className="text-xs">Continuous</span>
+              </ToggleGroupItem>
+            </ToggleGroup>
+
             {isSpeaking && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="flex gap-1">
@@ -357,27 +475,72 @@ export default function VoiceConversationDialog({
             )}
 
             <div className="flex items-center gap-4">
-              <Button
-                size="lg"
-                variant={isListening ? "destructive" : "default"}
-                className={`rounded-full w-16 h-16 ${isListening ? 'animate-pulse' : ''}`}
-                onClick={toggleListening}
-                disabled={isProcessing || isSpeaking}
-              >
-                {isListening ? (
-                  <MicOff className="w-6 h-6" />
-                ) : (
-                  <Mic className="w-6 h-6" />
-                )}
-              </Button>
+              {voiceMode === 'pushToTalk' ? (
+                <Button
+                  size="lg"
+                  variant={isPushToTalkActive ? "destructive" : "default"}
+                  className={cn(
+                    "rounded-full w-20 h-20 transition-all select-none touch-none",
+                    isPushToTalkActive && "scale-110 ring-4 ring-destructive/30"
+                  )}
+                  onMouseDown={handlePushToTalkStart}
+                  onMouseUp={handlePushToTalkEnd}
+                  onMouseLeave={handlePushToTalkEnd}
+                  onTouchStart={handlePushToTalkStart}
+                  onTouchEnd={handlePushToTalkEnd}
+                  onTouchCancel={handlePushToTalkEnd}
+                  disabled={isProcessing || isSpeaking}
+                >
+                  {isPushToTalkActive ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <Mic className="w-6 h-6 animate-pulse" />
+                      <span className="text-[10px]">Release</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1">
+                      <Hand className="w-6 h-6" />
+                      <span className="text-[10px]">Hold</span>
+                    </div>
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  size="lg"
+                  variant={isListening ? "destructive" : "default"}
+                  className={cn(
+                    "rounded-full w-20 h-20 transition-all",
+                    isListening && "ring-4 ring-destructive/30 animate-pulse"
+                  )}
+                  onClick={toggleListening}
+                  disabled={isProcessing || isSpeaking}
+                >
+                  {isListening ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <MicOff className="w-6 h-6" />
+                      <span className="text-[10px]">Stop</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1">
+                      <Radio className="w-6 h-6" />
+                      <span className="text-[10px]">Start</span>
+                    </div>
+                  )}
+                </Button>
+              )}
             </div>
 
-            <p className="text-xs text-muted-foreground text-center">
-              {isListening 
-                ? 'Listening... Click to stop and send' 
-                : isProcessing 
-                  ? 'Processing your message...'
-                  : 'Click microphone to start speaking'}
+            <p className="text-xs text-muted-foreground text-center max-w-xs">
+              {voiceMode === 'pushToTalk' 
+                ? isPushToTalkActive
+                  ? 'Listening... Release to send'
+                  : isProcessing 
+                    ? 'Processing your message...'
+                    : 'Hold the button and speak, release to send'
+                : isListening 
+                  ? 'Listening... Click to stop or wait for auto-send' 
+                  : isProcessing 
+                    ? 'Processing your message...'
+                    : 'Click to start - auto-sends after silence'}
             </p>
           </div>
         </div>
