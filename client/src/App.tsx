@@ -44,6 +44,8 @@ import InstallAppPage from "@/pages/InstallAppPage";
 import ChannelSettingsPage from "@/pages/ChannelSettingsPage";
 import LeadTrackingPage from "@/pages/LeadTrackingPage";
 import BrandingSettingsPage from "@/pages/BrandingSettingsPage";
+import PlatformAdminPage from "@/pages/PlatformAdminPage";
+import WorkspaceAdminPage from "@/pages/WorkspaceAdminPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
 import NotFound from "@/pages/not-found";
@@ -52,6 +54,16 @@ function Router() {
   return (
     <Switch>
       <Route path="/mockup" component={MockupPage} />
+      <Route path="/platform-admin">
+        <PermissionGuard feature="platform-admin">
+          <PlatformAdminPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/workspace-admin">
+        <PermissionGuard feature="workspace-admin">
+          <WorkspaceAdminPage />
+        </PermissionGuard>
+      </Route>
       <Route path="/admin">
         <PermissionGuard feature="conversations">
           <ConversationsPage />

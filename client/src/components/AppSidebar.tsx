@@ -39,7 +39,9 @@ import {
   Zap,
   Smartphone,
   Share2,
-  Palette
+  Palette,
+  Crown,
+  Building2
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -175,6 +177,18 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     title: "Settings",
     url: "/settings",
     icon: Settings,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Platform Admin",
+    url: "/platform-admin",
+    icon: Crown,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Workspace Admin",
+    url: "/workspace-admin",
+    icon: Building2,
     allowedRoles: ['admin']
   }
 ];
