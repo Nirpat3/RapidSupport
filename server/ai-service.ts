@@ -1888,6 +1888,7 @@ The more details you can share, the better I can help you resolve this quickly!"
         ],
         temperature: (agent.temperature || 30) / 100,
         max_tokens: agent.maxTokens || 1000,
+        response_format: { type: "json_object" }  // Enforce JSON output
       });
       const latencyMs = Date.now() - startTime;
 
@@ -1903,13 +1904,38 @@ The more details you can share, the better I can help you resolve this quickly!"
         }
       );
 
-      // Parse AI response, handling markdown code blocks if present
+      // Parse AI response with robust fallback handling
       let responseContent = completion.choices[0].message.content || '{}';
       
       // Remove markdown code blocks if present (```json ... ```)
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
       
-      const result = JSON.parse(responseContent);
+      let result: {
+        response?: string;
+        confidence?: number;
+        requiresHumanTakeover?: boolean;
+        suggestedActions?: string[];
+        format?: string;
+      };
+      
+      try {
+        result = JSON.parse(responseContent);
+      } catch (parseError) {
+        // Log the raw response for debugging
+        console.error('Failed to parse AI response as JSON, using fallback. Raw response:', responseContent.substring(0, 200));
+        
+        // Create a deterministic fallback using the raw response as the message
+        // This ensures customers still get a helpful response even if JSON parsing fails
+        result = {
+          response: responseContent.startsWith('{') 
+            ? "I'm having a technical issue processing your request. Let me connect you with a human agent who can help."
+            : responseContent, // Use the plain text response directly
+          confidence: 60,
+          requiresHumanTakeover: responseContent.startsWith('{'), // Only require takeover if we got malformed JSON
+          suggestedActions: [],
+          format: 'regular'
+        };
+      }
       
       // Update knowledge base usage statistics (if storage methods exist)
       if (searchResults.length > 0) {
