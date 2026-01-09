@@ -8,12 +8,13 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Shield, Palette, Globe, Bot, Loader2, CreditCard, TrendingUp, Zap, BookOpen, ArrowUp, ArrowDown } from "lucide-react";
+import { Bell, Shield, Palette, Globe, Bot, Loader2, CreditCard, TrendingUp, Zap, BookOpen, ArrowUp, ArrowDown, Mic, Plus, X } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
+import { getCustomVocabulary, addCustomVocabularyTerm, removeCustomVocabularyTerm } from "@/lib/domainVocabulary";
 
 interface EngagementSettings {
   id: string;
@@ -80,6 +81,36 @@ export default function SettingsPage() {
     aiCustomerPortalEnabled: true,
     aiStaffConversationsEnabled: true
   });
+
+  const [customVocabulary, setCustomVocabulary] = useState<Array<{ term: string; aliases: string[] }>>([]);
+  const [newTerm, setNewTerm] = useState('');
+  const [newAliases, setNewAliases] = useState('');
+
+  useEffect(() => {
+    setCustomVocabulary(getCustomVocabulary());
+  }, []);
+
+  const handleAddTerm = () => {
+    if (!newTerm.trim()) return;
+    const aliases = newAliases.split(',').map(a => a.trim()).filter(a => a);
+    addCustomVocabularyTerm(newTerm.trim(), aliases);
+    setCustomVocabulary(getCustomVocabulary());
+    setNewTerm('');
+    setNewAliases('');
+    toast({
+      title: "Term added",
+      description: `"${newTerm}" has been added to your vocabulary.`,
+    });
+  };
+
+  const handleRemoveTerm = (term: string) => {
+    removeCustomVocabularyTerm(term);
+    setCustomVocabulary(getCustomVocabulary());
+    toast({
+      title: "Term removed",
+      description: `"${term}" has been removed from your vocabulary.`,
+    });
+  };
 
   useEffect(() => {
     if (aiSettings) {
@@ -239,6 +270,91 @@ export default function SettingsPage() {
                     )}
                   </>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Mic className="w-5 h-5" />
+                  Voice Vocabulary
+                </CardTitle>
+                <CardDescription>
+                  Add custom terms to improve voice recognition accuracy
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-term">Add New Term</Label>
+                    <Input
+                      id="new-term"
+                      placeholder="e.g., PAX, Clover, Square"
+                      value={newTerm}
+                      onChange={(e) => setNewTerm(e.target.value)}
+                      data-testid="input-new-term"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-aliases">Aliases (comma-separated)</Label>
+                    <Input
+                      id="new-aliases"
+                      placeholder="e.g., packs, pax terminal, PAX A920"
+                      value={newAliases}
+                      onChange={(e) => setNewAliases(e.target.value)}
+                      data-testid="input-new-aliases"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Add common misspellings or variations that voice recognition might pick up
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleAddTerm}
+                    disabled={!newTerm.trim()}
+                    className="w-full"
+                    data-testid="button-add-term"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Term
+                  </Button>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-2">
+                  <Label>Custom Terms ({customVocabulary.length})</Label>
+                  {customVocabulary.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-2">
+                      No custom terms added yet. Add industry-specific terms to improve voice recognition.
+                    </p>
+                  ) : (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {customVocabulary.map((item) => (
+                        <div
+                          key={item.term}
+                          className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <span className="font-medium">{item.term}</span>
+                            {item.aliases.length > 0 && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                Aliases: {item.aliases.join(', ')}
+                              </p>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveTerm(item.term)}
+                            data-testid={`button-remove-${item.term}`}
+                          >
+                            <X className="w-4 h-4 text-muted-foreground hover:text-destructive" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 

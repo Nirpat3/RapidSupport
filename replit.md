@@ -50,6 +50,14 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **AI Management**: A central hub for configuring AI agents, monitoring performance, and overseeing human intervention in AI conversations.
 - **Knowledge Base Integration**: AI analyzes uploaded documents (TXT, PDF, DOCX) to extract metadata, generate FAQs, and suggest agent assignments. Documents are automatically chunked and indexed with vector embeddings in PostgreSQL.
 - **Rich Media Input**: Supports file attachments (drag-drop, multi-file), camera capture, emoji picker, and voice-to-text.
+- **Voice Recognition Vocabulary Correction**: Domain-specific vocabulary correction system for voice input accuracy:
+    - **Industry Vocabulary**: 30+ pre-defined industry terms (PAX, POS, EMV, NFC, API, etc.) with common misheard aliases
+    - **Fuzzy Matching**: Levenshtein distance algorithm with 75% confidence threshold for automatic correction
+    - **Multi-word Phrase Support**: Recognizes and corrects two-word phrases like "PAX terminal" and "POS system"
+    - **KB Keywords Integration**: Automatically extracts keywords from knowledge base articles via `/api/knowledge-base/keywords`
+    - **Custom Vocabulary**: Admin UI in Settings page to add/remove custom terms with aliases, persisted in localStorage
+    - **Visual Feedback**: Correction indicator in VoiceConversationDialog shows what terms were auto-corrected with tooltip details
+    - **Voice Modes**: Push-to-Talk (150ms hold threshold) and Continuous Listening (2500ms silence detection) with localStorage persistence
 - **User Identification**: IP-based identification and `sessionId` tracking for returning customers.
 - **Unread Tracking & Notifications**: Comprehensive system for tracking message read status, unread counts, and real-time notifications with WebSocket synchronization.
 - **AI Learning System**: An active learning pipeline for continuous AI improvement from human feedback, including a "Teach AI" feature and a Training Queue Dashboard.
