@@ -137,6 +137,30 @@ import {
   type InsertEmailQueue,
   type EngagementSettings,
   type InsertEngagementSettings,
+  docDomains,
+  docIntents,
+  documents,
+  documentVersions,
+  documentRelationships,
+  documentReviewQueue,
+  documentImportJobs,
+  documentChunks,
+  type DocDomain,
+  type InsertDocDomain,
+  type DocIntent,
+  type InsertDocIntent,
+  type Document,
+  type InsertDocument,
+  type DocumentVersion,
+  type InsertDocumentVersion,
+  type DocumentRelationship,
+  type InsertDocumentRelationship,
+  type DocumentReviewQueue,
+  type InsertDocumentReviewQueue,
+  type DocumentImportJob,
+  type InsertDocumentImportJob,
+  type DocumentChunk,
+  type InsertDocumentChunk,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -547,6 +571,73 @@ export interface IStorage {
   
   // Multi-agent participation tracking
   addParticipatingAgent(conversationId: string, agentId: string): Promise<void>;
+
+  // ============================================================================
+  // DOCUMENTATION FRAMEWORK OPERATIONS
+  // ============================================================================
+
+  // Document Domain operations
+  getDocDomain(id: string): Promise<DocDomain | undefined>;
+  getDocDomainsByWorkspace(workspaceId: string): Promise<DocDomain[]>;
+  createDocDomain(domain: InsertDocDomain): Promise<DocDomain>;
+  updateDocDomain(id: string, updates: Partial<InsertDocDomain>): Promise<DocDomain>;
+  deleteDocDomain(id: string): Promise<void>;
+
+  // Document Intent operations
+  getDocIntent(id: string): Promise<DocIntent | undefined>;
+  getDocIntentsByWorkspace(workspaceId: string): Promise<DocIntent[]>;
+  createDocIntent(intent: InsertDocIntent): Promise<DocIntent>;
+  updateDocIntent(id: string, updates: Partial<InsertDocIntent>): Promise<DocIntent>;
+  deleteDocIntent(id: string): Promise<void>;
+
+  // Document operations
+  getDocument(id: string): Promise<Document | undefined>;
+  getDocumentBySlug(slug: string, workspaceId: string): Promise<Document | undefined>;
+  getDocumentsByWorkspace(workspaceId: string, filters?: { 
+    domainId?: string; 
+    intentId?: string; 
+    status?: string; 
+    search?: string;
+  }): Promise<Document[]>;
+  createDocument(doc: InsertDocument): Promise<Document>;
+  updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document>;
+  deleteDocument(id: string): Promise<void>;
+
+  // Document Version operations
+  getDocumentVersion(id: string): Promise<DocumentVersion | undefined>;
+  getDocumentVersionsByDocument(documentId: string): Promise<DocumentVersion[]>;
+  getLatestDocumentVersion(documentId: string): Promise<DocumentVersion | undefined>;
+  createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion>;
+  updateDocumentVersion(id: string, updates: Partial<InsertDocumentVersion>): Promise<DocumentVersion>;
+  publishDocumentVersion(id: string): Promise<DocumentVersion>;
+
+  // Document Relationship operations
+  getDocumentRelationships(documentId: string): Promise<DocumentRelationship[]>;
+  createDocumentRelationship(relationship: InsertDocumentRelationship): Promise<DocumentRelationship>;
+  deleteDocumentRelationship(id: string): Promise<void>;
+
+  // Document Review Queue operations
+  getDocumentReviewQueue(workspaceId: string, status?: string): Promise<Array<DocumentReviewQueue & { version: DocumentVersion; document: Document }>>;
+  createDocumentReviewQueueEntry(entry: InsertDocumentReviewQueue): Promise<DocumentReviewQueue>;
+  updateDocumentReviewQueueEntry(id: string, updates: Partial<InsertDocumentReviewQueue>): Promise<DocumentReviewQueue>;
+  approveDocumentReview(id: string, reviewerId: string, notes?: string): Promise<void>;
+  rejectDocumentReview(id: string, reviewerId: string, notes: string): Promise<void>;
+
+  // Document Import Job operations
+  getDocumentImportJob(id: string): Promise<DocumentImportJob | undefined>;
+  getDocumentImportJobsByWorkspace(workspaceId: string): Promise<DocumentImportJob[]>;
+  createDocumentImportJob(job: InsertDocumentImportJob): Promise<DocumentImportJob>;
+  updateDocumentImportJob(id: string, updates: Partial<InsertDocumentImportJob>): Promise<DocumentImportJob>;
+
+  // Document Chunk operations (for RAG)
+  getDocumentChunksByDocument(documentId: string): Promise<DocumentChunk[]>;
+  createDocumentChunk(chunk: InsertDocumentChunk): Promise<DocumentChunk>;
+  createDocumentChunksBatch(chunks: InsertDocumentChunk[]): Promise<DocumentChunk[]>;
+  deleteDocumentChunksByVersion(versionId: string): Promise<void>;
+  searchDocumentChunksByVector(queryEmbedding: number[], workspaceId: string, limit: number): Promise<Array<{ chunk: DocumentChunk; similarity: number }>>;
+
+  // AI Export endpoint helper
+  getDocumentsForAIExport(workspaceId: string, filters?: { domain?: string; role?: string; status?: string }): Promise<Array<Document & { currentVersionContent: DocumentVersion | null; relationships: DocumentRelationship[] }>>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -4684,6 +4775,427 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(conversations.id, conversationId));
     }
+  }
+
+  // ============================================================================
+  // DOCUMENTATION FRAMEWORK IMPLEMENTATIONS
+  // ============================================================================
+
+  // Document Domain operations
+  async getDocDomain(id: string): Promise<DocDomain | undefined> {
+    const [domain] = await db.select().from(docDomains).where(eq(docDomains.id, id));
+    return domain || undefined;
+  }
+
+  async getDocDomainsByWorkspace(workspaceId: string): Promise<DocDomain[]> {
+    return await db
+      .select()
+      .from(docDomains)
+      .where(eq(docDomains.workspaceId, workspaceId))
+      .orderBy(asc(docDomains.displayOrder));
+  }
+
+  async createDocDomain(domain: InsertDocDomain): Promise<DocDomain> {
+    const [created] = await db.insert(docDomains).values(domain).returning();
+    return created;
+  }
+
+  async updateDocDomain(id: string, updates: Partial<InsertDocDomain>): Promise<DocDomain> {
+    const [updated] = await db
+      .update(docDomains)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(docDomains.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDocDomain(id: string): Promise<void> {
+    await db.delete(docDomains).where(eq(docDomains.id, id));
+  }
+
+  // Document Intent operations
+  async getDocIntent(id: string): Promise<DocIntent | undefined> {
+    const [intent] = await db.select().from(docIntents).where(eq(docIntents.id, id));
+    return intent || undefined;
+  }
+
+  async getDocIntentsByWorkspace(workspaceId: string): Promise<DocIntent[]> {
+    return await db
+      .select()
+      .from(docIntents)
+      .where(eq(docIntents.workspaceId, workspaceId))
+      .orderBy(asc(docIntents.displayOrder));
+  }
+
+  async createDocIntent(intent: InsertDocIntent): Promise<DocIntent> {
+    const [created] = await db.insert(docIntents).values(intent).returning();
+    return created;
+  }
+
+  async updateDocIntent(id: string, updates: Partial<InsertDocIntent>): Promise<DocIntent> {
+    const [updated] = await db
+      .update(docIntents)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(docIntents.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDocIntent(id: string): Promise<void> {
+    await db.delete(docIntents).where(eq(docIntents.id, id));
+  }
+
+  // Document operations
+  async getDocument(id: string): Promise<Document | undefined> {
+    const [doc] = await db.select().from(documents).where(eq(documents.id, id));
+    return doc || undefined;
+  }
+
+  async getDocumentBySlug(slug: string, workspaceId: string): Promise<Document | undefined> {
+    const [doc] = await db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.slug, slug), eq(documents.workspaceId, workspaceId)));
+    return doc || undefined;
+  }
+
+  async getDocumentsByWorkspace(
+    workspaceId: string,
+    filters?: { domainId?: string; intentId?: string; status?: string; search?: string }
+  ): Promise<Document[]> {
+    const conditions = [eq(documents.workspaceId, workspaceId)];
+    
+    if (filters?.domainId) {
+      conditions.push(eq(documents.domainId, filters.domainId));
+    }
+    if (filters?.intentId) {
+      conditions.push(eq(documents.intentId, filters.intentId));
+    }
+    if (filters?.status) {
+      conditions.push(eq(documents.status, filters.status));
+    }
+    if (filters?.search) {
+      conditions.push(
+        or(
+          sql`${documents.title} ILIKE ${'%' + filters.search + '%'}`,
+          sql`${documents.summary} ILIKE ${'%' + filters.search + '%'}`
+        )!
+      );
+    }
+
+    return await db
+      .select()
+      .from(documents)
+      .where(and(...conditions))
+      .orderBy(desc(documents.updatedAt));
+  }
+
+  async createDocument(doc: InsertDocument): Promise<Document> {
+    const [created] = await db.insert(documents).values(doc).returning();
+    return created;
+  }
+
+  async updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document> {
+    const [updated] = await db
+      .update(documents)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(documents.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    await db.delete(documents).where(eq(documents.id, id));
+  }
+
+  // Document Version operations
+  async getDocumentVersion(id: string): Promise<DocumentVersion | undefined> {
+    const [version] = await db.select().from(documentVersions).where(eq(documentVersions.id, id));
+    return version || undefined;
+  }
+
+  async getDocumentVersionsByDocument(documentId: string): Promise<DocumentVersion[]> {
+    return await db
+      .select()
+      .from(documentVersions)
+      .where(eq(documentVersions.documentId, documentId))
+      .orderBy(desc(documentVersions.versionNumber));
+  }
+
+  async getLatestDocumentVersion(documentId: string): Promise<DocumentVersion | undefined> {
+    const [version] = await db
+      .select()
+      .from(documentVersions)
+      .where(eq(documentVersions.documentId, documentId))
+      .orderBy(desc(documentVersions.versionNumber))
+      .limit(1);
+    return version || undefined;
+  }
+
+  async createDocumentVersion(version: InsertDocumentVersion): Promise<DocumentVersion> {
+    const [created] = await db.insert(documentVersions).values(version).returning();
+    return created;
+  }
+
+  async updateDocumentVersion(id: string, updates: Partial<InsertDocumentVersion>): Promise<DocumentVersion> {
+    const [updated] = await db
+      .update(documentVersions)
+      .set(updates)
+      .where(eq(documentVersions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async publishDocumentVersion(id: string): Promise<DocumentVersion> {
+    const [published] = await db
+      .update(documentVersions)
+      .set({ status: 'published', publishedAt: new Date() })
+      .where(eq(documentVersions.id, id))
+      .returning();
+    
+    // Update the parent document's current version
+    if (published) {
+      await db
+        .update(documents)
+        .set({
+          currentVersionId: published.id,
+          currentVersion: published.version,
+          status: 'active',
+          updatedAt: new Date()
+        })
+        .where(eq(documents.id, published.documentId));
+    }
+    
+    return published;
+  }
+
+  // Document Relationship operations
+  async getDocumentRelationships(documentId: string): Promise<DocumentRelationship[]> {
+    return await db
+      .select()
+      .from(documentRelationships)
+      .where(
+        or(
+          eq(documentRelationships.sourceDocumentId, documentId),
+          eq(documentRelationships.targetDocumentId, documentId)
+        )
+      )
+      .orderBy(asc(documentRelationships.displayOrder));
+  }
+
+  async createDocumentRelationship(relationship: InsertDocumentRelationship): Promise<DocumentRelationship> {
+    const [created] = await db.insert(documentRelationships).values(relationship).returning();
+    return created;
+  }
+
+  async deleteDocumentRelationship(id: string): Promise<void> {
+    await db.delete(documentRelationships).where(eq(documentRelationships.id, id));
+  }
+
+  // Document Review Queue operations
+  async getDocumentReviewQueue(
+    workspaceId: string,
+    status?: string
+  ): Promise<Array<DocumentReviewQueue & { version: DocumentVersion; document: Document }>> {
+    const conditions = status ? [eq(documentReviewQueue.status, status)] : [];
+    
+    const results = await db
+      .select({
+        review: documentReviewQueue,
+        version: documentVersions,
+        document: documents
+      })
+      .from(documentReviewQueue)
+      .innerJoin(documentVersions, eq(documentReviewQueue.documentVersionId, documentVersions.id))
+      .innerJoin(documents, eq(documentVersions.documentId, documents.id))
+      .where(
+        and(
+          eq(documents.workspaceId, workspaceId),
+          ...conditions
+        )
+      )
+      .orderBy(desc(documentReviewQueue.createdAt));
+    
+    return results.map(r => ({
+      ...r.review,
+      version: r.version,
+      document: r.document
+    }));
+  }
+
+  async createDocumentReviewQueueEntry(entry: InsertDocumentReviewQueue): Promise<DocumentReviewQueue> {
+    const [created] = await db.insert(documentReviewQueue).values(entry).returning();
+    return created;
+  }
+
+  async updateDocumentReviewQueueEntry(id: string, updates: Partial<InsertDocumentReviewQueue>): Promise<DocumentReviewQueue> {
+    const [updated] = await db
+      .update(documentReviewQueue)
+      .set(updates)
+      .where(eq(documentReviewQueue.id, id))
+      .returning();
+    return updated;
+  }
+
+  async approveDocumentReview(id: string, reviewerId: string, notes?: string): Promise<void> {
+    // Get the review entry
+    const [review] = await db
+      .select()
+      .from(documentReviewQueue)
+      .where(eq(documentReviewQueue.id, id));
+    
+    if (!review) {
+      throw new Error(`Review entry ${id} not found`);
+    }
+
+    // Update the review entry
+    await db
+      .update(documentReviewQueue)
+      .set({
+        status: 'approved',
+        reviewerId,
+        reviewNotes: notes,
+        decidedAt: new Date()
+      })
+      .where(eq(documentReviewQueue.id, id));
+
+    // Publish the document version
+    await this.publishDocumentVersion(review.documentVersionId);
+  }
+
+  async rejectDocumentReview(id: string, reviewerId: string, notes: string): Promise<void> {
+    const [review] = await db
+      .select()
+      .from(documentReviewQueue)
+      .where(eq(documentReviewQueue.id, id));
+    
+    if (!review) {
+      throw new Error(`Review entry ${id} not found`);
+    }
+
+    // Update the review entry
+    await db
+      .update(documentReviewQueue)
+      .set({
+        status: 'rejected',
+        reviewerId,
+        reviewNotes: notes,
+        decidedAt: new Date()
+      })
+      .where(eq(documentReviewQueue.id, id));
+
+    // Mark the version as rejected
+    await db
+      .update(documentVersions)
+      .set({ status: 'rejected' })
+      .where(eq(documentVersions.id, review.documentVersionId));
+  }
+
+  // Document Import Job operations
+  async getDocumentImportJob(id: string): Promise<DocumentImportJob | undefined> {
+    const [job] = await db.select().from(documentImportJobs).where(eq(documentImportJobs.id, id));
+    return job || undefined;
+  }
+
+  async getDocumentImportJobsByWorkspace(workspaceId: string): Promise<DocumentImportJob[]> {
+    return await db
+      .select()
+      .from(documentImportJobs)
+      .where(eq(documentImportJobs.workspaceId, workspaceId))
+      .orderBy(desc(documentImportJobs.createdAt));
+  }
+
+  async createDocumentImportJob(job: InsertDocumentImportJob): Promise<DocumentImportJob> {
+    const [created] = await db.insert(documentImportJobs).values(job).returning();
+    return created;
+  }
+
+  async updateDocumentImportJob(id: string, updates: Partial<InsertDocumentImportJob>): Promise<DocumentImportJob> {
+    const [updated] = await db
+      .update(documentImportJobs)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(documentImportJobs.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Document Chunk operations
+  async getDocumentChunksByDocument(documentId: string): Promise<DocumentChunk[]> {
+    return await db
+      .select()
+      .from(documentChunks)
+      .where(eq(documentChunks.documentId, documentId))
+      .orderBy(asc(documentChunks.chunkIndex));
+  }
+
+  async createDocumentChunk(chunk: InsertDocumentChunk): Promise<DocumentChunk> {
+    const [created] = await db.insert(documentChunks).values(chunk).returning();
+    return created;
+  }
+
+  async createDocumentChunksBatch(chunks: InsertDocumentChunk[]): Promise<DocumentChunk[]> {
+    if (chunks.length === 0) return [];
+    return await db.insert(documentChunks).values(chunks).returning();
+  }
+
+  async deleteDocumentChunksByVersion(versionId: string): Promise<void> {
+    await db.delete(documentChunks).where(eq(documentChunks.documentVersionId, versionId));
+  }
+
+  async searchDocumentChunksByVector(
+    queryEmbedding: number[],
+    workspaceId: string,
+    limit: number
+  ): Promise<Array<{ chunk: DocumentChunk; similarity: number }>> {
+    const embeddingStr = `[${queryEmbedding.join(',')}]`;
+    
+    const results = await db
+      .select({
+        chunk: documentChunks,
+        similarity: sql<number>`1 - (${documentChunks.embedding} <=> ${embeddingStr}::vector)`.as('similarity')
+      })
+      .from(documentChunks)
+      .innerJoin(documents, eq(documentChunks.documentId, documents.id))
+      .where(eq(documents.workspaceId, workspaceId))
+      .orderBy(sql`${documentChunks.embedding} <=> ${embeddingStr}::vector`)
+      .limit(limit);
+    
+    return results;
+  }
+
+  // AI Export endpoint helper
+  async getDocumentsForAIExport(
+    workspaceId: string,
+    filters?: { domain?: string; role?: string; status?: string }
+  ): Promise<Array<Document & { currentVersionContent: DocumentVersion | null; relationships: DocumentRelationship[] }>> {
+    const conditions = [
+      eq(documents.workspaceId, workspaceId),
+      eq(documents.status, filters?.status || 'active')
+    ];
+
+    const docs = await db
+      .select()
+      .from(documents)
+      .where(and(...conditions));
+
+    // Fetch versions and relationships for each document
+    const result = await Promise.all(
+      docs.map(async (doc) => {
+        const version = doc.currentVersionId
+          ? await this.getDocumentVersion(doc.currentVersionId)
+          : await this.getLatestDocumentVersion(doc.id);
+        
+        const relationships = await this.getDocumentRelationships(doc.id);
+        
+        return {
+          ...doc,
+          currentVersionContent: version || null,
+          relationships
+        };
+      })
+    );
+
+    return result;
   }
 
 }
