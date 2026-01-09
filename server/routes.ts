@@ -9103,9 +9103,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       if (workspaceId) {
         workspace = await storage.getWorkspace(workspaceId);
       } else {
-        // Get default workspace
-        const workspaces = await storage.getWorkspacesByOrganization('default-org');
-        workspace = workspaces.find(w => w.isDefault) || workspaces[0];
+        // Get default workspace by finding the one with isDefault=true
+        const allWorkspaces = await storage.getAllWorkspaces();
+        workspace = allWorkspaces.find(w => w.isDefault) || allWorkspaces[0];
       }
       
       if (!workspace) {
@@ -9120,7 +9120,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const features = settings.features || {};
       
       res.json({
-        voiceChat: features.voiceChat || false,
+        voiceChat: features.voiceChat === true,
         features
       });
     } catch (error) {
