@@ -235,27 +235,28 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
 
   return (
     <div className="h-full flex flex-col p-6 overflow-hidden">
-      <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <Crown className="w-5 h-5 text-primary-foreground" />
+      {!embedded && (
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <Crown className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Platform Administration</h1>
+              <p className="text-sm text-muted-foreground">Manage workspaces and platform-wide settings</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">Platform Administration</h1>
-            <p className="text-sm text-muted-foreground">Manage workspaces and platform-wide settings</p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search workspaces..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-[250px]"
-            />
-          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search workspaces..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 w-[250px]"
+              />
+            </div>
 
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
@@ -333,8 +334,94 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
               </Form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex items-center justify-end gap-3 mb-6 flex-wrap">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search workspaces..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-[250px]"
+            />
+          </div>
+          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                New Workspace
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Workspace</DialogTitle>
+                <DialogDescription>
+                  Create a new workspace for a team or organization.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...createForm}>
+                <form onSubmit={createForm.handleSubmit((d) => createWorkspaceMutation.mutate(d))} className="space-y-4">
+                  <FormField
+                    control={createForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Acme Support"
+                            {...field}
+                            onChange={(e) => handleNameChange(e.target.value)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createForm.control}
+                    name="slug"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Slug</FormLabel>
+                        <FormControl>
+                          <Input placeholder="acme-support" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Optional description..." {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={createWorkspaceMutation.isPending}>
+                      {createWorkspaceMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Create
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
 
       <div className="flex-1 overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">

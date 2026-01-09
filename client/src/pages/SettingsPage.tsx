@@ -171,12 +171,14 @@ export default function SettingsPage({ embedded = false }: SettingsPageProps) {
 
   return (
     <div className="p-6 space-y-6" data-testid="settings-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="settings-title">Settings</h1>
-          <p className="text-muted-foreground">Manage your account and application preferences</p>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="settings-title">Settings</h1>
+            <p className="text-muted-foreground">Manage your account and application preferences</p>
+          </div>
         </div>
-      </div>
+      )}
       
       <Tabs defaultValue="general" className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-md">

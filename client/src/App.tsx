@@ -47,6 +47,12 @@ import LeadTrackingPage from "@/pages/LeadTrackingPage";
 import BrandingSettingsPage from "@/pages/BrandingSettingsPage";
 import PlatformAdminPage from "@/pages/PlatformAdminPage";
 import WorkspaceAdminPage from "@/pages/WorkspaceAdminPage";
+import AIHubPage from "@/pages/AIHubPage";
+import AnalyticsHubPage from "@/pages/AnalyticsHubPage";
+import KnowledgeHubPage from "@/pages/KnowledgeHubPage";
+import SettingsHubPage from "@/pages/SettingsHubPage";
+import AdministrationHubPage from "@/pages/AdministrationHubPage";
+import ActivityHubPage from "@/pages/ActivityHubPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
 import NotFound from "@/pages/not-found";
@@ -83,6 +89,36 @@ function Router() {
       <Route path="/activity">
         <PermissionGuard feature="activity">
           <ActivityPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/activity-hub">
+        <PermissionGuard feature="activity">
+          <ActivityHubPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/ai-hub">
+        <PermissionGuard feature="ai-agents">
+          <AIHubPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/analytics-hub">
+        <PermissionGuard feature="analytics">
+          <AnalyticsHubPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/knowledge-hub">
+        <PermissionGuard feature="knowledge-base">
+          <KnowledgeHubPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/settings-hub">
+        <PermissionGuard feature="settings">
+          <SettingsHubPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/administration">
+        <PermissionGuard feature="platform-admin">
+          <AdministrationHubPage />
         </PermissionGuard>
       </Route>
       <Route path="/dashboard">

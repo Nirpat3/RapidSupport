@@ -81,96 +81,47 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
   },
   {
     title: "Activity", 
-    url: "/activity",
+    url: "/activity-hub",
     icon: Bell,
-    badge: activityCount > 0 ? activityCount : undefined,
+    badge: (activityCount + feedCount) > 0 ? (activityCount + feedCount) : undefined,
     allowedRoles: 'all'
   },
   {
     title: "Customers",
     url: "/customers", 
     icon: Users,
-    allowedRoles: 'all'  // Contacts - support staff need this
+    allowedRoles: 'all'
   },
   {
     title: "Knowledge Base",
-    url: "/knowledge", 
+    url: "/knowledge-hub", 
     icon: BookOpen,
-    allowedRoles: 'all'  // Reference for support staff
-  },
-  {
-    title: "Doc Framework",
-    url: "/doc-framework", 
-    icon: FileText,
-    allowedRoles: ['admin']  // Admin only - structured docs for AI
+    allowedRoles: 'all'
   },
   
-  // === MANAGER/ADMIN ONLY ===
+  // === ADMIN ONLY HUB PAGES ===
   {
-    title: "Dashboard", 
-    url: "/dashboard",
+    title: "Analytics", 
+    url: "/analytics-hub",
     icon: BarChart3,
     allowedRoles: ['admin']
   },
   {
-    title: "AI Configuration",
-    url: "/ai-configuration", 
-    icon: Bot,
+    title: "AI Hub",
+    url: "/ai-hub", 
+    icon: Brain,
     allowedRoles: ['admin']
   },
   {
-    title: "AI Performance",
-    url: "/ai-performance", 
-    icon: TrendingUp,
+    title: "Settings",
+    url: "/settings-hub",
+    icon: Settings,
     allowedRoles: ['admin']
   },
   {
-    title: "Human Oversight",
-    url: "/human-oversight", 
-    icon: UserCheck,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "File Management",
-    url: "/files", 
-    icon: File,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "Analytics",
-    url: "/analytics", 
-    icon: TrendingUp,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "Feedback",
-    url: "/feedback", 
-    icon: MessageSquare,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "Feed",
-    url: "/feed", 
-    icon: Rss,
-    badge: feedCount > 0 ? feedCount : undefined,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "User Management",
-    url: "/user-management",
+    title: "Administration",
+    url: "/administration",
     icon: Shield,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "Support Categories",
-    url: "/support-categories",
-    icon: Tags,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "External Channels",
-    url: "/channels",
-    icon: Share2,
     allowedRoles: ['admin']
   },
   {
@@ -178,40 +129,10 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     url: "/leads",
     icon: TrendingUp,
     allowedRoles: ['admin']
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "Platform Admin",
-    url: "/platform-admin",
-    icon: Crown,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "Workspace Admin",
-    url: "/workspace-admin",
-    icon: Building2,
-    allowedRoles: ['admin']
   }
 ];
 
 const supportItems: NavigationItem[] = [
-  {
-    title: "Widget Setup",
-    url: "/widget-setup",
-    icon: Code,
-    allowedRoles: ['admin']
-  },
-  {
-    title: "Branding",
-    url: "/branding",
-    icon: Palette,
-    allowedRoles: ['admin']
-  },
   {
     title: "Install App",
     url: "/install-app",

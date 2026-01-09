@@ -217,16 +217,26 @@ export default function ChannelSettingsPage({ embedded = false }: ChannelSetting
 
   return (
     <div className="p-6 space-y-6" data-testid="channel-settings-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">External Channels</h1>
-          <p className="text-muted-foreground">Connect WhatsApp, Facebook Messenger, and Instagram to receive and send messages</p>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="text-page-title">External Channels</h1>
+            <p className="text-muted-foreground">Connect WhatsApp, Facebook Messenger, and Instagram to receive and send messages</p>
+          </div>
+          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-channel">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Channel
+          </Button>
         </div>
-        <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-channel">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Channel
-        </Button>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end">
+          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="button-add-channel">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Channel
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="hover-elevate">

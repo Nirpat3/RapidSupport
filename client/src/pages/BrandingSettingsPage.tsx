@@ -111,29 +111,52 @@ export default function BrandingSettingsPage({ embedded = false }: BrandingSetti
 
   return (
     <div className="p-6 space-y-6" data-testid="branding-settings-page">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="branding-title">White-Label Branding</h1>
-          <p className="text-muted-foreground">Customize chat widget branding for each organization</p>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold" data-testid="branding-title">White-Label Branding</h1>
+            <p className="text-muted-foreground">Customize chat widget branding for each organization</p>
+          </div>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" data-testid="button-create-org">
+                <Plus className="h-4 w-4" />
+                New Organization
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create Organization</DialogTitle>
+              </DialogHeader>
+              <CreateOrgForm 
+                onSubmit={(data) => createOrgMutation.mutate(data)}
+                isPending={createOrgMutation.isPending}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2" data-testid="button-create-org">
-              <Plus className="h-4 w-4" />
-              New Organization
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Create Organization</DialogTitle>
-            </DialogHeader>
-            <CreateOrgForm 
-              onSubmit={(data) => createOrgMutation.mutate(data)}
-              isPending={createOrgMutation.isPending}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end">
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" data-testid="button-create-org">
+                <Plus className="h-4 w-4" />
+                New Organization
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create Organization</DialogTitle>
+              </DialogHeader>
+              <CreateOrgForm 
+                onSubmit={(data) => createOrgMutation.mutate(data)}
+                isPending={createOrgMutation.isPending}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-12">

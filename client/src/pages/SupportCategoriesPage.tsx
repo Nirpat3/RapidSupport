@@ -420,64 +420,117 @@ export default function SupportCategoriesPage({ embedded = false }: SupportCateg
 
   return (
     <div className="h-full flex flex-col p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <Tags className="w-5 h-5 text-primary-foreground" />
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <Tags className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold" data-testid="page-title">Support Categories</h1>
+              <p className="text-sm text-muted-foreground">Manage customer support categories and routing</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold" data-testid="page-title">Support Categories</h1>
-            <p className="text-sm text-muted-foreground">Manage customer support categories and routing</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          {(!categories || categories.length === 0) && (
-            <Button
-              variant="outline"
-              onClick={() => seedMutation.mutate()}
-              disabled={seedMutation.isPending}
-              data-testid="button-seed-categories"
-            >
-              {seedMutation.isPending ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="w-4 h-4 mr-2" />
-              )}
-              Seed Defaults
-            </Button>
-          )}
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm} data-testid="button-create-category">
-                <Plus className="w-4 h-4 mr-2" />
-                Add Category
+          <div className="flex gap-2">
+            {(!categories || categories.length === 0) && (
+              <Button
+                variant="outline"
+                onClick={() => seedMutation.mutate()}
+                disabled={seedMutation.isPending}
+                data-testid="button-seed-categories"
+              >
+                {seedMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Seed Defaults
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Create Support Category</DialogTitle>
-                <DialogDescription>
-                  Add a new support category for customer chat routing
-                </DialogDescription>
-              </DialogHeader>
-              <CategoryForm />
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button 
-                  onClick={handleSubmit}
-                  disabled={createMutation.isPending || !formData.name || !formData.slug}
-                  data-testid="button-submit-category"
-                >
-                  {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Create Category
+            )}
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={resetForm} data-testid="button-create-category">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Category
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Create Support Category</DialogTitle>
+                  <DialogDescription>
+                    Add a new support category for customer chat routing
+                  </DialogDescription>
+                </DialogHeader>
+                <CategoryForm />
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </DialogClose>
+                  <Button 
+                    onClick={handleSubmit}
+                    disabled={createMutation.isPending || !formData.name || !formData.slug}
+                    data-testid="button-submit-category"
+                  >
+                    {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Create Category
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end mb-6">
+          <div className="flex gap-2">
+            {(!categories || categories.length === 0) && (
+              <Button
+                variant="outline"
+                onClick={() => seedMutation.mutate()}
+                disabled={seedMutation.isPending}
+                data-testid="button-seed-categories"
+              >
+                {seedMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                )}
+                Seed Defaults
+              </Button>
+            )}
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={resetForm} data-testid="button-create-category">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Category
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Create Support Category</DialogTitle>
+                  <DialogDescription>
+                    Add a new support category for customer chat routing
+                  </DialogDescription>
+                </DialogHeader>
+                <CategoryForm />
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </DialogClose>
+                  <Button 
+                    onClick={handleSubmit}
+                    disabled={createMutation.isPending || !formData.name || !formData.slug}
+                    data-testid="button-submit-category"
+                  >
+                    {createMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    Create Category
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-auto">
         {categories?.map((category) => {

@@ -313,44 +313,45 @@ export default function WorkspaceAdminPage({ embedded = false }: WorkspaceAdminP
 
   return (
     <div className="h-full flex flex-col p-6 overflow-hidden">
-      <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => setLocation('/platform-admin')}>
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-          <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-            <FolderKanban className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">Workspace Admin</h1>
-              {selectedWorkspace && (
-                <Badge variant="outline">{selectedWorkspace.name}</Badge>
-              )}
+      {!embedded && (
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => setLocation('/platform-admin')}>
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <FolderKanban className="w-5 h-5 text-primary-foreground" />
             </div>
-            <p className="text-sm text-muted-foreground">Manage departments and staff assignments</p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold">Workspace Admin</h1>
+                {selectedWorkspace && (
+                  <Badge variant="outline">{selectedWorkspace.name}</Badge>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">Manage departments and staff assignments</p>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <Select
-            value={selectedWorkspaceId || ''}
-            onValueChange={(value) => {
-              setSelectedWorkspaceId(value);
-              setSelectedDepartment(null);
-            }}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select workspace" />
-            </SelectTrigger>
-            <SelectContent>
-              {workspaces?.map((ws) => (
-                <SelectItem key={ws.id} value={ws.id}>
-                  {ws.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Select
+              value={selectedWorkspaceId || ''}
+              onValueChange={(value) => {
+                setSelectedWorkspaceId(value);
+                setSelectedDepartment(null);
+              }}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Select workspace" />
+              </SelectTrigger>
+              <SelectContent>
+                {workspaces?.map((ws) => (
+                  <SelectItem key={ws.id} value={ws.id}>
+                    {ws.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -434,8 +435,108 @@ export default function WorkspaceAdminPage({ embedded = false }: WorkspaceAdminP
               </Form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex items-center justify-end gap-3 mb-6 flex-wrap">
+          <Select
+            value={selectedWorkspaceId || ''}
+            onValueChange={(value) => {
+              setSelectedWorkspaceId(value);
+              setSelectedDepartment(null);
+            }}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select workspace" />
+            </SelectTrigger>
+            <SelectContent>
+              {workspaces?.map((ws) => (
+                <SelectItem key={ws.id} value={ws.id}>
+                  {ws.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search departments..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-[200px]"
+            />
+          </div>
+          <Dialog open={createDeptDialogOpen} onOpenChange={setCreateDeptDialogOpen}>
+            <DialogTrigger asChild>
+              <Button disabled={!selectedWorkspaceId}>
+                <Plus className="w-4 h-4 mr-2" />
+                New Department
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create Department</DialogTitle>
+                <DialogDescription>
+                  Create a new department within {selectedWorkspace?.name}
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...createDeptForm}>
+                <form onSubmit={createDeptForm.handleSubmit((d) => createDeptMutation.mutate(d))} className="space-y-4">
+                  <FormField
+                    control={createDeptForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Technical Support" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createDeptForm.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="Handle technical issues and troubleshooting" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={createDeptForm.control}
+                    name="color"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Color</FormLabel>
+                        <FormControl>
+                          <Input type="color" {...field} className="h-10 w-20" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setCreateDeptDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={createDeptMutation.isPending}>
+                      {createDeptMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Create
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
 
       <div className="flex-1 overflow-hidden">
         {!selectedWorkspaceId ? (

@@ -174,14 +174,16 @@ export default App;`;
 
   return (
     <div className="container mx-auto p-6 max-w-7xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2" data-testid="title-widget-setup">
-          Widget Setup
-        </h1>
-        <p className="text-muted-foreground">
-          Embed the customer support chat widget on your website
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-3xl font-bold mb-2" data-testid="title-widget-setup">
+            Widget Setup
+          </h1>
+          <p className="text-muted-foreground">
+            Embed the customer support chat widget on your website
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Configuration Panel */}
