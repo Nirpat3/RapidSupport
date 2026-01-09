@@ -10980,6 +10980,400 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================================================
+  // REGIONS API ENDPOINTS
+  // ============================================================================
+
+  // Get all regions
+  app.get('/api/regions', async (req, res) => {
+    try {
+      const allRegions = await storage.getAllRegions();
+      res.json(allRegions);
+    } catch (error) {
+      console.error('Failed to fetch regions:', error);
+      res.status(500).json({ error: 'Failed to fetch regions' });
+    }
+  });
+
+  // Get region by ID
+  app.get('/api/regions/:id', async (req, res) => {
+    try {
+      const region = await storage.getRegion(req.params.id);
+      if (!region) {
+        return res.status(404).json({ error: 'Region not found' });
+      }
+      res.json(region);
+    } catch (error) {
+      console.error('Failed to fetch region:', error);
+      res.status(500).json({ error: 'Failed to fetch region' });
+    }
+  });
+
+  // Get region by ISO code
+  app.get('/api/regions/iso/:isoCode', async (req, res) => {
+    try {
+      const region = await storage.getRegionByIsoCode(req.params.isoCode);
+      if (!region) {
+        return res.status(404).json({ error: 'Region not found' });
+      }
+      res.json(region);
+    } catch (error) {
+      console.error('Failed to fetch region:', error);
+      res.status(500).json({ error: 'Failed to fetch region' });
+    }
+  });
+
+  // Create region (admin only)
+  app.post('/api/regions', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { isoCode, name, defaultLocale, supportedLocales, timezone, currency, currencySymbol, dateFormat, subdomain, customDomain } = req.body;
+      
+      if (!isoCode || !name) {
+        return res.status(400).json({ error: 'isoCode and name are required' });
+      }
+
+      const existing = await storage.getRegionByIsoCode(isoCode);
+      if (existing) {
+        return res.status(409).json({ error: 'Region with this ISO code already exists' });
+      }
+
+      const region = await storage.createRegion({
+        isoCode: isoCode.toUpperCase(),
+        name,
+        defaultLocale: defaultLocale || 'en',
+        supportedLocales: supportedLocales || ['en'],
+        timezone: timezone || 'UTC',
+        currency: currency || 'USD',
+        currencySymbol: currencySymbol || '$',
+        dateFormat: dateFormat || 'MM/DD/YYYY',
+        subdomain,
+        customDomain
+      });
+
+      res.status(201).json(region);
+    } catch (error) {
+      console.error('Failed to create region:', error);
+      res.status(500).json({ error: 'Failed to create region' });
+    }
+  });
+
+  // Update region (admin only)
+  app.put('/api/regions/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const region = await storage.getRegion(req.params.id);
+      if (!region) {
+        return res.status(404).json({ error: 'Region not found' });
+      }
+
+      const updated = await storage.updateRegion(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error('Failed to update region:', error);
+      res.status(500).json({ error: 'Failed to update region' });
+    }
+  });
+
+  // Delete region (admin only) - soft delete
+  app.delete('/api/regions/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const region = await storage.getRegion(req.params.id);
+      if (!region) {
+        return res.status(404).json({ error: 'Region not found' });
+      }
+
+      await storage.deleteRegion(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete region:', error);
+      res.status(500).json({ error: 'Failed to delete region' });
+    }
+  });
+
+  // ============================================================================
+  // ORGANIZATION MEMBERS API ENDPOINTS
+  // ============================================================================
+
+  // Get organization members
+  app.get('/api/organizations/:orgId/members', requireAuth, async (req, res) => {
+    try {
+      const members = await storage.getOrganizationMembers(req.params.orgId);
+      res.json(members);
+    } catch (error) {
+      console.error('Failed to fetch organization members:', error);
+      res.status(500).json({ error: 'Failed to fetch members' });
+    }
+  });
+
+  // Add member to organization
+  app.post('/api/organizations/:orgId/members', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { userId, role, canViewAllConversations, canManageWorkspaces, canManageMembers, canManageSettings } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'userId is required' });
+      }
+
+      const existing = await storage.getOrganizationMemberByUser(req.params.orgId, userId);
+      if (existing) {
+        return res.status(409).json({ error: 'User is already a member of this organization' });
+      }
+
+      const member = await storage.createOrganizationMember({
+        organizationId: req.params.orgId,
+        userId,
+        role: role || 'viewer',
+        canViewAllConversations: canViewAllConversations !== false,
+        canManageWorkspaces: canManageWorkspaces || false,
+        canManageMembers: canManageMembers || false,
+        canManageSettings: canManageSettings || false,
+        invitedBy: (req.user as any)?.id,
+        invitedAt: new Date()
+      });
+
+      res.status(201).json(member);
+    } catch (error) {
+      console.error('Failed to add organization member:', error);
+      res.status(500).json({ error: 'Failed to add member' });
+    }
+  });
+
+  // Update organization member
+  app.put('/api/organization-members/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const member = await storage.getOrganizationMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ error: 'Member not found' });
+      }
+
+      const updated = await storage.updateOrganizationMember(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error('Failed to update organization member:', error);
+      res.status(500).json({ error: 'Failed to update member' });
+    }
+  });
+
+  // Remove organization member
+  app.delete('/api/organization-members/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const member = await storage.getOrganizationMember(req.params.id);
+      if (!member) {
+        return res.status(404).json({ error: 'Member not found' });
+      }
+
+      await storage.deleteOrganizationMember(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to remove organization member:', error);
+      res.status(500).json({ error: 'Failed to remove member' });
+    }
+  });
+
+  // Get user's organizations
+  app.get('/api/users/:userId/organizations', requireAuth, async (req, res) => {
+    try {
+      const organizations = await storage.getUserOrganizations(req.params.userId);
+      res.json(organizations);
+    } catch (error) {
+      console.error('Failed to fetch user organizations:', error);
+      res.status(500).json({ error: 'Failed to fetch organizations' });
+    }
+  });
+
+  // ============================================================================
+  // KNOWLEDGE COLLECTIONS API ENDPOINTS
+  // ============================================================================
+
+  // Get all knowledge collections
+  app.get('/api/knowledge-collections', requireAuth, async (req, res) => {
+    try {
+      const organizationId = req.query.organizationId as string | undefined;
+      const collections = await storage.getAllKnowledgeCollections(organizationId);
+      res.json(collections);
+    } catch (error) {
+      console.error('Failed to fetch knowledge collections:', error);
+      res.status(500).json({ error: 'Failed to fetch collections' });
+    }
+  });
+
+  // Get knowledge collection by ID
+  app.get('/api/knowledge-collections/:id', requireAuth, async (req, res) => {
+    try {
+      const collection = await storage.getKnowledgeCollection(req.params.id);
+      if (!collection) {
+        return res.status(404).json({ error: 'Collection not found' });
+      }
+      res.json(collection);
+    } catch (error) {
+      console.error('Failed to fetch collection:', error);
+      res.status(500).json({ error: 'Failed to fetch collection' });
+    }
+  });
+
+  // Create knowledge collection
+  app.post('/api/knowledge-collections', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { name, description, slug, ownerOrganizationId, visibility, defaultLocale, supportedLocales } = req.body;
+
+      if (!name || !slug) {
+        return res.status(400).json({ error: 'name and slug are required' });
+      }
+
+      const existing = await storage.getKnowledgeCollectionBySlug(slug, ownerOrganizationId);
+      if (existing) {
+        return res.status(409).json({ error: 'Collection with this slug already exists' });
+      }
+
+      const collection = await storage.createKnowledgeCollection({
+        name,
+        description,
+        slug,
+        ownerOrganizationId,
+        visibility: visibility || 'organization',
+        defaultLocale: defaultLocale || 'en',
+        supportedLocales: supportedLocales || ['en']
+      });
+
+      res.status(201).json(collection);
+    } catch (error) {
+      console.error('Failed to create collection:', error);
+      res.status(500).json({ error: 'Failed to create collection' });
+    }
+  });
+
+  // Update knowledge collection
+  app.put('/api/knowledge-collections/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const collection = await storage.getKnowledgeCollection(req.params.id);
+      if (!collection) {
+        return res.status(404).json({ error: 'Collection not found' });
+      }
+
+      const updated = await storage.updateKnowledgeCollection(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error('Failed to update collection:', error);
+      res.status(500).json({ error: 'Failed to update collection' });
+    }
+  });
+
+  // Delete knowledge collection (soft delete)
+  app.delete('/api/knowledge-collections/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const collection = await storage.getKnowledgeCollection(req.params.id);
+      if (!collection) {
+        return res.status(404).json({ error: 'Collection not found' });
+      }
+
+      await storage.deleteKnowledgeCollection(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete collection:', error);
+      res.status(500).json({ error: 'Failed to delete collection' });
+    }
+  });
+
+  // Get articles in a collection
+  app.get('/api/knowledge-collections/:id/articles', requireAuth, async (req, res) => {
+    try {
+      const articles = await storage.getCollectionArticles(req.params.id);
+      res.json(articles);
+    } catch (error) {
+      console.error('Failed to fetch collection articles:', error);
+      res.status(500).json({ error: 'Failed to fetch articles' });
+    }
+  });
+
+  // Add article to collection
+  app.post('/api/knowledge-collections/:id/articles', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { articleId, sortOrder, locale } = req.body;
+
+      if (!articleId) {
+        return res.status(400).json({ error: 'articleId is required' });
+      }
+
+      const article = await storage.addArticleToCollection({
+        collectionId: req.params.id,
+        articleId,
+        sortOrder: sortOrder || 0,
+        locale
+      });
+
+      res.status(201).json(article);
+    } catch (error) {
+      console.error('Failed to add article to collection:', error);
+      res.status(500).json({ error: 'Failed to add article' });
+    }
+  });
+
+  // Remove article from collection
+  app.delete('/api/knowledge-collections/:collectionId/articles/:articleId', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.removeArticleFromCollection(req.params.collectionId, req.params.articleId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to remove article from collection:', error);
+      res.status(500).json({ error: 'Failed to remove article' });
+    }
+  });
+
+  // Get workspace's collections
+  app.get('/api/workspaces/:workspaceId/collections', requireAuth, async (req, res) => {
+    try {
+      const collections = await storage.getWorkspaceCollections(req.params.workspaceId);
+      res.json(collections);
+    } catch (error) {
+      console.error('Failed to fetch workspace collections:', error);
+      res.status(500).json({ error: 'Failed to fetch collections' });
+    }
+  });
+
+  // Add collection to workspace
+  app.post('/api/workspaces/:workspaceId/collections', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { collectionId, accessLevel } = req.body;
+
+      if (!collectionId) {
+        return res.status(400).json({ error: 'collectionId is required' });
+      }
+
+      const assignment = await storage.addCollectionToWorkspace({
+        workspaceId: req.params.workspaceId,
+        collectionId,
+        accessLevel: accessLevel || 'read'
+      });
+
+      res.status(201).json(assignment);
+    } catch (error) {
+      console.error('Failed to add collection to workspace:', error);
+      res.status(500).json({ error: 'Failed to add collection' });
+    }
+  });
+
+  // Remove collection from workspace
+  app.delete('/api/workspaces/:workspaceId/collections/:collectionId', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.removeCollectionFromWorkspace(req.params.workspaceId, req.params.collectionId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to remove collection from workspace:', error);
+      res.status(500).json({ error: 'Failed to remove collection' });
+    }
+  });
+
+  // Update workspace collection access level
+  app.put('/api/workspaces/:workspaceId/collections/:collectionId', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { accessLevel } = req.body;
+      await storage.updateWorkspaceCollectionAccess(req.params.workspaceId, req.params.collectionId, accessLevel);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to update workspace collection access:', error);
+      res.status(500).json({ error: 'Failed to update access' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat
