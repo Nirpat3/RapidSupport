@@ -36,6 +36,127 @@ interface FormattedStep {
   content: string;
 }
 
+function cleanDocumentMetadata(content: string): string {
+  let cleaned = content;
+  
+  cleaned = cleaned.replace(/^#\s*[^\n]+_\d{10,}\.(docx?|pdf|txt)\s*\n*/im, '');
+  
+  cleaned = cleaned.replace(/\*\*File Type:\*\*\s*[^\n*]+\s*\n*/gi, '');
+  cleaned = cleaned.replace(/\*\*File Size:\*\*\s*[\d.]+\s*(KB|MB|GB|bytes?)\s*\n*/gi, '');
+  cleaned = cleaned.replace(/\*\*Word Count:\*\*\s*\d+\s*\n*/gi, '');
+  cleaned = cleaned.replace(/application\/vnd\.openxmlformats-officedocument\.[^\s\n]+\s*\n*/gi, '');
+  
+  cleaned = cleaned.replace(/^---+\s*\n*/gm, '');
+  
+  cleaned = cleaned.replace(/_\d{10,}\.(docx?|pdf|txt)/gi, '');
+  
+  cleaned = cleaned.replace(/^(docx?|pdf|txt)\s*\n/gim, '');
+  cleaned = cleaned.replace(/^(docx?|pdf|txt)\s*$/gim, '');
+  
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  cleaned = cleaned.replace(/^[\s\n]+/, '');
+  
+  return cleaned.trim();
+}
+
+function convertMarkdownToHtml(text: string): string {
+  let html = text;
+  
+  html = html.replace(/^###\s+(.+)$/gm, '<h3 class="text-lg font-semibold mt-4 mb-2">$1</h3>');
+  html = html.replace(/^##\s+(.+)$/gm, '<h2 class="text-xl font-semibold mt-5 mb-2">$1</h2>');
+  html = html.replace(/^#\s+(.+)$/gm, '<h1 class="text-2xl font-bold mt-6 mb-3">$1</h1>');
+  
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-primary underline hover:text-primary/80" target="_blank" rel="noopener noreferrer">$1</a>');
+  
+  html = html.replace(/`([^`]+)`/g, '<code class="bg-muted px-1 py-0.5 rounded text-sm">$1</code>');
+  
+  const lines = html.split('\n');
+  const processedLines: string[] = [];
+  let inList = false;
+  let listType = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    const numberedMatch = line.match(/^(\d+)[.)]\s+(.+)$/);
+    const bulletMatch = line.match(/^[-•*]\s+(.+)$/);
+    
+    if (numberedMatch) {
+      if (!inList || listType !== 'ol') {
+        if (inList) processedLines.push(listType === 'ol' ? '</ol>' : '</ul>');
+        processedLines.push('<ol class="list-decimal list-inside space-y-2 my-3">');
+        inList = true;
+        listType = 'ol';
+      }
+      processedLines.push(`<li class="leading-relaxed">${numberedMatch[2]}</li>`);
+    } else if (bulletMatch) {
+      if (!inList || listType !== 'ul') {
+        if (inList) processedLines.push(listType === 'ol' ? '</ol>' : '</ul>');
+        processedLines.push('<ul class="list-disc list-inside space-y-2 my-3">');
+        inList = true;
+        listType = 'ul';
+      }
+      processedLines.push(`<li class="leading-relaxed">${bulletMatch[1]}</li>`);
+    } else {
+      if (inList) {
+        processedLines.push(listType === 'ol' ? '</ol>' : '</ul>');
+        inList = false;
+        listType = '';
+      }
+      
+      if (line === '') {
+        processedLines.push('<div class="h-3"></div>');
+      } else if (!line.startsWith('<h')) {
+        processedLines.push(`<p class="leading-relaxed mb-3">${line}</p>`);
+      } else {
+        processedLines.push(line);
+      }
+    }
+  }
+  
+  if (inList) {
+    processedLines.push(listType === 'ol' ? '</ol>' : '</ul>');
+  }
+  
+  return processedLines.join('\n');
+}
+
+function formatPlainTextContent(content: string): string {
+  let cleaned = cleanDocumentMetadata(content);
+  
+  if (cleaned.includes('<p>') || cleaned.includes('<div>') || cleaned.includes('<ol>') || cleaned.includes('<ul>')) {
+    return cleaned;
+  }
+  
+  const sentenceBreakPatterns = [
+    /\.\s+(?=[A-Z])/g,
+    /(?<=[.!?])\s*(?=Please\s)/gi,
+    /(?<=[.!?])\s*(?=If\s)/gi,
+    /(?<=[.!?])\s*(?=Check\s)/gi,
+    /(?<=[.!?])\s*(?=Make\s)/gi,
+    /(?<=[.!?])\s*(?=Click\s)/gi,
+    /(?<=[.!?])\s*(?=Go\s)/gi,
+    /(?<=[.!?])\s*(?=The\s)/gi,
+    /(?<=[.!?])\s*(?=You\s)/gi,
+    /(?<=[.!?])\s*(?=This\s)/gi,
+  ];
+  
+  for (const pattern of sentenceBreakPatterns) {
+    cleaned = cleaned.replace(pattern, '.\n\n');
+  }
+  
+  cleaned = cleaned.replace(/:-\s*/g, ':\n\n');
+  
+  cleaned = cleaned.replace(/(\d+[.)]\s*)/g, '\n$1');
+  
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+  
+  return convertMarkdownToHtml(cleaned);
+}
+
 function parseContentIntoSteps(htmlContent: string): { intro: string; steps: FormattedStep[]; outro: string } {
   const tempDiv = document.createElement('div');
   tempDiv.innerHTML = htmlContent;
@@ -200,13 +321,14 @@ function parseContentIntoSteps(htmlContent: string): { intro: string; steps: For
 }
 
 function ArticleContent({ content }: { content: string }) {
-  const { intro, steps, outro } = parseContentIntoSteps(content);
+  const formattedContent = formatPlainTextContent(content);
+  const { intro, steps, outro } = parseContentIntoSteps(formattedContent);
   
   if (steps.length === 0) {
     return (
       <div
-        className="prose prose-sm dark:prose-invert max-w-none"
-        dangerouslySetInnerHTML={{ __html: content }}
+        className="prose prose-sm dark:prose-invert max-w-none leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: formattedContent }}
       />
     );
   }
