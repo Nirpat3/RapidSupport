@@ -9790,6 +9790,336 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================================================
+  // DOCUMENTATION FRAMEWORK ROUTES
+  // ============================================================================
+
+  // Document Domain routes
+  app.get('/api/docs/domains', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const workspaceId = req.query.workspaceId as string;
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'workspaceId is required' });
+      }
+      const domains = await storage.getDocDomainsByWorkspace(workspaceId);
+      res.json(domains);
+    } catch (error) {
+      console.error('Failed to fetch doc domains:', error);
+      res.status(500).json({ error: 'Failed to fetch domains' });
+    }
+  });
+
+  app.post('/api/docs/domains', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const domain = await storage.createDocDomain(req.body);
+      res.status(201).json(domain);
+    } catch (error) {
+      console.error('Failed to create doc domain:', error);
+      res.status(500).json({ error: 'Failed to create domain' });
+    }
+  });
+
+  app.put('/api/docs/domains/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const domain = await storage.updateDocDomain(req.params.id, req.body);
+      res.json(domain);
+    } catch (error) {
+      console.error('Failed to update doc domain:', error);
+      res.status(500).json({ error: 'Failed to update domain' });
+    }
+  });
+
+  app.delete('/api/docs/domains/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.deleteDocDomain(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete doc domain:', error);
+      res.status(500).json({ error: 'Failed to delete domain' });
+    }
+  });
+
+  // Document Intent routes
+  app.get('/api/docs/intents', requireAuth, async (req, res) => {
+    try {
+      const workspaceId = req.query.workspaceId as string;
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'workspaceId is required' });
+      }
+      const intents = await storage.getDocIntentsByWorkspace(workspaceId);
+      res.json(intents);
+    } catch (error) {
+      console.error('Failed to fetch doc intents:', error);
+      res.status(500).json({ error: 'Failed to fetch intents' });
+    }
+  });
+
+  app.post('/api/docs/intents', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const intent = await storage.createDocIntent(req.body);
+      res.status(201).json(intent);
+    } catch (error) {
+      console.error('Failed to create doc intent:', error);
+      res.status(500).json({ error: 'Failed to create intent' });
+    }
+  });
+
+  app.put('/api/docs/intents/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const intent = await storage.updateDocIntent(req.params.id, req.body);
+      res.json(intent);
+    } catch (error) {
+      console.error('Failed to update doc intent:', error);
+      res.status(500).json({ error: 'Failed to update intent' });
+    }
+  });
+
+  app.delete('/api/docs/intents/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.deleteDocIntent(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete doc intent:', error);
+      res.status(500).json({ error: 'Failed to delete intent' });
+    }
+  });
+
+  // Document routes
+  app.get('/api/docs/documents', requireAuth, async (req, res) => {
+    try {
+      const workspaceId = req.query.workspaceId as string;
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'workspaceId is required' });
+      }
+      const filters = {
+        domainId: req.query.domainId as string | undefined,
+        intentId: req.query.intentId as string | undefined,
+        status: req.query.status as string | undefined,
+        search: req.query.search as string | undefined
+      };
+      const documents = await storage.getDocumentsByWorkspace(workspaceId, filters);
+      res.json(documents);
+    } catch (error) {
+      console.error('Failed to fetch documents:', error);
+      res.status(500).json({ error: 'Failed to fetch documents' });
+    }
+  });
+
+  app.get('/api/docs/documents/:id', requireAuth, async (req, res) => {
+    try {
+      const doc = await storage.getDocument(req.params.id);
+      if (!doc) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+      res.json(doc);
+    } catch (error) {
+      console.error('Failed to fetch document:', error);
+      res.status(500).json({ error: 'Failed to fetch document' });
+    }
+  });
+
+  app.post('/api/docs/documents', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const doc = await storage.createDocument({
+        ...req.body,
+        createdBy: user.id
+      });
+      res.status(201).json(doc);
+    } catch (error) {
+      console.error('Failed to create document:', error);
+      res.status(500).json({ error: 'Failed to create document' });
+    }
+  });
+
+  app.put('/api/docs/documents/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const doc = await storage.updateDocument(req.params.id, req.body);
+      res.json(doc);
+    } catch (error) {
+      console.error('Failed to update document:', error);
+      res.status(500).json({ error: 'Failed to update document' });
+    }
+  });
+
+  app.delete('/api/docs/documents/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.deleteDocument(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete document:', error);
+      res.status(500).json({ error: 'Failed to delete document' });
+    }
+  });
+
+  // Document Version routes
+  app.get('/api/docs/documents/:id/versions', requireAuth, async (req, res) => {
+    try {
+      const versions = await storage.getDocumentVersionsByDocument(req.params.id);
+      res.json(versions);
+    } catch (error) {
+      console.error('Failed to fetch document versions:', error);
+      res.status(500).json({ error: 'Failed to fetch versions' });
+    }
+  });
+
+  app.post('/api/docs/documents/:id/versions', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const version = await storage.createDocumentVersion({
+        ...req.body,
+        documentId: req.params.id,
+        createdBy: user.id
+      });
+      res.status(201).json(version);
+    } catch (error) {
+      console.error('Failed to create document version:', error);
+      res.status(500).json({ error: 'Failed to create version' });
+    }
+  });
+
+  app.put('/api/docs/versions/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const version = await storage.updateDocumentVersion(req.params.id, req.body);
+      res.json(version);
+    } catch (error) {
+      console.error('Failed to update document version:', error);
+      res.status(500).json({ error: 'Failed to update version' });
+    }
+  });
+
+  app.post('/api/docs/versions/:id/publish', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const version = await storage.publishDocumentVersion(req.params.id);
+      res.json(version);
+    } catch (error) {
+      console.error('Failed to publish document version:', error);
+      res.status(500).json({ error: 'Failed to publish version' });
+    }
+  });
+
+  // Document Relationship routes
+  app.get('/api/docs/documents/:id/relationships', requireAuth, async (req, res) => {
+    try {
+      const relationships = await storage.getDocumentRelationships(req.params.id);
+      res.json(relationships);
+    } catch (error) {
+      console.error('Failed to fetch document relationships:', error);
+      res.status(500).json({ error: 'Failed to fetch relationships' });
+    }
+  });
+
+  app.post('/api/docs/relationships', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const relationship = await storage.createDocumentRelationship(req.body);
+      res.status(201).json(relationship);
+    } catch (error) {
+      console.error('Failed to create document relationship:', error);
+      res.status(500).json({ error: 'Failed to create relationship' });
+    }
+  });
+
+  app.delete('/api/docs/relationships/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      await storage.deleteDocumentRelationship(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete document relationship:', error);
+      res.status(500).json({ error: 'Failed to delete relationship' });
+    }
+  });
+
+  // Document Review Queue routes
+  app.get('/api/docs/review-queue', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const workspaceId = req.query.workspaceId as string;
+      const status = req.query.status as string | undefined;
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'workspaceId is required' });
+      }
+      const queue = await storage.getDocumentReviewQueue(workspaceId, status);
+      res.json(queue);
+    } catch (error) {
+      console.error('Failed to fetch review queue:', error);
+      res.status(500).json({ error: 'Failed to fetch review queue' });
+    }
+  });
+
+  app.post('/api/docs/review-queue/:id/approve', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      await storage.approveDocumentReview(req.params.id, user.id, req.body.notes);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to approve document review:', error);
+      res.status(500).json({ error: 'Failed to approve review' });
+    }
+  });
+
+  app.post('/api/docs/review-queue/:id/reject', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!req.body.notes) {
+        return res.status(400).json({ error: 'Rejection notes are required' });
+      }
+      await storage.rejectDocumentReview(req.params.id, user.id, req.body.notes);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to reject document review:', error);
+      res.status(500).json({ error: 'Failed to reject review' });
+    }
+  });
+
+  // Document Import Job routes
+  app.get('/api/docs/import-jobs', requireAuth, async (req, res) => {
+    try {
+      const workspaceId = req.query.workspaceId as string;
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'workspaceId is required' });
+      }
+      const jobs = await storage.getDocumentImportJobsByWorkspace(workspaceId);
+      res.json(jobs);
+    } catch (error) {
+      console.error('Failed to fetch import jobs:', error);
+      res.status(500).json({ error: 'Failed to fetch import jobs' });
+    }
+  });
+
+  app.post('/api/docs/import-jobs', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const job = await storage.createDocumentImportJob({
+        ...req.body,
+        createdBy: user.id
+      });
+      res.status(201).json(job);
+    } catch (error) {
+      console.error('Failed to create import job:', error);
+      res.status(500).json({ error: 'Failed to create import job' });
+    }
+  });
+
+  // AI Export endpoint for fetching documents for AI agents
+  app.get('/api/docs/ai-export', requireAuth, async (req, res) => {
+    try {
+      const workspaceId = req.query.workspaceId as string;
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'workspaceId is required' });
+      }
+      const filters = {
+        domain: req.query.domain as string | undefined,
+        role: req.query.role as string | undefined,
+        status: req.query.status as string | undefined
+      };
+      const documents = await storage.getDocumentsForAIExport(workspaceId, filters);
+      res.json(documents);
+    } catch (error) {
+      console.error('Failed to export documents for AI:', error);
+      res.status(500).json({ error: 'Failed to export documents' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat
