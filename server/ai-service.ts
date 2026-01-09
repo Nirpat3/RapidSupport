@@ -62,6 +62,49 @@ async function trackTokenUsage(
   }
 }
 
+// Format resolution history for AI context injection
+async function formatResolutionHistoryForAI(customerId: string, issueCategory?: string): Promise<string> {
+  try {
+    // Get successful past resolutions for this customer
+    const resolutions = await storage.getSuccessfulResolutions(customerId, issueCategory, 3);
+    
+    if (resolutions.length === 0) {
+      return '';
+    }
+
+    // Also get resolution summary
+    const summary = await storage.getResolutionSummaryForCustomer(customerId);
+    
+    let context = '\n\n--- CUSTOMER RESOLUTION HISTORY ---\n';
+    context += `This customer has ${summary.totalIssues} previous issues on record.\n`;
+    context += `Resolution stats: ${summary.resolvedCount} resolved, ${summary.partiallyResolvedCount} partially resolved, ${summary.notResolvedCount} not resolved.\n`;
+    
+    if (summary.commonIssueCategories.length > 0) {
+      context += `Common issue types: ${summary.commonIssueCategories.join(', ')}\n`;
+    }
+    
+    context += '\nPast Successful Solutions:\n';
+    for (const resolution of resolutions) {
+      context += `\n• Issue: ${resolution.issueCategory}`;
+      if (resolution.issueType) context += ` (${resolution.issueType})`;
+      context += `\n  Solution: ${resolution.solutionSource}`;
+      if (resolution.solutionTitle) context += ` - ${resolution.solutionTitle}`;
+      if (resolution.solutionSteps) context += `\n  Steps taken: ${resolution.solutionSteps.substring(0, 200)}...`;
+      if (resolution.agentNotes) context += `\n  Notes: ${resolution.agentNotes.substring(0, 150)}`;
+      context += `\n  Outcome: ${resolution.outcome}`;
+      context += '\n';
+    }
+    
+    context += '\nUse this history to suggest proven solutions for recurring issues.\n';
+    context += '--- END RESOLUTION HISTORY ---\n\n';
+    
+    return context;
+  } catch (error) {
+    console.error('[ResolutionHistory] Error loading resolution history:', error);
+    return '';
+  }
+}
+
 // Track which KB articles were used in a response
 async function trackKnowledgeFeedback(
   searchResults: SearchResult[],
@@ -1590,6 +1633,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       let customerMemoryContext = '';
       
       // Only run intelligence features if we have both customerId and conversationId
+      let resolutionHistoryContext = '';
       if (customerId && conversationId) {
         try {
           // Load customer memories for personalization
@@ -1602,15 +1646,25 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
           
           // Track intent in conversation intelligence
           await convIntel.trackIntent(conversationId, intentClassification.intent);
+          
+          // Load resolution history for recurring issue detection
+          resolutionHistoryContext = await formatResolutionHistoryForAI(
+            customerId,
+            intentClassification.intent // Use detected intent as issue category hint
+          );
+          if (resolutionHistoryContext) {
+            console.log(`[ResolutionHistory] Loaded resolution history for customer ${customerId}`);
+          }
         } catch (error) {
           console.error('[ConvIntel] Error loading customer context:', error);
         }
       }
       
-      // Inject memory context into contextData for the response generator
+      // Inject memory context and resolution history into contextData for the response generator
       const enrichedContextData = {
         ...contextData,
         customerMemoryContext,
+        resolutionHistoryContext,
         conversationId
       };
 
@@ -1798,14 +1852,17 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         ? `\nConversation History:\n${conversationHistory.join('\n')}\n`
         : '';
 
-      // Add custom context data if provided (excluding memory context which is handled separately)
-      const { customerMemoryContext, ...otherContextData } = contextData || {};
+      // Add custom context data if provided (excluding memory context and resolution history which are handled separately)
+      const { customerMemoryContext, resolutionHistoryContext, ...otherContextData } = contextData || {};
       const customContext = Object.keys(otherContextData).length > 0
         ? `\nCustom Context Data:\n${JSON.stringify(otherContextData, null, 2)}\n`
         : '';
       
       // Customer memory context for personalization
       const memoryContext = customerMemoryContext || '';
+      
+      // Resolution history context for recurring issue detection
+      const resolutionContext = resolutionHistoryContext || '';
 
       // Extract language preference from context data
       const language = contextData?.language || 'en';
@@ -1838,7 +1895,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       // Get the format template for this response
       const formatTemplate = RESPONSE_FORMATS[responseFormat];
 
-      const userPrompt = `${knowledgeContext}${conversationContext}${customContext}${memoryContext}
+      const userPrompt = `${knowledgeContext}${conversationContext}${customContext}${memoryContext}${resolutionContext}
 Customer Message: "${customerMessage}"
 
 Agent Role: ${agent.name} - ${agent.description}

@@ -44,6 +44,7 @@ import {
   updateAiAgentSchema,
   insertSupportCategorySchema,
   updateSupportCategorySchema,
+  insertResolutionRecordSchema,
   customers,
   conversations,
   channelContacts
@@ -11520,43 +11521,48 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // ============================================================================
   // RESOLUTION HISTORY API ENDPOINTS
   // Track successful solutions to customer issues
+  // Multi-tenant scoped - access is validated against user's organization/workspace
   // ============================================================================
 
-  // Validation schemas for resolution records
-  const createResolutionRecordSchema = z.object({
-    customerId: z.string().uuid(),
-    conversationId: z.string().uuid().optional(),
-    organizationId: z.string().uuid().optional(),
-    workspaceId: z.string().uuid().optional(),
-    issueCategory: z.string().min(1).max(100),
-    issueType: z.string().max(100).optional(),
-    issueDescription: z.string().max(2000).optional(),
-    solutionSource: z.enum(['kb_article', 'manual_steps', 'external_link', 'agent_action']),
-    solutionReference: z.string().uuid().optional(),
-    solutionTitle: z.string().max(200).optional(),
-    solutionSteps: z.string().max(5000).optional(),
-    solutionExternalUrl: z.string().url().optional(),
-    outcome: z.enum(['resolved', 'partially_resolved', 'not_resolved']).default('resolved'),
-    resolutionTimeMinutes: z.number().int().positive().optional(),
-    agentNotes: z.string().max(2000).optional(),
-    tags: z.array(z.string()).optional()
-  });
+  // Helper: Verify user has access to resolution record via organization membership
+  async function verifyResolutionAccess(userId: string, record: { organizationId?: string | null; workspaceId?: string | null }): Promise<boolean> {
+    if (record.organizationId) {
+      return await verifyOrgAdminAccess(userId, record.organizationId);
+    }
+    if (record.workspaceId) {
+      const workspace = await storage.getWorkspace(record.workspaceId);
+      if (workspace?.organizationId) {
+        return await verifyOrgAdminAccess(userId, workspace.organizationId);
+      }
+    }
+    return false;
+  }
 
-  const updateResolutionRecordSchema = createResolutionRecordSchema.partial().extend({
-    customerFeedback: z.string().max(2000).optional()
-  });
+  // Helper: Get user's organization ID from session
+  async function getUserOrganizationId(userId: string): Promise<string | null> {
+    const user = await storage.getUser(userId);
+    return user?.organizationId || null;
+  }
 
-  // Create a resolution record
+  // Create a resolution record (uses shared schema from @shared/schema.ts)
   app.post('/api/resolutions', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      const validation = createResolutionRecordSchema.safeParse(req.body);
+      const validation = insertResolutionRecordSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json({ error: fromZodError(validation.error).message });
       }
 
       const currentUserId = (req.user as any)?.id;
+      const userOrgId = await getUserOrganizationId(currentUserId);
+      
+      // Verify user can only create records for their own organization
+      if (validation.data.organizationId && validation.data.organizationId !== userOrgId) {
+        return res.status(403).json({ error: 'Access denied: Cannot create records for other organizations' });
+      }
+
       const record = await storage.createResolutionRecord({
         ...validation.data,
+        organizationId: validation.data.organizationId || userOrgId || undefined,
         resolvedBy: currentUserId
       });
 
@@ -11567,13 +11573,21 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Get resolution record by ID
+  // Get resolution record by ID (with tenant scoping)
   app.get('/api/resolutions/:id', requireAuth, async (req, res) => {
     try {
+      const currentUserId = (req.user as any)?.id;
       const record = await storage.getResolutionRecord(req.params.id);
       if (!record) {
         return res.status(404).json({ error: 'Resolution record not found' });
       }
+
+      // Verify user has access to this record's organization/workspace
+      const hasAccess = await verifyResolutionAccess(currentUserId, record);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       res.json(record);
     } catch (error) {
       console.error('Failed to fetch resolution record:', error);
@@ -11581,21 +11595,44 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Get resolutions for a customer
+  // Get resolutions for a customer (scoped to user's organization)
   app.get('/api/customers/:customerId/resolutions', requireAuth, async (req, res) => {
     try {
+      const currentUserId = (req.user as any)?.id;
+      const userOrgId = await getUserOrganizationId(currentUserId);
+      
+      // Verify customer belongs to user's organization
+      const customer = await storage.getCustomer(req.params.customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+
       const limit = parseInt(req.query.limit as string) || 10;
       const resolutions = await storage.getResolutionsByCustomer(req.params.customerId, limit);
-      res.json(resolutions);
+      
+      // Filter to only resolutions in user's organization
+      const scopedResolutions = resolutions.filter(r => 
+        !r.organizationId || r.organizationId === userOrgId
+      );
+      
+      res.json(scopedResolutions);
     } catch (error) {
       console.error('Failed to fetch customer resolutions:', error);
       res.status(500).json({ error: 'Failed to fetch resolutions' });
     }
   });
 
-  // Get resolution summary for a customer (for agent dashboard)
+  // Get resolution summary for a customer (scoped to user's organization)
   app.get('/api/customers/:customerId/resolution-summary', requireAuth, async (req, res) => {
     try {
+      const currentUserId = (req.user as any)?.id;
+      const userOrgId = await getUserOrganizationId(currentUserId);
+      
+      const customer = await storage.getCustomer(req.params.customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+
       const summary = await storage.getResolutionSummaryForCustomer(req.params.customerId);
       res.json(summary);
     } catch (error) {
@@ -11604,25 +11641,37 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Get resolutions for a specific issue category
+  // Get resolutions for a specific issue category (scoped)
   app.get('/api/customers/:customerId/resolutions/category/:category', requireAuth, async (req, res) => {
     try {
+      const currentUserId = (req.user as any)?.id;
+      const userOrgId = await getUserOrganizationId(currentUserId);
+      
       const limit = parseInt(req.query.limit as string) || 5;
       const resolutions = await storage.getResolutionsByCustomerIssue(
         req.params.customerId,
         req.params.category,
         limit
       );
-      res.json(resolutions);
+      
+      // Filter to user's organization
+      const scopedResolutions = resolutions.filter(r => 
+        !r.organizationId || r.organizationId === userOrgId
+      );
+      
+      res.json(scopedResolutions);
     } catch (error) {
       console.error('Failed to fetch category resolutions:', error);
       res.status(500).json({ error: 'Failed to fetch resolutions' });
     }
   });
 
-  // Get successful resolutions for AI context (proven solutions)
+  // Get successful resolutions for AI context (proven solutions, scoped)
   app.get('/api/customers/:customerId/successful-resolutions', requireAuth, async (req, res) => {
     try {
+      const currentUserId = (req.user as any)?.id;
+      const userOrgId = await getUserOrganizationId(currentUserId);
+      
       const issueCategory = req.query.issueCategory as string | undefined;
       const limit = parseInt(req.query.limit as string) || 3;
       const resolutions = await storage.getSuccessfulResolutions(
@@ -11630,24 +11679,40 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         issueCategory,
         limit
       );
-      res.json(resolutions);
+      
+      // Filter to user's organization
+      const scopedResolutions = resolutions.filter(r => 
+        !r.organizationId || r.organizationId === userOrgId
+      );
+      
+      res.json(scopedResolutions);
     } catch (error) {
       console.error('Failed to fetch successful resolutions:', error);
       res.status(500).json({ error: 'Failed to fetch resolutions' });
     }
   });
 
-  // Update resolution record
+  // Update resolution record (with tenant verification)
   app.put('/api/resolutions/:id', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
-      const validation = updateResolutionRecordSchema.safeParse(req.body);
+      const updateSchema = insertResolutionRecordSchema.partial().extend({
+        customerFeedback: z.string().max(2000).optional()
+      });
+      const validation = updateSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json({ error: fromZodError(validation.error).message });
       }
 
+      const currentUserId = (req.user as any)?.id;
       const existing = await storage.getResolutionRecord(req.params.id);
       if (!existing) {
         return res.status(404).json({ error: 'Resolution record not found' });
+      }
+
+      // Verify user has access
+      const hasAccess = await verifyResolutionAccess(currentUserId, existing);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
       const updated = await storage.updateResolutionRecord(req.params.id, validation.data);
@@ -11658,7 +11723,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Update resolution outcome (quick action for agents)
+  // Update resolution outcome (quick action for agents, with tenant verification)
   app.patch('/api/resolutions/:id/outcome', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
       const outcomeSchema = z.object({
@@ -11670,9 +11735,16 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(400).json({ error: fromZodError(validation.error).message });
       }
 
+      const currentUserId = (req.user as any)?.id;
       const existing = await storage.getResolutionRecord(req.params.id);
       if (!existing) {
         return res.status(404).json({ error: 'Resolution record not found' });
+      }
+
+      // Verify user has access
+      const hasAccess = await verifyResolutionAccess(currentUserId, existing);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
       const updated = await storage.updateResolutionOutcome(
@@ -11687,12 +11759,19 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Delete resolution record (soft delete)
+  // Delete resolution record (soft delete, admin only with tenant verification)
   app.delete('/api/resolutions/:id', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
+      const currentUserId = (req.user as any)?.id;
       const existing = await storage.getResolutionRecord(req.params.id);
       if (!existing) {
         return res.status(404).json({ error: 'Resolution record not found' });
+      }
+
+      // Verify user has access
+      const hasAccess = await verifyResolutionAccess(currentUserId, existing);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Access denied' });
       }
 
       await storage.deleteResolutionRecord(req.params.id);
@@ -11703,9 +11782,24 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Get resolutions by workspace (for analytics)
+  // Get resolutions by workspace (for analytics, with workspace access verification)
   app.get('/api/workspaces/:workspaceId/resolutions', requireAuth, async (req, res) => {
     try {
+      const currentUserId = (req.user as any)?.id;
+      
+      // Verify user has access to this workspace via organization
+      const workspace = await storage.getWorkspace(req.params.workspaceId);
+      if (!workspace) {
+        return res.status(404).json({ error: 'Workspace not found' });
+      }
+      
+      if (workspace.organizationId) {
+        const hasAccess = await verifyOrgAdminAccess(currentUserId, workspace.organizationId);
+        if (!hasAccess) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+      }
+
       const options = {
         outcome: req.query.outcome as string | undefined,
         issueCategory: req.query.issueCategory as string | undefined,
