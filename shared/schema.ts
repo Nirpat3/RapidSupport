@@ -777,6 +777,215 @@ export const apiKeys = pgTable("api_keys", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// ============================================================================
+// DOCUMENTATION FRAMEWORK TABLES
+// Structured documentation system with versioning, relationships, and AI integration
+// ============================================================================
+
+// Document Domains - controlled vocabulary for document categorization
+export const docDomains = pgTable("doc_domains", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // e.g., "POS", "Payments", "Loyalty", "Inventory"
+  slug: text("slug").notNull(), // URL-friendly identifier
+  description: text("description"),
+  icon: text("icon").default("Folder"), // Lucide icon name
+  color: text("color").default("#6366f1"), // Hex color
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueSlugWorkspace: unique().on(table.slug, table.workspaceId),
+}));
+
+// Document Intents - controlled vocabulary for document purpose/type
+export const docIntents = pgTable("doc_intents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // e.g., "Feature Guide", "API Reference", "Playbook", "Troubleshooting"
+  slug: text("slug").notNull(), // URL-friendly identifier
+  description: text("description"),
+  icon: text("icon").default("FileText"), // Lucide icon name
+  color: text("color").default("#10b981"), // Hex color
+  displayOrder: integer("display_order").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueSlugWorkspace: unique().on(table.slug, table.workspaceId),
+}));
+
+// Documents - main structured documentation table
+export const documents = pgTable("documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug: text("slug").notNull(), // URL-friendly identifier
+  title: text("title").notNull(),
+  
+  // Classification
+  domainId: varchar("domain_id").references(() => docDomains.id), // Domain (POS, Payments, etc.)
+  intentId: varchar("intent_id").references(() => docIntents.id), // Intent (Feature Guide, API Ref, etc.)
+  
+  // Status and lifecycle
+  status: text("status").notNull().default("draft"), // 'draft' | 'review' | 'active' | 'deprecated' | 'archived'
+  
+  // Access control
+  roleAccess: text("role_access").array().default(sql`ARRAY['member']::text[]`), // Which workspace roles can access
+  isPublic: boolean("is_public").notNull().default(false), // Public to customers via portal
+  
+  // Versioning
+  currentVersionId: varchar("current_version_id"), // Reference to active version (set after first version created)
+  currentVersion: text("current_version").default("0.0.0"), // Semver string for display
+  
+  // AI Agent linking
+  aiAgentIds: text("ai_agent_ids").array(), // Which AI agents can use this document
+  
+  // Metadata
+  tags: text("tags").array(),
+  summary: text("summary"), // Brief summary for search results
+  
+  // Workspace scoping
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  
+  // Audit fields
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueSlugWorkspace: unique().on(table.slug, table.workspaceId),
+}));
+
+// Document Versions - versioned content with semver and audit history
+export const documentVersions = pgTable("document_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  
+  // Version info
+  version: text("version").notNull(), // Semver: "1.0.0", "1.1.0", etc.
+  versionNumber: integer("version_number").notNull(), // Sequential number for ordering
+  
+  // Content
+  frontMatter: jsonb("front_matter"), // YAML front-matter as JSON (metadata)
+  markdownBody: text("markdown_body").notNull(), // The actual markdown content
+  
+  // File source (if converted from uploaded file)
+  sourceFileId: varchar("source_file_id").references(() => uploadedFiles.id),
+  
+  // Change tracking
+  changeLog: text("change_log"), // What changed in this version
+  
+  // Status
+  status: text("status").notNull().default("draft"), // 'draft' | 'pending_review' | 'published' | 'rejected'
+  publishedAt: timestamp("published_at"),
+  
+  // Audit
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueVersionDoc: unique().on(table.documentId, table.version),
+}));
+
+// Document Relationships - links between documents
+export const documentRelationships = pgTable("document_relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceDocumentId: varchar("source_document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  targetDocumentId: varchar("target_document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  
+  // Relationship type
+  relationshipType: text("relationship_type").notNull(), // 'depends_on' | 'related' | 'emits' | 'consumes' | 'supersedes' | 'references'
+  
+  // Optional description
+  description: text("description"),
+  
+  // Ordering
+  displayOrder: integer("display_order").notNull().default(0),
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueRelationship: unique().on(table.sourceDocumentId, table.targetDocumentId, table.relationshipType),
+}));
+
+// Document Review Queue - approval workflow for AI-generated or edited documents
+export const documentReviewQueue = pgTable("document_review_queue", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentVersionId: varchar("document_version_id").notNull().references(() => documentVersions.id, { onDelete: 'cascade' }),
+  
+  // Review status
+  status: text("status").notNull().default("pending"), // 'pending' | 'approved' | 'rejected' | 'needs_changes'
+  
+  // Reviewer info
+  reviewerId: varchar("reviewer_id").references(() => users.id),
+  reviewNotes: text("review_notes"),
+  
+  // AI conversion metadata
+  isAiGenerated: boolean("is_ai_generated").notNull().default(false),
+  aiConfidence: integer("ai_confidence"), // 0-100 confidence score
+  needsReview: boolean("needs_review").notNull().default(true), // AI flagged for human review
+  
+  // Timestamps
+  assignedAt: timestamp("assigned_at"),
+  decidedAt: timestamp("decided_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Document Import Jobs - tracks AI conversion pipeline state
+export const documentImportJobs = pgTable("document_import_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Source file
+  sourceFileId: varchar("source_file_id").notNull().references(() => uploadedFiles.id),
+  sourceFileName: text("source_file_name").notNull(),
+  sourceFileType: text("source_file_type").notNull(), // 'pdf' | 'docx' | 'txt' | 'html'
+  
+  // Job status
+  status: text("status").notNull().default("pending"), // 'pending' | 'processing' | 'completed' | 'failed'
+  progress: integer("progress").notNull().default(0), // 0-100 percentage
+  
+  // Results
+  documentsCreated: integer("documents_created").notNull().default(0),
+  documentsNeedingReview: integer("documents_needing_review").notNull().default(0),
+  
+  // Error tracking
+  errorMessage: text("error_message"),
+  
+  // Processing metadata
+  processingStartedAt: timestamp("processing_started_at"),
+  processingCompletedAt: timestamp("processing_completed_at"),
+  
+  // Workspace scoping
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Document Chunks - vector embeddings for RAG (similar to knowledgeChunks)
+export const documentChunks = pgTable("document_chunks", {
+  id: varchar("id").primaryKey(), // Format: {documentVersionId}_chunk_{index}
+  documentVersionId: varchar("document_version_id").notNull().references(() => documentVersions.id, { onDelete: 'cascade' }),
+  documentId: varchar("document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  
+  // Content
+  content: text("content").notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  
+  // Metadata for filtering
+  domain: text("domain"), // Copied from document for fast filtering
+  intent: text("intent"), // Copied from document for fast filtering
+  tags: text("tags").array(),
+  
+  // Vector embedding
+  embedding: vector("embedding"), // 1536-dimensional for OpenAI
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   assignedConversations: many(conversations),
@@ -1233,6 +1442,147 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
 });
 
 export const updateApiKeySchema = insertApiKeySchema.partial();
+
+// ============================================================================
+// DOCUMENTATION FRAMEWORK SCHEMAS
+// ============================================================================
+
+// Document Domains schemas
+export const insertDocDomainSchema = createInsertSchema(docDomains).pick({
+  name: true,
+  slug: true,
+  description: true,
+  icon: true,
+  color: true,
+  displayOrder: true,
+  isActive: true,
+  workspaceId: true,
+  createdBy: true,
+});
+
+export const updateDocDomainSchema = insertDocDomainSchema.partial();
+
+export type InsertDocDomain = z.infer<typeof insertDocDomainSchema>;
+export type DocDomain = typeof docDomains.$inferSelect;
+
+// Document Intents schemas
+export const insertDocIntentSchema = createInsertSchema(docIntents).pick({
+  name: true,
+  slug: true,
+  description: true,
+  icon: true,
+  color: true,
+  displayOrder: true,
+  isActive: true,
+  workspaceId: true,
+  createdBy: true,
+});
+
+export const updateDocIntentSchema = insertDocIntentSchema.partial();
+
+export type InsertDocIntent = z.infer<typeof insertDocIntentSchema>;
+export type DocIntent = typeof docIntents.$inferSelect;
+
+// Documents schemas
+export const insertDocumentSchema = createInsertSchema(documents).pick({
+  slug: true,
+  title: true,
+  domainId: true,
+  intentId: true,
+  status: true,
+  roleAccess: true,
+  isPublic: true,
+  aiAgentIds: true,
+  tags: true,
+  summary: true,
+  workspaceId: true,
+  organizationId: true,
+  createdBy: true,
+});
+
+export const updateDocumentSchema = insertDocumentSchema.partial();
+
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type Document = typeof documents.$inferSelect;
+
+// Document Versions schemas
+export const insertDocumentVersionSchema = createInsertSchema(documentVersions).pick({
+  documentId: true,
+  version: true,
+  versionNumber: true,
+  frontMatter: true,
+  markdownBody: true,
+  sourceFileId: true,
+  changeLog: true,
+  status: true,
+  createdBy: true,
+});
+
+export const updateDocumentVersionSchema = insertDocumentVersionSchema.partial();
+
+export type InsertDocumentVersion = z.infer<typeof insertDocumentVersionSchema>;
+export type DocumentVersion = typeof documentVersions.$inferSelect;
+
+// Document Relationships schemas
+export const insertDocumentRelationshipSchema = createInsertSchema(documentRelationships).pick({
+  sourceDocumentId: true,
+  targetDocumentId: true,
+  relationshipType: true,
+  description: true,
+  displayOrder: true,
+  createdBy: true,
+});
+
+export const updateDocumentRelationshipSchema = insertDocumentRelationshipSchema.partial();
+
+export type InsertDocumentRelationship = z.infer<typeof insertDocumentRelationshipSchema>;
+export type DocumentRelationship = typeof documentRelationships.$inferSelect;
+
+// Document Review Queue schemas
+export const insertDocumentReviewQueueSchema = createInsertSchema(documentReviewQueue).pick({
+  documentVersionId: true,
+  status: true,
+  reviewerId: true,
+  reviewNotes: true,
+  isAiGenerated: true,
+  aiConfidence: true,
+  needsReview: true,
+});
+
+export const updateDocumentReviewQueueSchema = insertDocumentReviewQueueSchema.partial();
+
+export type InsertDocumentReviewQueue = z.infer<typeof insertDocumentReviewQueueSchema>;
+export type DocumentReviewQueue = typeof documentReviewQueue.$inferSelect;
+
+// Document Import Jobs schemas
+export const insertDocumentImportJobSchema = createInsertSchema(documentImportJobs).pick({
+  sourceFileId: true,
+  sourceFileName: true,
+  sourceFileType: true,
+  status: true,
+  workspaceId: true,
+  createdBy: true,
+});
+
+export const updateDocumentImportJobSchema = insertDocumentImportJobSchema.partial();
+
+export type InsertDocumentImportJob = z.infer<typeof insertDocumentImportJobSchema>;
+export type DocumentImportJob = typeof documentImportJobs.$inferSelect;
+
+// Document Chunks schemas
+export const insertDocumentChunkSchema = createInsertSchema(documentChunks).pick({
+  id: true,
+  documentVersionId: true,
+  documentId: true,
+  content: true,
+  chunkIndex: true,
+  domain: true,
+  intent: true,
+  tags: true,
+});
+
+export type InsertDocumentChunk = z.infer<typeof insertDocumentChunkSchema>;
+export type DocumentChunk = typeof documentChunks.$inferSelect;
 
 // AI Agent schemas
 export const insertAiAgentSchema = createInsertSchema(aiAgents).pick({
