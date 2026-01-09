@@ -124,6 +124,36 @@ export const workspaceMembers = pgTable("workspace_members", {
   uniqueUserWorkspace: unique().on(table.userId, table.workspaceId),
 }));
 
+// Departments table - divisions within workspaces (e.g., Sales, Technical Support, Billing)
+export const departments = pgTable("departments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  slug: text("slug").notNull(), // URL-friendly identifier
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  isDefault: boolean("is_default").notNull().default(false), // Default department for new workspace members
+  primaryAiAgentId: varchar("primary_ai_agent_id"), // Default AI agent for this department (set after aiAgents table)
+  settings: jsonb("settings"), // Department-specific settings (JSON)
+  icon: text("icon").default("Building2"), // Lucide icon name
+  color: text("color").default("#6366f1"), // Hex color
+  displayOrder: integer("display_order").notNull().default(0), // Order in department list
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Department Members - junction table for workspace members to departments
+export const departmentMembers = pgTable("department_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceMemberId: varchar("workspace_member_id").notNull().references(() => workspaceMembers.id),
+  departmentId: varchar("department_id").notNull().references(() => departments.id),
+  role: text("role").notNull().default("member"), // 'lead' | 'member' | 'viewer'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueMemberDepartment: unique().on(table.workspaceMemberId, table.departmentId),
+}));
+
 // Customers table
 export const customers = pgTable("customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -162,6 +192,8 @@ export const conversations = pgTable("conversations", {
   aiAssistanceEnabled: boolean("ai_assistance_enabled").notNull().default(true), // Toggle AI auto-response
   contextData: text("context_data"), // JSON string for custom context from 3rd party integrations (product info, page context, etc.)
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
+  workspaceId: varchar("workspace_id").references(() => workspaces.id), // Workspace scoping for conversations
+  departmentId: varchar("department_id").references(() => departments.id), // Department routing for conversations
   customerLanguage: text("customer_language").default("en"), // Customer's preferred language for translation (ISO 639-1 code)
   // Customer engagement tracking fields
   lastCustomerReplyAt: timestamp("last_customer_reply_at"), // Last time customer sent a message
@@ -388,6 +420,7 @@ export const aiAgents = pgTable("ai_agents", {
   includeResourceLinks: boolean("include_resource_links").notNull().default(true), // Include links to knowledge base articles in responses
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   workspaceId: varchar("workspace_id").references(() => workspaces.id), // Workspace scoping for AI agents
+  departmentId: varchar("department_id").references(() => departments.id), // Department-specific AI agent
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -410,6 +443,8 @@ export const supportCategories = pgTable("support_categories", {
   suggestedQuestions: text("suggested_questions").array(), // Pre-defined questions for customers
   // Organization scoping
   organizationId: varchar("organization_id").references(() => organizations.id),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id), // Workspace scoping for categories
+  departmentId: varchar("department_id").references(() => departments.id), // Department routing for category
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -979,6 +1014,33 @@ export const insertWorkspaceMemberSchema = createInsertSchema(workspaceMembers).
   status: true,
 });
 
+export const insertDepartmentSchema = createInsertSchema(departments).pick({
+  name: true,
+  description: true,
+  slug: true,
+  workspaceId: true,
+  isDefault: true,
+  primaryAiAgentId: true,
+  settings: true,
+  icon: true,
+  color: true,
+  displayOrder: true,
+  isActive: true,
+  createdBy: true,
+});
+
+export const updateDepartmentSchema = createInsertSchema(departments).partial().omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertDepartmentMemberSchema = createInsertSchema(departmentMembers).pick({
+  workspaceMemberId: true,
+  departmentId: true,
+  role: true,
+});
+
 export const insertCustomerSchema = createInsertSchema(customers).pick({
   name: true,
   email: true,
@@ -1419,6 +1481,11 @@ export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
 export type Workspace = typeof workspaces.$inferSelect;
 export type InsertWorkspaceMember = z.infer<typeof insertWorkspaceMemberSchema>;
 export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
+export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
+export type UpdateDepartment = z.infer<typeof updateDepartmentSchema>;
+export type Department = typeof departments.$inferSelect;
+export type InsertDepartmentMember = z.infer<typeof insertDepartmentMemberSchema>;
+export type DepartmentMember = typeof departmentMembers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Customer = typeof customers.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
