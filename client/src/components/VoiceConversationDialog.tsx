@@ -346,10 +346,10 @@ export default function VoiceConversationDialog({
       // Send the message if we have text
       if (textToSend) {
         sendMessage(textToSend);
-      } else {
-        setTranscript('');
-        accumulatedTranscriptRef.current = '';
       }
+      // Always clear the transcript display after push-to-talk ends
+      setTranscript('');
+      accumulatedTranscriptRef.current = '';
     } else {
       setIsPushToTalkActive(false);
     }
