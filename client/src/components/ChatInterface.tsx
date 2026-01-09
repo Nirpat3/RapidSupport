@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal, GraduationCap } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal, GraduationCap, ChevronUp, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import ChatMessage, { type Message } from "./ChatMessage";
 import InternalChatPanel from "./InternalChatPanel";
@@ -141,6 +141,9 @@ export default function ChatInterface({
   // AI Correction state
   const [isCorrectionDialogOpen, setIsCorrectionDialogOpen] = useState(false);
   
+  // Collapsible customer header state
+  const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
+  
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sendButtonRef = useRef<HTMLButtonElement>(null);
@@ -153,6 +156,13 @@ export default function ChatInterface({
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  // Auto-collapse header when messages exist (for more viewing space)
+  useEffect(() => {
+    if (messages.length > 0) {
+      setIsHeaderCollapsed(true);
+    }
+  }, [conversationId]); // Only on conversation change
 
   // Fetch and sync AI assistance state from conversation data
   useEffect(() => {
@@ -600,49 +610,86 @@ export default function ChatInterface({
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-background">
-      {/* Enhanced Chat Header */}
+      {/* Enhanced Chat Header - Collapsible */}
       <div className="sticky top-0 z-10 border-b border-border bg-card">
-        {/* Main Header Info */}
-        <div className="p-4 pb-3">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10">
+        {/* Collapsed Header - Compact View */}
+        {isHeaderCollapsed ? (
+          <div className="px-3 py-2 flex items-center justify-between">
+            <button 
+              onClick={() => setIsHeaderCollapsed(false)}
+              className="flex items-center gap-2 hover:bg-muted/50 rounded-lg p-1 transition-colors"
+              data-testid="button-expand-header"
+            >
+              <Avatar className="w-7 h-7">
                 <AvatarImage src={customer?.avatar} />
-                <AvatarFallback className="text-sm font-medium">
+                <AvatarFallback className="text-xs font-medium">
                   {customer?.name?.split(' ').map(n => n[0]).join('') || 'U'}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <Link href={`/customers/${customer.id}`} className="hover-elevate inline-block">
-                  <h3 className="font-semibold text-lg hover:text-primary transition-colors cursor-pointer" data-testid="chat-customer-name">
-                    {customer?.name || 'Unknown Customer'}
-                  </h3>
-                </Link>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Building className="w-3 h-3" />
-                  <span>{customer?.company || 'No company provided'}</span>
-                </div>
-                <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <span className={`w-2 h-2 rounded-full ${
-                      customer?.status === 'online' ? 'bg-green-500' :
-                      customer?.status === 'away' ? 'bg-yellow-500' :
-                      customer?.status === 'busy' ? 'bg-red-500' :
-                      'bg-gray-400'
-                    }`} />
-                    <span className="capitalize">{customer?.status || 'offline'}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm">{customer?.name || 'Unknown'}</span>
+                <span className={`w-2 h-2 rounded-full ${
+                  customer?.status === 'online' ? 'bg-green-500' :
+                  customer?.status === 'away' ? 'bg-yellow-500' :
+                  customer?.status === 'busy' ? 'bg-red-500' :
+                  'bg-gray-400'
+                }`} />
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </button>
+          </div>
+        ) : (
+          /* Expanded Header - Full Details */
+          <div className="p-4 pb-3">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={customer?.avatar} />
+                  <AvatarFallback className="text-sm font-medium">
+                    {customer?.name?.split(' ').map(n => n[0]).join('') || 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <Link href={`/customers/${customer.id}`} className="hover-elevate inline-block">
+                    <h3 className="font-semibold text-lg hover:text-primary transition-colors cursor-pointer" data-testid="chat-customer-name">
+                      {customer?.name || 'Unknown Customer'}
+                    </h3>
+                  </Link>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Building className="w-3 h-3" />
+                    <span>{customer?.company || 'No company provided'}</span>
                   </div>
-                  {customer?.email && (
+                  <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
-                      <Mail className="w-3 h-3" />
-                      <span>{customer.email}</span>
+                      <span className={`w-2 h-2 rounded-full ${
+                        customer?.status === 'online' ? 'bg-green-500' :
+                        customer?.status === 'away' ? 'bg-yellow-500' :
+                        customer?.status === 'busy' ? 'bg-red-500' :
+                        'bg-gray-400'
+                      }`} />
+                      <span className="capitalize">{customer?.status || 'offline'}</span>
                     </div>
-                  )}
+                    {customer?.email && (
+                      <div className="flex items-center gap-1">
+                        <Mail className="w-3 h-3" />
+                        <span>{customer.email}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsHeaderCollapsed(true)}
+                className="flex-shrink-0"
+                data-testid="button-collapse-header"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </Button>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Action Buttons Row - Cleaned Up */}
         <div className="px-4 pb-3">
