@@ -10750,12 +10750,13 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(400).json({ error: 'Message is required' });
       }
       
-      // Generate voice-optimized response
+      // Generate voice-optimized response (includes conversational intelligence)
       const aiResponse = await AIService.generateVoiceResponse(
         message,
         conversationHistory || [],
         agentId,
-        language || 'en'
+        language || 'en',
+        conversationId
       );
       
       // Generate TTS audio for the response

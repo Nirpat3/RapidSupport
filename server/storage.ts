@@ -165,6 +165,10 @@ import {
   aiTokenUsageSummary,
   aiKnowledgeFeedback,
   knowledgeArticleMetrics,
+  customerMemory,
+  sentimentTracking,
+  conversationIntelligence,
+  proactiveSuggestions,
   type AiTokenUsage,
   type InsertAiTokenUsage,
   type AiTokenUsageSummary,
@@ -173,6 +177,14 @@ import {
   type InsertAiKnowledgeFeedback,
   type KnowledgeArticleMetrics,
   type InsertKnowledgeArticleMetrics,
+  type CustomerMemory,
+  type InsertCustomerMemory,
+  type SentimentTracking,
+  type InsertSentimentTracking,
+  type ConversationIntelligence,
+  type InsertConversationIntelligence,
+  type ProactiveSuggestions,
+  type InsertProactiveSuggestions,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -5684,6 +5696,191 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
     
     return results;
+  }
+
+  // ============================================
+  // CONVERSATIONAL INTELLIGENCE OPERATIONS
+  // ============================================
+
+  // Customer Memory operations
+  async getCustomerMemories(customerId: string): Promise<CustomerMemory[]> {
+    return await db
+      .select()
+      .from(customerMemory)
+      .where(and(
+        eq(customerMemory.customerId, customerId),
+        eq(customerMemory.isActive, true)
+      ))
+      .orderBy(desc(customerMemory.lastAccessed));
+  }
+
+  async getCustomerMemoryByKey(customerId: string, key: string): Promise<CustomerMemory | undefined> {
+    const [memory] = await db
+      .select()
+      .from(customerMemory)
+      .where(and(
+        eq(customerMemory.customerId, customerId),
+        eq(customerMemory.key, key),
+        eq(customerMemory.isActive, true)
+      ));
+    return memory || undefined;
+  }
+
+  async createCustomerMemory(memory: InsertCustomerMemory): Promise<CustomerMemory> {
+    const [created] = await db.insert(customerMemory).values(memory).returning();
+    return created;
+  }
+
+  async updateCustomerMemory(id: string, updates: Partial<InsertCustomerMemory>): Promise<CustomerMemory> {
+    const [updated] = await db
+      .update(customerMemory)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(customerMemory.id, id))
+      .returning();
+    return updated;
+  }
+
+  async accessCustomerMemory(id: string): Promise<void> {
+    const [memory] = await db.select().from(customerMemory).where(eq(customerMemory.id, id));
+    if (memory) {
+      await db
+        .update(customerMemory)
+        .set({ 
+          lastAccessed: new Date(),
+          accessCount: memory.accessCount + 1
+        })
+        .where(eq(customerMemory.id, id));
+    }
+  }
+
+  async upsertCustomerMemory(customerId: string, key: string, value: string, source: string, conversationId?: string): Promise<CustomerMemory> {
+    const existing = await this.getCustomerMemoryByKey(customerId, key);
+    if (existing) {
+      return await this.updateCustomerMemory(existing.id, {
+        value,
+        source,
+        sourceConversationId: conversationId,
+        lastAccessed: new Date(),
+        accessCount: existing.accessCount + 1
+      });
+    } else {
+      return await this.createCustomerMemory({
+        customerId,
+        memoryType: 'context',
+        key,
+        value,
+        source,
+        sourceConversationId: conversationId
+      });
+    }
+  }
+
+  // Sentiment Tracking operations
+  async createSentimentTracking(sentiment: InsertSentimentTracking): Promise<SentimentTracking> {
+    const [created] = await db.insert(sentimentTracking).values(sentiment).returning();
+    return created;
+  }
+
+  async getConversationSentiments(conversationId: string): Promise<SentimentTracking[]> {
+    return await db
+      .select()
+      .from(sentimentTracking)
+      .where(eq(sentimentTracking.conversationId, conversationId))
+      .orderBy(asc(sentimentTracking.createdAt));
+  }
+
+  async getLatestSentiment(conversationId: string): Promise<SentimentTracking | undefined> {
+    const [sentiment] = await db
+      .select()
+      .from(sentimentTracking)
+      .where(eq(sentimentTracking.conversationId, conversationId))
+      .orderBy(desc(sentimentTracking.createdAt))
+      .limit(1);
+    return sentiment || undefined;
+  }
+
+  async getHighFrustrationConversations(threshold: number = 70): Promise<SentimentTracking[]> {
+    return await db
+      .select()
+      .from(sentimentTracking)
+      .where(gte(sentimentTracking.frustrationLevel, threshold))
+      .orderBy(desc(sentimentTracking.createdAt))
+      .limit(50);
+  }
+
+  // Conversation Intelligence operations
+  async getConversationIntelligence(conversationId: string): Promise<ConversationIntelligence | undefined> {
+    const [intel] = await db
+      .select()
+      .from(conversationIntelligence)
+      .where(eq(conversationIntelligence.conversationId, conversationId));
+    return intel || undefined;
+  }
+
+  async createConversationIntelligence(intel: InsertConversationIntelligence): Promise<ConversationIntelligence> {
+    const [created] = await db.insert(conversationIntelligence).values(intel).returning();
+    return created;
+  }
+
+  async updateConversationIntelligence(conversationId: string, updates: Partial<InsertConversationIntelligence>): Promise<ConversationIntelligence> {
+    const [updated] = await db
+      .update(conversationIntelligence)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(conversationIntelligence.conversationId, conversationId))
+      .returning();
+    return updated;
+  }
+
+  async upsertConversationIntelligence(conversationId: string, updates: Partial<InsertConversationIntelligence>): Promise<ConversationIntelligence> {
+    const existing = await this.getConversationIntelligence(conversationId);
+    if (existing) {
+      return await this.updateConversationIntelligence(conversationId, updates);
+    } else {
+      return await this.createConversationIntelligence({
+        conversationId,
+        ...updates
+      });
+    }
+  }
+
+  // Proactive Suggestions operations
+  async getProactiveSuggestions(intent?: string, category?: string): Promise<ProactiveSuggestions[]> {
+    let query = db.select().from(proactiveSuggestions).where(eq(proactiveSuggestions.isActive, true));
+    
+    // We'll filter in memory since array_contains isn't straightforward
+    const suggestions = await query.orderBy(desc(proactiveSuggestions.suggestionPriority));
+    
+    return suggestions.filter(s => {
+      if (intent && s.applicableIntents && !s.applicableIntents.includes(intent)) return false;
+      if (category && s.applicableCategories && !s.applicableCategories.includes(category)) return false;
+      return true;
+    });
+  }
+
+  async createProactiveSuggestion(suggestion: InsertProactiveSuggestions): Promise<ProactiveSuggestions> {
+    const [created] = await db.insert(proactiveSuggestions).values(suggestion).returning();
+    return created;
+  }
+
+  async updateProactiveSuggestionStats(id: string, accepted: boolean): Promise<void> {
+    const [suggestion] = await db.select().from(proactiveSuggestions).where(eq(proactiveSuggestions.id, id));
+    if (suggestion) {
+      const newTimesShown = suggestion.timesShown + 1;
+      const newTimesAccepted = accepted ? suggestion.timesAccepted + 1 : suggestion.timesAccepted;
+      const newTimesIgnored = accepted ? suggestion.timesIgnored : suggestion.timesIgnored + 1;
+      const successRate = newTimesShown > 0 ? Math.round((newTimesAccepted / newTimesShown) * 100) : 0;
+      
+      await db
+        .update(proactiveSuggestions)
+        .set({
+          timesShown: newTimesShown,
+          timesAccepted: newTimesAccepted,
+          timesIgnored: newTimesIgnored,
+          successRate,
+          updatedAt: new Date()
+        })
+        .where(eq(proactiveSuggestions.id, id));
+    }
   }
 
 }

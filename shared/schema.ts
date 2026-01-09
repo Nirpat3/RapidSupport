@@ -2867,3 +2867,167 @@ export const insertKnowledgeArticleMetricsSchema = createInsertSchema(knowledgeA
 
 export type InsertKnowledgeArticleMetrics = z.infer<typeof insertKnowledgeArticleMetricsSchema>;
 export type KnowledgeArticleMetrics = typeof knowledgeArticleMetrics.$inferSelect;
+
+// ============================================
+// CONVERSATIONAL INTELLIGENCE SYSTEM
+// ============================================
+
+// Customer Memory - Long-term memory for customer preferences, issues, and patterns
+export const customerMemory = pgTable("customer_memory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  
+  // Memory type categorization
+  memoryType: text("memory_type").notNull(), // 'preference' | 'issue' | 'interaction' | 'feedback' | 'context'
+  
+  // Memory content
+  key: text("key").notNull(), // e.g., 'preferred_language', 'device_type', 'past_issue_printer'
+  value: text("value").notNull(), // The actual memory value
+  confidence: integer("confidence").notNull().default(80), // 0-100 confidence in this memory
+  
+  // Source tracking
+  source: text("source").notNull(), // 'explicit' (user told us) | 'inferred' (AI detected) | 'behavioral' (pattern)
+  sourceConversationId: varchar("source_conversation_id").references(() => conversations.id),
+  
+  // Temporal relevance
+  lastAccessed: timestamp("last_accessed").notNull().defaultNow(),
+  accessCount: integer("access_count").notNull().default(1),
+  expiresAt: timestamp("expires_at"), // Optional expiration for temporary memories
+  
+  // Status
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Sentiment Tracking - Real-time sentiment analysis per message
+export const sentimentTracking = pgTable("sentiment_tracking", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // References
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
+  messageId: varchar("message_id").references(() => messages.id),
+  customerId: varchar("customer_id").references(() => customers.id),
+  
+  // Sentiment scores (-1 to 1 scale, stored as integer -100 to 100)
+  overallSentiment: integer("overall_sentiment").notNull().default(0), // -100 negative to 100 positive
+  frustrationLevel: integer("frustration_level").notNull().default(0), // 0-100
+  urgencyLevel: integer("urgency_level").notNull().default(0), // 0-100
+  satisfactionLevel: integer("satisfaction_level").notNull().default(50), // 0-100
+  
+  // Emotion detection
+  primaryEmotion: text("primary_emotion"), // 'neutral' | 'happy' | 'frustrated' | 'confused' | 'angry' | 'anxious'
+  emotionConfidence: integer("emotion_confidence").notNull().default(50), // 0-100
+  
+  // Escalation tracking
+  escalationTriggered: boolean("escalation_triggered").notNull().default(false),
+  escalationReason: text("escalation_reason"), // Why escalation was triggered
+  
+  // Voice-specific (if from voice input)
+  modality: text("modality").notNull().default("text"), // 'text' | 'voice'
+  voiceToneIndicators: text("voice_tone_indicators").array(), // ['rushed', 'hesitant', 'emphatic']
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Conversation Intelligence - Multi-turn reasoning state and context
+export const conversationIntelligence = pgTable("conversation_intelligence", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id).unique(),
+  
+  // Conversation state tracking
+  currentIntent: text("current_intent"), // Latest classified intent
+  intentHistory: text("intent_history").array(), // Track how intent evolved
+  topicStack: text("topic_stack").array(), // Stack of active topics for context switching
+  
+  // Problem understanding
+  problemStatement: text("problem_statement"), // AI's understanding of the core issue
+  problemConfidence: integer("problem_confidence").notNull().default(0), // 0-100
+  clarificationAsked: boolean("clarification_asked").notNull().default(false),
+  clarificationAnswered: boolean("clarification_answered").notNull().default(false),
+  
+  // Solution tracking
+  solutionsAttempted: text("solutions_attempted").array(), // What solutions have been tried
+  currentSolutionStep: integer("current_solution_step").default(0), // For multi-step solutions
+  solutionSuccessful: boolean("solution_successful"),
+  
+  // Proactive suggestions
+  predictedNextIssues: text("predicted_next_issues").array(), // What they might ask next
+  suggestedResources: text("suggested_resources").array(), // KB articles to recommend
+  
+  // Conversation quality
+  averageSentiment: integer("average_sentiment").notNull().default(0), // Running average
+  frustrationPeaks: integer("frustration_peaks").notNull().default(0), // Count of high frustration moments
+  turnsToResolution: integer("turns_to_resolution"), // How many exchanges to resolve
+  
+  // Memory references used
+  memoriesUsed: text("memories_used").array(), // Which customer memories were applied
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Proactive Suggestions - Pattern-based recommendations
+export const proactiveSuggestions = pgTable("proactive_suggestions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Trigger pattern
+  triggerType: text("trigger_type").notNull(), // 'keyword' | 'intent' | 'sentiment' | 'sequence' | 'time'
+  triggerPattern: text("trigger_pattern").notNull(), // The pattern that triggers this suggestion
+  
+  // Suggestion content
+  suggestionType: text("suggestion_type").notNull(), // 'article' | 'action' | 'question' | 'escalation'
+  suggestionContent: text("suggestion_content").notNull(), // What to suggest
+  suggestionPriority: integer("suggestion_priority").notNull().default(50), // 0-100
+  
+  // Targeting
+  applicableIntents: text("applicable_intents").array(), // Which intents this applies to
+  applicableCategories: text("applicable_categories").array(), // Which support categories
+  
+  // Performance tracking
+  timesShown: integer("times_shown").notNull().default(0),
+  timesAccepted: integer("times_accepted").notNull().default(0),
+  timesIgnored: integer("times_ignored").notNull().default(0),
+  successRate: integer("success_rate").notNull().default(0), // 0-100
+  
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Customer Memory insert schema and types
+export const insertCustomerMemorySchema = createInsertSchema(customerMemory).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCustomerMemory = z.infer<typeof insertCustomerMemorySchema>;
+export type CustomerMemory = typeof customerMemory.$inferSelect;
+
+// Sentiment Tracking insert schema and types
+export const insertSentimentTrackingSchema = createInsertSchema(sentimentTracking).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertSentimentTracking = z.infer<typeof insertSentimentTrackingSchema>;
+export type SentimentTracking = typeof sentimentTracking.$inferSelect;
+
+// Conversation Intelligence insert schema and types
+export const insertConversationIntelligenceSchema = createInsertSchema(conversationIntelligence).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertConversationIntelligence = z.infer<typeof insertConversationIntelligenceSchema>;
+export type ConversationIntelligence = typeof conversationIntelligence.$inferSelect;
+
+// Proactive Suggestions insert schema and types
+export const insertProactiveSuggestionsSchema = createInsertSchema(proactiveSuggestions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertProactiveSuggestions = z.infer<typeof insertProactiveSuggestionsSchema>;
+export type ProactiveSuggestions = typeof proactiveSuggestions.$inferSelect;

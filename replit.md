@@ -47,6 +47,13 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
     - **Performance Optimization**: Knowledge base retrieval is optimized for faster AI response times.
     - **Reference Links**: AI responses automatically include clickable markdown links to relevant knowledge base articles.
     - **Persistent Vector Database**: Uses PostgreSQL with `pgvector` for persistent storage of knowledge chunks and OpenAI embeddings for efficient similarity search.
+    - **Conversational Intelligence System**: Advanced AI-powered customer understanding with:
+        - **Customer Memory**: Persistent memory system tracking preferences, device types, past issues, and interaction patterns with confidence scores. Memories are automatically extracted from conversations and injected into AI prompts for personalized responses.
+        - **Sentiment Analysis**: Real-time emotion detection analyzing frustration (0-100), urgency, satisfaction, and primary emotion. Automatic escalation triggers when frustration ≥ 75.
+        - **Conversation Intelligence Tracking**: Monitors intent sequences, solution attempts, topic evolution, and proactive opportunities per conversation.
+        - **Voice Emotion Detection**: Analyzes transcript word choice and patterns to infer emotional state during voice conversations.
+        - **Database Tables**: customer_memory, sentiment_tracking, conversation_intelligence, proactive_suggestions
+        - **Non-Blocking Processing**: Intelligence runs asynchronously (Promise.all) to avoid slowing response times
 - **AI Management**: A central hub for configuring AI agents, monitoring performance, and overseeing human intervention in AI conversations.
 - **Knowledge Base Integration**: AI analyzes uploaded documents (TXT, PDF, DOCX) to extract metadata, generate FAQs, and suggest agent assignments. Documents are automatically chunked and indexed with vector embeddings in PostgreSQL.
 - **Rich Media Input**: Supports file attachments (drag-drop, multi-file), camera capture, emoji picker, and voice-to-text.

@@ -3,6 +3,7 @@ import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAg
 import { storage } from './storage';
 import { knowledgeRetrieval, type SearchResult, type RetrievalOptions } from './knowledge-retrieval';
 import { conversationLogger } from './conversation-logger';
+import { convIntel } from './conversational-intelligence';
 
 // Model pricing (per 1M tokens) - as of 2024
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -1580,6 +1581,39 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         }
       });
 
+      // ============================================
+      // CONVERSATIONAL INTELLIGENCE - PRE-RESPONSE
+      // ============================================
+      
+      // Get customer ID from conversation for memory lookup
+      const customerId = conversation?.customerId;
+      let customerMemoryContext = '';
+      
+      // Only run intelligence features if we have both customerId and conversationId
+      if (customerId && conversationId) {
+        try {
+          // Load customer memories for personalization
+          const customerContext = await convIntel.getCustomerContext(customerId, conversationId);
+          customerMemoryContext = convIntel.formatMemoriesForPrompt(customerContext.customerMemories);
+          
+          if (customerContext.customerMemories.length > 0) {
+            console.log(`[ConvIntel] Loaded ${customerContext.customerMemories.length} memories for customer ${customerId}`);
+          }
+          
+          // Track intent in conversation intelligence
+          await convIntel.trackIntent(conversationId, intentClassification.intent);
+        } catch (error) {
+          console.error('[ConvIntel] Error loading customer context:', error);
+        }
+      }
+      
+      // Inject memory context into contextData for the response generator
+      const enrichedContextData = {
+        ...contextData,
+        customerMemoryContext,
+        conversationId
+      };
+
       // Generate response using agent's configuration with format guidance
       const response = await this.generateAgentResponseWithConfig(
         customerMessage,
@@ -1587,7 +1621,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         searchResults,
         agent,
         responseFormat,
-        contextData
+        enrichedContextData
       );
 
       // Update session statistics
@@ -1676,6 +1710,42 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         }
       }
 
+      // ============================================
+      // CONVERSATIONAL INTELLIGENCE - POST-RESPONSE
+      // ============================================
+      
+      // Only run intelligence features if we have both customerId and conversationId
+      if (customerId && conversationId) {
+        // Run sentiment analysis and memory extraction in parallel (non-blocking)
+        // Uses void IIFE pattern with outer try-catch for centralized error handling
+        void (async () => {
+          try {
+            const [sentiment, memories] = await Promise.all([
+              // Analyze sentiment of customer message
+              convIntel.analyzeSentiment(customerMessage, conversationId, customerId),
+              
+              // Extract and save memorable information from this exchange
+              convIntel.extractAndSaveMemories(customerMessage, customerId, conversationId, response.response),
+              
+              // Track solution attempt if this looks like a solution
+              (searchResults.length > 0 && response.confidence > 50) 
+                ? convIntel.trackSolutionAttempt(conversationId, searchResults[0].chunk.title)
+                : Promise.resolve()
+            ]);
+            
+            if (sentiment?.escalationTriggered) {
+              console.log(`[ConvIntel] 🚨 Escalation triggered for conversation ${conversationId}`);
+            }
+            if (memories && memories.length > 0) {
+              console.log(`[ConvIntel] 💾 Saved ${memories.length} new memories for customer ${customerId}`);
+            }
+          } catch (error) {
+            // Centralized error handling with full context for debugging
+            console.error(`[ConvIntel] Post-response intelligence error for conversation ${conversationId}, customer ${customerId}:`, error);
+          }
+        })();
+      }
+
       return {
         ...response,
         sessionId: session.id,
@@ -1728,10 +1798,14 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         ? `\nConversation History:\n${conversationHistory.join('\n')}\n`
         : '';
 
-      // Add custom context data if provided
-      const customContext = contextData 
-        ? `\nCustom Context Data:\n${JSON.stringify(contextData, null, 2)}\n(Use this information to provide personalized, context-aware responses)\n`
+      // Add custom context data if provided (excluding memory context which is handled separately)
+      const { customerMemoryContext, ...otherContextData } = contextData || {};
+      const customContext = Object.keys(otherContextData).length > 0
+        ? `\nCustom Context Data:\n${JSON.stringify(otherContextData, null, 2)}\n`
         : '';
+      
+      // Customer memory context for personalization
+      const memoryContext = customerMemoryContext || '';
 
       // Extract language preference from context data
       const language = contextData?.language || 'en';
@@ -1764,7 +1838,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       // Get the format template for this response
       const formatTemplate = RESPONSE_FORMATS[responseFormat];
 
-      const userPrompt = `${knowledgeContext}${conversationContext}${customContext}
+      const userPrompt = `${knowledgeContext}${conversationContext}${customContext}${memoryContext}
 Customer Message: "${customerMessage}"
 
 Agent Role: ${agent.name} - ${agent.description}
@@ -3276,7 +3350,8 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
     customerMessage: string,
     conversationHistory: Array<{ role: string; content: string }>,
     agentId?: string,
-    language: string = 'en'
+    language: string = 'en',
+    conversationId?: string
   ): Promise<{
     response: string;
     knowledgeLinks: Array<{ id: string; title: string }>;
@@ -3313,6 +3388,32 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
       `[${r.chunk.title}]: ${r.chunk.content.substring(0, 500)}`
     ).join('\n\n');
 
+    // ============================================
+    // CONVERSATIONAL INTELLIGENCE FOR VOICE
+    // ============================================
+    let customerMemoryContext = '';
+    let customerId: string | undefined;
+    
+    if (conversationId) {
+      try {
+        // Get customer ID from conversation
+        const conversation = await storage.getConversation(conversationId);
+        customerId = conversation?.customerId;
+        
+        if (customerId) {
+          // Load customer memories for personalization
+          const customerContext = await convIntel.getCustomerContext(customerId, conversationId);
+          customerMemoryContext = convIntel.formatMemoriesForPrompt(customerContext.customerMemories);
+          
+          if (customerContext.customerMemories.length > 0) {
+            console.log(`[Voice ConvIntel] Loaded ${customerContext.customerMemories.length} memories for customer ${customerId}`);
+          }
+        }
+      } catch (error) {
+        console.error('[Voice ConvIntel] Error loading customer context:', error);
+      }
+    }
+
     // Language instruction
     const languageNames: Record<string, string> = {
       'es': 'Spanish', 'de': 'German', 'fr': 'French',
@@ -3331,6 +3432,7 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
 - Be warm and personable
 
 ${langInstruction}
+${customerMemoryContext}
 
 KNOWLEDGE BASE:
 ${knowledgeContext || 'No specific knowledge available for this query.'}
@@ -3375,6 +3477,41 @@ If the knowledge base doesn't help, acknowledge this and offer to connect them w
     const shouldHandoff = searchResults.length === 0 || 
       response.toLowerCase().includes('connect you with') ||
       response.toLowerCase().includes('human agent');
+
+    // ============================================
+    // VOICE CONVERSATIONAL INTELLIGENCE - POST-RESPONSE
+    // ============================================
+    
+    if (customerId && conversationId) {
+      // Run sentiment analysis and memory extraction in parallel (non-blocking)
+      // Uses void IIFE pattern with outer try-catch for centralized error handling
+      void (async () => {
+        try {
+          const [sentiment, memories] = await Promise.all([
+            // Analyze sentiment of customer message (including voice emotion detection via transcript)
+            convIntel.analyzeSentiment(customerMessage, conversationId, customerId),
+            
+            // Extract and save memorable information from this exchange
+            convIntel.extractAndSaveMemories(customerMessage, customerId, conversationId, response),
+            
+            // Track solution attempt if knowledge was used
+            (searchResults.length > 0 && !shouldHandoff) 
+              ? convIntel.trackSolutionAttempt(conversationId, searchResults[0].chunk.title)
+              : Promise.resolve()
+          ]);
+          
+          if (sentiment?.escalationTriggered) {
+            console.log(`[Voice ConvIntel] 🚨 Escalation triggered for conversation ${conversationId}`);
+          }
+          if (memories && memories.length > 0) {
+            console.log(`[Voice ConvIntel] 💾 Saved ${memories.length} new memories from voice conversation`);
+          }
+        } catch (error) {
+          // Centralized error handling with full context for debugging
+          console.error(`[Voice ConvIntel] Post-response intelligence error for conversation ${conversationId}, customer ${customerId}:`, error);
+        }
+      })();
+    }
 
     return {
       response,
