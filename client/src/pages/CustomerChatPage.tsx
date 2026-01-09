@@ -1173,7 +1173,10 @@ export default function CustomerChatPage() {
                       type="button"
                       size="icon"
                       variant="ghost"
-                      onClick={() => setShowVoiceDialog(true)}
+                      onClick={() => {
+                        console.log('[Voice] Opening voice dialog from conversation view');
+                        setShowVoiceDialog(true);
+                      }}
                       title="Start voice conversation"
                       data-testid="button-voice"
                     >
