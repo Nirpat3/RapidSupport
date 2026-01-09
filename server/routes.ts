@@ -59,6 +59,56 @@ const messageCreateSchema = z.object({
   content: z.string().min(1, 'Message content cannot be empty').max(5000, 'Message too long')
 });
 
+// Multi-region validation schemas
+const createRegionSchema = z.object({
+  isoCode: z.string().min(2).max(3).toUpperCase(),
+  name: z.string().min(1).max(100),
+  defaultLocale: z.string().default('en'),
+  supportedLocales: z.array(z.string()).default(['en']),
+  timezone: z.string().default('UTC'),
+  currency: z.string().max(3).default('USD'),
+  currencySymbol: z.string().max(5).default('$'),
+  dateFormat: z.string().default('MM/DD/YYYY'),
+  subdomain: z.string().optional(),
+  customDomain: z.string().optional()
+});
+
+const updateRegionSchema = createRegionSchema.partial();
+
+const createOrganizationMemberSchema = z.object({
+  userId: z.string().uuid(),
+  role: z.enum(['owner', 'admin', 'manager', 'viewer']).default('viewer'),
+  canViewAllConversations: z.boolean().default(true),
+  canManageWorkspaces: z.boolean().default(false),
+  canManageMembers: z.boolean().default(false),
+  canManageSettings: z.boolean().default(false)
+});
+
+const updateOrganizationMemberSchema = createOrganizationMemberSchema.partial();
+
+const createKnowledgeCollectionSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().optional(),
+  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens'),
+  ownerOrganizationId: z.string().uuid().optional(),
+  visibility: z.enum(['private', 'organization', 'shared']).default('organization'),
+  defaultLocale: z.string().default('en'),
+  supportedLocales: z.array(z.string()).default(['en'])
+});
+
+const updateKnowledgeCollectionSchema = createKnowledgeCollectionSchema.partial();
+
+const addArticleToCollectionSchema = z.object({
+  articleId: z.string().uuid(),
+  sortOrder: z.number().int().default(0),
+  locale: z.string().optional()
+});
+
+const addCollectionToWorkspaceSchema = z.object({
+  collectionId: z.string().uuid(),
+  accessLevel: z.enum(['read', 'contribute', 'manage']).default('read')
+});
+
 // Helper function to generate mock AI learning data for demonstration
 async function generateMockLearningData() {
   const agents = await storage.getAllAiAgents();
@@ -11026,30 +11076,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Create region (admin only)
   app.post('/api/regions', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
-      const { isoCode, name, defaultLocale, supportedLocales, timezone, currency, currencySymbol, dateFormat, subdomain, customDomain } = req.body;
-      
-      if (!isoCode || !name) {
-        return res.status(400).json({ error: 'isoCode and name are required' });
+      const validation = createRegionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
       }
 
-      const existing = await storage.getRegionByIsoCode(isoCode);
+      const data = validation.data;
+      const existing = await storage.getRegionByIsoCode(data.isoCode);
       if (existing) {
         return res.status(409).json({ error: 'Region with this ISO code already exists' });
       }
 
-      const region = await storage.createRegion({
-        isoCode: isoCode.toUpperCase(),
-        name,
-        defaultLocale: defaultLocale || 'en',
-        supportedLocales: supportedLocales || ['en'],
-        timezone: timezone || 'UTC',
-        currency: currency || 'USD',
-        currencySymbol: currencySymbol || '$',
-        dateFormat: dateFormat || 'MM/DD/YYYY',
-        subdomain,
-        customDomain
-      });
-
+      const region = await storage.createRegion(data);
       res.status(201).json(region);
     } catch (error) {
       console.error('Failed to create region:', error);
@@ -11060,12 +11098,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Update region (admin only)
   app.put('/api/regions/:id', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
+      const validation = updateRegionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
       const region = await storage.getRegion(req.params.id);
-      if (!region) {
+      if (!region || !region.isActive) {
         return res.status(404).json({ error: 'Region not found' });
       }
 
-      const updated = await storage.updateRegion(req.params.id, req.body);
+      const updated = await storage.updateRegion(req.params.id, validation.data);
       res.json(updated);
     } catch (error) {
       console.error('Failed to update region:', error);
@@ -11077,7 +11120,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.delete('/api/regions/:id', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
       const region = await storage.getRegion(req.params.id);
-      if (!region) {
+      if (!region || !region.isActive) {
         return res.status(404).json({ error: 'Region not found' });
       }
 
@@ -11093,9 +11136,22 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // ORGANIZATION MEMBERS API ENDPOINTS
   // ============================================================================
 
+  // Helper to verify organization membership with admin/owner access
+  async function verifyOrgAdminAccess(userId: string, organizationId: string): Promise<boolean> {
+    const membership = await storage.getOrganizationMemberByUser(organizationId, userId);
+    return !!membership && (membership.role === 'admin' || membership.role === 'owner' || membership.canManageMembers);
+  }
+
   // Get organization members
   app.get('/api/organizations/:orgId/members', requireAuth, async (req, res) => {
     try {
+      const currentUserId = (req.user as any)?.id;
+      const userMembership = await storage.getOrganizationMemberByUser(req.params.orgId, currentUserId);
+      
+      if (!userMembership) {
+        return res.status(403).json({ error: 'You are not a member of this organization' });
+      }
+
       const members = await storage.getOrganizationMembers(req.params.orgId);
       res.json(members);
     } catch (error) {
@@ -11105,28 +11161,34 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Add member to organization
-  app.post('/api/organizations/:orgId/members', requireAuth, requireRole(['admin']), async (req, res) => {
+  app.post('/api/organizations/:orgId/members', requireAuth, async (req, res) => {
     try {
-      const { userId, role, canViewAllConversations, canManageWorkspaces, canManageMembers, canManageSettings } = req.body;
-
-      if (!userId) {
-        return res.status(400).json({ error: 'userId is required' });
+      const validation = createOrganizationMemberSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
       }
 
-      const existing = await storage.getOrganizationMemberByUser(req.params.orgId, userId);
+      const currentUserId = (req.user as any)?.id;
+      const hasAccess = await verifyOrgAdminAccess(currentUserId, req.params.orgId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You do not have permission to manage members in this organization' });
+      }
+
+      const data = validation.data;
+      const existing = await storage.getOrganizationMemberByUser(req.params.orgId, data.userId);
       if (existing) {
         return res.status(409).json({ error: 'User is already a member of this organization' });
       }
 
       const member = await storage.createOrganizationMember({
         organizationId: req.params.orgId,
-        userId,
-        role: role || 'viewer',
-        canViewAllConversations: canViewAllConversations !== false,
-        canManageWorkspaces: canManageWorkspaces || false,
-        canManageMembers: canManageMembers || false,
-        canManageSettings: canManageSettings || false,
-        invitedBy: (req.user as any)?.id,
+        userId: data.userId,
+        role: data.role,
+        canViewAllConversations: data.canViewAllConversations,
+        canManageWorkspaces: data.canManageWorkspaces,
+        canManageMembers: data.canManageMembers,
+        canManageSettings: data.canManageSettings,
+        invitedBy: currentUserId,
         invitedAt: new Date()
       });
 
@@ -11138,14 +11200,25 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Update organization member
-  app.put('/api/organization-members/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+  app.put('/api/organization-members/:id', requireAuth, async (req, res) => {
     try {
+      const validation = updateOrganizationMemberSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
       const member = await storage.getOrganizationMember(req.params.id);
       if (!member) {
         return res.status(404).json({ error: 'Member not found' });
       }
 
-      const updated = await storage.updateOrganizationMember(req.params.id, req.body);
+      const currentUserId = (req.user as any)?.id;
+      const hasAccess = await verifyOrgAdminAccess(currentUserId, member.organizationId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You do not have permission to manage members in this organization' });
+      }
+
+      const updated = await storage.updateOrganizationMember(req.params.id, validation.data);
       res.json(updated);
     } catch (error) {
       console.error('Failed to update organization member:', error);
@@ -11154,11 +11227,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Remove organization member
-  app.delete('/api/organization-members/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+  app.delete('/api/organization-members/:id', requireAuth, async (req, res) => {
     try {
       const member = await storage.getOrganizationMember(req.params.id);
       if (!member) {
         return res.status(404).json({ error: 'Member not found' });
+      }
+
+      const currentUserId = (req.user as any)?.id;
+      const hasAccess = await verifyOrgAdminAccess(currentUserId, member.organizationId);
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You do not have permission to manage members in this organization' });
       }
 
       await storage.deleteOrganizationMember(req.params.id);
@@ -11169,9 +11248,16 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Get user's organizations
+  // Get user's organizations (only for the requesting user or admins)
   app.get('/api/users/:userId/organizations', requireAuth, async (req, res) => {
     try {
+      const currentUserId = (req.user as any)?.id;
+      const currentUserRole = (req.user as any)?.role;
+      
+      if (currentUserId !== req.params.userId && currentUserRole !== 'admin') {
+        return res.status(403).json({ error: 'You can only view your own organizations' });
+      }
+
       const organizations = await storage.getUserOrganizations(req.params.userId);
       res.json(organizations);
     } catch (error) {
@@ -11183,6 +11269,19 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // ============================================================================
   // KNOWLEDGE COLLECTIONS API ENDPOINTS
   // ============================================================================
+
+  // Helper to verify collection access based on organization membership
+  async function verifyCollectionAccess(userId: string, collection: any, requiredLevel: 'read' | 'manage'): Promise<boolean> {
+    if (!collection.ownerOrganizationId) {
+      return collection.visibility === 'shared';
+    }
+    const membership = await storage.getOrganizationMemberByUser(collection.ownerOrganizationId, userId);
+    if (!membership) return false;
+    if (requiredLevel === 'manage') {
+      return membership.role === 'admin' || membership.role === 'owner';
+    }
+    return true;
+  }
 
   // Get all knowledge collections
   app.get('/api/knowledge-collections', requireAuth, async (req, res) => {
@@ -11200,7 +11299,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.get('/api/knowledge-collections/:id', requireAuth, async (req, res) => {
     try {
       const collection = await storage.getKnowledgeCollection(req.params.id);
-      if (!collection) {
+      if (!collection || !collection.isActive) {
         return res.status(404).json({ error: 'Collection not found' });
       }
       res.json(collection);
@@ -11211,29 +11310,29 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Create knowledge collection
-  app.post('/api/knowledge-collections', requireAuth, requireRole(['admin']), async (req, res) => {
+  app.post('/api/knowledge-collections', requireAuth, async (req, res) => {
     try {
-      const { name, description, slug, ownerOrganizationId, visibility, defaultLocale, supportedLocales } = req.body;
-
-      if (!name || !slug) {
-        return res.status(400).json({ error: 'name and slug are required' });
+      const validation = createKnowledgeCollectionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
       }
 
-      const existing = await storage.getKnowledgeCollectionBySlug(slug, ownerOrganizationId);
+      const data = validation.data;
+      const currentUserId = (req.user as any)?.id;
+      
+      if (data.ownerOrganizationId) {
+        const hasAccess = await verifyOrgAdminAccess(currentUserId, data.ownerOrganizationId);
+        if (!hasAccess) {
+          return res.status(403).json({ error: 'You do not have permission to create collections in this organization' });
+        }
+      }
+
+      const existing = await storage.getKnowledgeCollectionBySlug(data.slug, data.ownerOrganizationId);
       if (existing) {
         return res.status(409).json({ error: 'Collection with this slug already exists' });
       }
 
-      const collection = await storage.createKnowledgeCollection({
-        name,
-        description,
-        slug,
-        ownerOrganizationId,
-        visibility: visibility || 'organization',
-        defaultLocale: defaultLocale || 'en',
-        supportedLocales: supportedLocales || ['en']
-      });
-
+      const collection = await storage.createKnowledgeCollection(data);
       res.status(201).json(collection);
     } catch (error) {
       console.error('Failed to create collection:', error);
@@ -11242,14 +11341,25 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Update knowledge collection
-  app.put('/api/knowledge-collections/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+  app.put('/api/knowledge-collections/:id', requireAuth, async (req, res) => {
     try {
+      const validation = updateKnowledgeCollectionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
       const collection = await storage.getKnowledgeCollection(req.params.id);
-      if (!collection) {
+      if (!collection || !collection.isActive) {
         return res.status(404).json({ error: 'Collection not found' });
       }
 
-      const updated = await storage.updateKnowledgeCollection(req.params.id, req.body);
+      const currentUserId = (req.user as any)?.id;
+      const hasAccess = await verifyCollectionAccess(currentUserId, collection, 'manage');
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You do not have permission to update this collection' });
+      }
+
+      const updated = await storage.updateKnowledgeCollection(req.params.id, validation.data);
       res.json(updated);
     } catch (error) {
       console.error('Failed to update collection:', error);
@@ -11258,11 +11368,17 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Delete knowledge collection (soft delete)
-  app.delete('/api/knowledge-collections/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+  app.delete('/api/knowledge-collections/:id', requireAuth, async (req, res) => {
     try {
       const collection = await storage.getKnowledgeCollection(req.params.id);
-      if (!collection) {
+      if (!collection || !collection.isActive) {
         return res.status(404).json({ error: 'Collection not found' });
+      }
+
+      const currentUserId = (req.user as any)?.id;
+      const hasAccess = await verifyCollectionAccess(currentUserId, collection, 'manage');
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You do not have permission to delete this collection' });
       }
 
       await storage.deleteKnowledgeCollection(req.params.id);
@@ -11276,6 +11392,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Get articles in a collection
   app.get('/api/knowledge-collections/:id/articles', requireAuth, async (req, res) => {
     try {
+      const collection = await storage.getKnowledgeCollection(req.params.id);
+      if (!collection || !collection.isActive) {
+        return res.status(404).json({ error: 'Collection not found' });
+      }
+
       const articles = await storage.getCollectionArticles(req.params.id);
       res.json(articles);
     } catch (error) {
@@ -11285,19 +11406,27 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Add article to collection
-  app.post('/api/knowledge-collections/:id/articles', requireAuth, requireRole(['admin']), async (req, res) => {
+  app.post('/api/knowledge-collections/:id/articles', requireAuth, async (req, res) => {
     try {
-      const { articleId, sortOrder, locale } = req.body;
+      const validation = addArticleToCollectionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
 
-      if (!articleId) {
-        return res.status(400).json({ error: 'articleId is required' });
+      const collection = await storage.getKnowledgeCollection(req.params.id);
+      if (!collection || !collection.isActive) {
+        return res.status(404).json({ error: 'Collection not found' });
+      }
+
+      const currentUserId = (req.user as any)?.id;
+      const hasAccess = await verifyCollectionAccess(currentUserId, collection, 'manage');
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You do not have permission to modify this collection' });
       }
 
       const article = await storage.addArticleToCollection({
         collectionId: req.params.id,
-        articleId,
-        sortOrder: sortOrder || 0,
-        locale
+        ...validation.data
       });
 
       res.status(201).json(article);
@@ -11308,8 +11437,19 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // Remove article from collection
-  app.delete('/api/knowledge-collections/:collectionId/articles/:articleId', requireAuth, requireRole(['admin']), async (req, res) => {
+  app.delete('/api/knowledge-collections/:collectionId/articles/:articleId', requireAuth, async (req, res) => {
     try {
+      const collection = await storage.getKnowledgeCollection(req.params.collectionId);
+      if (!collection || !collection.isActive) {
+        return res.status(404).json({ error: 'Collection not found' });
+      }
+
+      const currentUserId = (req.user as any)?.id;
+      const hasAccess = await verifyCollectionAccess(currentUserId, collection, 'manage');
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'You do not have permission to modify this collection' });
+      }
+
       await storage.removeArticleFromCollection(req.params.collectionId, req.params.articleId);
       res.status(204).send();
     } catch (error) {
@@ -11332,16 +11472,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Add collection to workspace
   app.post('/api/workspaces/:workspaceId/collections', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
-      const { collectionId, accessLevel } = req.body;
-
-      if (!collectionId) {
-        return res.status(400).json({ error: 'collectionId is required' });
+      const validation = addCollectionToWorkspaceSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
       }
 
       const assignment = await storage.addCollectionToWorkspace({
         workspaceId: req.params.workspaceId,
-        collectionId,
-        accessLevel: accessLevel || 'read'
+        ...validation.data
       });
 
       res.status(201).json(assignment);
@@ -11365,8 +11503,13 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Update workspace collection access level
   app.put('/api/workspaces/:workspaceId/collections/:collectionId', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
-      const { accessLevel } = req.body;
-      await storage.updateWorkspaceCollectionAccess(req.params.workspaceId, req.params.collectionId, accessLevel);
+      const accessLevelSchema = z.object({ accessLevel: z.enum(['read', 'contribute', 'manage']) });
+      const validation = accessLevelSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      await storage.updateWorkspaceCollectionAccess(req.params.workspaceId, req.params.collectionId, validation.data.accessLevel);
       res.json({ success: true });
     } catch (error) {
       console.error('Failed to update workspace collection access:', error);
