@@ -195,7 +195,9 @@ export default function VoiceConversationDialog({
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     const recognition = new SpeechRecognition();
     
-    recognition.continuous = true;
+    // Only use continuous mode when user explicitly selects it
+    // Push-to-talk uses non-continuous to prevent iOS Safari freezes
+    recognition.continuous = voiceMode === 'continuous';
     recognition.interimResults = true;
     recognition.lang = language;
 
@@ -470,17 +472,17 @@ export default function VoiceConversationDialog({
             >
               <ToggleGroupItem
                 value="pushToTalk"
-                className="data-[state=on]:bg-background data-[state=on]:shadow-sm px-3 gap-1.5"
+                className="data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-foreground px-3 gap-1.5 text-foreground"
               >
                 <Hand className="w-4 h-4" />
-                <span className="text-xs">Push to Talk</span>
+                <span className="text-xs font-medium">Push to Talk</span>
               </ToggleGroupItem>
               <ToggleGroupItem
                 value="continuous"
-                className="data-[state=on]:bg-background data-[state=on]:shadow-sm px-3 gap-1.5"
+                className="data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-foreground px-3 gap-1.5 text-foreground"
               >
                 <Radio className="w-4 h-4" />
-                <span className="text-xs">Continuous</span>
+                <span className="text-xs font-medium">Continuous</span>
               </ToggleGroupItem>
             </ToggleGroup>
 
