@@ -1,8 +1,101 @@
 import OpenAI from 'openai';
-import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning, BrandConfig, KnowledgeBaseImage } from '@shared/schema';
+import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning, BrandConfig, KnowledgeBaseImage, InsertAiTokenUsage, InsertAiKnowledgeFeedback } from '@shared/schema';
 import { storage } from './storage';
 import { knowledgeRetrieval, type SearchResult, type RetrievalOptions } from './knowledge-retrieval';
 import { conversationLogger } from './conversation-logger';
+
+// Model pricing (per 1M tokens) - as of 2024
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  'gpt-4o-mini': { input: 0.15, output: 0.60 },
+  'gpt-4o': { input: 2.50, output: 10.00 },
+  'gpt-4-turbo': { input: 10.00, output: 30.00 },
+  'gpt-3.5-turbo': { input: 0.50, output: 1.50 },
+  'text-embedding-3-small': { input: 0.02, output: 0 },
+  'text-embedding-3-large': { input: 0.13, output: 0 },
+};
+
+// Calculate cost based on model and token counts
+function calculateCost(model: string, promptTokens: number, completionTokens: number): string {
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING['gpt-4o-mini'];
+  const inputCost = (promptTokens / 1_000_000) * pricing.input;
+  const outputCost = (completionTokens / 1_000_000) * pricing.output;
+  return (inputCost + outputCost).toFixed(6);
+}
+
+// Track token usage from OpenAI response
+async function trackTokenUsage(
+  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | undefined,
+  model: string,
+  operation: string,
+  context?: {
+    conversationId?: string;
+    messageId?: string;
+    agentId?: string;
+    workspaceId?: string;
+    latencyMs?: number;
+  }
+): Promise<void> {
+  if (!usage) return;
+  
+  try {
+    const tokenRecord: InsertAiTokenUsage = {
+      conversationId: context?.conversationId,
+      messageId: context?.messageId,
+      agentId: context?.agentId,
+      workspaceId: context?.workspaceId,
+      model,
+      operation,
+      promptTokens: usage.prompt_tokens,
+      completionTokens: usage.completion_tokens,
+      totalTokens: usage.total_tokens,
+      costUsd: calculateCost(model, usage.prompt_tokens, usage.completion_tokens),
+      latencyMs: context?.latencyMs,
+      occurredAt: new Date()
+    };
+    
+    await storage.createAiTokenUsage(tokenRecord);
+  } catch (error) {
+    console.error('[TokenUsage] Failed to track token usage:', error);
+  }
+}
+
+// Track which KB articles were used in a response
+async function trackKnowledgeFeedback(
+  searchResults: SearchResult[],
+  userQuery: string,
+  context: {
+    conversationId?: string;
+    messageId?: string;
+    agentId?: string;
+    wasUsedInResponse: boolean;
+    wasLinkProvided: boolean;
+    requiredHumanTakeover: boolean;
+  }
+): Promise<void> {
+  if (!searchResults.length) return;
+  
+  try {
+    // Track top 3 articles used
+    for (const result of searchResults.slice(0, 3)) {
+      const feedback: InsertAiKnowledgeFeedback = {
+        conversationId: context.conversationId,
+        messageId: context.messageId,
+        knowledgeBaseId: result.chunk.knowledgeBaseId,
+        agentId: context.agentId,
+        userQuery,
+        similarityScore: result.similarity?.toFixed(4),
+        wasUsedInResponse: context.wasUsedInResponse,
+        wasLinkProvided: context.wasLinkProvided,
+        outcome: 'pending',
+        requiredHumanTakeover: context.requiredHumanTakeover
+      };
+      
+      await storage.createAiKnowledgeFeedback(feedback);
+    }
+  } catch (error) {
+    console.error('[KnowledgeFeedback] Failed to track feedback:', error);
+  }
+}
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -1784,6 +1877,7 @@ The more details you can share, the better I can help you resolve this quickly!"
         systemPrompt = `${agent.systemPrompt}\n\n**IMPORTANT LANGUAGE INSTRUCTION**: You MUST respond in ${languageName}. The user prefers ${languageName} language. Translate your entire response to ${languageName}.`;
       }
 
+      const startTime = Date.now();
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -1793,6 +1887,19 @@ The more details you can share, the better I can help you resolve this quickly!"
         temperature: (agent.temperature || 30) / 100,
         max_tokens: agent.maxTokens || 1000,
       });
+      const latencyMs = Date.now() - startTime;
+
+      // Track token usage
+      await trackTokenUsage(
+        completion.usage,
+        "gpt-4o-mini",
+        "chat_response",
+        {
+          conversationId: contextData?.conversationId,
+          agentId: agent.id,
+          latencyMs
+        }
+      );
 
       // Parse AI response, handling markdown code blocks if present
       let responseContent = completion.choices[0].message.content || '{}';
@@ -1882,6 +1989,19 @@ The more details you can share, the better I can help you resolve this quickly!"
       if (contextData?.includeGreeting && contextData?.greeting) {
         responseWithReferences = `${contextData.greeting}\n\n${responseWithReferences}`;
       }
+      
+      // Track which KB articles were used (for AI learning)
+      await trackKnowledgeFeedback(
+        searchResults,
+        customerMessage,
+        {
+          conversationId: contextData?.conversationId,
+          agentId: agent.id,
+          wasUsedInResponse: searchResults.length > 0 && !shouldForceHumanTakeover,
+          wasLinkProvided: shouldIncludeLinks && uniqueArticles.size > 0,
+          requiredHumanTakeover: shouldForceHumanTakeover || result.requiresHumanTakeover || false
+        }
+      );
       
       return {
         response: responseWithReferences,

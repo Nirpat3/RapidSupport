@@ -10605,6 +10605,176 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================================================
+  // AI TOKEN USAGE & BILLING API ENDPOINTS
+  // ============================================================================
+
+  // Get daily token usage summary
+  app.get('/api/admin/ai-usage/daily', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const workspaceId = req.query.workspaceId as string | undefined;
+      
+      const usage = await storage.getDailyTokenUsage(workspaceId || null, days);
+      res.json(usage);
+    } catch (error) {
+      console.error('Failed to fetch daily token usage:', error);
+      res.status(500).json({ error: 'Failed to fetch token usage' });
+    }
+  });
+
+  // Get monthly token usage summary  
+  app.get('/api/admin/ai-usage/monthly', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const months = parseInt(req.query.months as string) || 12;
+      const workspaceId = req.query.workspaceId as string | undefined;
+      
+      const usage = await storage.getMonthlyTokenUsage(workspaceId || null, months);
+      res.json(usage);
+    } catch (error) {
+      console.error('Failed to fetch monthly token usage:', error);
+      res.status(500).json({ error: 'Failed to fetch token usage' });
+    }
+  });
+
+  // Get token usage by conversation
+  app.get('/api/admin/ai-usage/conversation/:conversationId', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      const usage = await storage.getAiTokenUsageByConversation(conversationId);
+      
+      // Calculate totals
+      const totals = usage.reduce((acc, u) => ({
+        promptTokens: acc.promptTokens + u.promptTokens,
+        completionTokens: acc.completionTokens + u.completionTokens,
+        totalTokens: acc.totalTokens + u.totalTokens,
+        totalCost: acc.totalCost + parseFloat(u.costUsd)
+      }), { promptTokens: 0, completionTokens: 0, totalTokens: 0, totalCost: 0 });
+      
+      res.json({ usage, totals: { ...totals, totalCost: totals.totalCost.toFixed(6) } });
+    } catch (error) {
+      console.error('Failed to fetch conversation token usage:', error);
+      res.status(500).json({ error: 'Failed to fetch token usage' });
+    }
+  });
+
+  // Get overall usage stats
+  app.get('/api/admin/ai-usage/stats', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const workspaceId = req.query.workspaceId as string | undefined;
+      
+      // Get current month usage
+      const thisMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
+      const startOfMonth = new Date(thisMonth + '-01');
+      
+      const monthlyData = await storage.getAiTokenUsageSummary(workspaceId || null, startOfMonth);
+      
+      // Calculate current month totals
+      const currentMonthTotals = monthlyData.reduce((acc, u) => ({
+        totalTokens: acc.totalTokens + u.totalTokens,
+        totalCost: acc.totalCost + parseFloat(u.totalCostUsd),
+        requestCount: acc.requestCount + u.requestCount
+      }), { totalTokens: 0, totalCost: 0, requestCount: 0 });
+      
+      // Get daily data for chart
+      const dailyData = await storage.getDailyTokenUsage(workspaceId || null, 30);
+      
+      // Aggregate by date (across all models)
+      const byDate = new Map<string, { tokens: number; cost: number; requests: number }>();
+      for (const row of dailyData) {
+        const existing = byDate.get(row.date) || { tokens: 0, cost: 0, requests: 0 };
+        existing.tokens += row.totalTokens;
+        existing.cost += parseFloat(row.totalCost);
+        existing.requests += row.requestCount;
+        byDate.set(row.date, existing);
+      }
+      
+      const chartData = Array.from(byDate.entries())
+        .map(([date, data]) => ({ date, ...data, cost: data.cost.toFixed(4) }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      
+      res.json({
+        currentMonth: {
+          month: thisMonth,
+          ...currentMonthTotals,
+          totalCost: currentMonthTotals.totalCost.toFixed(4)
+        },
+        chartData
+      });
+    } catch (error) {
+      console.error('Failed to fetch usage stats:', error);
+      res.status(500).json({ error: 'Failed to fetch usage stats' });
+    }
+  });
+
+  // ============================================================================
+  // AI KNOWLEDGE LEARNING API ENDPOINTS
+  // ============================================================================
+
+  // Get top performing articles
+  app.get('/api/admin/ai-learning/top-articles', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const topArticles = await storage.getTopPerformingArticles(limit);
+      res.json(topArticles);
+    } catch (error) {
+      console.error('Failed to fetch top articles:', error);
+      res.status(500).json({ error: 'Failed to fetch top articles' });
+    }
+  });
+
+  // Get articles needing improvement
+  app.get('/api/admin/ai-learning/needs-improvement', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const articles = await storage.getArticlesNeedingImprovement(limit);
+      res.json(articles);
+    } catch (error) {
+      console.error('Failed to fetch articles needing improvement:', error);
+      res.status(500).json({ error: 'Failed to fetch articles' });
+    }
+  });
+
+  // Update feedback when conversation is resolved
+  app.post('/api/admin/ai-learning/update-outcome', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { conversationId, outcome, customerRating } = req.body;
+      
+      if (!conversationId || !outcome) {
+        return res.status(400).json({ error: 'conversationId and outcome are required' });
+      }
+      
+      await storage.updateKnowledgeFeedbackByConversation(conversationId, outcome, customerRating);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to update learning outcome:', error);
+      res.status(500).json({ error: 'Failed to update outcome' });
+    }
+  });
+
+  // Get article metrics
+  app.get('/api/admin/ai-learning/article-metrics/:knowledgeBaseId', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { knowledgeBaseId } = req.params;
+      const metrics = await storage.getKnowledgeArticleMetrics(knowledgeBaseId);
+      
+      if (!metrics) {
+        return res.json({ 
+          timesRetrieved: 0, 
+          timesUsedInResponse: 0, 
+          helpfulCount: 0, 
+          notHelpfulCount: 0,
+          successRate: '0'
+        });
+      }
+      
+      res.json(metrics);
+    } catch (error) {
+      console.error('Failed to fetch article metrics:', error);
+      res.status(500).json({ error: 'Failed to fetch metrics' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat

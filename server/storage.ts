@@ -161,6 +161,18 @@ import {
   type InsertDocumentImportJob,
   type DocumentChunk,
   type InsertDocumentChunk,
+  aiTokenUsage,
+  aiTokenUsageSummary,
+  aiKnowledgeFeedback,
+  knowledgeArticleMetrics,
+  type AiTokenUsage,
+  type InsertAiTokenUsage,
+  type AiTokenUsageSummary,
+  type InsertAiTokenUsageSummary,
+  type AiKnowledgeFeedback,
+  type InsertAiKnowledgeFeedback,
+  type KnowledgeArticleMetrics,
+  type InsertKnowledgeArticleMetrics,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -638,6 +650,43 @@ export interface IStorage {
 
   // AI Export endpoint helper
   getDocumentsForAIExport(workspaceId: string, filters?: { domain?: string; role?: string; status?: string }): Promise<Array<Document & { currentVersionContent: DocumentVersion | null; relationships: DocumentRelationship[] }>>;
+
+  // ============================================================================
+  // AI TOKEN USAGE TRACKING OPERATIONS
+  // ============================================================================
+  
+  // Token Usage operations
+  createAiTokenUsage(usage: InsertAiTokenUsage): Promise<AiTokenUsage>;
+  getAiTokenUsageByConversation(conversationId: string): Promise<AiTokenUsage[]>;
+  getAiTokenUsageByWorkspace(workspaceId: string, startDate?: Date, endDate?: Date): Promise<AiTokenUsage[]>;
+  getAiTokenUsageSummary(workspaceId: string | null, startDate?: Date, endDate?: Date): Promise<AiTokenUsageSummary[]>;
+  updateOrCreateUsageSummary(workspaceId: string | null, date: string, model: string, tokens: { prompt: number; completion: number; total: number; cost: string }): Promise<void>;
+  getDailyTokenUsage(workspaceId: string | null, days: number): Promise<Array<{ date: string; model: string; totalTokens: number; totalCost: string; requestCount: number }>>;
+  getMonthlyTokenUsage(workspaceId: string | null, months: number): Promise<Array<{ month: string; totalTokens: number; totalCost: string; requestCount: number }>>;
+
+  // ============================================================================
+  // AI KNOWLEDGE LEARNING OPERATIONS
+  // ============================================================================
+  
+  // Knowledge Feedback operations
+  createAiKnowledgeFeedback(feedback: InsertAiKnowledgeFeedback): Promise<AiKnowledgeFeedback>;
+  getAiKnowledgeFeedbackByConversation(conversationId: string): Promise<AiKnowledgeFeedback[]>;
+  getAiKnowledgeFeedbackByArticle(knowledgeBaseId: string): Promise<AiKnowledgeFeedback[]>;
+  updateAiKnowledgeFeedback(id: string, updates: Partial<InsertAiKnowledgeFeedback>): Promise<void>;
+  updateKnowledgeFeedbackByConversation(conversationId: string, outcome: string, customerRating?: number): Promise<void>;
+
+  // Knowledge Article Metrics operations
+  getKnowledgeArticleMetrics(knowledgeBaseId: string): Promise<KnowledgeArticleMetrics | undefined>;
+  updateKnowledgeArticleMetrics(knowledgeBaseId: string, updates: { 
+    incrementRetrieved?: boolean; 
+    incrementUsed?: boolean;
+    incrementLinkClicked?: boolean;
+    markHelpful?: boolean;
+    markNotHelpful?: boolean;
+    markPartial?: boolean;
+  }): Promise<void>;
+  getTopPerformingArticles(limit: number): Promise<Array<{ article: KnowledgeBase; metrics: KnowledgeArticleMetrics }>>;
+  getArticlesNeedingImprovement(limit: number): Promise<Array<{ article: KnowledgeBase; metrics: KnowledgeArticleMetrics }>>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -5253,6 +5302,388 @@ export class DatabaseStorage implements IStorage {
     );
 
     return result;
+  }
+
+  // ============================================================================
+  // AI TOKEN USAGE TRACKING IMPLEMENTATIONS
+  // ============================================================================
+
+  async createAiTokenUsage(usage: InsertAiTokenUsage): Promise<AiTokenUsage> {
+    const [created] = await db.insert(aiTokenUsage).values(usage).returning();
+    
+    // Also update the daily summary
+    const date = new Date().toISOString().split('T')[0];
+    await this.updateOrCreateUsageSummary(
+      usage.workspaceId || null,
+      date,
+      usage.model,
+      {
+        prompt: usage.promptTokens || 0,
+        completion: usage.completionTokens || 0,
+        total: usage.totalTokens || 0,
+        cost: usage.costUsd || '0.00'
+      }
+    );
+    
+    return created;
+  }
+
+  async getAiTokenUsageByConversation(conversationId: string): Promise<AiTokenUsage[]> {
+    return await db
+      .select()
+      .from(aiTokenUsage)
+      .where(eq(aiTokenUsage.conversationId, conversationId))
+      .orderBy(desc(aiTokenUsage.occurredAt));
+  }
+
+  async getAiTokenUsageByWorkspace(workspaceId: string, startDate?: Date, endDate?: Date): Promise<AiTokenUsage[]> {
+    const conditions: any[] = [eq(aiTokenUsage.workspaceId, workspaceId)];
+    
+    if (startDate) {
+      conditions.push(gte(aiTokenUsage.occurredAt, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(aiTokenUsage.occurredAt, endDate));
+    }
+    
+    return await db
+      .select()
+      .from(aiTokenUsage)
+      .where(and(...conditions))
+      .orderBy(desc(aiTokenUsage.occurredAt));
+  }
+
+  async getAiTokenUsageSummary(workspaceId: string | null, startDate?: Date, endDate?: Date): Promise<AiTokenUsageSummary[]> {
+    const conditions: any[] = [];
+    
+    if (workspaceId) {
+      conditions.push(eq(aiTokenUsageSummary.workspaceId, workspaceId));
+    }
+    if (startDate) {
+      conditions.push(gte(aiTokenUsageSummary.date, startDate.toISOString().split('T')[0]));
+    }
+    if (endDate) {
+      conditions.push(lte(aiTokenUsageSummary.date, endDate.toISOString().split('T')[0]));
+    }
+    
+    return await db
+      .select()
+      .from(aiTokenUsageSummary)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(aiTokenUsageSummary.date));
+  }
+
+  async updateOrCreateUsageSummary(
+    workspaceId: string | null, 
+    date: string, 
+    model: string, 
+    tokens: { prompt: number; completion: number; total: number; cost: string }
+  ): Promise<void> {
+    // Try to find existing summary
+    const conditions: any[] = [
+      eq(aiTokenUsageSummary.date, date),
+      eq(aiTokenUsageSummary.model, model)
+    ];
+    
+    if (workspaceId) {
+      conditions.push(eq(aiTokenUsageSummary.workspaceId, workspaceId));
+    } else {
+      conditions.push(isNull(aiTokenUsageSummary.workspaceId));
+    }
+    
+    const [existing] = await db
+      .select()
+      .from(aiTokenUsageSummary)
+      .where(and(...conditions))
+      .limit(1);
+    
+    if (existing) {
+      // Update existing
+      const newPrompt = existing.totalPromptTokens + tokens.prompt;
+      const newCompletion = existing.totalCompletionTokens + tokens.completion;
+      const newTotal = existing.totalTokens + tokens.total;
+      const newCost = (parseFloat(existing.totalCostUsd) + parseFloat(tokens.cost)).toFixed(6);
+      
+      await db
+        .update(aiTokenUsageSummary)
+        .set({
+          totalPromptTokens: newPrompt,
+          totalCompletionTokens: newCompletion,
+          totalTokens: newTotal,
+          totalCostUsd: newCost,
+          requestCount: existing.requestCount + 1,
+          updatedAt: new Date()
+        })
+        .where(eq(aiTokenUsageSummary.id, existing.id));
+    } else {
+      // Create new
+      await db.insert(aiTokenUsageSummary).values({
+        workspaceId,
+        date,
+        model,
+        totalPromptTokens: tokens.prompt,
+        totalCompletionTokens: tokens.completion,
+        totalTokens: tokens.total,
+        totalCostUsd: tokens.cost,
+        requestCount: 1
+      });
+    }
+  }
+
+  async getDailyTokenUsage(workspaceId: string | null, days: number): Promise<Array<{ date: string; model: string; totalTokens: number; totalCost: string; requestCount: number }>> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const conditions: any[] = [
+      gte(aiTokenUsageSummary.date, startDate.toISOString().split('T')[0])
+    ];
+    
+    if (workspaceId) {
+      conditions.push(eq(aiTokenUsageSummary.workspaceId, workspaceId));
+    }
+    
+    const results = await db
+      .select({
+        date: aiTokenUsageSummary.date,
+        model: aiTokenUsageSummary.model,
+        totalTokens: aiTokenUsageSummary.totalTokens,
+        totalCost: aiTokenUsageSummary.totalCostUsd,
+        requestCount: aiTokenUsageSummary.requestCount
+      })
+      .from(aiTokenUsageSummary)
+      .where(and(...conditions))
+      .orderBy(desc(aiTokenUsageSummary.date));
+    
+    return results.map(r => ({
+      date: r.date,
+      model: r.model,
+      totalTokens: r.totalTokens,
+      totalCost: r.totalCost,
+      requestCount: r.requestCount
+    }));
+  }
+
+  async getMonthlyTokenUsage(workspaceId: string | null, months: number): Promise<Array<{ month: string; totalTokens: number; totalCost: string; requestCount: number }>> {
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
+    
+    const conditions: any[] = [
+      gte(aiTokenUsageSummary.date, startDate.toISOString().split('T')[0])
+    ];
+    
+    if (workspaceId) {
+      conditions.push(eq(aiTokenUsageSummary.workspaceId, workspaceId));
+    }
+    
+    // Get daily data and aggregate by month
+    const dailyData = await db
+      .select()
+      .from(aiTokenUsageSummary)
+      .where(and(...conditions));
+    
+    // Group by month
+    const monthlyMap = new Map<string, { totalTokens: number; totalCost: number; requestCount: number }>();
+    
+    for (const row of dailyData) {
+      const month = row.date.substring(0, 7); // YYYY-MM
+      const existing = monthlyMap.get(month) || { totalTokens: 0, totalCost: 0, requestCount: 0 };
+      existing.totalTokens += row.totalTokens;
+      existing.totalCost += parseFloat(row.totalCostUsd);
+      existing.requestCount += row.requestCount;
+      monthlyMap.set(month, existing);
+    }
+    
+    return Array.from(monthlyMap.entries())
+      .map(([month, data]) => ({
+        month,
+        totalTokens: data.totalTokens,
+        totalCost: data.totalCost.toFixed(6),
+        requestCount: data.requestCount
+      }))
+      .sort((a, b) => b.month.localeCompare(a.month));
+  }
+
+  // ============================================================================
+  // AI KNOWLEDGE LEARNING IMPLEMENTATIONS
+  // ============================================================================
+
+  async createAiKnowledgeFeedback(feedback: InsertAiKnowledgeFeedback): Promise<AiKnowledgeFeedback> {
+    const [created] = await db.insert(aiKnowledgeFeedback).values(feedback).returning();
+    
+    // Update article metrics
+    if (feedback.knowledgeBaseId) {
+      await this.updateKnowledgeArticleMetrics(feedback.knowledgeBaseId, {
+        incrementRetrieved: true,
+        incrementUsed: feedback.wasUsedInResponse
+      });
+    }
+    
+    return created;
+  }
+
+  async getAiKnowledgeFeedbackByConversation(conversationId: string): Promise<AiKnowledgeFeedback[]> {
+    return await db
+      .select()
+      .from(aiKnowledgeFeedback)
+      .where(eq(aiKnowledgeFeedback.conversationId, conversationId))
+      .orderBy(desc(aiKnowledgeFeedback.createdAt));
+  }
+
+  async getAiKnowledgeFeedbackByArticle(knowledgeBaseId: string): Promise<AiKnowledgeFeedback[]> {
+    return await db
+      .select()
+      .from(aiKnowledgeFeedback)
+      .where(eq(aiKnowledgeFeedback.knowledgeBaseId, knowledgeBaseId))
+      .orderBy(desc(aiKnowledgeFeedback.createdAt));
+  }
+
+  async updateAiKnowledgeFeedback(id: string, updates: Partial<InsertAiKnowledgeFeedback>): Promise<void> {
+    await db
+      .update(aiKnowledgeFeedback)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiKnowledgeFeedback.id, id));
+  }
+
+  async updateKnowledgeFeedbackByConversation(conversationId: string, outcome: string, customerRating?: number): Promise<void> {
+    const feedbackRecords = await this.getAiKnowledgeFeedbackByConversation(conversationId);
+    
+    for (const record of feedbackRecords) {
+      await db
+        .update(aiKnowledgeFeedback)
+        .set({
+          outcome,
+          customerRating,
+          conversationResolved: outcome === 'helpful',
+          updatedAt: new Date()
+        })
+        .where(eq(aiKnowledgeFeedback.id, record.id));
+      
+      // Update article metrics based on outcome
+      if (record.knowledgeBaseId) {
+        await this.updateKnowledgeArticleMetrics(record.knowledgeBaseId, {
+          markHelpful: outcome === 'helpful',
+          markNotHelpful: outcome === 'not_helpful',
+          markPartial: outcome === 'partial'
+        });
+      }
+    }
+  }
+
+  async getKnowledgeArticleMetrics(knowledgeBaseId: string): Promise<KnowledgeArticleMetrics | undefined> {
+    const [metrics] = await db
+      .select()
+      .from(knowledgeArticleMetrics)
+      .where(eq(knowledgeArticleMetrics.knowledgeBaseId, knowledgeBaseId))
+      .limit(1);
+    return metrics;
+  }
+
+  async updateKnowledgeArticleMetrics(
+    knowledgeBaseId: string, 
+    updates: { 
+      incrementRetrieved?: boolean; 
+      incrementUsed?: boolean;
+      incrementLinkClicked?: boolean;
+      markHelpful?: boolean;
+      markNotHelpful?: boolean;
+      markPartial?: boolean;
+    }
+  ): Promise<void> {
+    // Find or create metrics record
+    let metrics = await this.getKnowledgeArticleMetrics(knowledgeBaseId);
+    
+    if (!metrics) {
+      // Create new metrics record
+      const [created] = await db.insert(knowledgeArticleMetrics).values({
+        knowledgeBaseId,
+        timesRetrieved: updates.incrementRetrieved ? 1 : 0,
+        timesUsedInResponse: updates.incrementUsed ? 1 : 0,
+        timesLinkClicked: updates.incrementLinkClicked ? 1 : 0,
+        helpfulCount: updates.markHelpful ? 1 : 0,
+        notHelpfulCount: updates.markNotHelpful ? 1 : 0,
+        partialCount: updates.markPartial ? 1 : 0,
+        lastUsedAt: new Date(),
+        lastHelpfulAt: updates.markHelpful ? new Date() : undefined
+      }).returning();
+      metrics = created;
+    } else {
+      // Update existing
+      const updateValues: any = { updatedAt: new Date() };
+      
+      if (updates.incrementRetrieved) {
+        updateValues.timesRetrieved = metrics.timesRetrieved + 1;
+        updateValues.lastUsedAt = new Date();
+      }
+      if (updates.incrementUsed) {
+        updateValues.timesUsedInResponse = metrics.timesUsedInResponse + 1;
+      }
+      if (updates.incrementLinkClicked) {
+        updateValues.timesLinkClicked = metrics.timesLinkClicked + 1;
+      }
+      if (updates.markHelpful) {
+        updateValues.helpfulCount = metrics.helpfulCount + 1;
+        updateValues.lastHelpfulAt = new Date();
+      }
+      if (updates.markNotHelpful) {
+        updateValues.notHelpfulCount = metrics.notHelpfulCount + 1;
+      }
+      if (updates.markPartial) {
+        updateValues.partialCount = metrics.partialCount + 1;
+      }
+      
+      // Recalculate success rate
+      const helpful = updateValues.helpfulCount ?? metrics.helpfulCount;
+      const notHelpful = updateValues.notHelpfulCount ?? metrics.notHelpfulCount;
+      const total = helpful + notHelpful;
+      updateValues.successRate = total > 0 ? (helpful / total).toFixed(4) : '0';
+      
+      // Calculate relevance score (weighted by recency)
+      const daysSinceLastHelpful = metrics.lastHelpfulAt 
+        ? Math.floor((Date.now() - new Date(metrics.lastHelpfulAt).getTime()) / (1000 * 60 * 60 * 24))
+        : 365;
+      const decayFactor = Math.exp(-daysSinceLastHelpful / 30); // 30-day half-life
+      updateValues.relevanceScore = (parseFloat(updateValues.successRate) * decayFactor * helpful).toFixed(4);
+      
+      await db
+        .update(knowledgeArticleMetrics)
+        .set(updateValues)
+        .where(eq(knowledgeArticleMetrics.id, metrics.id));
+    }
+  }
+
+  async getTopPerformingArticles(limit: number): Promise<Array<{ article: KnowledgeBase; metrics: KnowledgeArticleMetrics }>> {
+    const results = await db
+      .select({
+        article: knowledgeBase,
+        metrics: knowledgeArticleMetrics
+      })
+      .from(knowledgeArticleMetrics)
+      .innerJoin(knowledgeBase, eq(knowledgeArticleMetrics.knowledgeBaseId, knowledgeBase.id))
+      .orderBy(desc(sql`CAST(${knowledgeArticleMetrics.relevanceScore} AS FLOAT)`))
+      .limit(limit);
+    
+    return results;
+  }
+
+  async getArticlesNeedingImprovement(limit: number): Promise<Array<{ article: KnowledgeBase; metrics: KnowledgeArticleMetrics }>> {
+    // Articles with high usage but low success rate
+    const results = await db
+      .select({
+        article: knowledgeBase,
+        metrics: knowledgeArticleMetrics
+      })
+      .from(knowledgeArticleMetrics)
+      .innerJoin(knowledgeBase, eq(knowledgeArticleMetrics.knowledgeBaseId, knowledgeBase.id))
+      .where(
+        and(
+          gte(knowledgeArticleMetrics.timesUsedInResponse, 5), // At least 5 uses
+          lt(sql`CAST(${knowledgeArticleMetrics.successRate} AS FLOAT)`, 0.5) // Less than 50% success
+        )
+      )
+      .orderBy(asc(sql`CAST(${knowledgeArticleMetrics.successRate} AS FLOAT)`))
+      .limit(limit);
+    
+    return results;
   }
 
 }
