@@ -200,6 +200,9 @@ import {
   type InsertKnowledgeCollectionArticle,
   type WorkspaceKnowledgeCollection,
   type InsertWorkspaceKnowledgeCollection,
+  resolutionRecords,
+  type ResolutionRecord,
+  type InsertResolutionRecord,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -6093,6 +6096,149 @@ export class DatabaseStorage implements IStorage {
           eq(workspaceKnowledgeCollections.collectionId, collectionId)
         )
       );
+  }
+
+  // ============================================
+  // RESOLUTION RECORDS OPERATIONS
+  // ============================================
+
+  async createResolutionRecord(record: InsertResolutionRecord): Promise<ResolutionRecord> {
+    const [created] = await db.insert(resolutionRecords).values(record).returning();
+    return created;
+  }
+
+  async getResolutionRecord(id: string): Promise<ResolutionRecord | undefined> {
+    const [record] = await db.select().from(resolutionRecords)
+      .where(and(eq(resolutionRecords.id, id), eq(resolutionRecords.isActive, true)));
+    return record;
+  }
+
+  async getResolutionsByCustomer(customerId: string, limit = 10): Promise<ResolutionRecord[]> {
+    return await db.select().from(resolutionRecords)
+      .where(and(eq(resolutionRecords.customerId, customerId), eq(resolutionRecords.isActive, true)))
+      .orderBy(desc(resolutionRecords.createdAt))
+      .limit(limit);
+  }
+
+  async getResolutionsByCustomerIssue(customerId: string, issueCategory: string, limit = 5): Promise<ResolutionRecord[]> {
+    return await db.select().from(resolutionRecords)
+      .where(and(
+        eq(resolutionRecords.customerId, customerId),
+        eq(resolutionRecords.issueCategory, issueCategory),
+        eq(resolutionRecords.isActive, true)
+      ))
+      .orderBy(desc(resolutionRecords.createdAt))
+      .limit(limit);
+  }
+
+  async getSuccessfulResolutions(customerId: string, issueCategory?: string, limit = 3): Promise<ResolutionRecord[]> {
+    const conditions = [
+      eq(resolutionRecords.customerId, customerId),
+      eq(resolutionRecords.outcome, 'resolved'),
+      eq(resolutionRecords.isActive, true)
+    ];
+    
+    if (issueCategory) {
+      conditions.push(eq(resolutionRecords.issueCategory, issueCategory));
+    }
+
+    return await db.select().from(resolutionRecords)
+      .where(and(...conditions))
+      .orderBy(desc(resolutionRecords.createdAt))
+      .limit(limit);
+  }
+
+  async getResolutionSummaryForCustomer(customerId: string): Promise<{
+    totalIssues: number;
+    resolvedCount: number;
+    partiallyResolvedCount: number;
+    notResolvedCount: number;
+    commonIssueCategories: string[];
+  }> {
+    const records = await db.select().from(resolutionRecords)
+      .where(and(eq(resolutionRecords.customerId, customerId), eq(resolutionRecords.isActive, true)));
+    
+    const categoryCount: Record<string, number> = {};
+    let resolvedCount = 0;
+    let partiallyResolvedCount = 0;
+    let notResolvedCount = 0;
+
+    for (const record of records) {
+      categoryCount[record.issueCategory] = (categoryCount[record.issueCategory] || 0) + 1;
+      if (record.outcome === 'resolved') resolvedCount++;
+      else if (record.outcome === 'partially_resolved') partiallyResolvedCount++;
+      else notResolvedCount++;
+    }
+
+    const commonIssueCategories = Object.entries(categoryCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([category]) => category);
+
+    return {
+      totalIssues: records.length,
+      resolvedCount,
+      partiallyResolvedCount,
+      notResolvedCount,
+      commonIssueCategories
+    };
+  }
+
+  async updateResolutionRecord(id: string, updates: Partial<InsertResolutionRecord>): Promise<ResolutionRecord> {
+    const [updated] = await db.update(resolutionRecords)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(resolutionRecords.id, id))
+      .returning();
+    return updated;
+  }
+
+  async updateResolutionOutcome(id: string, outcome: string, customerFeedback?: string): Promise<ResolutionRecord> {
+    const [updated] = await db.update(resolutionRecords)
+      .set({ outcome, customerFeedback, updatedAt: new Date() })
+      .where(eq(resolutionRecords.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteResolutionRecord(id: string): Promise<void> {
+    await db.update(resolutionRecords)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(resolutionRecords.id, id));
+  }
+
+  async getResolutionsByWorkspace(workspaceId: string, options?: {
+    outcome?: string;
+    issueCategory?: string;
+    limit?: number;
+  }): Promise<ResolutionRecord[]> {
+    const conditions = [
+      eq(resolutionRecords.workspaceId, workspaceId),
+      eq(resolutionRecords.isActive, true)
+    ];
+
+    if (options?.outcome) {
+      conditions.push(eq(resolutionRecords.outcome, options.outcome));
+    }
+    if (options?.issueCategory) {
+      conditions.push(eq(resolutionRecords.issueCategory, options.issueCategory));
+    }
+
+    return await db.select().from(resolutionRecords)
+      .where(and(...conditions))
+      .orderBy(desc(resolutionRecords.createdAt))
+      .limit(options?.limit || 50);
+  }
+
+  async getTopSuccessfulResolutions(customerId: string, issueCategory: string, limit = 3): Promise<ResolutionRecord[]> {
+    return await db.select().from(resolutionRecords)
+      .where(and(
+        eq(resolutionRecords.customerId, customerId),
+        eq(resolutionRecords.issueCategory, issueCategory),
+        eq(resolutionRecords.outcome, 'resolved'),
+        eq(resolutionRecords.isActive, true)
+      ))
+      .orderBy(desc(resolutionRecords.createdAt))
+      .limit(limit);
   }
 
 }
