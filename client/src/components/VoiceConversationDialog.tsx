@@ -323,11 +323,37 @@ export default function VoiceConversationDialog({
       holdTimerRef.current = null;
     }
     
-    if (isPushToTalkActive && isListening) {
-      stopListening(true);
+    // Always try to send if push-to-talk was active
+    // Don't check isListening because recognition may have already ended
+    if (isPushToTalkActive) {
+      const textToSend = accumulatedTranscriptRef.current.trim() || transcript.trim();
+      console.log('[Voice] Push-to-talk end, text to send:', textToSend);
+      
+      // Stop recognition if still running
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {
+          console.log('[Voice] Error aborting recognition:', e);
+        }
+        recognitionRef.current = null;
+      }
+      
+      setIsListening(false);
+      setIsPushToTalkActive(false);
+      clearTimers();
+      
+      // Send the message if we have text
+      if (textToSend) {
+        sendMessage(textToSend);
+      } else {
+        setTranscript('');
+        accumulatedTranscriptRef.current = '';
+      }
+    } else {
+      setIsPushToTalkActive(false);
     }
-    setIsPushToTalkActive(false);
-  }, [isPushToTalkActive, isListening, stopListening]);
+  }, [isPushToTalkActive, transcript, sendMessage, clearTimers]);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
