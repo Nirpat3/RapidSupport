@@ -2707,3 +2707,163 @@ export const insertPushNotificationLogSchema = createInsertSchema(pushNotificati
 
 export type InsertPushNotificationLog = z.infer<typeof insertPushNotificationLogSchema>;
 export type PushNotificationLog = typeof pushNotificationLogs.$inferSelect;
+
+// ============================================
+// AI TOKEN USAGE TRACKING
+// ============================================
+
+// AI Token Usage - Track token consumption per API call
+export const aiTokenUsage = pgTable("ai_token_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Context references
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  messageId: varchar("message_id").references(() => messages.id),
+  agentId: varchar("agent_id").references(() => aiAgents.id),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id),
+  
+  // Model info
+  model: text("model").notNull(), // e.g., "gpt-4o-mini", "gpt-4o"
+  operation: text("operation").notNull(), // e.g., "chat_response", "embedding", "intent_classification"
+  
+  // Token counts
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  
+  // Cost tracking (in USD, calculated from model pricing)
+  costUsd: text("cost_usd").notNull().default("0.00"), // Store as text to avoid float precision issues
+  
+  // Timing
+  latencyMs: integer("latency_ms"), // Response time in milliseconds
+  occurredAt: timestamp("occurred_at").notNull().defaultNow(),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// AI Token Usage Summary - Daily aggregates for billing
+export const aiTokenUsageSummary = pgTable("ai_token_usage_summary", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Grouping dimensions
+  workspaceId: varchar("workspace_id").references(() => workspaces.id),
+  date: text("date").notNull(), // YYYY-MM-DD format for easy querying
+  model: text("model").notNull(),
+  
+  // Aggregated counts
+  totalPromptTokens: integer("total_prompt_tokens").notNull().default(0),
+  totalCompletionTokens: integer("total_completion_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  totalCostUsd: text("total_cost_usd").notNull().default("0.00"),
+  requestCount: integer("request_count").notNull().default(0),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueWorkspaceDateModel: unique().on(table.workspaceId, table.date, table.model),
+}));
+
+// AI Token Usage insert schema and types
+export const insertAiTokenUsageSchema = createInsertSchema(aiTokenUsage).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertAiTokenUsage = z.infer<typeof insertAiTokenUsageSchema>;
+export type AiTokenUsage = typeof aiTokenUsage.$inferSelect;
+
+// AI Token Usage Summary insert schema and types
+export const insertAiTokenUsageSummarySchema = createInsertSchema(aiTokenUsageSummary).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAiTokenUsageSummary = z.infer<typeof insertAiTokenUsageSummarySchema>;
+export type AiTokenUsageSummary = typeof aiTokenUsageSummary.$inferSelect;
+
+// ============================================
+// AI KNOWLEDGE LEARNING SYSTEM
+// ============================================
+
+// AI Knowledge Feedback - Track which KB articles helped in conversations
+export const aiKnowledgeFeedback = pgTable("ai_knowledge_feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // References
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  messageId: varchar("message_id").references(() => messages.id),
+  knowledgeBaseId: varchar("knowledge_base_id").references(() => knowledgeBase.id),
+  agentId: varchar("agent_id").references(() => aiAgents.id),
+  
+  // Query context
+  userQuery: text("user_query").notNull(), // The original customer query
+  queryIntent: text("query_intent"), // Classified intent of the query
+  
+  // Article usage details
+  similarityScore: text("similarity_score"), // How similar was this article to the query
+  wasUsedInResponse: boolean("was_used_in_response").notNull().default(true),
+  wasLinkProvided: boolean("was_link_provided").notNull().default(false),
+  
+  // Outcome tracking (updated after conversation resolution)
+  outcome: text("outcome").notNull().default("pending"), // 'pending' | 'helpful' | 'not_helpful' | 'partial'
+  customerRating: integer("customer_rating"), // If customer rated the conversation
+  agentFeedback: text("agent_feedback"), // Agent notes on article usefulness
+  
+  // Learning signals
+  customerClickedLink: boolean("customer_clicked_link").default(false),
+  conversationResolved: boolean("conversation_resolved").default(false),
+  requiredHumanTakeover: boolean("required_human_takeover").default(false),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Knowledge Article Metrics - Aggregated success metrics per article
+export const knowledgeArticleMetrics = pgTable("knowledge_article_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  knowledgeBaseId: varchar("knowledge_base_id").notNull().references(() => knowledgeBase.id),
+  
+  // Usage counts
+  timesRetrieved: integer("times_retrieved").notNull().default(0),
+  timesUsedInResponse: integer("times_used_in_response").notNull().default(0),
+  timesLinkClicked: integer("times_link_clicked").notNull().default(0),
+  
+  // Outcome metrics
+  helpfulCount: integer("helpful_count").notNull().default(0),
+  notHelpfulCount: integer("not_helpful_count").notNull().default(0),
+  partialCount: integer("partial_count").notNull().default(0),
+  
+  // Calculated scores
+  successRate: text("success_rate").default("0"), // helpfulCount / (helpfulCount + notHelpfulCount)
+  relevanceScore: text("relevance_score").default("0"), // Weighted score for ranking boost
+  
+  // Timestamps for decay calculation
+  lastHelpfulAt: timestamp("last_helpful_at"),
+  lastUsedAt: timestamp("last_used_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueKnowledgeBase: unique().on(table.knowledgeBaseId),
+}));
+
+// AI Knowledge Feedback insert schema and types
+export const insertAiKnowledgeFeedbackSchema = createInsertSchema(aiKnowledgeFeedback).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAiKnowledgeFeedback = z.infer<typeof insertAiKnowledgeFeedbackSchema>;
+export type AiKnowledgeFeedback = typeof aiKnowledgeFeedback.$inferSelect;
+
+// Knowledge Article Metrics insert schema and types
+export const insertKnowledgeArticleMetricsSchema = createInsertSchema(knowledgeArticleMetrics).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertKnowledgeArticleMetrics = z.infer<typeof insertKnowledgeArticleMetricsSchema>;
+export type KnowledgeArticleMetrics = typeof knowledgeArticleMetrics.$inferSelect;
