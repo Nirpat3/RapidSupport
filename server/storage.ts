@@ -5163,34 +5163,91 @@ export class DatabaseStorage implements IStorage {
     return results;
   }
 
-  // AI Export endpoint helper
+  // AI Export endpoint helper - Enhanced filtering for AI agents
   async getDocumentsForAIExport(
     workspaceId: string,
-    filters?: { domain?: string; role?: string; status?: string }
-  ): Promise<Array<Document & { currentVersionContent: DocumentVersion | null; relationships: DocumentRelationship[] }>> {
-    const conditions = [
+    filters?: { 
+      domain?: string; 
+      domainId?: string;
+      intent?: string;
+      intentId?: string;
+      role?: string; // Role of the requester (for roleAccess filtering)
+      status?: string;
+      isPublic?: boolean;
+      aiAgentId?: string; // Filter to docs assigned to specific AI agent
+    }
+  ): Promise<Array<Document & { 
+    currentVersionContent: DocumentVersion | null; 
+    relationships: DocumentRelationship[];
+    domain?: DocDomain | null;
+    intent?: DocIntent | null;
+  }>> {
+    const conditions: any[] = [
       eq(documents.workspaceId, workspaceId),
       eq(documents.status, filters?.status || 'active')
     ];
+
+    // Filter by domain ID if provided
+    if (filters?.domainId) {
+      conditions.push(eq(documents.domainId, filters.domainId));
+    }
+
+    // Filter by intent ID if provided
+    if (filters?.intentId) {
+      conditions.push(eq(documents.intentId, filters.intentId));
+    }
+
+    // Filter by public access
+    if (filters?.isPublic !== undefined) {
+      conditions.push(eq(documents.isPublic, filters.isPublic));
+    }
 
     const docs = await db
       .select()
       .from(documents)
       .where(and(...conditions));
 
-    // Fetch versions and relationships for each document
+    // Filter by role access (post-query since it's an array field)
+    let filteredDocs = docs;
+    if (filters?.role) {
+      filteredDocs = docs.filter(doc => 
+        doc.roleAccess?.includes(filters.role!) || doc.isPublic
+      );
+    }
+
+    // Filter by AI agent ID (post-query since it's an array field)
+    if (filters?.aiAgentId) {
+      filteredDocs = filteredDocs.filter(doc =>
+        doc.aiAgentIds?.includes(filters.aiAgentId!) || !doc.aiAgentIds?.length
+      );
+    }
+
+    // Fetch versions, relationships, and taxonomy for each document
     const result = await Promise.all(
-      docs.map(async (doc) => {
+      filteredDocs.map(async (doc) => {
         const version = doc.currentVersionId
           ? await this.getDocumentVersion(doc.currentVersionId)
           : await this.getLatestDocumentVersion(doc.id);
         
         const relationships = await this.getDocumentRelationships(doc.id);
         
+        // Fetch domain and intent names
+        let domain: DocDomain | null = null;
+        let intent: DocIntent | null = null;
+        
+        if (doc.domainId) {
+          domain = await this.getDocDomain(doc.domainId);
+        }
+        if (doc.intentId) {
+          intent = await this.getDocIntent(doc.intentId);
+        }
+        
         return {
           ...doc,
           currentVersionContent: version || null,
-          relationships
+          relationships,
+          domain,
+          intent
         };
       })
     );

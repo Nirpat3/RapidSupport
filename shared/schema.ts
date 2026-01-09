@@ -841,6 +841,7 @@ export const documents = pgTable("documents", {
   
   // AI Agent linking
   aiAgentIds: text("ai_agent_ids").array(), // Which AI agents can use this document
+  aiActions: text("ai_actions").array(), // Executable actions AI can perform: ["restart_service", "check_status"]
   
   // Metadata
   tags: text("tags").array(),

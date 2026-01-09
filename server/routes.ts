@@ -449,8 +449,52 @@ async function processFileForAITraining(
 }
 
 /**
+ * Parse atomic document from AI response
+ */
+interface AtomicDocument {
+  title: string;
+  summary: string;
+  domain: string;
+  intent: string;
+  accessLevel: string;
+  tags: string[];
+  content: string;
+  yamlFrontmatter: string;
+  aiActions?: string[];
+}
+
+function parseAtomicDocument(docBlock: string): AtomicDocument | null {
+  const yamlMatch = docBlock.match(/---\n([\s\S]*?)\n---\n([\s\S]*)/);
+  if (!yamlMatch) return null;
+
+  const yamlSection = yamlMatch[1];
+  const content = yamlMatch[2].trim();
+
+  const titleMatch = yamlSection.match(/title:\s*["']?([^"'\n]+)["']?/);
+  const summaryMatch = yamlSection.match(/summary:\s*["']?([^"'\n]+)["']?/);
+  const domainMatch = yamlSection.match(/domain:\s*(\w+)/);
+  const intentMatch = yamlSection.match(/intent:\s*([\w-]+)/);
+  const accessMatch = yamlSection.match(/accessLevel:\s*(\w+)/);
+  const tagsMatch = yamlSection.match(/tags:\s*\[([^\]]*)\]/);
+  const actionsMatch = yamlSection.match(/ai_actions:\s*\[([^\]]*)\]/);
+
+  return {
+    title: titleMatch ? titleMatch[1].trim() : 'Untitled Document',
+    summary: summaryMatch ? summaryMatch[1].trim() : '',
+    domain: domainMatch ? domainMatch[1].trim() : 'general',
+    intent: intentMatch ? intentMatch[1].trim() : 'reference',
+    accessLevel: accessMatch ? accessMatch[1].trim() : 'internal',
+    tags: tagsMatch ? tagsMatch[1].split(',').map(t => t.trim().replace(/^["']|["']$/g, '')).filter(Boolean) : [],
+    content,
+    yamlFrontmatter: yamlSection,
+    aiActions: actionsMatch ? actionsMatch[1].split(',').map(a => a.trim().replace(/^["']|["']$/g, '')).filter(Boolean) : undefined,
+  };
+}
+
+/**
  * Process document import for Documentation Framework
- * Extracts text and uses AI to generate structured markdown with YAML front-matter
+ * Extracts text and uses AI to generate MULTIPLE atomic documents with YAML front-matter
+ * Enterprise-grade: One upload → Multiple structured knowledge units
  */
 async function processDocumentImport(
   importJobId: string,
@@ -475,137 +519,290 @@ async function processDocumentImport(
       uploadedFile.mimeType
     );
 
-    await storage.updateDocumentImportJob(importJobId, { progress: 30 });
+    await storage.updateDocumentImportJob(importJobId, { progress: 20 });
     
     console.log(`[DocImport] Extracted ${documentContent.metadata?.wordCount || 0} words from ${uploadedFile.originalName}`);
 
-    // Use AI to generate structured document
+    // Phase 1: AI analyzes content and identifies atomic document boundaries
     const openai = await getOpenAIClient();
-    const aiResponse = await openai.chat.completions.create({
+    const analysisResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {
           role: 'system',
-          content: `You are a technical documentation specialist. Convert the provided document content into a structured format with YAML front-matter and markdown body.
+          content: `You are a knowledge architecture specialist. Analyze the document and split it into MULTIPLE ATOMIC knowledge units.
 
-Output format:
-\`\`\`yaml
----
-title: [Extract or infer title from content]
-summary: [1-2 sentence summary]
-domain: [Choose: api, integration, workflow, troubleshooting, general]
-intent: [Choose: how-to, reference, concept, tutorial, troubleshooting]
-accessLevel: internal
-tags: [array of relevant keywords]
----
+Each atomic unit should be:
+- Self-contained and focused on ONE topic
+- 300-800 words ideally (shorter is better)
+- Independently useful to an AI agent or human reader
+
+Output a JSON array identifying the sections to split:
+\`\`\`json
+{
+  "sections": [
+    {
+      "title": "Section title",
+      "startText": "First 20 chars of section",
+      "endText": "Last 20 chars of section",
+      "domain": "api|integration|workflow|troubleshooting|general|pos|billing|hardware",
+      "intent": "how-to|reference|concept|tutorial|troubleshooting|faq"
+    }
+  ]
+}
 \`\`\`
 
-[Clean, well-formatted markdown content with proper headings, code blocks, and lists]
-
 Guidelines:
-- Extract meaningful structure from the source content
-- Use proper heading hierarchy (## for main sections, ### for subsections)
-- Preserve code examples with appropriate language tags
-- Create bullet lists for steps or options
-- Add horizontal rules between major sections if appropriate
-- Keep the content accurate and complete`
+- Split by logical topic boundaries (procedures, concepts, troubleshooting steps)
+- Each section becomes its own knowledge document
+- Prefer MORE atomic docs over fewer large ones
+- Minimum 2 sections, maximum 10 sections per source file`
         },
         {
           role: 'user',
-          content: `Convert this document:\n\nFilename: ${uploadedFile.originalName}\n\nContent:\n${documentContent.content.substring(0, 15000)}`
+          content: `Analyze and identify atomic document boundaries:\n\nFilename: ${uploadedFile.originalName}\n\nContent:\n${documentContent.content.substring(0, 20000)}`
         }
       ],
-      temperature: 0.3,
-      max_tokens: 4000,
+      temperature: 0.2,
+      max_tokens: 2000,
     });
 
-    await storage.updateDocumentImportJob(importJobId, { progress: 60 });
+    await storage.updateDocumentImportJob(importJobId, { progress: 35 });
 
-    const aiContent = aiResponse.choices[0]?.message?.content || '';
+    // Parse section analysis
+    let sections: Array<{ title: string; domain: string; intent: string; startText?: string; endText?: string }> = [];
+    const analysisContent = analysisResponse.choices[0]?.message?.content || '';
+    const jsonMatch = analysisContent.match(/```json\s*([\s\S]*?)\s*```/);
     
-    // Parse the AI response
-    let title = uploadedFile.originalName.replace(/\.[^/.]+$/, '');
-    let summary = '';
-    let domain = 'general';
-    let intent = 'reference';
-    let tags: string[] = [];
-    let markdownContent = aiContent;
-    
-    // Try to extract YAML front-matter
-    const yamlMatch = aiContent.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-    if (yamlMatch) {
-      const yamlSection = yamlMatch[1];
-      markdownContent = yamlMatch[2].trim();
-      
-      // Parse YAML fields
-      const titleMatch = yamlSection.match(/title:\s*(.+)/);
-      const summaryMatch = yamlSection.match(/summary:\s*(.+)/);
-      const domainMatch = yamlSection.match(/domain:\s*(\w+)/);
-      const intentMatch = yamlSection.match(/intent:\s*(\w+)/);
-      const tagsMatch = yamlSection.match(/tags:\s*\[([^\]]+)\]/);
-      
-      if (titleMatch) title = titleMatch[1].trim().replace(/^["']|["']$/g, '');
-      if (summaryMatch) summary = summaryMatch[1].trim().replace(/^["']|["']$/g, '');
-      if (domainMatch) domain = domainMatch[1].trim();
-      if (intentMatch) intent = intentMatch[1].trim();
-      if (tagsMatch) tags = tagsMatch[1].split(',').map(t => t.trim().replace(/^["']|["']$/g, ''));
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[1]);
+        sections = parsed.sections || [];
+      } catch (e) {
+        console.log('[DocImport] Could not parse section analysis, using full document');
+      }
     }
 
-    await storage.updateDocumentImportJob(importJobId, { progress: 70 });
+    // Fallback: if no sections identified, treat as single document
+    if (sections.length === 0) {
+      sections = [{
+        title: uploadedFile.originalName.replace(/\.[^/.]+$/, ''),
+        domain: 'general',
+        intent: 'reference'
+      }];
+    }
 
-    // Generate slug from title
-    const slug = title.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .substring(0, 50);
+    console.log(`[DocImport] Identified ${sections.length} atomic document(s) to create`);
 
-    // Create the document
-    const document = await storage.createDocument({
-      workspaceId,
-      slug: slug + '-' + Date.now(),
-      title,
-      summary,
-      status: 'draft',
-      accessLevel: 'internal',
-      tags,
-      createdBy: userId,
-    });
+    // Fetch existing taxonomy for this workspace to resolve domain/intent
+    const existingDomains = await storage.getDocDomainsByWorkspace(workspaceId);
+    const existingIntents = await storage.getDocIntentsByWorkspace(workspaceId);
+    
+    // Helper to find or create domain
+    async function resolveDomainId(domainName: string): Promise<string | null> {
+      const normalized = domainName.toLowerCase().trim();
+      const existing = existingDomains.find(d => 
+        d.name.toLowerCase() === normalized || d.slug?.toLowerCase() === normalized
+      );
+      if (existing) return existing.id;
+      
+      // Create new domain if not found
+      try {
+        const newDomain = await storage.createDocDomain({
+          workspaceId,
+          name: domainName,
+          slug: normalized.replace(/[^a-z0-9]+/g, '-'),
+          description: `Auto-created from document import`,
+        });
+        existingDomains.push(newDomain);
+        return newDomain.id;
+      } catch (e) {
+        console.log(`[DocImport] Could not create domain ${domainName}:`, e);
+        return null;
+      }
+    }
 
-    await storage.updateDocumentImportJob(importJobId, { progress: 80 });
+    // Helper to find or create intent
+    async function resolveIntentId(intentName: string): Promise<string | null> {
+      const normalized = intentName.toLowerCase().trim();
+      const existing = existingIntents.find(i => 
+        i.name.toLowerCase() === normalized || i.slug?.toLowerCase() === normalized
+      );
+      if (existing) return existing.id;
+      
+      // Create new intent if not found
+      try {
+        const newIntent = await storage.createDocIntent({
+          workspaceId,
+          name: intentName,
+          slug: normalized.replace(/[^a-z0-9]+/g, '-'),
+          description: `Auto-created from document import`,
+        });
+        existingIntents.push(newIntent);
+        return newIntent.id;
+      } catch (e) {
+        console.log(`[DocImport] Could not create intent ${intentName}:`, e);
+        return null;
+      }
+    }
 
-    // Create the initial version
-    const version = await storage.createDocumentVersion({
-      documentId: document.id,
-      version: '1.0.0',
-      versionNumber: 1,
-      content: markdownContent,
-      yamlFrontmatter: yamlMatch ? yamlMatch[1] : null,
-      status: 'pending_review',
-      isAiGenerated: true,
-      createdBy: userId,
-    });
+    // Phase 2: Generate each atomic document with section-specific content slicing
+    const atomicDocs: (AtomicDocument & { domainId?: string | null; intentId?: string | null })[] = [];
+    const progressPerDoc = 40 / sections.length;
+    const fullContent = documentContent.content;
 
-    await storage.updateDocumentImportJob(importJobId, { progress: 90 });
+    for (let i = 0; i < sections.length; i++) {
+      const section = sections[i];
+      
+      // Extract section-specific content slice using start/end markers
+      let sectionContent = fullContent;
+      if (section.startText && section.endText) {
+        const startIdx = fullContent.indexOf(section.startText);
+        const endIdx = fullContent.lastIndexOf(section.endText);
+        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+          sectionContent = fullContent.substring(startIdx, endIdx + section.endText.length);
+        }
+      }
+      // Limit section content to reasonable size
+      sectionContent = sectionContent.substring(0, 6000);
+      
+      const docResponse = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a technical documentation specialist. Create ONE atomic knowledge document with YAML front-matter.
 
-    // Add to review queue
-    await storage.createDocumentReviewQueueEntry({
-      documentVersionId: version.id,
-      status: 'pending',
-      isAiGenerated: true,
-      aiConfidence: 75,
-      needsReview: true,
-    });
+Output format:
+---
+title: ${section.title}
+summary: [1-2 sentence summary of this specific topic]
+domain: ${section.domain}
+intent: ${section.intent}
+accessLevel: internal
+tags: [relevant, keywords, for, this, topic]
+ai_actions: [optional array of executable actions like "restart_service", "check_status"]
+---
+
+[Clean markdown content - focused ONLY on this specific topic]
+
+Guidelines:
+- Keep content focused on this ONE topic: "${section.title}"
+- 300-800 words ideal
+- Use proper heading hierarchy
+- Include step-by-step instructions for how-to content
+- Include troubleshooting steps if applicable
+- This document will be retrieved by AI agents, so be specific and actionable`
+          },
+          {
+            role: 'user',
+            content: `Create the atomic document for "${section.title}" from this section:\n\n${sectionContent}`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000,
+      });
+
+      const docContent = docResponse.choices[0]?.message?.content || '';
+      const parsed = parseAtomicDocument(docContent);
+      
+      if (parsed) {
+        // Resolve domain and intent to taxonomy IDs
+        const domainId = await resolveDomainId(parsed.domain);
+        const intentId = await resolveIntentId(parsed.intent);
+        atomicDocs.push({ ...parsed, domainId, intentId });
+      }
+
+      await storage.updateDocumentImportJob(importJobId, { 
+        progress: Math.round(35 + (progressPerDoc * (i + 1)))
+      });
+    }
+
+    console.log(`[DocImport] Generated ${atomicDocs.length} atomic documents`);
+
+    // Phase 3: Create documents and versions in database
+    let documentsCreated = 0;
+    let documentsNeedingReview = 0;
+    const createdDocIds: string[] = [];
+
+    for (const atomicDoc of atomicDocs) {
+      const slug = atomicDoc.title.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 50) + '-' + Date.now();
+
+      // Map accessLevel to roleAccess/isPublic
+      const isPublic = atomicDoc.accessLevel === 'public';
+      const roleAccess = atomicDoc.accessLevel === 'restricted' 
+        ? ['admin'] 
+        : atomicDoc.accessLevel === 'internal' 
+          ? ['member', 'admin'] 
+          : ['member', 'admin', 'viewer'];
+
+      // Create the document with correct schema fields and resolved taxonomy IDs
+      const document = await storage.createDocument({
+        workspaceId,
+        slug,
+        title: atomicDoc.title,
+        summary: atomicDoc.summary,
+        domainId: atomicDoc.domainId || undefined,
+        intentId: atomicDoc.intentId || undefined,
+        status: 'draft',
+        isPublic,
+        roleAccess,
+        tags: atomicDoc.tags,
+        createdBy: userId,
+        aiActions: atomicDoc.aiActions,
+      });
+
+      // Create the version with correct schema fields (markdownBody, frontMatter)
+      const version = await storage.createDocumentVersion({
+        documentId: document.id,
+        version: '1.0.0',
+        versionNumber: 1,
+        markdownBody: atomicDoc.content,
+        frontMatter: atomicDoc.yamlFrontmatter ? JSON.parse(`{"raw": ${JSON.stringify(atomicDoc.yamlFrontmatter)}}`) : null,
+        status: 'pending_review',
+        createdBy: userId,
+      });
+
+      // Add to review queue
+      await storage.createDocumentReviewQueueEntry({
+        documentVersionId: version.id,
+        status: 'pending',
+        isAiGenerated: true,
+        aiConfidence: 80,
+        needsReview: true,
+      });
+
+      createdDocIds.push(document.id);
+      documentsCreated++;
+      documentsNeedingReview++;
+    }
+
+    await storage.updateDocumentImportJob(importJobId, { progress: 95 });
+
+    // Create relationships between atomic docs from same source
+    if (createdDocIds.length > 1) {
+      for (let i = 1; i < createdDocIds.length; i++) {
+        await storage.createDocumentRelationship({
+          sourceDocumentId: createdDocIds[0],
+          targetDocumentId: createdDocIds[i],
+          relationshipType: 'related_to',
+        });
+      }
+    }
 
     // Update job as completed
     await storage.updateDocumentImportJob(importJobId, {
       status: 'completed',
       progress: 100,
-      documentsCreated: 1,
-      documentsNeedingReview: 1,
+      documentsCreated,
+      documentsNeedingReview,
       processingCompletedAt: new Date(),
     });
 
-    console.log(`[DocImport] Successfully completed import job ${importJobId} - created document ${document.id}`);
+    console.log(`[DocImport] Successfully completed import job ${importJobId} - created ${documentsCreated} atomic documents`);
   } catch (error) {
     console.error(`[DocImport] Error processing import job ${importJobId}:`, error);
     await storage.updateDocumentImportJob(importJobId, {
@@ -10275,13 +10472,80 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       if (!workspaceId) {
         return res.status(400).json({ error: 'workspaceId is required' });
       }
+      
+      // Resolve domain/intent names to IDs if provided as strings
+      let domainId = req.query.domainId as string | undefined;
+      let intentId = req.query.intentId as string | undefined;
+      
+      // If domain name/slug provided, resolve to ID
+      if (req.query.domain && !domainId) {
+        const domainName = (req.query.domain as string).toLowerCase();
+        const domains = await storage.getDocDomainsByWorkspace(workspaceId);
+        const matchedDomain = domains.find(d => 
+          d.name.toLowerCase() === domainName || 
+          d.slug?.toLowerCase() === domainName
+        );
+        if (matchedDomain) domainId = matchedDomain.id;
+      }
+      
+      // If intent name/slug provided, resolve to ID
+      if (req.query.intent && !intentId) {
+        const intentName = (req.query.intent as string).toLowerCase();
+        const intents = await storage.getDocIntentsByWorkspace(workspaceId);
+        const matchedIntent = intents.find(i => 
+          i.name.toLowerCase() === intentName || 
+          i.slug?.toLowerCase() === intentName
+        );
+        if (matchedIntent) intentId = matchedIntent.id;
+      }
+      
+      // Enhanced filters for AI agent retrieval
+      // AI agents filter by: domain, intent, role, status, aiAgentId
       const filters = {
-        domain: req.query.domain as string | undefined,
-        role: req.query.role as string | undefined,
-        status: req.query.status as string | undefined
+        domainId,
+        intentId,
+        role: req.query.role as string | undefined, // Filter by requester's role
+        status: (req.query.status as string) || 'active', // Default to active docs
+        isPublic: req.query.isPublic === 'true' ? true : req.query.isPublic === 'false' ? false : undefined,
+        aiAgentId: req.query.aiAgentId as string | undefined, // Filter to specific agent's docs
       };
+      
       const documents = await storage.getDocumentsForAIExport(workspaceId, filters);
-      res.json(documents);
+      
+      // Format response for AI consumption
+      const aiReadyDocs = documents.map(doc => ({
+        id: doc.id,
+        slug: doc.slug,
+        title: doc.title,
+        summary: doc.summary,
+        domain: doc.domain?.name || null,
+        domainId: doc.domainId,
+        intent: doc.intent?.name || null,
+        intentId: doc.intentId,
+        status: doc.status,
+        version: doc.currentVersion,
+        isPublic: doc.isPublic,
+        roleAccess: doc.roleAccess,
+        aiActions: doc.aiActions, // Executable actions
+        tags: doc.tags,
+        content: doc.currentVersionContent?.markdownBody || null,
+        frontMatter: doc.currentVersionContent?.frontMatter || null,
+        relationships: doc.relationships.map(r => ({
+          type: r.relationshipType,
+          targetId: r.targetDocumentId,
+          description: r.description
+        })),
+        updatedAt: doc.updatedAt
+      }));
+      
+      res.json({
+        count: aiReadyDocs.length,
+        documents: aiReadyDocs,
+        filters: {
+          workspaceId,
+          ...filters
+        }
+      });
     } catch (error) {
       console.error('Failed to export documents for AI:', error);
       res.status(500).json({ error: 'Failed to export documents' });
