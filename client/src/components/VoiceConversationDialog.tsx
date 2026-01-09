@@ -268,13 +268,17 @@ export default function VoiceConversationDialog({
     setIsListening(false);
     setIsPushToTalkActive(false);
     
-    if (shouldSend && accumulatedTranscriptRef.current.trim()) {
-      sendMessage(accumulatedTranscriptRef.current);
+    // Use transcript state (includes interim results) if accumulated is empty
+    // This ensures we capture speech even if final results haven't come through yet
+    const textToSend = accumulatedTranscriptRef.current.trim() || transcript.trim();
+    
+    if (shouldSend && textToSend) {
+      sendMessage(textToSend);
     } else {
       setTranscript('');
       accumulatedTranscriptRef.current = '';
     }
-  }, [sendMessage, clearTimers]);
+  }, [sendMessage, clearTimers, transcript]);
 
   const toggleListening = useCallback(() => {
     if (voiceMode === 'continuous') {
