@@ -39,6 +39,8 @@ import {
   brandConfig,
   workspaces,
   workspaceMembers,
+  departments,
+  departmentMembers,
   organizations,
   type User,
   type Organization,
@@ -48,6 +50,11 @@ import {
   type InsertWorkspace,
   type WorkspaceMember,
   type InsertWorkspaceMember,
+  type Department,
+  type InsertDepartment,
+  type UpdateDepartment,
+  type DepartmentMember,
+  type InsertDepartmentMember,
   type Customer,
   type InsertCustomer,
   type BrandConfig,
@@ -279,6 +286,22 @@ export interface IStorage {
   addWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember>;
   updateWorkspaceMember(id: string, updates: Partial<InsertWorkspaceMember>): Promise<WorkspaceMember>;
   removeWorkspaceMember(id: string): Promise<void>;
+
+  // Department operations
+  getDepartment(id: string): Promise<Department | undefined>;
+  getDepartmentsByWorkspace(workspaceId: string): Promise<Department[]>;
+  getAllDepartments(): Promise<Department[]>;
+  createDepartment(department: InsertDepartment): Promise<Department>;
+  updateDepartment(id: string, updates: Partial<UpdateDepartment>): Promise<Department>;
+  deleteDepartment(id: string): Promise<void>;
+
+  // Department Member operations
+  getDepartmentMember(id: string): Promise<DepartmentMember | undefined>;
+  getDepartmentMembersByDepartment(departmentId: string): Promise<DepartmentMember[]>;
+  getDepartmentMembersByWorkspaceMember(workspaceMemberId: string): Promise<DepartmentMember[]>;
+  addDepartmentMember(member: InsertDepartmentMember): Promise<DepartmentMember>;
+  updateDepartmentMember(id: string, updates: Partial<InsertDepartmentMember>): Promise<DepartmentMember>;
+  removeDepartmentMember(id: string): Promise<void>;
 
   // Organization operations (for white-label branding)
   getOrganization(id: string): Promise<Organization | undefined>;
@@ -2141,6 +2164,135 @@ export class DatabaseStorage implements IStorage {
       await db.delete(workspaceMembers).where(eq(workspaceMembers.id, id));
     } catch (error) {
       console.error('Error removing workspace member:', error);
+      throw error;
+    }
+  }
+
+  // Department operations
+  async getDepartment(id: string): Promise<Department | undefined> {
+    try {
+      const [department] = await db.select().from(departments).where(eq(departments.id, id));
+      return department;
+    } catch (error) {
+      console.error('Error fetching department:', error);
+      throw error;
+    }
+  }
+
+  async getDepartmentsByWorkspace(workspaceId: string): Promise<Department[]> {
+    try {
+      return await db.select().from(departments)
+        .where(eq(departments.workspaceId, workspaceId))
+        .orderBy(departments.displayOrder);
+    } catch (error) {
+      console.error('Error fetching departments by workspace:', error);
+      throw error;
+    }
+  }
+
+  async getAllDepartments(): Promise<Department[]> {
+    try {
+      return await db.select().from(departments).orderBy(departments.name);
+    } catch (error) {
+      console.error('Error fetching all departments:', error);
+      throw error;
+    }
+  }
+
+  async createDepartment(department: InsertDepartment): Promise<Department> {
+    try {
+      const [newDepartment] = await db.insert(departments).values(department).returning();
+      return newDepartment;
+    } catch (error) {
+      console.error('Error creating department:', error);
+      throw error;
+    }
+  }
+
+  async updateDepartment(id: string, updates: Partial<UpdateDepartment>): Promise<Department> {
+    try {
+      const [updated] = await db.update(departments)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(departments.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error('Error updating department:', error);
+      throw error;
+    }
+  }
+
+  async deleteDepartment(id: string): Promise<void> {
+    try {
+      // First delete department members
+      await db.delete(departmentMembers).where(eq(departmentMembers.departmentId, id));
+      // Then delete the department
+      await db.delete(departments).where(eq(departments.id, id));
+    } catch (error) {
+      console.error('Error deleting department:', error);
+      throw error;
+    }
+  }
+
+  // Department Member operations
+  async getDepartmentMember(id: string): Promise<DepartmentMember | undefined> {
+    try {
+      const [member] = await db.select().from(departmentMembers).where(eq(departmentMembers.id, id));
+      return member;
+    } catch (error) {
+      console.error('Error fetching department member:', error);
+      throw error;
+    }
+  }
+
+  async getDepartmentMembersByDepartment(departmentId: string): Promise<DepartmentMember[]> {
+    try {
+      return await db.select().from(departmentMembers)
+        .where(eq(departmentMembers.departmentId, departmentId));
+    } catch (error) {
+      console.error('Error fetching department members:', error);
+      throw error;
+    }
+  }
+
+  async getDepartmentMembersByWorkspaceMember(workspaceMemberId: string): Promise<DepartmentMember[]> {
+    try {
+      return await db.select().from(departmentMembers)
+        .where(eq(departmentMembers.workspaceMemberId, workspaceMemberId));
+    } catch (error) {
+      console.error('Error fetching department memberships:', error);
+      throw error;
+    }
+  }
+
+  async addDepartmentMember(member: InsertDepartmentMember): Promise<DepartmentMember> {
+    try {
+      const [newMember] = await db.insert(departmentMembers).values(member).returning();
+      return newMember;
+    } catch (error) {
+      console.error('Error adding department member:', error);
+      throw error;
+    }
+  }
+
+  async updateDepartmentMember(id: string, updates: Partial<InsertDepartmentMember>): Promise<DepartmentMember> {
+    try {
+      const [updated] = await db.update(departmentMembers)
+        .set(updates)
+        .where(eq(departmentMembers.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error('Error updating department member:', error);
+      throw error;
+    }
+  }
+
+  async removeDepartmentMember(id: string): Promise<void> {
+    try {
+      await db.delete(departmentMembers).where(eq(departmentMembers.id, id));
+    } catch (error) {
+      console.error('Error removing department member:', error);
       throw error;
     }
   }

@@ -8700,6 +8700,168 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================
+  // DEPARTMENT API ROUTES
+  // ============================================
+  
+  // Get all departments (platform admin sees all, others see workspace-scoped)
+  app.get('/api/departments', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const workspaceId = req.query.workspaceId as string | undefined;
+      
+      if (workspaceId) {
+        const departments = await storage.getDepartmentsByWorkspace(workspaceId);
+        res.json(departments);
+      } else if (user.isPlatformAdmin) {
+        const departments = await storage.getAllDepartments();
+        res.json(departments);
+      } else {
+        res.json([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch departments:', error);
+      res.status(500).json({ error: 'Failed to fetch departments' });
+    }
+  });
+
+  // Get single department
+  app.get('/api/departments/:id', requireAuth, async (req, res) => {
+    try {
+      const department = await storage.getDepartment(req.params.id);
+      if (!department) {
+        return res.status(404).json({ error: 'Department not found' });
+      }
+      res.json(department);
+    } catch (error) {
+      console.error('Failed to fetch department:', error);
+      res.status(500).json({ error: 'Failed to fetch department' });
+    }
+  });
+
+  // Get departments by workspace
+  app.get('/api/workspaces/:id/departments', requireAuth, async (req, res) => {
+    try {
+      const departments = await storage.getDepartmentsByWorkspace(req.params.id);
+      res.json(departments);
+    } catch (error) {
+      console.error('Failed to fetch workspace departments:', error);
+      res.status(500).json({ error: 'Failed to fetch workspace departments' });
+    }
+  });
+
+  // Create department (workspace admin or platform admin)
+  app.post('/api/departments', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { name, description, slug, workspaceId, isDefault, icon, color } = req.body;
+      
+      if (!name || !workspaceId) {
+        return res.status(400).json({ error: 'Name and workspaceId are required' });
+      }
+      
+      // Generate slug if not provided
+      const finalSlug = slug || name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+      
+      const department = await storage.createDepartment({
+        name,
+        description,
+        slug: finalSlug,
+        workspaceId,
+        isDefault: isDefault || false,
+        icon: icon || 'Building2',
+        color: color || '#6366f1',
+        createdBy: user.id,
+      });
+      
+      res.status(201).json(department);
+    } catch (error) {
+      console.error('Failed to create department:', error);
+      res.status(500).json({ error: 'Failed to create department' });
+    }
+  });
+
+  // Update department
+  app.put('/api/departments/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const department = await storage.updateDepartment(req.params.id, req.body);
+      res.json(department);
+    } catch (error) {
+      console.error('Failed to update department:', error);
+      res.status(500).json({ error: 'Failed to update department' });
+    }
+  });
+
+  // Delete department
+  app.delete('/api/departments/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.deleteDepartment(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to delete department:', error);
+      res.status(500).json({ error: 'Failed to delete department' });
+    }
+  });
+
+  // ============================================
+  // DEPARTMENT MEMBER API ROUTES
+  // ============================================
+
+  // Get department members
+  app.get('/api/departments/:id/members', requireAuth, async (req, res) => {
+    try {
+      const members = await storage.getDepartmentMembersByDepartment(req.params.id);
+      res.json(members);
+    } catch (error) {
+      console.error('Failed to fetch department members:', error);
+      res.status(500).json({ error: 'Failed to fetch department members' });
+    }
+  });
+
+  // Add member to department
+  app.post('/api/departments/:id/members', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { workspaceMemberId, role } = req.body;
+      
+      if (!workspaceMemberId) {
+        return res.status(400).json({ error: 'workspaceMemberId is required' });
+      }
+      
+      const member = await storage.addDepartmentMember({
+        departmentId: req.params.id,
+        workspaceMemberId,
+        role: role || 'member',
+      });
+      
+      res.status(201).json(member);
+    } catch (error) {
+      console.error('Failed to add department member:', error);
+      res.status(500).json({ error: 'Failed to add department member' });
+    }
+  });
+
+  // Update department member
+  app.put('/api/department-members/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const member = await storage.updateDepartmentMember(req.params.id, req.body);
+      res.json(member);
+    } catch (error) {
+      console.error('Failed to update department member:', error);
+      res.status(500).json({ error: 'Failed to update department member' });
+    }
+  });
+
+  // Remove department member
+  app.delete('/api/department-members/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.removeDepartmentMember(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to remove department member:', error);
+      res.status(500).json({ error: 'Failed to remove department member' });
+    }
+  });
+
   // Engagement Settings API routes
   app.get('/api/engagement-settings', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
