@@ -810,7 +810,7 @@ export default function ChatInterface({
       </div>
 
       {/* Hidden Dialogs and Popovers - Triggered from dropdown */}
-            <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
+      <Dialog open={isCreateTicketOpen} onOpenChange={setIsCreateTicketOpen}>
               <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Create Ticket from Conversation</DialogTitle>
@@ -1079,9 +1079,6 @@ export default function ChatInterface({
                 </div>
               </DialogContent>
             </Dialog>
-          </div>
-        </div>
-      </div>
 
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
