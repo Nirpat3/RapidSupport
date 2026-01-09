@@ -668,7 +668,7 @@ export default function ConversationsPage() {
       {/* Conversation List Sidebar - Desktop always visible, Mobile conditional */}
       <div className={`
         w-full md:w-80 lg:w-96 
-        border-r flex flex-col
+        border-r flex flex-col overflow-hidden
         ${showMobileList ? 'flex' : 'hidden md:flex'}
       `}>
         {/* Header */}
@@ -774,8 +774,8 @@ export default function ConversationsPage() {
           )}
         </div>
 
-        {/* Conversation List - Native scrolling */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Conversation List - Native scrolling with no horizontal overflow */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
           {conversationsLoading ? (
             <div className="p-8 text-center text-muted-foreground">
               <div className="animate-pulse">Loading conversations...</div>
@@ -786,7 +786,7 @@ export default function ConversationsPage() {
               <p>No conversations found</p>
             </div>
           ) : (
-            <div className="p-2">
+            <div className="p-2 min-w-0">
               {sortedConversations.map((conversation) => {
                 const unreadCount = getUnreadCount(conversation.id);
                 const isActive = activeConversationId === conversation.id;
@@ -824,13 +824,13 @@ export default function ConversationsPage() {
                     <Button
                       variant={isActive ? "secondary" : "ghost"}
                       className={`
-                        flex-1 p-3 h-auto justify-start hover-elevate
+                        flex-1 min-w-0 p-3 h-auto justify-start hover-elevate overflow-hidden
                         ${unreadCount > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
                       `}
                       onClick={() => handleSelectConversation(conversation.id)}
                       data-testid={`conversation-${conversation.id}`}
                     >
-                      <div className="flex items-start gap-3 w-full">
+                      <div className="flex items-start gap-3 w-full min-w-0">
                         {/* Avatar */}
                         <div className="relative flex-shrink-0">
                           <Avatar className="w-10 h-10">
