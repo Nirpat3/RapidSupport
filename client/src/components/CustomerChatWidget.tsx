@@ -1191,15 +1191,17 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
         </>
       )}
 
-      {/* Voice Conversation Dialog */}
-      <VoiceConversationDialog
-        open={showVoiceDialog}
-        onOpenChange={setShowVoiceDialog}
-        conversationId={chatState.conversationId || undefined}
-        onMessageSaved={() => {
-          refetchMessages();
-        }}
-      />
+      {/* Voice Conversation Dialog - only render when feature is enabled */}
+      {voiceChatEnabled && (
+        <VoiceConversationDialog
+          open={showVoiceDialog}
+          onOpenChange={setShowVoiceDialog}
+          conversationId={chatState.conversationId || undefined}
+          onMessageSaved={() => {
+            refetchMessages();
+          }}
+        />
+      )}
     </div>
   );
 }

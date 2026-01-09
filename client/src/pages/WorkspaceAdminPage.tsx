@@ -49,7 +49,10 @@ import {
   Bot,
   ChevronLeft,
   FolderKanban,
+  Mic,
+  ToggleRight,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useState, useMemo, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation, useSearch } from "wouter";
@@ -244,6 +247,38 @@ export default function WorkspaceAdminPage() {
     },
   });
 
+  // Mutation to update workspace features
+  const updateWorkspaceFeaturesMutation = useMutation({
+    mutationFn: async ({ workspaceId, features }: { workspaceId: string; features: Record<string, boolean> }) => {
+      return apiRequest(`/api/workspaces/${workspaceId}/features`, 'PATCH', { features });
+    },
+    onSuccess: (_data, variables) => {
+      // Invalidate all related queries to ensure UI stays in sync
+      queryClient.invalidateQueries({ queryKey: ['/api/workspaces'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/workspace-features'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/workspace-features', variables.workspaceId] });
+      toast({ title: "Feature updated", description: "Workspace feature has been updated successfully." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error?.message || "Failed to update feature." });
+    },
+  });
+
+  // Helper to check if voice chat is enabled for the selected workspace
+  const isVoiceChatEnabled = () => {
+    if (!selectedWorkspace) return false;
+    return selectedWorkspace.settings?.features?.voiceChat === true;
+  };
+
+  // Toggle voice chat feature
+  const handleVoiceChatToggle = (enabled: boolean) => {
+    if (!selectedWorkspaceId) return;
+    updateWorkspaceFeaturesMutation.mutate({
+      workspaceId: selectedWorkspaceId,
+      features: { voiceChat: enabled },
+    });
+  };
+
   const filteredDepartments = useMemo(() => {
     if (!departments) return [];
     if (!searchQuery.trim()) return departments;
@@ -410,7 +445,43 @@ export default function WorkspaceAdminPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+          <div className="space-y-6 h-full overflow-auto">
+            {/* Workspace Features Card */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ToggleRight className="w-5 h-5" />
+                  Workspace Features
+                </CardTitle>
+                <CardDescription>
+                  Enable or disable add-on features for this workspace
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Mic className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-medium">Voice Chat</div>
+                      <div className="text-sm text-muted-foreground">
+                        Allow customers to use voice conversations with AI assistants
+                      </div>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={isVoiceChatEnabled()}
+                    onCheckedChange={handleVoiceChatToggle}
+                    disabled={updateWorkspaceFeaturesMutation.isPending}
+                    data-testid="switch-voice-chat"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Departments Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-1 overflow-auto">
               <Card className="h-full">
                 <CardHeader className="pb-3">
@@ -696,6 +767,7 @@ export default function WorkspaceAdminPage() {
                   </CardContent>
                 </Card>
               )}
+            </div>
             </div>
           </div>
         )}

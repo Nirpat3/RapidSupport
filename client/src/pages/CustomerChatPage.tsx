@@ -1572,18 +1572,20 @@ export default function CustomerChatPage() {
         />
       )}
 
-      {/* Voice Conversation Dialog */}
-      <VoiceConversationDialog
-        open={showVoiceDialog}
-        onOpenChange={setShowVoiceDialog}
-        conversationId={chatState.conversationId || undefined}
-        onMessageSaved={() => {
-          // Refetch messages when voice messages are saved
-          if (chatState.conversationId) {
-            refetchMessages();
-          }
-        }}
-      />
+      {/* Voice Conversation Dialog - only render when feature is enabled */}
+      {voiceChatEnabled && (
+        <VoiceConversationDialog
+          open={showVoiceDialog}
+          onOpenChange={setShowVoiceDialog}
+          conversationId={chatState.conversationId || undefined}
+          onMessageSaved={() => {
+            // Refetch messages when voice messages are saved
+            if (chatState.conversationId) {
+              refetchMessages();
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
