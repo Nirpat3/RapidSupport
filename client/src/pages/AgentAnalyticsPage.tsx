@@ -94,7 +94,11 @@ interface AgentPerformanceStats {
   };
 }
 
-export default function AgentAnalyticsPage() {
+interface AgentAnalyticsPageProps {
+  embedded?: boolean;
+}
+
+export default function AgentAnalyticsPage({ embedded = false }: AgentAnalyticsPageProps) {
   const [dateRange, setDateRange] = useState({
     from: format(subDays(new Date(), 30), 'yyyy-MM-dd'),
     to: format(new Date(), 'yyyy-MM-dd'),
@@ -138,24 +142,25 @@ export default function AgentAnalyticsPage() {
 
   return (
     <div className="p-6 space-y-6" data-testid="page-agent-analytics">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground" data-testid="text-page-title">
-            Agent Analytics Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            Monitor AI agent performance, knowledge effectiveness, and system metrics
-          </p>
-        </div>
+      {!embedded && (
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground" data-testid="text-page-title">
+              Agent Analytics Dashboard
+            </h1>
+            <p className="text-muted-foreground">
+              Monitor AI agent performance, knowledge effectiveness, and system metrics
+            </p>
+          </div>
 
-        {/* Date Range Filter */}
-        <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full md:w-auto">
-          <div className="flex gap-2 items-center w-full sm:w-auto">
-            <Label htmlFor="date-from" className="whitespace-nowrap">From:</Label>
-            <Input
-              id="date-from"
-              type="date"
-              value={dateRange.from}
+          {/* Date Range Filter */}
+          <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center w-full md:w-auto">
+            <div className="flex gap-2 items-center w-full sm:w-auto">
+              <Label htmlFor="date-from" className="whitespace-nowrap">From:</Label>
+              <Input
+                id="date-from"
+                type="date"
+                value={dateRange.from}
               onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
               className="flex-1 sm:w-36"
               data-testid="input-date-from"
@@ -177,7 +182,8 @@ export default function AgentAnalyticsPage() {
             Update
           </Button>
         </div>
-      </div>
+        </div>
+      )}
 
       <Tabs defaultValue="overview" className="space-y-6">
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">

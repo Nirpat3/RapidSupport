@@ -173,42 +173,50 @@ const cardHoverVariants = {
   }
 };
 
-export default function DashboardPage() {
+interface DashboardPageProps {
+  embedded?: boolean;
+}
+
+export default function DashboardPage({ embedded = false }: DashboardPageProps) {
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8 space-y-8" data-testid="dashboard-page">
-      {/* Hero Header with Animated Gradient */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative overflow-hidden rounded-2xl animated-gradient p-6 sm:p-8 text-white"
-      >
-        <div className="absolute inset-0 bg-black/20" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent" />
-        <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="dashboard-title">
-                Command Center
-              </h1>
-            </div>
-            <p className="text-white/80 max-w-xl">
-              Your unified dashboard for managing support operations. Monitor services, track performance, and optimize workflows.
-            </p>
-          </div>
-          <Button 
-            variant="secondary" 
-            className="gap-2 bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-sm"
-            data-testid="button-refresh"
+      {!embedded && (
+        <>
+          {/* Hero Header with Animated Gradient */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="relative overflow-hidden rounded-2xl animated-gradient p-6 sm:p-8 text-white"
           >
-            <Activity className="w-4 h-4" />
-            Live Mode
-          </Button>
-        </div>
-      </motion.div>
+            <div className="absolute inset-0 bg-black/20" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent" />
+            <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2 rounded-xl bg-white/10 backdrop-blur-sm">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="dashboard-title">
+                    Command Center
+                  </h1>
+                </div>
+                <p className="text-white/80 max-w-xl">
+                  Your unified dashboard for managing support operations. Monitor services, track performance, and optimize workflows.
+                </p>
+              </div>
+              <Button 
+                variant="secondary" 
+                className="gap-2 bg-white/10 hover:bg-white/20 text-white border-white/20 backdrop-blur-sm"
+                data-testid="button-refresh"
+              >
+                <Activity className="w-4 h-4" />
+                Live Mode
+              </Button>
+            </div>
+          </motion.div>
+        </>
+      )}
 
       {/* Quick Stats Row */}
       <motion.div

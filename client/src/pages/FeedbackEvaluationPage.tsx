@@ -21,7 +21,11 @@ import { Link } from "wouter";
 
 type RatingFilter = 'all' | '5' | '4' | '3' | '2' | '1';
 
-export default function FeedbackEvaluationPage() {
+interface FeedbackEvaluationPageProps {
+  embedded?: boolean;
+}
+
+export default function FeedbackEvaluationPage({ embedded = false }: FeedbackEvaluationPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>('all');
 
@@ -120,12 +124,16 @@ export default function FeedbackEvaluationPage() {
     : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h2 className="text-3xl font-bold" data-testid="title-feedback">Customer Feedback</h2>
-        <p className="text-muted-foreground">Review and analyze customer satisfaction ratings</p>
-      </div>
+    <div className="space-y-6 p-6">
+      {!embedded && (
+        <>
+          {/* Page Header */}
+          <div>
+            <h2 className="text-3xl font-bold" data-testid="title-feedback">Customer Feedback</h2>
+            <p className="text-muted-foreground">Review and analyze customer satisfaction ratings</p>
+          </div>
+        </>
+      )}
 
       {/* Stats Cards */}
       {feedbackList && feedbackList.length > 0 && (
