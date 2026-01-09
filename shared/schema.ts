@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, unique, customType, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, unique, customType, jsonb, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -3212,3 +3212,63 @@ export const insertWorkspaceKnowledgeCollectionSchema = createInsertSchema(works
 });
 export type InsertWorkspaceKnowledgeCollection = z.infer<typeof insertWorkspaceKnowledgeCollectionSchema>;
 export type WorkspaceKnowledgeCollection = typeof workspaceKnowledgeCollections.$inferSelect;
+
+// ============================================
+// RESOLUTION HISTORY
+// Track successful solutions to customer issues for recurring problem handling
+// ============================================
+
+export const resolutionRecords = pgTable("resolution_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Tenant scoping
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id),
+  
+  // Link to customer and conversation
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  
+  // Issue categorization
+  issueCategory: text("issue_category").notNull(), // e.g., 'billing', 'technical', 'account'
+  issueType: text("issue_type"), // More specific: 'payment_failed', 'login_issue', etc.
+  issueDescription: text("issue_description"), // Brief description of the problem
+  
+  // Solution details
+  solutionSource: text("solution_source").notNull(), // 'kb_article' | 'manual_steps' | 'external_link' | 'agent_action'
+  solutionReference: varchar("solution_reference"), // KB article ID if from knowledge base
+  solutionTitle: text("solution_title"), // Title of the solution for quick display
+  solutionSteps: text("solution_steps"), // Detailed steps taken to resolve
+  solutionExternalUrl: text("solution_external_url"), // If external resource was used
+  
+  // Outcome tracking
+  outcome: text("outcome").notNull().default("resolved"), // 'resolved' | 'partially_resolved' | 'not_resolved'
+  resolutionTimeMinutes: integer("resolution_time_minutes"), // How long it took to resolve
+  
+  // Agent and notes
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  agentNotes: text("agent_notes"), // Private notes for agents
+  customerFeedback: text("customer_feedback"), // Customer's feedback if provided
+  
+  // Tags for flexible categorization
+  tags: text("tags").array(),
+  
+  // Metadata
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  customerIssueCategoryIdx: index("resolution_customer_issue_idx").on(table.customerId, table.issueCategory, table.outcome),
+  workspaceIdx: index("resolution_workspace_idx").on(table.workspaceId),
+  organizationIdx: index("resolution_organization_idx").on(table.organizationId),
+  outcomeIdx: index("resolution_outcome_idx").on(table.outcome, table.createdAt),
+}));
+
+// Resolution Records insert schema and types
+export const insertResolutionRecordSchema = createInsertSchema(resolutionRecords).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertResolutionRecord = z.infer<typeof insertResolutionRecordSchema>;
+export type ResolutionRecord = typeof resolutionRecords.$inferSelect;
