@@ -42,6 +42,7 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **SEO Optimization**: sitemap.xml and robots.txt configured for public content indexing.
 - **Automatic Knowledge Base Reindexing**: Scheduled hourly processing of stale articles with vector embedding updates.
 - **Documentation Framework**: Enterprise-grade structured documentation system for AI agents with controlled vocabulary, versioning, RBAC, document relationships, and an atomic document pipeline for AI export.
+- **Resolution History Tracking**: Tracks successful issue resolutions per customer, enabling agents to see past solutions for recurring issues. AI automatically injects proven solutions into context for better suggestions. Supports issue categorization, solution sources (KB articles, manual steps, external links, agent actions), and outcome tracking (resolved, partially resolved, not resolved). Full multi-tenant scoping ensures data isolation between organizations.
 
 ## External Dependencies
 

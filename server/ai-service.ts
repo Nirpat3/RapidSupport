@@ -62,17 +62,32 @@ async function trackTokenUsage(
   }
 }
 
-// Format resolution history for AI context injection
-async function formatResolutionHistoryForAI(customerId: string, issueCategory?: string): Promise<string> {
+// Format resolution history for AI context injection (with tenant scoping)
+async function formatResolutionHistoryForAI(
+  customerId: string, 
+  organizationId: string | null | undefined,
+  issueCategory?: string
+): Promise<string> {
   try {
-    // Get successful past resolutions for this customer
-    const resolutions = await storage.getSuccessfulResolutions(customerId, issueCategory, 3);
-    
-    if (resolutions.length === 0) {
+    // Skip if no organization context - prevents cross-tenant leakage
+    if (!organizationId) {
+      console.log('[ResolutionHistory] Skipping - no organization context for tenant scoping');
       return '';
     }
 
-    // Also get resolution summary
+    // Get successful past resolutions for this customer
+    const resolutions = await storage.getSuccessfulResolutions(customerId, issueCategory, 3);
+    
+    // Filter to only resolutions within the same organization (tenant scoping)
+    const scopedResolutions = resolutions.filter(r => 
+      r.organizationId === organizationId || !r.organizationId
+    );
+    
+    if (scopedResolutions.length === 0) {
+      return '';
+    }
+
+    // Also get resolution summary (this returns aggregated data, but we filter based on org)
     const summary = await storage.getResolutionSummaryForCustomer(customerId);
     
     let context = '\n\n--- CUSTOMER RESOLUTION HISTORY ---\n';
@@ -84,7 +99,7 @@ async function formatResolutionHistoryForAI(customerId: string, issueCategory?: 
     }
     
     context += '\nPast Successful Solutions:\n';
-    for (const resolution of resolutions) {
+    for (const resolution of scopedResolutions) {
       context += `\n• Issue: ${resolution.issueCategory}`;
       if (resolution.issueType) context += ` (${resolution.issueType})`;
       context += `\n  Solution: ${resolution.solutionSource}`;
@@ -1647,13 +1662,18 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
           // Track intent in conversation intelligence
           await convIntel.trackIntent(conversationId, intentClassification.intent);
           
-          // Load resolution history for recurring issue detection
+          // Load resolution history for recurring issue detection (with tenant scoping)
+          // Get customer to determine organization context for tenant-scoped resolution history
+          const customer = await storage.getCustomer(customerId);
+          const customerOrgId = customer?.organizationId;
+          
           resolutionHistoryContext = await formatResolutionHistoryForAI(
             customerId,
+            customerOrgId,
             intentClassification.intent // Use detected intent as issue category hint
           );
           if (resolutionHistoryContext) {
-            console.log(`[ResolutionHistory] Loaded resolution history for customer ${customerId}`);
+            console.log(`[ResolutionHistory] Loaded resolution history for customer ${customerId} (org: ${customerOrgId})`);
           }
         } catch (error) {
           console.error('[ConvIntel] Error loading customer context:', error);
