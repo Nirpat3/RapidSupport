@@ -16,11 +16,52 @@ const vector = customType<{ data: number[], driverData: string }>({
   },
 });
 
+// ============================================
+// REGIONS - Must be defined first for FK references
+// ============================================
+
+// Regions table - Country/locale configurations for multi-region support
+export const regions = pgTable("regions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Region identification
+  isoCode: text("iso_code").notNull().unique(), // ISO 3166-1 alpha-2 (e.g., 'US', 'UK', 'DE', 'IN')
+  name: text("name").notNull(), // Display name (e.g., 'United States', 'Germany')
+  
+  // Locale settings
+  defaultLocale: text("default_locale").notNull().default("en"), // Primary language (e.g., 'en', 'de', 'hi')
+  supportedLocales: text("supported_locales").array().default(sql`ARRAY['en']::text[]`), // All supported languages
+  timezone: text("timezone").default("UTC"), // Default timezone (e.g., 'America/New_York')
+  
+  // Currency and formatting
+  currency: text("currency").default("USD"), // ISO 4217 currency code
+  currencySymbol: text("currency_symbol").default("$"),
+  dateFormat: text("date_format").default("MM/DD/YYYY"), // Date display format
+  
+  // Regional branding (optional overrides)
+  logo: text("logo"), // Region-specific logo if different
+  primaryColor: text("primary_color"), // Region-specific color
+  
+  // Domain configuration
+  subdomain: text("subdomain"), // e.g., 'us', 'de', 'in' for us.domain.com
+  customDomain: text("custom_domain"), // Full custom domain if needed
+  
+  // Status
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Organizations table - for multi-tenant support
 export const organizations = pgTable("organizations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   slug: text("slug").notNull().unique(), // URL-friendly identifier (e.g., 'acme', 'techco')
+  // Region and locale settings
+  regionId: varchar("region_id").references(() => regions.id), // Default region for this organization
+  defaultLocale: text("default_locale").default("en"), // Default language (ISO 639-1)
+  supportedLocales: text("supported_locales").array().default(sql`ARRAY['en']::text[]`), // Available languages
   // Branding
   logo: text("logo"), // URL or path to logo
   primaryColor: text("primary_color").default("#2563eb"), // Hex color for primary brand color
@@ -104,6 +145,12 @@ export const workspaces = pgTable("workspaces", {
   slug: text("slug").notNull(), // URL-friendly identifier
   organizationId: varchar("organization_id").notNull().references(() => organizations.id),
   isDefault: boolean("is_default").notNull().default(false), // Default workspace for new org members
+  // Region and locale settings (override organization defaults)
+  regionId: varchar("region_id").references(() => regions.id), // Override region for this workspace
+  locale: text("locale"), // Override locale for this workspace (null = use org default)
+  // Reseller configuration
+  isReseller: boolean("is_reseller").notNull().default(false), // Is this a reseller workspace
+  parentWorkspaceId: varchar("parent_workspace_id"), // Parent workspace for hierarchy (self-referential)
   settings: jsonb("settings"), // Workspace-specific settings (JSON)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -3031,3 +3078,137 @@ export const insertProactiveSuggestionsSchema = createInsertSchema(proactiveSugg
 });
 export type InsertProactiveSuggestions = z.infer<typeof insertProactiveSuggestionsSchema>;
 export type ProactiveSuggestions = typeof proactiveSuggestions.$inferSelect;
+
+// ============================================
+// MULTI-REGION & KNOWLEDGE COLLECTIONS
+// ============================================
+
+// Organization Members - For org-level oversight roles (separate from workspace membership)
+export const organizationMembers = pgTable("organization_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  // Role at organization level
+  role: text("role").notNull().default("viewer"), // 'owner' | 'admin' | 'manager' | 'viewer'
+  
+  // Permissions
+  canViewAllConversations: boolean("can_view_all_conversations").notNull().default(true), // See all workspace conversations
+  canManageWorkspaces: boolean("can_manage_workspaces").notNull().default(false),
+  canManageMembers: boolean("can_manage_members").notNull().default(false),
+  canManageSettings: boolean("can_manage_settings").notNull().default(false),
+  
+  // Status
+  status: text("status").notNull().default("active"), // 'active' | 'invited' | 'suspended'
+  invitedBy: varchar("invited_by").references(() => users.id),
+  invitedAt: timestamp("invited_at"),
+  acceptedAt: timestamp("accepted_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueOrgUser: unique().on(table.organizationId, table.userId),
+}));
+
+// Knowledge Collections - Groupings of KB articles that can be shared across workspaces
+export const knowledgeCollections = pgTable("knowledge_collections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Collection info
+  name: text("name").notNull(),
+  description: text("description"),
+  slug: text("slug").notNull(), // URL-friendly identifier
+  
+  // Ownership
+  ownerOrganizationId: varchar("owner_organization_id").references(() => organizations.id),
+  
+  // Visibility/sharing
+  visibility: text("visibility").notNull().default("organization"), // 'private' | 'organization' | 'shared'
+  
+  // Locale settings
+  defaultLocale: text("default_locale").notNull().default("en"),
+  supportedLocales: text("supported_locales").array().default(sql`ARRAY['en']::text[]`),
+  
+  // Status
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Knowledge Collection Articles - Junction table linking articles to collections
+export const knowledgeCollectionArticles = pgTable("knowledge_collection_articles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  collectionId: varchar("collection_id").notNull().references(() => knowledgeCollections.id),
+  articleId: varchar("article_id").notNull().references(() => knowledgeBase.id),
+  
+  // Ordering within collection
+  sortOrder: integer("sort_order").notNull().default(0),
+  
+  // Locale override (if article has translations)
+  locale: text("locale"), // null = use article's default
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueCollectionArticle: unique().on(table.collectionId, table.articleId),
+}));
+
+// Workspace Knowledge Collections - Which collections a workspace can access
+export const workspaceKnowledgeCollections = pgTable("workspace_knowledge_collections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  collectionId: varchar("collection_id").notNull().references(() => knowledgeCollections.id),
+  
+  // Access level
+  accessLevel: text("access_level").notNull().default("read"), // 'read' | 'contribute' | 'manage'
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueWorkspaceCollection: unique().on(table.workspaceId, table.collectionId),
+}));
+
+// Region insert schema and types
+export const insertRegionSchema = createInsertSchema(regions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertRegion = z.infer<typeof insertRegionSchema>;
+export type Region = typeof regions.$inferSelect;
+
+// Organization Members insert schema and types
+export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertOrganizationMember = z.infer<typeof insertOrganizationMemberSchema>;
+export type OrganizationMember = typeof organizationMembers.$inferSelect;
+
+// Knowledge Collections insert schema and types
+export const insertKnowledgeCollectionSchema = createInsertSchema(knowledgeCollections).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertKnowledgeCollection = z.infer<typeof insertKnowledgeCollectionSchema>;
+export type KnowledgeCollection = typeof knowledgeCollections.$inferSelect;
+
+// Knowledge Collection Articles insert schema and types
+export const insertKnowledgeCollectionArticleSchema = createInsertSchema(knowledgeCollectionArticles).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertKnowledgeCollectionArticle = z.infer<typeof insertKnowledgeCollectionArticleSchema>;
+export type KnowledgeCollectionArticle = typeof knowledgeCollectionArticles.$inferSelect;
+
+// Workspace Knowledge Collections insert schema and types
+export const insertWorkspaceKnowledgeCollectionSchema = createInsertSchema(workspaceKnowledgeCollections).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertWorkspaceKnowledgeCollection = z.infer<typeof insertWorkspaceKnowledgeCollectionSchema>;
+export type WorkspaceKnowledgeCollection = typeof workspaceKnowledgeCollections.$inferSelect;
