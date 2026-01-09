@@ -1019,10 +1019,15 @@ export default function CustomerChatPage() {
                 className="hidden"
               />
               
-              {/* Textarea */}
+              {/* Auto-expanding Textarea */}
               <Textarea
                 value={question}
-                onChange={(e) => setQuestion(e.target.value)}
+                onChange={(e) => {
+                  setQuestion(e.target.value);
+                  // Auto-expand textarea
+                  e.target.style.height = 'auto';
+                  e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -1030,7 +1035,8 @@ export default function CustomerChatPage() {
                   }
                 }}
                 placeholder="Type your message..."
-                className="min-h-[80px] max-h-[200px] resize-none border-0 focus-visible:ring-0 text-base p-0"
+                className="min-h-[24px] max-h-[200px] resize-none border-0 focus-visible:ring-0 text-base p-0"
+                style={{ height: '24px' }}
                 disabled={sendMessageMutation.isPending}
                 data-testid="input-message"
               />
@@ -1248,10 +1254,15 @@ export default function CustomerChatPage() {
           <Card className="mb-8 shadow-lg border-0 bg-card">
             <CardContent className="p-4 sm:p-6">
               <div className="flex flex-col gap-3 border rounded-xl p-4 bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
-                {/* Textarea */}
+                {/* Auto-expanding Textarea */}
                 <Textarea
                   value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
+                  onChange={(e) => {
+                    setQuestion(e.target.value);
+                    // Auto-expand textarea
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -1259,7 +1270,8 @@ export default function CustomerChatPage() {
                     }
                   }}
                   placeholder={t('chat.inputPlaceholder')}
-                  className="min-h-[100px] max-h-[200px] resize-none border-0 focus-visible:ring-0 text-base p-0"
+                  className="min-h-[24px] max-h-[200px] resize-none border-0 focus-visible:ring-0 text-base p-0"
+                  style={{ height: '24px' }}
                   data-testid="input-hero-question"
                 />
                 
