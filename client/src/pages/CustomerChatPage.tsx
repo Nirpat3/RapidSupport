@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -998,104 +999,109 @@ export default function CustomerChatPage() {
               </div>
             )}
             
-            <div className="flex gap-1 sm:gap-2 items-end">
-              {/* Action Buttons */}
-              <div className="flex gap-0.5 sm:gap-1">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  multiple
-                  accept="image/*,application/pdf,.txt,.docx"
-                  className="hidden"
-                />
-                <input
-                  type="file"
-                  ref={cameraInputRef}
-                  onChange={handleCameraCapture}
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                />
-                
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Attach file"
-                  data-testid="button-attach-file"
-                >
-                  <Paperclip className="h-5 w-5" />
-                </Button>
-                
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={openCamera}
-                  title="Take picture"
-                  data-testid="button-camera"
-                >
-                  <Camera className="h-5 w-5" />
-                </Button>
-                
-                <div className="relative">
+            {/* Replit-style input with textarea and icons below */}
+            <div className="flex flex-col gap-2 border rounded-xl p-3 bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+              {/* Hidden file inputs */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                multiple
+                accept="image/*,application/pdf,.txt,.docx"
+                className="hidden"
+              />
+              <input
+                type="file"
+                ref={cameraInputRef}
+                onChange={handleCameraCapture}
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+              />
+              
+              {/* Textarea */}
+              <Textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAskQuestion();
+                  }
+                }}
+                placeholder="Type your message..."
+                className="min-h-[80px] max-h-[200px] resize-none border-0 focus-visible:ring-0 text-base p-0"
+                disabled={sendMessageMutation.isPending}
+                data-testid="input-message"
+              />
+              
+              {/* Bottom bar with icons and send button */}
+              <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                <div className="flex gap-1">
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    title="Add emoji"
-                    data-testid="button-emoji"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach file"
+                    data-testid="button-attach-file"
                   >
-                    <Smile className="h-5 w-5" />
+                    <Paperclip className="h-4 w-4" />
                   </Button>
-                  {showEmojiPicker && (
-                    <div className="absolute bottom-12 left-0 z-50">
-                      <EmojiPicker onEmojiClick={handleEmojiClick} />
-                    </div>
-                  )}
+                  
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={openCamera}
+                    title="Take picture"
+                    data-testid="button-camera"
+                  >
+                    <Camera className="h-4 w-4" />
+                  </Button>
+                  
+                  <div className="relative">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      title="Add emoji"
+                      data-testid="button-emoji"
+                    >
+                      <Smile className="h-4 w-4" />
+                    </Button>
+                    {showEmojiPicker && (
+                      <div className="absolute bottom-12 left-0 z-50">
+                        <EmojiPicker onEmojiClick={handleEmojiClick} />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={toggleVoiceRecognition}
+                    className={cn(isRecording && "bg-red-500 text-white hover:bg-red-600")}
+                    title={isRecording ? "Stop recording" : "Voice to text"}
+                    data-testid="button-voice"
+                  >
+                    <Mic className="h-4 w-4" />
+                  </Button>
                 </div>
                 
                 <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={toggleVoiceRecognition}
-                  className={cn(isRecording && "bg-red-500 text-white hover:bg-red-600")}
-                  title={isRecording ? "Stop recording" : "Voice to text"}
-                  data-testid="button-voice"
+                  onClick={handleAskQuestion}
+                  disabled={(!question.trim() && selectedFiles.length === 0) || sendMessageMutation.isPending}
+                  size="sm"
+                  className="rounded-lg gap-1"
+                  data-testid="button-send-message"
                 >
-                  <Mic className="h-5 w-5" />
+                  <Send className="h-4 w-4" />
+                  <span className="hidden sm:inline">Send</span>
                 </Button>
               </div>
-
-              <div className="flex-1 relative">
-                <Input
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleAskQuestion();
-                    }
-                  }}
-                  placeholder="Type message..."
-                  className="pr-3 sm:pr-12"
-                  disabled={sendMessageMutation.isPending}
-                  data-testid="input-message"
-                />
-              </div>
-              <Button
-                onClick={handleAskQuestion}
-                disabled={(!question.trim() && selectedFiles.length === 0) || sendMessageMutation.isPending}
-                size="icon"
-                className="rounded-xl"
-                data-testid="button-send-message"
-              >
-                <Send className="h-5 w-5" />
-              </Button>
             </div>
           </div>
         </div>
@@ -1106,6 +1112,24 @@ export default function CustomerChatPage() {
   // Hero/Landing View
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/30">
+      {/* Hidden file inputs for hero view */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileSelect}
+        multiple
+        accept="image/*,application/pdf,.txt,.docx"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={cameraInputRef}
+        onChange={handleCameraCapture}
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+      />
+      
       {/* Top Bar with Language Switcher */}
       <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
         <LanguageSwitcher onLanguageChange={handleLanguageChange} />
@@ -1220,44 +1244,98 @@ export default function CustomerChatPage() {
             </Card>
           )}
 
-          {/* Search Input */}
+          {/* Replit-style Search Input */}
           <Card className="mb-8 shadow-lg border-0 bg-card">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-primary">
-                    <MessageCircle className="h-5 w-5" />
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-col gap-3 border rounded-xl p-4 bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                {/* Textarea */}
+                <Textarea
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAskQuestion();
+                    }
+                  }}
+                  placeholder={t('chat.inputPlaceholder')}
+                  className="min-h-[100px] max-h-[200px] resize-none border-0 focus-visible:ring-0 text-base p-0"
+                  data-testid="input-hero-question"
+                />
+                
+                {/* Bottom bar with icons and send button */}
+                <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Attach file"
+                      data-testid="button-hero-attach"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                    </Button>
+                    
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => cameraInputRef.current?.click()}
+                      title="Take picture"
+                      data-testid="button-hero-camera"
+                    >
+                      <Camera className="h-4 w-4" />
+                    </Button>
+                    
+                    <div className="relative">
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                        title="Add emoji"
+                        data-testid="button-hero-emoji"
+                      >
+                        <Smile className="h-4 w-4" />
+                      </Button>
+                      {showEmojiPicker && (
+                        <div className="absolute bottom-12 left-0 z-50">
+                          <EmojiPicker onEmojiClick={handleEmojiClick} />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={toggleVoiceRecognition}
+                      className={cn(isRecording && "bg-red-500 text-white hover:bg-red-600")}
+                      title={isRecording ? "Stop recording" : "Voice to text"}
+                      data-testid="button-hero-voice"
+                    >
+                      <Mic className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Input
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleAskQuestion();
-                      }
-                    }}
-                    placeholder={t('chat.inputPlaceholder')}
-                    className="pl-12 pr-4 h-14 text-base rounded-xl border-2 focus:border-primary transition-colors"
-                    data-testid="input-hero-question"
-                  />
+                  
+                  <Button
+                    onClick={handleAskQuestion}
+                    disabled={!question.trim() || sendMessageMutation.isPending || createCustomerMutation.isPending}
+                    className="rounded-lg gap-2"
+                    data-testid="button-ask-question"
+                  >
+                    {sendMessageMutation.isPending || createCustomerMutation.isPending ? (
+                      t('chat.sending')
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        {t('chat.getHelp')}
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleAskQuestion}
-                  disabled={!question.trim() || sendMessageMutation.isPending || createCustomerMutation.isPending}
-                  className="w-full rounded-xl h-12 text-base font-medium gap-2"
-                  data-testid="button-ask-question"
-                >
-                  {sendMessageMutation.isPending || createCustomerMutation.isPending ? (
-                    t('chat.sending')
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      {t('chat.getHelp')}
-                      <ArrowRight className="h-4 w-4" />
-                    </>
-                  )}
-                </Button>
               </div>
             </CardContent>
           </Card>
