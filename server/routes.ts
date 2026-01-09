@@ -9093,6 +9093,75 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Workspace Features API - public endpoint for checking feature availability
+  app.get('/api/workspace-features', async (req, res) => {
+    try {
+      // Get default workspace or specified workspace
+      const workspaceId = req.query.workspaceId as string | undefined;
+      let workspace;
+      
+      if (workspaceId) {
+        workspace = await storage.getWorkspace(workspaceId);
+      } else {
+        // Get default workspace
+        const workspaces = await storage.getWorkspacesByOrganization('default-org');
+        workspace = workspaces.find(w => w.isDefault) || workspaces[0];
+      }
+      
+      if (!workspace) {
+        // Return default feature state if no workspace found
+        return res.json({
+          voiceChat: false,
+          features: {}
+        });
+      }
+      
+      const settings = (workspace.settings as any) || {};
+      const features = settings.features || {};
+      
+      res.json({
+        voiceChat: features.voiceChat || false,
+        features
+      });
+    } catch (error) {
+      console.error('Failed to fetch workspace features:', error);
+      res.status(500).json({ error: 'Failed to fetch workspace features' });
+    }
+  });
+
+  // Update workspace features (admin only)
+  app.patch('/api/workspaces/:id/features', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { voiceChat } = req.body;
+      const workspace = await storage.getWorkspace(req.params.id);
+      
+      if (!workspace) {
+        return res.status(404).json({ error: 'Workspace not found' });
+      }
+      
+      const currentSettings = (workspace.settings as any) || {};
+      const updatedSettings = {
+        ...currentSettings,
+        features: {
+          ...currentSettings.features,
+          voiceChat: voiceChat ?? currentSettings.features?.voiceChat ?? false
+        }
+      };
+      
+      const updated = await storage.updateWorkspace(req.params.id, {
+        settings: updatedSettings
+      });
+      
+      res.json({
+        voiceChat: updatedSettings.features.voiceChat,
+        features: updatedSettings.features
+      });
+    } catch (error) {
+      console.error('Failed to update workspace features:', error);
+      res.status(500).json({ error: 'Failed to update workspace features' });
+    }
+  });
+
   // Workspace Members API routes
   app.get('/api/workspaces/:id/members', requireAuth, async (req, res) => {
     try {
