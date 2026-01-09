@@ -686,7 +686,7 @@ export default function CustomerChatPage() {
     setShowEmojiPicker(false);
   };
 
-  // Voice-to-text handler
+  // Voice-to-text handler with wake word detection
   const toggleVoiceRecognition = () => {
     setShowEmojiPicker(false); // Close emoji picker when using voice
     
@@ -699,15 +699,36 @@ export default function CustomerChatPage() {
       recognitionRef.current?.stop();
       setIsRecording(false);
     } else {
+      // Clear previous text when starting a new recording
+      setQuestion('');
+      
       const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       
+      // Wake word patterns to detect "Hey Ellie" or "Ellie" at start
+      const wakeWordPatterns = [
+        /^hey\s+ellie\s*/i,
+        /^ellie\s*/i,
+        /^hey\s+elly\s*/i,
+        /^elly\s*/i,
+      ];
+      
       recognition.onresult = (event: any) => {
-        const transcript = Array.from(event.results)
+        let transcript = Array.from(event.results)
           .map((result: any) => result[0].transcript)
           .join('');
+        
+        // Check for wake word at the beginning and remove it
+        for (const pattern of wakeWordPatterns) {
+          if (pattern.test(transcript)) {
+            // Wake word detected - clear any existing text and use the message after wake word
+            transcript = transcript.replace(pattern, '').trim();
+            break;
+          }
+        }
+        
         setQuestion(transcript);
       };
 
