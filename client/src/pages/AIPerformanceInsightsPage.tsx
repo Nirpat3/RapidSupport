@@ -120,7 +120,11 @@ interface KnowledgeGap {
   createdAt: string;
 }
 
-export default function AIPerformanceInsightsPage() {
+interface AIPerformanceInsightsPageProps {
+  embedded?: boolean;
+}
+
+export default function AIPerformanceInsightsPage({ embedded = false }: AIPerformanceInsightsPageProps) {
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [testMessage, setTestMessage] = useState("");
   const [conversationContext, setConversationContext] = useState("");
@@ -298,12 +302,14 @@ export default function AIPerformanceInsightsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold">AI Performance Insights</h1>
-        <p className="text-muted-foreground mt-1">
-          Monitor AI agent performance, test responses, and track learning metrics
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold">AI Performance Insights</h1>
+          <p className="text-muted-foreground mt-1">
+            Monitor AI agent performance, test responses, and track learning metrics
+          </p>
+        </div>
+      )}
 
       {/* Overview Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

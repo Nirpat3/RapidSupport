@@ -769,7 +769,11 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
   );
 }
 
-export default function AIConfigurationPage() {
+interface AIConfigurationPageProps {
+  embedded?: boolean;
+}
+
+export default function AIConfigurationPage({ embedded = false }: AIConfigurationPageProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<AiAgent | undefined>();
   const { toast } = useToast();
@@ -818,18 +822,28 @@ export default function AIConfigurationPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">AI Configuration</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage AI agents and their behavior settings
-          </p>
+      {!embedded && (
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold">AI Configuration</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage AI agents and their behavior settings
+            </p>
+          </div>
+          <Button onClick={handleCreate} data-testid="button-create-agent">
+            <Plus className="w-4 h-4 mr-2" />
+            Create Agent
+          </Button>
         </div>
-        <Button onClick={handleCreate} data-testid="button-create-agent">
-          <Plus className="w-4 h-4 mr-2" />
-          Create Agent
-        </Button>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end">
+          <Button onClick={handleCreate} data-testid="button-create-agent">
+            <Plus className="w-4 h-4 mr-2" />
+            Create Agent
+          </Button>
+        </div>
+      )}
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

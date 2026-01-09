@@ -37,7 +37,11 @@ interface ActiveAiConversation {
   };
 }
 
-export default function HumanOversightPage() {
+interface HumanOversightPageProps {
+  embedded?: boolean;
+}
+
+export default function HumanOversightPage({ embedded = false }: HumanOversightPageProps) {
   const { toast } = useToast();
 
   // Fetch active AI conversations
@@ -131,10 +135,12 @@ export default function HumanOversightPage() {
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
-        <div className="flex items-center gap-2">
-          <Bot className="w-6 h-6" />
-          <h1 className="text-2xl font-bold">Human Oversight</h1>
-        </div>
+        {!embedded && (
+          <div className="flex items-center gap-2">
+            <Bot className="w-6 h-6" />
+            <h1 className="text-2xl font-bold">Human Oversight</h1>
+          </div>
+        )}
         <div className="text-center py-12">Loading active AI conversations...</div>
       </div>
     );
@@ -142,20 +148,34 @@ export default function HumanOversightPage() {
 
   return (
     <div className="p-6 space-y-6" data-testid="page-human-oversight">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Bot className="w-6 h-6" />
-          <h1 className="text-2xl font-bold">Human Oversight</h1>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bot className="w-6 h-6" />
+            <h1 className="text-2xl font-bold">Human Oversight</h1>
+          </div>
+          <Button
+            onClick={() => refetch()}
+            variant="outline"
+            size="sm"
+            data-testid="button-refresh-conversations"
+          >
+            Refresh
+          </Button>
         </div>
-        <Button
-          onClick={() => refetch()}
-          variant="outline"
-          size="sm"
-          data-testid="button-refresh-conversations"
-        >
-          Refresh
-        </Button>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end">
+          <Button
+            onClick={() => refetch()}
+            variant="outline"
+            size="sm"
+            data-testid="button-refresh-conversations"
+          >
+            Refresh
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Card>
