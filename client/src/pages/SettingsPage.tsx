@@ -48,7 +48,11 @@ interface ArticleMetric {
   notHelpfulCount: number;
 }
 
-export default function SettingsPage() {
+interface SettingsPageProps {
+  embedded?: boolean;
+}
+
+export default function SettingsPage({ embedded = false }: SettingsPageProps) {
   const { toast } = useToast();
   const [localSettings, setLocalSettings] = useState({
     emailNotifications: true,

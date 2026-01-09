@@ -88,7 +88,11 @@ function getIconComponent(iconName: string | null) {
   return iconMap[iconName || 'HelpCircle'] || HelpCircle;
 }
 
-export default function SupportCategoriesPage() {
+interface SupportCategoriesPageProps {
+  embedded?: boolean;
+}
+
+export default function SupportCategoriesPage({ embedded = false }: SupportCategoriesPageProps) {
   const { toast } = useToast();
   const [editingCategory, setEditingCategory] = useState<SupportCategory | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);

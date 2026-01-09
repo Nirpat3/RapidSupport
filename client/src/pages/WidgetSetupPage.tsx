@@ -22,7 +22,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 
-export default function WidgetSetupPage() {
+interface WidgetSetupPageProps {
+  embedded?: boolean;
+}
+
+export default function WidgetSetupPage({ embedded = false }: WidgetSetupPageProps) {
   const { toast } = useToast();
   const [copied, setCopied] = useState<'script' | 'html' | 'react' | null>(null);
   

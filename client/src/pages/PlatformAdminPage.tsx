@@ -100,7 +100,11 @@ const inviteMemberSchema = z.object({
 type CreateWorkspaceForm = z.infer<typeof createWorkspaceSchema>;
 type InviteMemberForm = z.infer<typeof inviteMemberSchema>;
 
-export default function PlatformAdminPage() {
+interface PlatformAdminPageProps {
+  embedded?: boolean;
+}
+
+export default function PlatformAdminPage({ embedded = false }: PlatformAdminPageProps) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);

@@ -125,7 +125,11 @@ const addMemberSchema = z.object({
 type CreateDepartmentForm = z.infer<typeof createDepartmentSchema>;
 type AddMemberForm = z.infer<typeof addMemberSchema>;
 
-export default function WorkspaceAdminPage() {
+interface WorkspaceAdminPageProps {
+  embedded?: boolean;
+}
+
+export default function WorkspaceAdminPage({ embedded = false }: WorkspaceAdminPageProps) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const searchParams = useSearch();

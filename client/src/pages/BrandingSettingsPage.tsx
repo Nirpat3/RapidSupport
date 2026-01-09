@@ -40,7 +40,11 @@ interface Organization {
   createdAt: string | null;
 }
 
-export default function BrandingSettingsPage() {
+interface BrandingSettingsPageProps {
+  embedded?: boolean;
+}
+
+export default function BrandingSettingsPage({ embedded = false }: BrandingSettingsPageProps) {
   const { toast } = useToast();
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);

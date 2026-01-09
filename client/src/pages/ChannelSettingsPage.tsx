@@ -50,7 +50,11 @@ interface ChannelAccount {
   lastError?: string;
 }
 
-export default function ChannelSettingsPage() {
+interface ChannelSettingsPageProps {
+  embedded?: boolean;
+}
+
+export default function ChannelSettingsPage({ embedded = false }: ChannelSettingsPageProps) {
   const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<'meta_cloud' | 'twilio'>('meta_cloud');
