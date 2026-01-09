@@ -3263,7 +3263,7 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
       agent = await storage.getAiAgentById(agentId);
     }
     if (!agent) {
-      const agents = await storage.getAiAgents();
+      const agents = await storage.getAllAiAgents();
       agent = agents.find(a => a.name.includes('General')) || agents[0];
     }
 
