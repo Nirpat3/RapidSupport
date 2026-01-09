@@ -61,9 +61,20 @@ export function NotificationBell({ sessionId }: NotificationBellProps) {
           </div>
           
           {!isSupported ? (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              Push notifications are not available in this browser. Try using Chrome, Safari, or Firefox.
-            </p>
+            <div className="space-y-2">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Push notifications require the app to be installed.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <strong>On iPhone/iPad:</strong> Tap the share button in Safari, then "Add to Home Screen". Open the app from your home screen to enable notifications.
+              </p>
+              <a 
+                href="/install-app" 
+                className="text-xs text-primary hover:underline block"
+              >
+                View installation guide →
+              </a>
+            </div>
           ) : (
             <>
               <div className="flex items-center justify-between">
