@@ -68,6 +68,16 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Automatic Message Translation**: Bi-directional translation pipeline for human agent conversations. Customer messages are automatically translated to English for agents; agent responses are translated to the customer's selected language. Messages store both original and translated content with originalLanguage metadata. UI provides a translation toggle button to view original text. Uses OpenAI with graceful fallback to original content on translation failure.
 - **SEO Optimization**: sitemap.xml (public routes only) and robots.txt configured to block private paths while allowing public content indexing.
 - **Automatic Knowledge Base Reindexing**: Scheduled hourly processing of stale articles with vector embedding updates. Includes admin API endpoints for manual control and a secure webhook for external system triggers (rate-limited, timestamp validation, secret authentication).
+- **Documentation Framework**: A structured documentation system separate from knowledge base, designed for AI agent integration. Features include:
+    - **Controlled Vocabulary**: Domains (subject categories) and Intents (document purposes like How-To, Reference, Troubleshooting)
+    - **Semver Versioning**: Documents support semantic versioning with draft/published/archived states
+    - **RBAC Access Control**: public/internal/restricted access levels with workspace scoping
+    - **Document Relationships**: Link documents with relationship types (depends_on, related_to, emits, consumes)
+    - **AI Conversion Pipeline**: Upload PDF/DOCX/TXT → AI extracts and chunks → generates YAML front-matter + markdown → review queue → publish
+    - **Review Workflow**: AI-generated content goes through approval queue before publishing
+    - **Vector Embeddings**: Document chunks stored with embeddings for RAG retrieval by AI agents
+    - **Database Tables**: doc_domains, doc_intents, documents, document_versions, document_relationships, document_review_queue, document_import_jobs, document_chunks
+    - **API Endpoints**: /api/docs/domains, /api/docs/intents, /api/docs/documents, /api/docs/versions, /api/docs/relationships, /api/docs/review-queue, /api/docs/ai-export
 
 ## External Dependencies
 

@@ -98,6 +98,12 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     icon: BookOpen,
     allowedRoles: 'all'  // Reference for support staff
   },
+  {
+    title: "Doc Framework",
+    url: "/doc-framework", 
+    icon: FileText,
+    allowedRoles: ['admin']  // Admin only - structured docs for AI
+  },
   
   // === MANAGER/ADMIN ONLY ===
   {
