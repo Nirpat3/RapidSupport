@@ -22,10 +22,6 @@ export function NotificationBell({ sessionId }: NotificationBellProps) {
     unsubscribe,
   } = usePushNotifications(sessionId);
 
-  if (!isSupported) {
-    return null;
-  }
-
   const handleToggle = async () => {
     if (isEnabled) {
       await unsubscribe();
@@ -46,9 +42,12 @@ export function NotificationBell({ sessionId }: NotificationBellProps) {
           {isLoading ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : isEnabled ? (
-            <Bell className="h-5 w-5" />
+            <Bell className="h-5 w-5 text-emerald-500" />
           ) : (
             <BellOff className="h-5 w-5 text-muted-foreground" />
+          )}
+          {isEnabled && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full" />
           )}
         </Button>
       </PopoverTrigger>
@@ -61,26 +60,34 @@ export function NotificationBell({ sessionId }: NotificationBellProps) {
             </p>
           </div>
           
-          <div className="flex items-center justify-between">
-            <span className="text-sm">Enable notifications</span>
-            <Switch
-              checked={isEnabled}
-              onCheckedChange={handleToggle}
-              disabled={isLoading || permission === 'denied'}
-              data-testid="switch-notifications"
-            />
-          </div>
-          
-          {permission === 'denied' && (
-            <p className="text-xs text-destructive">
-              Notifications are blocked. Please update your browser settings.
+          {!isSupported ? (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Push notifications are not available in this browser. Try using Chrome, Safari, or Firefox.
             </p>
-          )}
-          
-          {isEnabled && (
-            <p className="text-xs text-muted-foreground">
-              You'll receive notifications for new messages when you're offline.
-            </p>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Enable notifications</span>
+                <Switch
+                  checked={isEnabled}
+                  onCheckedChange={handleToggle}
+                  disabled={isLoading || permission === 'denied'}
+                  data-testid="switch-notifications"
+                />
+              </div>
+              
+              {permission === 'denied' && (
+                <p className="text-xs text-destructive">
+                  Notifications are blocked. Please update your browser settings.
+                </p>
+              )}
+              
+              {isEnabled && (
+                <p className="text-xs text-muted-foreground">
+                  You'll receive notifications for new messages when you're offline.
+                </p>
+              )}
+            </>
           )}
         </div>
       </PopoverContent>
