@@ -185,6 +185,21 @@ import {
   type InsertConversationIntelligence,
   type ProactiveSuggestions,
   type InsertProactiveSuggestions,
+  regions,
+  organizationMembers,
+  knowledgeCollections,
+  knowledgeCollectionArticles,
+  workspaceKnowledgeCollections,
+  type Region,
+  type InsertRegion,
+  type OrganizationMember,
+  type InsertOrganizationMember,
+  type KnowledgeCollection,
+  type InsertKnowledgeCollection,
+  type KnowledgeCollectionArticle,
+  type InsertKnowledgeCollectionArticle,
+  type WorkspaceKnowledgeCollection,
+  type InsertWorkspaceKnowledgeCollection,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -5881,6 +5896,203 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(proactiveSuggestions.id, id));
     }
+  }
+
+  // ============================================
+  // REGION OPERATIONS
+  // ============================================
+
+  async getAllRegions(): Promise<Region[]> {
+    return await db.select().from(regions).where(eq(regions.isActive, true)).orderBy(asc(regions.name));
+  }
+
+  async getRegion(id: string): Promise<Region | undefined> {
+    const [region] = await db.select().from(regions).where(eq(regions.id, id));
+    return region;
+  }
+
+  async getRegionByIsoCode(isoCode: string): Promise<Region | undefined> {
+    const [region] = await db.select().from(regions).where(eq(regions.isoCode, isoCode.toUpperCase()));
+    return region;
+  }
+
+  async createRegion(region: InsertRegion): Promise<Region> {
+    const [created] = await db.insert(regions).values(region).returning();
+    return created;
+  }
+
+  async updateRegion(id: string, updates: Partial<InsertRegion>): Promise<Region> {
+    const [updated] = await db
+      .update(regions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(regions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteRegion(id: string): Promise<void> {
+    await db.update(regions).set({ isActive: false, updatedAt: new Date() }).where(eq(regions.id, id));
+  }
+
+  // ============================================
+  // ORGANIZATION MEMBER OPERATIONS
+  // ============================================
+
+  async getOrganizationMembers(organizationId: string): Promise<OrganizationMember[]> {
+    return await db.select().from(organizationMembers).where(eq(organizationMembers.organizationId, organizationId));
+  }
+
+  async getOrganizationMember(id: string): Promise<OrganizationMember | undefined> {
+    const [member] = await db.select().from(organizationMembers).where(eq(organizationMembers.id, id));
+    return member;
+  }
+
+  async getOrganizationMemberByUser(organizationId: string, userId: string): Promise<OrganizationMember | undefined> {
+    const [member] = await db.select().from(organizationMembers).where(
+      and(
+        eq(organizationMembers.organizationId, organizationId),
+        eq(organizationMembers.userId, userId)
+      )
+    );
+    return member;
+  }
+
+  async getUserOrganizations(userId: string): Promise<OrganizationMember[]> {
+    return await db.select().from(organizationMembers).where(eq(organizationMembers.userId, userId));
+  }
+
+  async createOrganizationMember(member: InsertOrganizationMember): Promise<OrganizationMember> {
+    const [created] = await db.insert(organizationMembers).values(member).returning();
+    return created;
+  }
+
+  async updateOrganizationMember(id: string, updates: Partial<InsertOrganizationMember>): Promise<OrganizationMember> {
+    const [updated] = await db
+      .update(organizationMembers)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(organizationMembers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteOrganizationMember(id: string): Promise<void> {
+    await db.delete(organizationMembers).where(eq(organizationMembers.id, id));
+  }
+
+  // ============================================
+  // KNOWLEDGE COLLECTION OPERATIONS
+  // ============================================
+
+  async getAllKnowledgeCollections(organizationId?: string): Promise<KnowledgeCollection[]> {
+    if (organizationId) {
+      return await db.select().from(knowledgeCollections).where(
+        and(
+          eq(knowledgeCollections.ownerOrganizationId, organizationId),
+          eq(knowledgeCollections.isActive, true)
+        )
+      ).orderBy(asc(knowledgeCollections.name));
+    }
+    return await db.select().from(knowledgeCollections).where(eq(knowledgeCollections.isActive, true)).orderBy(asc(knowledgeCollections.name));
+  }
+
+  async getKnowledgeCollection(id: string): Promise<KnowledgeCollection | undefined> {
+    const [collection] = await db.select().from(knowledgeCollections).where(eq(knowledgeCollections.id, id));
+    return collection;
+  }
+
+  async getKnowledgeCollectionBySlug(slug: string, organizationId?: string): Promise<KnowledgeCollection | undefined> {
+    if (organizationId) {
+      const [collection] = await db.select().from(knowledgeCollections).where(
+        and(
+          eq(knowledgeCollections.slug, slug),
+          eq(knowledgeCollections.ownerOrganizationId, organizationId)
+        )
+      );
+      return collection;
+    }
+    const [collection] = await db.select().from(knowledgeCollections).where(eq(knowledgeCollections.slug, slug));
+    return collection;
+  }
+
+  async createKnowledgeCollection(collection: InsertKnowledgeCollection): Promise<KnowledgeCollection> {
+    const [created] = await db.insert(knowledgeCollections).values(collection).returning();
+    return created;
+  }
+
+  async updateKnowledgeCollection(id: string, updates: Partial<InsertKnowledgeCollection>): Promise<KnowledgeCollection> {
+    const [updated] = await db
+      .update(knowledgeCollections)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(knowledgeCollections.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteKnowledgeCollection(id: string): Promise<void> {
+    await db.update(knowledgeCollections).set({ isActive: false, updatedAt: new Date() }).where(eq(knowledgeCollections.id, id));
+  }
+
+  // Knowledge Collection Articles
+  async getCollectionArticles(collectionId: string): Promise<KnowledgeCollectionArticle[]> {
+    return await db.select().from(knowledgeCollectionArticles)
+      .where(eq(knowledgeCollectionArticles.collectionId, collectionId))
+      .orderBy(asc(knowledgeCollectionArticles.sortOrder));
+  }
+
+  async addArticleToCollection(data: InsertKnowledgeCollectionArticle): Promise<KnowledgeCollectionArticle> {
+    const [created] = await db.insert(knowledgeCollectionArticles).values(data).returning();
+    return created;
+  }
+
+  async removeArticleFromCollection(collectionId: string, articleId: string): Promise<void> {
+    await db.delete(knowledgeCollectionArticles).where(
+      and(
+        eq(knowledgeCollectionArticles.collectionId, collectionId),
+        eq(knowledgeCollectionArticles.articleId, articleId)
+      )
+    );
+  }
+
+  async updateArticleInCollection(collectionId: string, articleId: string, updates: Partial<InsertKnowledgeCollectionArticle>): Promise<void> {
+    await db.update(knowledgeCollectionArticles)
+      .set(updates)
+      .where(
+        and(
+          eq(knowledgeCollectionArticles.collectionId, collectionId),
+          eq(knowledgeCollectionArticles.articleId, articleId)
+        )
+      );
+  }
+
+  // Workspace Knowledge Collections
+  async getWorkspaceCollections(workspaceId: string): Promise<WorkspaceKnowledgeCollection[]> {
+    return await db.select().from(workspaceKnowledgeCollections)
+      .where(eq(workspaceKnowledgeCollections.workspaceId, workspaceId));
+  }
+
+  async addCollectionToWorkspace(data: InsertWorkspaceKnowledgeCollection): Promise<WorkspaceKnowledgeCollection> {
+    const [created] = await db.insert(workspaceKnowledgeCollections).values(data).returning();
+    return created;
+  }
+
+  async removeCollectionFromWorkspace(workspaceId: string, collectionId: string): Promise<void> {
+    await db.delete(workspaceKnowledgeCollections).where(
+      and(
+        eq(workspaceKnowledgeCollections.workspaceId, workspaceId),
+        eq(workspaceKnowledgeCollections.collectionId, collectionId)
+      )
+    );
+  }
+
+  async updateWorkspaceCollectionAccess(workspaceId: string, collectionId: string, accessLevel: string): Promise<void> {
+    await db.update(workspaceKnowledgeCollections)
+      .set({ accessLevel })
+      .where(
+        and(
+          eq(workspaceKnowledgeCollections.workspaceId, workspaceId),
+          eq(workspaceKnowledgeCollections.collectionId, collectionId)
+        )
+      );
   }
 
 }
