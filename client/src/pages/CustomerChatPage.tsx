@@ -35,6 +35,7 @@ import {
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 import { CustomerInfoForm } from "@/components/CustomerInfoForm";
 import { ConversationRatingDialog } from "@/components/ConversationRatingDialog";
+import VoiceConversationDialog from "@/components/VoiceConversationDialog";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { AnonymousCustomer, SupportCategory as SupportCategoryType } from "@shared/schema";
@@ -177,6 +178,7 @@ export default function CustomerChatPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [showVoiceDialog, setShowVoiceDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -1166,9 +1168,8 @@ export default function CustomerChatPage() {
                     type="button"
                     size="icon"
                     variant="ghost"
-                    onClick={toggleVoiceRecognition}
-                    className={cn(isRecording && "bg-red-500 text-white hover:bg-red-600")}
-                    title={isRecording ? "Stop recording" : "Voice to text"}
+                    onClick={() => setShowVoiceDialog(true)}
+                    title="Start voice conversation"
                     data-testid="button-voice"
                   >
                     <Mic className="h-4 w-4" />
@@ -1400,9 +1401,8 @@ export default function CustomerChatPage() {
                       type="button"
                       size="icon"
                       variant="ghost"
-                      onClick={toggleVoiceRecognition}
-                      className={cn(isRecording && "bg-red-500 text-white hover:bg-red-600")}
-                      title={isRecording ? "Stop recording" : "Voice to text"}
+                      onClick={() => setShowVoiceDialog(true)}
+                      title="Start voice conversation"
                       data-testid="button-hero-voice"
                     >
                       <Mic className="h-4 w-4" />
@@ -1563,6 +1563,19 @@ export default function CustomerChatPage() {
           }}
         />
       )}
+
+      {/* Voice Conversation Dialog */}
+      <VoiceConversationDialog
+        open={showVoiceDialog}
+        onOpenChange={setShowVoiceDialog}
+        conversationId={chatState.conversationId || undefined}
+        onMessageSaved={() => {
+          // Refetch messages when voice messages are saved
+          if (chatState.conversationId) {
+            refetchMessages();
+          }
+        }}
+      />
     </div>
   );
 }
