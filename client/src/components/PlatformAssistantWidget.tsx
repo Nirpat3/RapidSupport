@@ -203,10 +203,9 @@ export default function PlatformAssistantWidget() {
         <Button
           size="icon"
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 h-12 w-12 sm:h-14 sm:w-14 rounded-full shadow-lg z-[9999] gradient-primary hover:opacity-90"
+          className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 h-12 w-12 sm:h-14 sm:w-14 rounded-full shadow-lg z-[9999] gradient-primary hover:opacity-90"
           style={{ 
             position: 'fixed',
-            bottom: 'max(1rem, env(safe-area-inset-bottom, 0px) + 1rem)',
             right: 'max(1rem, env(safe-area-inset-right, 0px) + 1rem)'
           }}
           data-testid="button-platform-assistant"
