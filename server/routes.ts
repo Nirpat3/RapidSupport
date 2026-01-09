@@ -6384,6 +6384,44 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get keywords from knowledge base for voice recognition vocabulary
+  app.get('/api/knowledge-base/keywords', async (req, res) => {
+    try {
+      const articles = await storage.getAllKnowledgeBase();
+      const activeArticles = articles.filter(a => a.isActive);
+      
+      const keywordsSet = new Set<string>();
+      
+      for (const article of activeArticles) {
+        if (article.title) {
+          const titleWords = article.title.split(/\s+/).filter(w => w.length > 2);
+          titleWords.forEach(w => keywordsSet.add(w.replace(/[^a-zA-Z0-9]/g, '')));
+        }
+        
+        if (article.tags && Array.isArray(article.tags)) {
+          article.tags.forEach(tag => {
+            if (tag && tag.length > 1) {
+              keywordsSet.add(tag);
+            }
+          });
+        }
+        
+        if (article.category) {
+          keywordsSet.add(article.category);
+        }
+      }
+      
+      const keywords = Array.from(keywordsSet)
+        .filter(k => k.length > 1)
+        .sort();
+      
+      res.json({ keywords });
+    } catch (error) {
+      console.error('Failed to fetch KB keywords:', error);
+      res.status(500).json({ error: 'Failed to fetch keywords' });
+    }
+  });
+
   // Get all knowledge base articles (with optional filtering)
   app.get('/api/knowledge-base', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {

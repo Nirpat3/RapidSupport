@@ -5,10 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Mic, MicOff, Volume2, VolumeX, Loader2, ExternalLink, Hand, Radio } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Mic, MicOff, Volume2, VolumeX, Loader2, ExternalLink, Hand, Radio, Sparkles } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { cn } from "@/lib/utils";
+import { correctTranscript, initializeDomainVocabulary } from "@/lib/domainVocabulary";
 
 type VoiceMode = 'pushToTalk' | 'continuous';
 
@@ -55,6 +57,8 @@ export default function VoiceConversationDialog({
     return (saved === 'pushToTalk' || saved === 'continuous') ? saved : 'pushToTalk';
   });
   const [isPushToTalkActive, setIsPushToTalkActive] = useState(false);
+  const [lastCorrections, setLastCorrections] = useState<Array<{ original: string; corrected: string }>>([]);
+  const [vocabularyLoaded, setVocabularyLoaded] = useState(false);
   
   const recognitionRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -75,6 +79,14 @@ export default function VoiceConversationDialog({
   useEffect(() => {
     localStorage.setItem('voiceMode', voiceMode);
   }, [voiceMode]);
+
+  useEffect(() => {
+    if (open && !vocabularyLoaded) {
+      initializeDomainVocabulary().then(() => {
+        setVocabularyLoaded(true);
+      });
+    }
+  }, [open, vocabularyLoaded]);
 
   const clearTimers = useCallback(() => {
     if (silenceTimerRef.current) {
@@ -152,15 +164,24 @@ export default function VoiceConversationDialog({
   const sendMessage = useCallback((text: string) => {
     if (!text.trim()) return;
     
+    const { corrected, corrections } = correctTranscript(text.trim());
+    
+    if (corrections.length > 0) {
+      console.log('[Voice] Applied corrections:', corrections);
+      setLastCorrections(corrections);
+    } else {
+      setLastCorrections([]);
+    }
+    
     const userMessage: VoiceMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: text.trim(),
+      content: corrected,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, userMessage]);
     setIsProcessing(true);
-    voiceChatMutation.mutate(text.trim());
+    voiceChatMutation.mutate(corrected);
     setTranscript('');
     accumulatedTranscriptRef.current = '';
   }, [voiceChatMutation]);
@@ -458,6 +479,29 @@ export default function VoiceConversationDialog({
                 <span className="text-xs">Continuous</span>
               </ToggleGroupItem>
             </ToggleGroup>
+
+            {lastCorrections.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-1 rounded-full cursor-help">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Auto-corrected {lastCorrections.length} term{lastCorrections.length > 1 ? 's' : ''}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <div className="space-y-1">
+                    <p className="font-medium text-xs">Vocabulary corrections applied:</p>
+                    {lastCorrections.map((c, i) => (
+                      <p key={i} className="text-xs">
+                        <span className="line-through opacity-60">{c.original}</span>
+                        {' → '}
+                        <span className="font-medium">{c.corrected}</span>
+                      </p>
+                    ))}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
 
             {isSpeaking && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
