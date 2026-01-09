@@ -77,7 +77,11 @@ function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-export default function FileManagementPage() {
+interface FileManagementPageProps {
+  embedded?: boolean;
+}
+
+export default function FileManagementPage({ embedded = false }: FileManagementPageProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [uploadCategory, setUploadCategory] = useState('General');
@@ -247,14 +251,16 @@ export default function FileManagementPage() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">File Management</h1>
-          <p className="text-muted-foreground">
-            Upload, organize, and manage files for AI training and knowledge base integration
-          </p>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">File Management</h1>
+            <p className="text-muted-foreground">
+              Upload, organize, and manage files for AI training and knowledge base integration
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       <Tabs defaultValue="upload" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">

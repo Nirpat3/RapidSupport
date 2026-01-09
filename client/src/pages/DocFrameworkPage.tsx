@@ -184,7 +184,11 @@ const createVersionSchema = z.object({
   changeLog: z.string().optional(),
 });
 
-export default function DocFrameworkPage() {
+interface DocFrameworkPageProps {
+  embedded?: boolean;
+}
+
+export default function DocFrameworkPage({ embedded = false }: DocFrameworkPageProps) {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
@@ -502,21 +506,31 @@ export default function DocFrameworkPage() {
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-7xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-primary" />
-            Documentation Framework
-          </h1>
-          <p className="text-muted-foreground">
-            Manage structured documentation for AI agents and internal knowledge
-          </p>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <BookOpen className="w-6 h-6 text-primary" />
+              Documentation Framework
+            </h1>
+            <p className="text-muted-foreground">
+              Manage structured documentation for AI agents and internal knowledge
+            </p>
+          </div>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create Document
+          </Button>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Create Document
-        </Button>
-      </div>
+      )}
+      {embedded && (
+        <div className="flex justify-end mb-6">
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create Document
+          </Button>
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">

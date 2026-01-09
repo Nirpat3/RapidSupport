@@ -177,7 +177,11 @@ const categories = [
   "Integration Help"
 ];
 
-export default function KnowledgeManagementPage() {
+interface KnowledgeManagementPageProps {
+  embedded?: boolean;
+}
+
+export default function KnowledgeManagementPage({ embedded = false }: KnowledgeManagementPageProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
@@ -585,13 +589,17 @@ export default function KnowledgeManagementPage() {
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden box-border">
       
-      {/* Header */}
-      <div className="space-y-4">
-        <div>
-          <h1 className="text-xl sm:text-3xl font-bold" data-testid="page-title">Knowledge Management</h1>
-          <p className="text-muted-foreground text-sm sm:text-base">Manage AI knowledge base articles and track effectiveness</p>
-        </div>
-      </div>
+      {!embedded && (
+        <>
+          {/* Header */}
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-xl sm:text-3xl font-bold" data-testid="page-title">Knowledge Management</h1>
+              <p className="text-muted-foreground text-sm sm:text-base">Manage AI knowledge base articles and track effectiveness</p>
+            </div>
+          </div>
+        </>
+      )}
         
       {/* Mobile: Stack vertically, Desktop: Side by side */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
