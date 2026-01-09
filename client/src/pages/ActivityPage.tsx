@@ -12,7 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import type { ActivityNotification } from "@shared/schema";
 
-export default function ActivityPage() {
+interface ActivityPageProps {
+  embedded?: boolean;
+}
+
+export default function ActivityPage({ embedded = false }: ActivityPageProps) {
   const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -105,31 +109,54 @@ export default function ActivityPage() {
   return (
     <div className="h-full flex flex-col p-6">
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold" data-testid="text-activity-title">Activity</h1>
-            <p className="text-muted-foreground">
-              Your notifications and activity updates
-            </p>
+        {!embedded && (
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold" data-testid="text-activity-title">Activity</h1>
+              <p className="text-muted-foreground">
+                Your notifications and activity updates
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {unreadData && unreadData.count > 0 && (
+                <Badge variant="default" data-testid="badge-unread-count">
+                  {unreadData.count} unread
+                </Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => markAllAsReadMutation.mutate()}
+                disabled={markAllAsReadMutation.isPending || !notifications.some(n => !n.isRead)}
+                data-testid="button-mark-all-read"
+              >
+                <CheckCheck className="w-4 h-4 mr-2" />
+                Mark All Read
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {unreadData && unreadData.count > 0 && (
-              <Badge variant="default" data-testid="badge-unread-count">
-                {unreadData.count} unread
-              </Badge>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => markAllAsReadMutation.mutate()}
-              disabled={markAllAsReadMutation.isPending || !notifications.some(n => !n.isRead)}
-              data-testid="button-mark-all-read"
-            >
-              <CheckCheck className="w-4 h-4 mr-2" />
-              Mark All Read
-            </Button>
+        )}
+        {embedded && (
+          <div className="flex items-center justify-end mb-4">
+            <div className="flex items-center gap-2">
+              {unreadData && unreadData.count > 0 && (
+                <Badge variant="default" data-testid="badge-unread-count">
+                  {unreadData.count} unread
+                </Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => markAllAsReadMutation.mutate()}
+                disabled={markAllAsReadMutation.isPending || !notifications.some(n => !n.isRead)}
+                data-testid="button-mark-all-read"
+              >
+                <CheckCheck className="w-4 h-4 mr-2" />
+                Mark All Read
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Search and Filter */}
         <div className="flex gap-3">

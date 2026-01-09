@@ -121,7 +121,11 @@ type Customer = {
   company?: string;
 };
 
-export default function FeedPage() {
+interface FeedPageProps {
+  embedded?: boolean;
+}
+
+export default function FeedPage({ embedded = false }: FeedPageProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
@@ -360,15 +364,28 @@ export default function FeedPage() {
   return (
     <div className="h-full flex flex-col" data-testid="feed-page">
       <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold" data-testid="feed-title">Feed</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Stay updated with announcements and team updates
-            </p>
+        {!embedded && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold" data-testid="feed-title">Feed</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">
+                Stay updated with announcements and team updates
+              </p>
+            </div>
+            {isStaff && (
+              <Button 
+                className="w-full sm:w-auto"
+                onClick={() => setIsCreateDialogOpen(true)}
+                data-testid="button-create-post"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Post
+              </Button>
+            )}
           </div>
-          {isStaff && (
+        )}
+        {embedded && isStaff && (
+          <div className="flex justify-end">
             <Button 
               className="w-full sm:w-auto"
               onClick={() => setIsCreateDialogOpen(true)}
@@ -377,8 +394,8 @@ export default function FeedPage() {
               <Plus className="w-4 h-4 mr-2" />
               Create Post
             </Button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Search and Filter */}
         <div className="flex flex-col sm:flex-row gap-3">
