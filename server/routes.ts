@@ -10748,15 +10748,20 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const fileBuffer = fs.readFileSync(file.path);
       const sha256Hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
       
-      const uploadedFile = await storage.createUploadedFile({
-        originalName: file.originalname,
-        storedName: storedName,
-        mimeType: file.mimetype,
-        size: file.size,
-        sha256Hash: sha256Hash,
-        filePath: file.path,
-        createdBy: user.id,
-      });
+      // Check if file with same hash already exists (reuse it)
+      let uploadedFile = await storage.getUploadedFileByHash(sha256Hash);
+      
+      if (!uploadedFile) {
+        uploadedFile = await storage.createUploadedFile({
+          originalName: file.originalname,
+          storedName: storedName,
+          mimeType: file.mimetype,
+          size: file.size,
+          sha256Hash: sha256Hash,
+          filePath: file.path,
+          createdBy: user.id,
+        });
+      }
       
       // Create the import job
       const importJob = await storage.createDocumentImportJob({
