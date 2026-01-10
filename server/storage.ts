@@ -218,6 +218,9 @@ import {
   type InsertWorkflowEdge,
   type WorkflowSession,
   type InsertWorkflowSession,
+  legalPolicies,
+  type LegalPolicy,
+  type InsertLegalPolicy,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -750,6 +753,18 @@ export interface IStorage {
   }): Promise<void>;
   getTopPerformingArticles(limit: number): Promise<Array<{ article: KnowledgeBase; metrics: KnowledgeArticleMetrics }>>;
   getArticlesNeedingImprovement(limit: number): Promise<Array<{ article: KnowledgeBase; metrics: KnowledgeArticleMetrics }>>;
+
+  // ============================================================================
+  // LEGAL POLICY OPERATIONS
+  // ============================================================================
+  
+  createLegalPolicy(policy: InsertLegalPolicy): Promise<LegalPolicy>;
+  getLegalPolicy(id: string): Promise<LegalPolicy | undefined>;
+  getLegalPoliciesByOrganization(organizationId: string | null): Promise<LegalPolicy[]>;
+  getLegalPolicyByTypeAndRegion(organizationId: string | null, type: string, region: string): Promise<LegalPolicy | undefined>;
+  updateLegalPolicy(id: string, updates: Partial<InsertLegalPolicy>): Promise<LegalPolicy>;
+  deleteLegalPolicy(id: string): Promise<void>;
+  getPublishedPolicies(organizationId: string | null): Promise<LegalPolicy[]>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -6810,6 +6825,56 @@ export class DatabaseStorage implements IStorage {
     const edges = await this.getWorkflowEdgesByPlaybook(playbookId);
 
     return { playbook, nodes, edges };
+  }
+
+  // ============================================================================
+  // LEGAL POLICY OPERATIONS
+  // ============================================================================
+
+  async createLegalPolicy(policy: InsertLegalPolicy): Promise<LegalPolicy> {
+    const [created] = await db.insert(legalPolicies).values(policy).returning();
+    return created;
+  }
+
+  async getLegalPolicy(id: string): Promise<LegalPolicy | undefined> {
+    const [policy] = await db.select().from(legalPolicies).where(eq(legalPolicies.id, id));
+    return policy || undefined;
+  }
+
+  async getLegalPoliciesByOrganization(organizationId: string | null): Promise<LegalPolicy[]> {
+    if (organizationId === null) {
+      return await db.select().from(legalPolicies).where(isNull(legalPolicies.organizationId)).orderBy(desc(legalPolicies.createdAt));
+    }
+    return await db.select().from(legalPolicies).where(eq(legalPolicies.organizationId, organizationId)).orderBy(desc(legalPolicies.createdAt));
+  }
+
+  async getLegalPolicyByTypeAndRegion(organizationId: string | null, type: string, region: string): Promise<LegalPolicy | undefined> {
+    const conditions = organizationId === null 
+      ? and(isNull(legalPolicies.organizationId), eq(legalPolicies.type, type), eq(legalPolicies.region, region))
+      : and(eq(legalPolicies.organizationId, organizationId), eq(legalPolicies.type, type), eq(legalPolicies.region, region));
+    
+    const [policy] = await db.select().from(legalPolicies).where(conditions);
+    return policy || undefined;
+  }
+
+  async updateLegalPolicy(id: string, updates: Partial<InsertLegalPolicy>): Promise<LegalPolicy> {
+    const [updated] = await db.update(legalPolicies)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(legalPolicies.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteLegalPolicy(id: string): Promise<void> {
+    await db.delete(legalPolicies).where(eq(legalPolicies.id, id));
+  }
+
+  async getPublishedPolicies(organizationId: string | null): Promise<LegalPolicy[]> {
+    const conditions = organizationId === null
+      ? and(isNull(legalPolicies.organizationId), eq(legalPolicies.status, 'published'))
+      : and(eq(legalPolicies.organizationId, organizationId), eq(legalPolicies.status, 'published'));
+    
+    return await db.select().from(legalPolicies).where(conditions).orderBy(asc(legalPolicies.type));
   }
 
 }
