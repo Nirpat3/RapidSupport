@@ -1478,7 +1478,7 @@ export default function CustomerChatPage() {
                   <p className="text-sm text-muted-foreground">{t('chat.customerInfoDescription')}</p>
                 </div>
                 <CustomerInfoForm
-                  onSubmit={(info) => {
+                  onSubmit={async (info) => {
                     setChatState(prev => ({ ...prev, customerInfo: info as AnonymousCustomer }));
                     setOnboardingStep('ready');
                   }}
