@@ -49,6 +49,15 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 ### Database Indexes
 - **idx_customers_one_admin_per_org**: Partial unique index on customers table `(customer_organization_id) WHERE customer_org_role = 'admin'`. Ensures exactly one admin per customer organization and prevents race conditions during concurrent onboarding. Defined in shared/schema.ts.
 
+### Embed Widget Security (Multi-Tenant Isolation)
+- **Organization-scoped customers**: Embed-created customers are scoped to their organization via `organizationId` field
+- **Token-based auth**: External apps generate JWT tokens with org-specific embed secrets (no global fallback)
+- **Cross-tenant protection**: `updateCustomerOrganizationId` only allows NULL→org transitions, throws security error for cross-org reassignment
+- **createAnonymousCustomer guards**: Throws error if attempting to reassign customer to different organization
+- **Strict enforcement**: Both token-exchange and resume-session endpoints fail when organizationId is missing or mismatched
+- **Legacy backfill**: `scripts/backfill-customer-org-ids.ts` can populate organizationId for historical customers
+- **Key methods**: `getCustomerByEmailAndOrg`, `updateCustomerOrganizationId` added to IStorage interface
+
 ## External Dependencies
 
 - **Database**: PostgreSQL (Neon serverless)

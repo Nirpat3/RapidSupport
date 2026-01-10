@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import express, { type Express } from "express";
 import { createServer, type Server } from "http";
 import { randomUUID } from "crypto";
 import crypto from "crypto";
@@ -21,6 +21,7 @@ import { db } from './db';
 import { eq, desc } from 'drizzle-orm';
 import { registerAuthRoutes } from './routes/auth.routes';
 import { registerCustomerChatRoutes } from './routes/customer-chat.routes';
+import { registerEmbedRoutes } from './routes/embed.routes';
 import type { RouteContext } from './routes/types';
 import { 
   insertCustomerSchema, 
@@ -876,6 +877,9 @@ Guidelines:
 }
 
 export async function registerRoutes(app: Express, sessionStore?: any): Promise<{ server: Server, wsServer?: any }> {
+  // Serve static files from public folder (for embed widget)
+  app.use('/embed', express.static(path.join(process.cwd(), 'public', 'embed')));
+  
   // Rate limiting for authentication
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -12402,6 +12406,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   const routeContext: RouteContext = { app, httpServer, wsServer };
   registerAuthRoutes(routeContext);
   registerCustomerChatRoutes(routeContext);
+  registerEmbedRoutes(routeContext);
 
   return { server: httpServer, wsServer };
 }

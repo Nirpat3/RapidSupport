@@ -1873,9 +1873,23 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         : '';
 
       // Add custom context data if provided (excluding memory context and resolution history which are handled separately)
-      const { customerMemoryContext, resolutionHistoryContext, ...otherContextData } = contextData || {};
+      const { customerMemoryContext, resolutionHistoryContext, pageContext, url, title, feature, ...otherContextData } = contextData || {};
+      
+      // Format page context for better AI understanding
+      const pageInfo = pageContext || (url || title || feature ? { url, title, feature } : null);
+      const pageContextString = pageInfo
+        ? `\n=== PAGE CONTEXT ===
+The customer is currently viewing:
+${pageInfo.url ? `• URL: ${pageInfo.url}` : ''}
+${pageInfo.title ? `• Page Title: ${pageInfo.title}` : ''}
+${pageInfo.feature ? `• Feature/Section: ${pageInfo.feature}` : ''}
+
+Use this context to provide more relevant, page-specific assistance. Prioritize help related to what they're currently viewing.
+=== END PAGE CONTEXT ===\n`
+        : '';
+      
       const customContext = Object.keys(otherContextData).length > 0
-        ? `\nCustom Context Data:\n${JSON.stringify(otherContextData, null, 2)}\n`
+        ? `\nAdditional Context:\n${JSON.stringify(otherContextData, null, 2)}\n`
         : '';
       
       // Customer memory context for personalization
@@ -1915,7 +1929,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       // Get the format template for this response
       const formatTemplate = RESPONSE_FORMATS[responseFormat];
 
-      const userPrompt = `${knowledgeContext}${conversationContext}${customContext}${memoryContext}${resolutionContext}
+      const userPrompt = `${knowledgeContext}${pageContextString}${conversationContext}${customContext}${memoryContext}${resolutionContext}
 Customer Message: "${customerMessage}"
 
 Agent Role: ${agent.name} - ${agent.description}
@@ -3190,8 +3204,26 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
         ? `\nConversation History:\n${conversationHistory.join('\n')}\n`
         : '';
 
-      const customContext = contextData 
-        ? `\nCustom Context Data:\n${JSON.stringify(contextData, null, 2)}\n`
+      // Format page context for better AI understanding (same as non-streaming)
+      const { customerMemoryContext, resolutionHistoryContext, pageContext, url, title, feature, ...otherContextData } = contextData || {};
+      const pageInfo = pageContext || (url || title || feature ? { url, title, feature } : null);
+      const pageContextString = pageInfo
+        ? `\n=== PAGE CONTEXT ===
+The customer is currently viewing:
+${pageInfo.url ? `• URL: ${pageInfo.url}` : ''}
+${pageInfo.title ? `• Page Title: ${pageInfo.title}` : ''}
+${pageInfo.feature ? `• Feature/Section: ${pageInfo.feature}` : ''}
+
+Use this context to provide more relevant, page-specific assistance.
+=== END PAGE CONTEXT ===\n`
+        : '';
+      
+      // Restore memory and resolution context for personalization
+      const memoryContext = customerMemoryContext || '';
+      const resolutionContext = resolutionHistoryContext || '';
+      
+      const customContext = Object.keys(otherContextData).length > 0 
+        ? `\nAdditional Context:\n${JSON.stringify(otherContextData, null, 2)}\n`
         : '';
 
       const knowledgeQuality = this.calculateKnowledgeQuality(searchResults);
@@ -3203,7 +3235,7 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
       const formatTemplate = RESPONSE_FORMATS[responseFormat];
 
       // Build the prompt (same as non-streaming)
-      const userPrompt = `${knowledgeContext}${conversationContext}${customContext}
+      const userPrompt = `${knowledgeContext}${pageContextString}${conversationContext}${customContext}${memoryContext}${resolutionContext}
 Customer Message: "${customerMessage}"
 
 Agent Role: ${agent.name} - ${agent.description}

@@ -249,6 +249,8 @@ export interface IStorage {
   // Customer operations
   getCustomer(id: string): Promise<Customer | undefined>;
   getCustomerByEmail(email: string): Promise<Customer | undefined>;
+  getCustomerByEmailAndOrg(email: string, organizationId: string): Promise<Customer | undefined>;
+  updateCustomerOrganizationId(customerId: string, organizationId: string): Promise<void>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomerStatus(id: string, status: string): Promise<void>;
   updateCustomerOrganizationMembership(customerId: string, customerOrgId: string, role: string): Promise<void>;
@@ -493,6 +495,7 @@ export interface IStorage {
   // Additional conversation operations
   updateConversation(id: string, updates: Partial<InsertConversation>): Promise<void>;
   toggleAiAssistance(conversationId: string, enabled: boolean): Promise<void>;
+  setConversationContextData(conversationId: string, contextData: Record<string, any>): Promise<void>;
 
   // File Management operations
   getUploadedFile(id: string): Promise<UploadedFile | undefined>;
@@ -928,6 +931,38 @@ export class DatabaseStorage implements IStorage {
   async getCustomerByEmail(email: string): Promise<Customer | undefined> {
     const [customer] = await db.select().from(customers).where(eq(customers.email, email));
     return customer || undefined;
+  }
+
+  async getCustomerByEmailAndOrg(email: string, organizationId: string): Promise<Customer | undefined> {
+    const [customer] = await db.select().from(customers)
+      .where(and(eq(customers.email, email), eq(customers.organizationId, organizationId)));
+    return customer || undefined;
+  }
+
+  async updateCustomerOrganizationId(customerId: string, organizationId: string): Promise<void> {
+    // Security: Only allow setting organizationId when it's currently NULL
+    // This prevents cross-tenant reassignment attacks
+    const result = await db
+      .update(customers)
+      .set({ organizationId, updatedAt: new Date() })
+      .where(and(
+        eq(customers.id, customerId),
+        isNull(customers.organizationId)
+      ))
+      .returning({ id: customers.id });
+    
+    if (result.length === 0) {
+      // Either customer not found or organizationId was already set - verify which case
+      const existing = await this.getCustomer(customerId);
+      if (!existing) {
+        throw new Error(`Customer ${customerId} not found`);
+      }
+      if (existing.organizationId !== null && existing.organizationId !== organizationId) {
+        throw new Error(`Security violation: Cannot reassign customer ${customerId} from org ${existing.organizationId} to ${organizationId}`);
+      }
+      // If already set to same org, that's fine - no-op
+    }
+    console.log(`[Security] Updated customer ${customerId} organizationId to ${organizationId}`);
   }
 
   async createCustomer(insertCustomer: InsertCustomer): Promise<Customer> {
@@ -1828,6 +1863,18 @@ export class DatabaseStorage implements IStorage {
       if (customerData.company) {
         updateData.company = customerData.company;
       }
+      // Security: Only backfill organizationId if customer has NULL (legacy) - never overwrite existing org
+      // This prevents cross-tenant takeover attacks
+      if (customerData.organizationId) {
+        if (existingCustomer.organizationId === null) {
+          // Safe backfill for legacy customer
+          updateData.organizationId = customerData.organizationId;
+        } else if (existingCustomer.organizationId !== customerData.organizationId) {
+          // Cross-tenant violation - throw error to prevent takeover
+          throw new Error(`Security violation: Cannot reassign customer ${existingCustomer.id} from org ${existingCustomer.organizationId} to ${customerData.organizationId}`);
+        }
+        // If already matches, no update needed
+      }
       
       // Handle organization membership for existing customer
       if (customerData.company && customerData.company.trim()) {
@@ -1923,6 +1970,7 @@ export class DatabaseStorage implements IStorage {
           status: 'online',
           customerOrganizationId: orgId,
           customerOrgRole: 'member', // Start as member
+          organizationId: customerData.organizationId || null, // Platform organization for multi-tenant scoping
         };
         
         [customer] = await db
@@ -1980,6 +2028,7 @@ export class DatabaseStorage implements IStorage {
           status: 'online',
           customerOrganizationId: null,
           customerOrgRole: null,
+          organizationId: customerData.organizationId || null, // Platform organization for multi-tenant scoping
         };
         
         [customer] = await db
@@ -3778,6 +3827,17 @@ export class DatabaseStorage implements IStorage {
         .where(eq(conversations.id, conversationId));
     } catch (error) {
       console.error('Error toggling AI assistance:', error);
+      throw error;
+    }
+  }
+
+  async setConversationContextData(conversationId: string, contextData: Record<string, any>): Promise<void> {
+    try {
+      await db.update(conversations)
+        .set({ contextData: JSON.stringify(contextData), updatedAt: new Date() })
+        .where(eq(conversations.id, conversationId));
+    } catch (error) {
+      console.error('Error setting conversation context data:', error);
       throw error;
     }
   }

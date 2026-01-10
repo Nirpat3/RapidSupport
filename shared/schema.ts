@@ -1361,10 +1361,11 @@ export const insertCustomerSchema = createInsertSchema(customers).pick({
 export const anonymousCustomerSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.string().email("Valid email is required"),
-  phone: z.string().min(1, "Phone is required"),
-  company: z.string().min(1, "Business name is required"),
+  phone: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
   ipAddress: z.string().optional(),
   contextData: z.record(z.any()).optional(), // Custom context data from 3rd party integrations
+  organizationId: z.string().optional(), // Platform organization ID for multi-tenant scoping
 });
 
 // Customer portal login schema
