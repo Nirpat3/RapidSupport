@@ -39,11 +39,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { AnonymousCustomer } from "@shared/schema";
 import { renderFormattedContent } from "@/components/ChatMessage";
 
-import { useSupportCategories, getCategoryTranslation } from "@/hooks/customer-chat";
-import { 
-  ExistingConversationCard, 
-  CategorySelectionGrid 
-} from "@/components/customer-chat";
+import { ExistingConversationCard } from "@/components/customer-chat";
 
 interface Attachment {
   id: string;
@@ -81,7 +77,6 @@ interface ChatState {
   customerId: string | null;
   sessionId: string;
   customerInfo: AnonymousCustomer | null;
-  selectedCategory: string | null;
 }
 
 interface ConversationDetails {
@@ -146,7 +141,6 @@ export default function CustomerChatPage() {
           customerId: parsed.customerId || null,
           sessionId: parsed.sessionId || crypto.randomUUID(),
           customerInfo: parsed.customerInfo || null,
-          selectedCategory: parsed.selectedCategory || null,
         };
       } catch (e) {
         console.error('Failed to parse saved chat state:', e);
@@ -157,7 +151,6 @@ export default function CustomerChatPage() {
       customerId: null,
       sessionId: crypto.randomUUID(),
       customerInfo: null,
-      selectedCategory: null,
     };
   });
 
@@ -167,22 +160,21 @@ export default function CustomerChatPage() {
   // Track when user explicitly starts a new chat (to override existingConversation check)
   const [forceNewChat, setForceNewChat] = useState(false);
   
-  // Onboarding step: 'category' | 'info' | 'ready'
-  // 'category' = show category selection
-  // 'info' = show contact info form  
-  // 'ready' = show message input
-  const [onboardingStep, setOnboardingStep] = useState<'category' | 'info' | 'ready'>(() => {
-    // If user has existing conversation with category and info, skip to ready
+  // Onboarding step: 'info' | 'ready'
+  // 'info' = show contact info form (for new users)
+  // 'ready' = show message input (for returning users or after info submitted)
+  const [onboardingStep, setOnboardingStep] = useState<'info' | 'ready'>(() => {
+    // If user has existing conversation with customer info, skip to ready
     const savedState = localStorage.getItem('customer-chat-state');
     if (savedState) {
       try {
         const parsed = JSON.parse(savedState);
-        if (parsed.selectedCategory && parsed.customerInfo) {
+        if (parsed.customerInfo) {
           return 'ready';
         }
       } catch (e) {}
     }
-    return 'category';
+    return 'info';
   });
   
   
@@ -264,9 +256,6 @@ export default function CustomerChatPage() {
     refetchInterval: chatStarted ? 5000 : false,
   });
 
-  // Use modular hook for support categories
-  const { categories: SUPPORT_CATEGORIES, getCategoryById } = useSupportCategories();
-
   // Check if conversation is closed and show rating dialog
   useEffect(() => {
     console.log('[CustomerChatPage] Conversation details:', conversationDetails);
@@ -303,24 +292,13 @@ export default function CustomerChatPage() {
     }
   }, [conversationDetails?.status, chatState.conversationId]);
 
-  // Helper to get selected category info
-  const getSelectedCategoryInfo = () => {
-    return getCategoryById(chatState.selectedCategory);
-  };
-
   // Create customer and conversation
   const createCustomerMutation = useMutation<CreateCustomerResponse, Error, AnonymousCustomer>({
     mutationFn: async (customerData: AnonymousCustomer) => {
-      const selectedCategory = getSelectedCategoryInfo();
       const response = await apiRequest('/api/customer-chat/create-customer', 'POST', {
         ...customerData,
         ipAddress: '',
         sessionId: chatState.sessionId,
-        contextData: {
-          selectedCategory: chatState.selectedCategory,
-          categoryLabel: selectedCategory?.label,
-          aiAgentId: selectedCategory?.aiAgentId,
-        },
       });
       return response;
     },
@@ -570,6 +548,15 @@ export default function CustomerChatPage() {
     }
   }, [existingConversation, forceNewChat]);
 
+  // Skip contact info step if user is already registered (has customerInfo from API)
+  useEffect(() => {
+    if (!forceNewChat && existingConversation?.customerInfo && onboardingStep === 'info') {
+      // User's IP is already registered - skip to ready step
+      setChatState(prev => ({ ...prev, customerInfo: existingConversation.customerInfo }));
+      setOnboardingStep('ready');
+    }
+  }, [existingConversation, forceNewChat, onboardingStep]);
+
   const handleAskQuestion = async () => {
     console.log(`[HANDLE ASK QUESTION] Called. Question: "${question}", chatStarted: ${chatStarted}`);
     
@@ -586,9 +573,26 @@ export default function CustomerChatPage() {
       return;
     }
 
-    // Hero flow: category and info already collected in onboarding steps
+    // Resume existing conversation: if user has existing conversation, use it
+    if (chatState.conversationId && chatState.customerId) {
+      console.log(`[HANDLE ASK QUESTION] Resuming existing conversation: ${chatState.conversationId}`);
+      setChatStarted(true);
+      const messageContent = question.trim() || (selectedFiles.length > 0 ? '[Attachment]' : '');
+      const response = await sendMessageMutation.mutateAsync({ 
+        content: messageContent,
+        conversationId: chatState.conversationId,
+        customerId: chatState.customerId,
+      });
+      if (selectedFiles.length > 0 && response?.id) {
+        await uploadFiles(response.id);
+      }
+      setQuestion('');
+      return;
+    }
+
+    // Hero flow: info already collected in onboarding step
     // Create customer and start conversation directly
-    if (chatState.customerInfo && chatState.selectedCategory) {
+    if (chatState.customerInfo) {
       console.log(`[HANDLE ASK QUESTION] Starting new conversation with pre-collected info`);
       setPendingMessage(question);
       setPendingFiles(selectedFiles);
@@ -596,9 +600,9 @@ export default function CustomerChatPage() {
       return;
     }
 
-    // Fallback: if somehow we got here without info, reset to category step
-    console.log(`[HANDLE ASK QUESTION] Missing info, resetting to category step`);
-    setOnboardingStep('category');
+    // Fallback: if somehow we got here without info, reset to info step
+    console.log(`[HANDLE ASK QUESTION] Missing info, resetting to info step`);
+    setOnboardingStep('info');
   };
 
   const handleCustomerInfoSubmit = async (customerData: AnonymousCustomer) => {
@@ -724,10 +728,9 @@ export default function CustomerChatPage() {
       customerId: null,
       sessionId: crypto.randomUUID(),
       customerInfo: null,
-      selectedCategory: null,
     });
     setChatStarted(false);
-    setOnboardingStep('category');
+    setOnboardingStep('info');
     setForceNewChat(true); // Flag to override existingConversation check
     setQuestion('');
     setSelectedFiles([]);
@@ -795,19 +798,6 @@ export default function CustomerChatPage() {
                     <div className="w-1.5 h-1.5 bg-accent-foreground/80 rounded-full animate-pulse" />
                     <span className="hidden sm:inline">Online</span>
                   </Badge>
-                  {/* Category badge in collapsed header */}
-                  {chatState.selectedCategory && (
-                    <Badge variant="secondary" className="gap-1 h-5 text-xs">
-                      {(() => {
-                        const cat = SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
-                        if (cat) {
-                          const IconComponent = cat.icon;
-                          return <><IconComponent className="h-3 w-3" /> <span className="hidden sm:inline">{cat.label}</span></>;
-                        }
-                        return chatState.selectedCategory;
-                      })()}
-                    </Badge>
-                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <Button
@@ -863,19 +853,6 @@ export default function CustomerChatPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       {chatState.customerInfo && (
                         <span className="text-xs text-muted-foreground">{chatState.customerInfo.name}</span>
-                      )}
-                      {/* Category badge in expanded header */}
-                      {chatState.selectedCategory && (
-                        <Badge variant="secondary" className="gap-1 h-5 text-xs">
-                          {(() => {
-                            const cat = SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
-                            if (cat) {
-                              const IconComponent = cat.icon;
-                              return <><IconComponent className="h-3 w-3" /> {cat.label}</>;
-                            }
-                            return chatState.selectedCategory;
-                          })()}
-                        </Badge>
                       )}
                     </div>
                     {existingConversation?.ipAddress && (
@@ -1294,44 +1271,10 @@ export default function CustomerChatPage() {
             />
           )}
 
-          {/* Step 1: Category Selection - Show when no existing conversation OR when forceNewChat is true */}
-          {onboardingStep === 'category' && !chatState.conversationId && (forceNewChat || !existingConversation?.conversationId) && (
-            <CategorySelectionGrid
-              categories={SUPPORT_CATEGORIES}
-              onSelect={(categoryId) => {
-                setChatState(prev => ({ ...prev, selectedCategory: categoryId }));
-                setOnboardingStep('info');
-              }}
-            />
-          )}
-
-          {/* Step 2: Contact Info Collection */}
+          {/* Contact Info Collection - Show for new users (no existing conversation) */}
           {onboardingStep === 'info' && !chatState.conversationId && (forceNewChat || !existingConversation?.conversationId) && (
             <Card className="mb-8 shadow-lg border-0 bg-card">
               <CardContent className="p-4 sm:p-6">
-                {/* Show selected category */}
-                {chatState.selectedCategory && (
-                  <div className="mb-4 flex items-center justify-center gap-2">
-                    <Badge variant="secondary" className="gap-1.5">
-                      {(() => {
-                        const cat = SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
-                        if (cat) {
-                          const IconComponent = cat.icon;
-                          return <><IconComponent className="h-3 w-3" /> {cat.label}</>;
-                        }
-                        return chatState.selectedCategory;
-                      })()}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setOnboardingStep('category')}
-                      className="text-xs h-6"
-                    >
-                      Change
-                    </Button>
-                  </div>
-                )}
                 <div className="text-center mb-6">
                   <h2 className="text-lg font-semibold mb-2">{t('chat.customerInfo')}</h2>
                   <p className="text-sm text-muted-foreground">{t('chat.customerInfoDescription')}</p>
@@ -1341,45 +1284,32 @@ export default function CustomerChatPage() {
                     setChatState(prev => ({ ...prev, customerInfo: info as AnonymousCustomer }));
                     setOnboardingStep('ready');
                   }}
-                  onCancel={() => setOnboardingStep('category')}
                   bare={true}
                 />
               </CardContent>
             </Card>
           )}
 
-          {/* Step 3: Message Input (Ready to chat) */}
+          {/* Message Input (Ready to chat) */}
           {onboardingStep === 'ready' && !chatState.conversationId && (forceNewChat || !existingConversation?.conversationId) && (
             <>
-              {/* Show selected category and customer info */}
-              <div className="flex items-center justify-center gap-2 mb-4 flex-wrap">
-                {chatState.selectedCategory && (
-                  <Badge variant="secondary" className="gap-1.5">
-                    {(() => {
-                      const cat = SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
-                      if (cat) {
-                        const IconComponent = cat.icon;
-                        return <><IconComponent className="h-3 w-3" /> {cat.label}</>;
-                      }
-                      return chatState.selectedCategory;
-                    })()}
-                  </Badge>
-                )}
-                {chatState.customerInfo?.name && (
+              {/* Show customer info */}
+              {chatState.customerInfo?.name && (
+                <div className="flex items-center justify-center gap-2 mb-4 flex-wrap">
                   <Badge variant="outline" className="gap-1.5">
                     <User className="h-3 w-3" />
                     {chatState.customerInfo.name}
                   </Badge>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setOnboardingStep('category')}
-                  className="text-xs h-6"
-                >
-                  Edit
-                </Button>
-              </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setOnboardingStep('info')}
+                    className="text-xs h-6"
+                  >
+                    Edit
+                  </Button>
+                </div>
+              )}
 
               <Card className="mb-8 shadow-lg border-0 bg-card">
                 <CardContent className="p-4 sm:p-6">
