@@ -11839,6 +11839,413 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================================================
+  // WORKFLOW PLAYBOOKS API ENDPOINTS (Troubleshooting Decision Trees)
+  // Structured conversation guides for agents with branching logic
+  // ============================================================================
+
+  // Get all workflow playbooks for a workspace
+  app.get('/api/workflows', requireAuth, async (req, res) => {
+    try {
+      const workspaceId = req.query.workspaceId as string || 'default';
+      const status = req.query.status as string | undefined;
+      const category = req.query.category as string | undefined;
+      
+      const playbooks = await storage.getWorkflowPlaybooks(workspaceId, { status, category });
+      res.json(playbooks);
+    } catch (error) {
+      console.error('Failed to fetch workflows:', error);
+      res.status(500).json({ error: 'Failed to fetch workflows' });
+    }
+  });
+
+  // Get a single workflow with all nodes and edges
+  app.get('/api/workflows/:id', requireAuth, async (req, res) => {
+    try {
+      const workflow = await storage.getFullWorkflow(req.params.id);
+      if (!workflow) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+      res.json(workflow);
+    } catch (error) {
+      console.error('Failed to fetch workflow:', error);
+      res.status(500).json({ error: 'Failed to fetch workflow' });
+    }
+  });
+
+  // Create a new workflow playbook
+  app.post('/api/workflows', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const schema = z.object({
+        name: z.string().min(1).max(200),
+        slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/),
+        description: z.string().max(1000).optional(),
+        category: z.string().max(50).optional(),
+        triggerKeywords: z.array(z.string()).optional(),
+        workspaceId: z.string().default('default'),
+        organizationId: z.string().optional(),
+        visibility: z.enum(['workspace', 'organization', 'global']).default('workspace')
+      });
+      
+      const validation = schema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const currentUserId = (req.user as any)?.id;
+      const playbook = await storage.createWorkflowPlaybook({
+        ...validation.data,
+        createdBy: currentUserId,
+        updatedBy: currentUserId
+      });
+      res.status(201).json(playbook);
+    } catch (error) {
+      console.error('Failed to create workflow:', error);
+      res.status(500).json({ error: 'Failed to create workflow' });
+    }
+  });
+
+  // Update a workflow playbook
+  app.put('/api/workflows/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const schema = z.object({
+        name: z.string().min(1).max(200).optional(),
+        description: z.string().max(1000).optional(),
+        category: z.string().max(50).optional(),
+        triggerKeywords: z.array(z.string()).optional(),
+        status: z.enum(['draft', 'published', 'retired']).optional(),
+        startNodeId: z.string().optional(),
+        visibility: z.enum(['workspace', 'organization', 'global']).optional()
+      });
+      
+      const validation = schema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const currentUserId = (req.user as any)?.id;
+      const playbook = await storage.updateWorkflowPlaybook(req.params.id, {
+        ...validation.data,
+        updatedBy: currentUserId
+      });
+      res.json(playbook);
+    } catch (error) {
+      console.error('Failed to update workflow:', error);
+      res.status(500).json({ error: 'Failed to update workflow' });
+    }
+  });
+
+  // Delete a workflow playbook
+  app.delete('/api/workflows/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.deleteWorkflowPlaybook(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete workflow:', error);
+      res.status(500).json({ error: 'Failed to delete workflow' });
+    }
+  });
+
+  // ---- Workflow Nodes ----
+
+  // Get all nodes for a workflow
+  app.get('/api/workflows/:playbookId/nodes', requireAuth, async (req, res) => {
+    try {
+      const nodes = await storage.getWorkflowNodesByPlaybook(req.params.playbookId);
+      res.json(nodes);
+    } catch (error) {
+      console.error('Failed to fetch workflow nodes:', error);
+      res.status(500).json({ error: 'Failed to fetch nodes' });
+    }
+  });
+
+  // Create a workflow node
+  app.post('/api/workflows/:playbookId/nodes', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const schema = z.object({
+        nodeType: z.enum(['question', 'action', 'condition', 'resolution', 'info']),
+        title: z.string().min(1).max(200),
+        prompt: z.string().max(2000).optional(),
+        description: z.string().max(2000).optional(),
+        options: z.array(z.object({ value: z.string(), label: z.string() })).optional(),
+        actionType: z.enum(['manual', 'automated', 'api_call']).optional(),
+        actionConfig: z.record(z.any()).optional(),
+        resolutionType: z.enum(['success', 'escalate', 'external']).optional(),
+        resolutionMessage: z.string().max(2000).optional(),
+        linkedArticleId: z.string().optional(),
+        linkedDocumentId: z.string().optional(),
+        positionX: z.number().optional(),
+        positionY: z.number().optional(),
+        isEntryPoint: z.boolean().optional()
+      });
+      
+      const validation = schema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const node = await storage.createWorkflowNode({
+        playbookId: req.params.playbookId,
+        ...validation.data
+      });
+
+      // If this is marked as entry point, update the playbook's startNodeId
+      if (validation.data.isEntryPoint) {
+        await storage.updateWorkflowPlaybook(req.params.playbookId, { startNodeId: node.id });
+      }
+
+      res.status(201).json(node);
+    } catch (error) {
+      console.error('Failed to create workflow node:', error);
+      res.status(500).json({ error: 'Failed to create node' });
+    }
+  });
+
+  // Update a workflow node
+  app.put('/api/workflows/:playbookId/nodes/:nodeId', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const schema = z.object({
+        title: z.string().min(1).max(200).optional(),
+        prompt: z.string().max(2000).optional(),
+        description: z.string().max(2000).optional(),
+        options: z.array(z.object({ value: z.string(), label: z.string() })).optional(),
+        actionType: z.enum(['manual', 'automated', 'api_call']).optional(),
+        actionConfig: z.record(z.any()).optional(),
+        resolutionType: z.enum(['success', 'escalate', 'external']).optional(),
+        resolutionMessage: z.string().max(2000).optional(),
+        linkedArticleId: z.string().optional(),
+        linkedDocumentId: z.string().optional(),
+        positionX: z.number().optional(),
+        positionY: z.number().optional(),
+        isEntryPoint: z.boolean().optional()
+      });
+      
+      const validation = schema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const node = await storage.updateWorkflowNode(req.params.nodeId, validation.data);
+      res.json(node);
+    } catch (error) {
+      console.error('Failed to update workflow node:', error);
+      res.status(500).json({ error: 'Failed to update node' });
+    }
+  });
+
+  // Delete a workflow node
+  app.delete('/api/workflows/:playbookId/nodes/:nodeId', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.deleteWorkflowNode(req.params.nodeId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete workflow node:', error);
+      res.status(500).json({ error: 'Failed to delete node' });
+    }
+  });
+
+  // ---- Workflow Edges ----
+
+  // Get all edges for a workflow
+  app.get('/api/workflows/:playbookId/edges', requireAuth, async (req, res) => {
+    try {
+      const edges = await storage.getWorkflowEdgesByPlaybook(req.params.playbookId);
+      res.json(edges);
+    } catch (error) {
+      console.error('Failed to fetch workflow edges:', error);
+      res.status(500).json({ error: 'Failed to fetch edges' });
+    }
+  });
+
+  // Create a workflow edge
+  app.post('/api/workflows/:playbookId/edges', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const schema = z.object({
+        sourceNodeId: z.string(),
+        targetNodeId: z.string(),
+        conditionType: z.enum(['default', 'option', 'expression']).default('default'),
+        conditionValue: z.string().optional(),
+        conditionLabel: z.string().max(200).optional(),
+        priority: z.number().default(0)
+      });
+      
+      const validation = schema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const edge = await storage.createWorkflowEdge({
+        playbookId: req.params.playbookId,
+        ...validation.data
+      });
+      res.status(201).json(edge);
+    } catch (error) {
+      console.error('Failed to create workflow edge:', error);
+      res.status(500).json({ error: 'Failed to create edge' });
+    }
+  });
+
+  // Delete a workflow edge
+  app.delete('/api/workflows/:playbookId/edges/:edgeId', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.deleteWorkflowEdge(req.params.edgeId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete workflow edge:', error);
+      res.status(500).json({ error: 'Failed to delete edge' });
+    }
+  });
+
+  // ---- Workflow Sessions (for agent use during conversations) ----
+
+  // Start a workflow session for a conversation
+  app.post('/api/conversations/:conversationId/workflow-session', requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        playbookId: z.string()
+      });
+      
+      const validation = schema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const currentUserId = (req.user as any)?.id;
+
+      // Get the workflow to find the start node
+      const workflow = await storage.getFullWorkflow(validation.data.playbookId);
+      if (!workflow) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+
+      const session = await storage.createWorkflowSession({
+        playbookId: validation.data.playbookId,
+        conversationId: req.params.conversationId,
+        currentNodeId: workflow.playbook.startNodeId,
+        agentId: currentUserId,
+        nodeHistory: []
+      });
+      res.status(201).json(session);
+    } catch (error) {
+      console.error('Failed to start workflow session:', error);
+      res.status(500).json({ error: 'Failed to start session' });
+    }
+  });
+
+  // Get active workflow session for a conversation
+  app.get('/api/conversations/:conversationId/workflow-session', requireAuth, async (req, res) => {
+    try {
+      const session = await storage.getWorkflowSessionByConversation(req.params.conversationId);
+      if (!session) {
+        return res.status(404).json({ error: 'No active workflow session' });
+      }
+
+      // Also fetch the workflow details
+      const workflow = await storage.getFullWorkflow(session.playbookId);
+      const currentNode = session.currentNodeId 
+        ? await storage.getWorkflowNode(session.currentNodeId)
+        : null;
+      const nextEdges = session.currentNodeId 
+        ? await storage.getWorkflowEdgesBySource(session.currentNodeId)
+        : [];
+
+      res.json({ session, workflow, currentNode, nextEdges });
+    } catch (error) {
+      console.error('Failed to fetch workflow session:', error);
+      res.status(500).json({ error: 'Failed to fetch session' });
+    }
+  });
+
+  // Progress to the next node in a workflow session
+  app.post('/api/workflow-sessions/:sessionId/progress', requireAuth, async (req, res) => {
+    try {
+      const schema = z.object({
+        answer: z.string().optional(), // The selected answer (for question nodes)
+        notes: z.string().optional() // Agent notes
+      });
+      
+      const validation = schema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: fromZodError(validation.error).message });
+      }
+
+      const session = await storage.getWorkflowSession(req.params.sessionId);
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+
+      if (!session.currentNodeId) {
+        return res.status(400).json({ error: 'No current node in session' });
+      }
+
+      // Get edges from current node
+      const edges = await storage.getWorkflowEdgesBySource(session.currentNodeId);
+      
+      // Find the matching edge based on answer
+      let nextEdge = edges.find(e => e.conditionType === 'default');
+      if (validation.data.answer) {
+        const matchingEdge = edges.find(e => 
+          e.conditionType === 'option' && e.conditionValue === validation.data.answer
+        );
+        if (matchingEdge) nextEdge = matchingEdge;
+      }
+
+      if (!nextEdge) {
+        return res.status(400).json({ error: 'No valid path from current node' });
+      }
+
+      // Update node history
+      const history = (session.nodeHistory as any[] || []);
+      history.push({
+        nodeId: session.currentNodeId,
+        answer: validation.data.answer,
+        notes: validation.data.notes,
+        timestamp: new Date().toISOString()
+      });
+
+      // Check if next node is a resolution node
+      const nextNode = await storage.getWorkflowNode(nextEdge.targetNodeId);
+      const isResolution = nextNode?.nodeType === 'resolution';
+
+      const updated = await storage.updateWorkflowSession(req.params.sessionId, {
+        currentNodeId: nextEdge.targetNodeId,
+        nodeHistory: history,
+        ...(isResolution ? { 
+          status: 'completed',
+          resolutionNodeId: nextEdge.targetNodeId,
+          resolutionOutcome: nextNode?.resolutionType || 'success',
+          completedAt: new Date()
+        } : {})
+      });
+
+      res.json({ session: updated, nextNode, isComplete: isResolution });
+    } catch (error) {
+      console.error('Failed to progress workflow session:', error);
+      res.status(500).json({ error: 'Failed to progress session' });
+    }
+  });
+
+  // Search for relevant workflows based on message content
+  app.get('/api/workflows/search', requireAuth, async (req, res) => {
+    try {
+      const workspaceId = req.query.workspaceId as string || 'default';
+      const query = req.query.q as string;
+      
+      if (!query) {
+        return res.status(400).json({ error: 'Query parameter q is required' });
+      }
+
+      // Extract keywords from query
+      const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const matches = await storage.searchWorkflowsByKeywords(workspaceId, keywords);
+      
+      res.json(matches);
+    } catch (error) {
+      console.error('Failed to search workflows:', error);
+      res.status(500).json({ error: 'Failed to search workflows' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat

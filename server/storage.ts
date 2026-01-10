@@ -203,6 +203,18 @@ import {
   resolutionRecords,
   type ResolutionRecord,
   type InsertResolutionRecord,
+  workflowPlaybooks,
+  workflowNodes,
+  workflowEdges,
+  workflowSessions,
+  type WorkflowPlaybook,
+  type InsertWorkflowPlaybook,
+  type WorkflowNode,
+  type InsertWorkflowNode,
+  type WorkflowEdge,
+  type InsertWorkflowEdge,
+  type WorkflowSession,
+  type InsertWorkflowSession,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -6239,6 +6251,182 @@ export class DatabaseStorage implements IStorage {
       ))
       .orderBy(desc(resolutionRecords.createdAt))
       .limit(limit);
+  }
+
+  // ============================================
+  // WORKFLOW PLAYBOOK OPERATIONS
+  // ============================================
+
+  async getWorkflowPlaybook(id: string): Promise<WorkflowPlaybook | undefined> {
+    const [playbook] = await db.select().from(workflowPlaybooks).where(eq(workflowPlaybooks.id, id));
+    return playbook || undefined;
+  }
+
+  async getWorkflowPlaybookBySlug(slug: string, workspaceId: string): Promise<WorkflowPlaybook | undefined> {
+    const [playbook] = await db.select().from(workflowPlaybooks)
+      .where(and(eq(workflowPlaybooks.slug, slug), eq(workflowPlaybooks.workspaceId, workspaceId)));
+    return playbook || undefined;
+  }
+
+  async getWorkflowPlaybooks(workspaceId: string, options?: {
+    status?: string;
+    category?: string;
+  }): Promise<WorkflowPlaybook[]> {
+    const conditions = [eq(workflowPlaybooks.workspaceId, workspaceId)];
+    if (options?.status) conditions.push(eq(workflowPlaybooks.status, options.status));
+    if (options?.category) conditions.push(eq(workflowPlaybooks.category, options.category));
+    
+    return await db.select().from(workflowPlaybooks)
+      .where(and(...conditions))
+      .orderBy(desc(workflowPlaybooks.updatedAt));
+  }
+
+  async createWorkflowPlaybook(playbook: InsertWorkflowPlaybook): Promise<WorkflowPlaybook> {
+    const [created] = await db.insert(workflowPlaybooks).values(playbook).returning();
+    return created;
+  }
+
+  async updateWorkflowPlaybook(id: string, updates: Partial<InsertWorkflowPlaybook>): Promise<WorkflowPlaybook> {
+    const [updated] = await db.update(workflowPlaybooks)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(workflowPlaybooks.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteWorkflowPlaybook(id: string): Promise<void> {
+    await db.delete(workflowPlaybooks).where(eq(workflowPlaybooks.id, id));
+  }
+
+  async searchWorkflowsByKeywords(workspaceId: string, keywords: string[]): Promise<WorkflowPlaybook[]> {
+    const playbooks = await db.select().from(workflowPlaybooks)
+      .where(and(
+        eq(workflowPlaybooks.workspaceId, workspaceId),
+        eq(workflowPlaybooks.status, 'published')
+      ));
+    
+    // Filter by trigger keywords match
+    return playbooks.filter(p => {
+      if (!p.triggerKeywords?.length) return false;
+      return keywords.some(kw => 
+        p.triggerKeywords!.some(tk => 
+          tk.toLowerCase().includes(kw.toLowerCase()) || 
+          kw.toLowerCase().includes(tk.toLowerCase())
+        )
+      );
+    });
+  }
+
+  // Workflow Node operations
+  async getWorkflowNode(id: string): Promise<WorkflowNode | undefined> {
+    const [node] = await db.select().from(workflowNodes).where(eq(workflowNodes.id, id));
+    return node || undefined;
+  }
+
+  async getWorkflowNodesByPlaybook(playbookId: string): Promise<WorkflowNode[]> {
+    return await db.select().from(workflowNodes)
+      .where(eq(workflowNodes.playbookId, playbookId))
+      .orderBy(asc(workflowNodes.createdAt));
+  }
+
+  async createWorkflowNode(node: InsertWorkflowNode): Promise<WorkflowNode> {
+    const [created] = await db.insert(workflowNodes).values(node).returning();
+    return created;
+  }
+
+  async updateWorkflowNode(id: string, updates: Partial<InsertWorkflowNode>): Promise<WorkflowNode> {
+    const [updated] = await db.update(workflowNodes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(workflowNodes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteWorkflowNode(id: string): Promise<void> {
+    await db.delete(workflowNodes).where(eq(workflowNodes.id, id));
+  }
+
+  // Workflow Edge operations
+  async getWorkflowEdge(id: string): Promise<WorkflowEdge | undefined> {
+    const [edge] = await db.select().from(workflowEdges).where(eq(workflowEdges.id, id));
+    return edge || undefined;
+  }
+
+  async getWorkflowEdgesByPlaybook(playbookId: string): Promise<WorkflowEdge[]> {
+    return await db.select().from(workflowEdges)
+      .where(eq(workflowEdges.playbookId, playbookId))
+      .orderBy(asc(workflowEdges.priority));
+  }
+
+  async getWorkflowEdgesBySource(nodeId: string): Promise<WorkflowEdge[]> {
+    return await db.select().from(workflowEdges)
+      .where(eq(workflowEdges.sourceNodeId, nodeId))
+      .orderBy(asc(workflowEdges.priority));
+  }
+
+  async createWorkflowEdge(edge: InsertWorkflowEdge): Promise<WorkflowEdge> {
+    const [created] = await db.insert(workflowEdges).values(edge).returning();
+    return created;
+  }
+
+  async deleteWorkflowEdge(id: string): Promise<void> {
+    await db.delete(workflowEdges).where(eq(workflowEdges.id, id));
+  }
+
+  // Workflow Session operations
+  async getWorkflowSession(id: string): Promise<WorkflowSession | undefined> {
+    const [session] = await db.select().from(workflowSessions).where(eq(workflowSessions.id, id));
+    return session || undefined;
+  }
+
+  async getWorkflowSessionByConversation(conversationId: string): Promise<WorkflowSession | undefined> {
+    const [session] = await db.select().from(workflowSessions)
+      .where(and(
+        eq(workflowSessions.conversationId, conversationId),
+        eq(workflowSessions.status, 'active')
+      ));
+    return session || undefined;
+  }
+
+  async createWorkflowSession(session: InsertWorkflowSession): Promise<WorkflowSession> {
+    const [created] = await db.insert(workflowSessions).values(session).returning();
+    return created;
+  }
+
+  async updateWorkflowSession(id: string, updates: Partial<InsertWorkflowSession>): Promise<WorkflowSession> {
+    const [updated] = await db.update(workflowSessions)
+      .set(updates)
+      .where(eq(workflowSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async completeWorkflowSession(id: string, outcome: string, notes?: string): Promise<WorkflowSession> {
+    const [updated] = await db.update(workflowSessions)
+      .set({
+        status: 'completed',
+        resolutionOutcome: outcome,
+        resolutionNotes: notes,
+        completedAt: new Date()
+      })
+      .where(eq(workflowSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  // Get full workflow with nodes and edges
+  async getFullWorkflow(playbookId: string): Promise<{
+    playbook: WorkflowPlaybook;
+    nodes: WorkflowNode[];
+    edges: WorkflowEdge[];
+  } | undefined> {
+    const playbook = await this.getWorkflowPlaybook(playbookId);
+    if (!playbook) return undefined;
+
+    const nodes = await this.getWorkflowNodesByPlaybook(playbookId);
+    const edges = await this.getWorkflowEdgesByPlaybook(playbookId);
+
+    return { playbook, nodes, edges };
   }
 
 }
