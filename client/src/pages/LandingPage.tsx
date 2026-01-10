@@ -102,6 +102,12 @@ export default function LandingPage() {
             <button onClick={() => scrollToSection('organizations')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Marketplace
             </button>
+            <button onClick={() => setLocation('/about')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              About
+            </button>
+            <button onClick={() => setLocation('/contact')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Contact
+            </button>
           </nav>
 
           <div className="hidden md:flex items-center gap-2">
@@ -148,6 +154,12 @@ export default function LandingPage() {
             </button>
             <button onClick={() => scrollToSection('organizations')} className="block w-full text-left py-2 text-sm">
               Marketplace
+            </button>
+            <button onClick={() => setLocation('/about')} className="block w-full text-left py-2 text-sm">
+              About
+            </button>
+            <button onClick={() => setLocation('/contact')} className="block w-full text-left py-2 text-sm">
+              Contact
             </button>
             <div className="flex gap-2 pt-2">
               <Dialog open={staffLoginOpen} onOpenChange={setStaffLoginOpen}>

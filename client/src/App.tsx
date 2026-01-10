@@ -17,6 +17,7 @@ import CustomerProfilePage from "@/pages/CustomerProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import CustomerChatPage from "@/pages/CustomerChatPage";
 import LandingPage from "@/pages/LandingPage";
+import AboutPage from "@/pages/AboutPage";
 import SupportPage from "@/pages/SupportPage";
 import CustomerPortalKnowledgeBase from "@/pages/CustomerPortalKnowledgeBase";
 import EmbedChatWidget from "@/pages/EmbedChatWidget";
@@ -60,6 +61,8 @@ import OrgCustomerLoginPage from "@/pages/OrgCustomerLoginPage";
 import WorkspaceSelectPage from "@/pages/WorkspaceSelectPage";
 import LegalPoliciesPage from "@/pages/LegalPoliciesPage";
 import PublicPolicyPage from "@/pages/PublicPolicyPage";
+import PricingPage from "@/pages/PricingPage";
+import ContactPage from "@/pages/ContactPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
 import NotFound from "@/pages/not-found";
@@ -321,6 +324,9 @@ function AppContent() {
   // Check if we're on public routes - use wouter's reactive location
   const pathname = location.replace(/\/$/, ''); // Remove trailing slash
   const isLandingPage = pathname === '';
+  const isAboutPage = pathname === '/about';
+  const isPricingPage = pathname === '/pricing';
+  const isContactPage = pathname === '/contact';
   const isOrgChatPage = pathname.startsWith('/chat/') && pathname !== '/chat'; // /chat/:orgSlug
   const isKnowledgeBasePage = pathname === '/knowledge-base';
   const isKnowledgeCategoryPage = pathname.startsWith('/knowledge-base/category/');
@@ -348,6 +354,42 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <LandingPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // About page
+  if (isAboutPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AboutPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // Pricing page
+  if (isPricingPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <PricingPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // Contact page
+  if (isContactPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ContactPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
