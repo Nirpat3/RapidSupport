@@ -611,9 +611,12 @@ export default function CustomerChatPage() {
       setShowScrollToBottom(!isNearBottom);
     };
 
+    // Initial check
+    handleScroll();
+
     scrollElement.addEventListener('scroll', handleScroll);
     return () => scrollElement.removeEventListener('scroll', handleScroll);
-  }, [chatStarted]);
+  }, [chatStarted, messages.length]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -970,19 +973,20 @@ export default function CustomerChatPage() {
         </header>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1 relative" ref={scrollAreaRef}>
-          {/* Scroll to bottom button */}
+        <div className="flex-1 relative overflow-hidden">
+          {/* Scroll to bottom button - positioned above input area */}
           {showScrollToBottom && (
             <Button
               size="icon"
               variant="secondary"
-              className="fixed bottom-24 right-6 z-50 rounded-full shadow-lg"
+              className="absolute bottom-4 right-4 z-50 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2"
               onClick={scrollToBottom}
               data-testid="button-scroll-to-bottom"
             >
               <ArrowDown className="h-4 w-4" />
             </Button>
           )}
+          <ScrollArea className="h-full" ref={scrollAreaRef}>
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-3xl">
             <div className="space-y-4">
               {messages.map((message) => (
@@ -1087,7 +1091,8 @@ export default function CustomerChatPage() {
               <div ref={messagesEndRef} />
             </div>
           </div>
-        </ScrollArea>
+          </ScrollArea>
+        </div>
 
         {/* Input Area */}
         <div className="border-t bg-card/80 backdrop-blur-sm sticky bottom-0">
