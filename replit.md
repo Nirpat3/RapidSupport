@@ -43,6 +43,7 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Automatic Knowledge Base Reindexing**: Scheduled hourly processing of stale articles with vector embedding updates.
 - **Documentation Framework**: Enterprise-grade structured documentation system for AI agents with controlled vocabulary, versioning, RBAC, document relationships, and an atomic document pipeline for AI export.
 - **Resolution History Tracking**: Tracks successful issue resolutions per customer, enabling agents to see past solutions for recurring issues. AI automatically injects proven solutions into context for better suggestions. Supports issue categorization, solution sources (KB articles, manual steps, external links, agent actions), and outcome tracking (resolved, partially resolved, not resolved). Full multi-tenant scoping ensures data isolation between organizations.
+- **Troubleshooting Workflows**: Guided decision-tree workflows for structured agent assistance. Features include: workflow playbooks with nodes (question/action/info/resolution types), edges with branching logic, workflow sessions tied to conversations, step-by-step progression with answer tracking, and a sidebar integration in the Conversations page. Admins can create and manage workflows at `/admin/workflows`, and agents access them via the GitBranch toggle button during conversations.
 
 ## External Dependencies
 
