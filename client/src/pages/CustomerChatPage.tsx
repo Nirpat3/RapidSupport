@@ -171,7 +171,6 @@ interface OrganizationBranding {
 export default function CustomerChatPage() {
   const { t, i18n } = useTranslation();
   const [question, setQuestion] = useState("");
-  const [showInfoDialog, setShowInfoDialog] = useState(false);
   const [pendingMessage, setPendingMessage] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -233,8 +232,24 @@ export default function CustomerChatPage() {
   // Initialize chatStarted to false - let user choose to continue or start new
   const [chatStarted, setChatStarted] = useState(false);
   
-  // Category selection state
-  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  // Onboarding step: 'category' | 'info' | 'ready'
+  // 'category' = show category selection
+  // 'info' = show contact info form  
+  // 'ready' = show message input
+  const [onboardingStep, setOnboardingStep] = useState<'category' | 'info' | 'ready'>(() => {
+    // If user has existing conversation with category and info, skip to ready
+    const savedState = localStorage.getItem('customer-chat-state');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        if (parsed.selectedCategory && parsed.customerInfo) {
+          return 'ready';
+        }
+      } catch (e) {}
+    }
+    return 'category';
+  });
+  
   
   // Rating dialog state
   const [showRatingDialog, setShowRatingDialog] = useState(false);
@@ -398,7 +413,6 @@ export default function CustomerChatPage() {
         sessionId: chatState.sessionId,
         customerInfo: response.customerInfo,
       }));
-      setShowInfoDialog(false);
       setChatStarted(true);
       
       // Send the pending message and/or files with IDs from the response
@@ -651,30 +665,19 @@ export default function CustomerChatPage() {
       return;
     }
 
-    // Hero "Ask" button always starts a NEW conversation
-    // First show category selection, then info dialog
-    console.log(`[HANDLE ASK QUESTION] Opening category selection for new conversation`);
-    setPendingMessage(question);
-    setPendingFiles(selectedFiles);
-    setShowCategoryDialog(true);
-  };
+    // Hero flow: category and info already collected in onboarding steps
+    // Create customer and start conversation directly
+    if (chatState.customerInfo && chatState.selectedCategory) {
+      console.log(`[HANDLE ASK QUESTION] Starting new conversation with pre-collected info`);
+      setPendingMessage(question);
+      setPendingFiles(selectedFiles);
+      await createCustomerMutation.mutateAsync(chatState.customerInfo);
+      return;
+    }
 
-  const handleCategorySelect = (categoryId: string) => {
-    setChatState((prev) => ({
-      ...prev,
-      selectedCategory: categoryId,
-    }));
-    setShowCategoryDialog(false);
-    setShowInfoDialog(true);
-  };
-
-  const handleBackToCategories = () => {
-    setChatState((prev) => ({
-      ...prev,
-      selectedCategory: null,
-    }));
-    setShowInfoDialog(false);
-    setShowCategoryDialog(true);
+    // Fallback: if somehow we got here without info, reset to category step
+    console.log(`[HANDLE ASK QUESTION] Missing info, resetting to category step`);
+    setOnboardingStep('category');
   };
 
   const handleCustomerInfoSubmit = async (customerData: AnonymousCustomer) => {
@@ -803,7 +806,7 @@ export default function CustomerChatPage() {
       selectedCategory: null,
     });
     setChatStarted(false);
-    setShowCategoryDialog(false);
+    setOnboardingStep('category');
     setQuestion('');
     setSelectedFiles([]);
   };
@@ -870,6 +873,19 @@ export default function CustomerChatPage() {
                     <div className="w-1.5 h-1.5 bg-accent-foreground/80 rounded-full animate-pulse" />
                     <span className="hidden sm:inline">Online</span>
                   </Badge>
+                  {/* Category badge in collapsed header */}
+                  {chatState.selectedCategory && (
+                    <Badge variant="secondary" className="gap-1 h-5 text-xs">
+                      {(() => {
+                        const cat = SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
+                        if (cat) {
+                          const IconComponent = cat.icon;
+                          return <><IconComponent className="h-3 w-3" /> <span className="hidden sm:inline">{cat.label}</span></>;
+                        }
+                        return chatState.selectedCategory;
+                      })()}
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <Button
@@ -922,9 +938,24 @@ export default function CustomerChatPage() {
                     >
                       {branding?.name ? `${branding.name} Support` : 'Support Chat'}
                     </h1>
-                    {chatState.customerInfo && (
-                      <p className="text-xs text-muted-foreground">{chatState.customerInfo.name}</p>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {chatState.customerInfo && (
+                        <span className="text-xs text-muted-foreground">{chatState.customerInfo.name}</span>
+                      )}
+                      {/* Category badge in expanded header */}
+                      {chatState.selectedCategory && (
+                        <Badge variant="secondary" className="gap-1 h-5 text-xs">
+                          {(() => {
+                            const cat = SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
+                            if (cat) {
+                              const IconComponent = cat.icon;
+                              return <><IconComponent className="h-3 w-3" /> {cat.label}</>;
+                            }
+                            return chatState.selectedCategory;
+                          })()}
+                        </Badge>
+                      )}
+                    </div>
                     {existingConversation?.ipAddress && (
                       <p className="text-xs text-muted-foreground" data-testid="text-user-ip">
                         Your IP: {existingConversation.ipAddress}
@@ -1365,7 +1396,7 @@ export default function CustomerChatPage() {
                             customerInfo: null,
                             selectedCategory: null,
                           });
-                          setShowCategoryDialog(false);
+                          setOnboardingStep('category');
                           setQuestion("");
                           setSelectedFiles([]);
                         }}
@@ -1381,228 +1412,238 @@ export default function CustomerChatPage() {
             </Card>
           )}
 
-          {/* Replit-style Search Input */}
-          <Card className="mb-8 shadow-lg border-0 bg-card">
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex flex-col gap-3 border rounded-xl p-4 bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
-                {/* Auto-expanding Textarea */}
-                <Textarea
-                  value={question}
-                  onChange={(e) => {
-                    setQuestion(e.target.value);
-                    // Auto-expand textarea
-                    e.target.style.height = 'auto';
-                    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleAskQuestion();
-                    }
-                  }}
-                  placeholder={t('chat.inputPlaceholder')}
-                  className="min-h-[24px] max-h-[200px] resize-none border-0 focus-visible:ring-0 text-base p-0"
-                  style={{ height: '24px' }}
-                  data-testid="input-hero-question"
-                />
-                
-                {/* Bottom bar with icons and send button */}
-                <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                  <div className="flex gap-1">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Attach file"
-                      data-testid="button-hero-attach"
-                    >
-                      <Paperclip className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => cameraInputRef.current?.click()}
-                      title="Take picture"
-                      data-testid="button-hero-camera"
-                    >
-                      <Camera className="h-4 w-4" />
-                    </Button>
-                    
-                    <div className="relative">
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                        title="Add emoji"
-                        data-testid="button-hero-emoji"
+          {/* Step 1: Category Selection - Only show when no existing conversation */}
+          {onboardingStep === 'category' && !chatState.conversationId && !existingConversation?.conversationId && (
+            <Card className="mb-8 shadow-lg border-0 bg-card">
+              <CardContent className="p-4 sm:p-6">
+                <div className="text-center mb-6">
+                  <h2 className="text-lg font-semibold mb-2">{t('categories.title')}</h2>
+                  <p className="text-sm text-muted-foreground">{t('categories.subtitle')}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {SUPPORT_CATEGORIES.map((category) => {
+                    const IconComponent = category.icon;
+                    return (
+                      <button
+                        key={category.id}
+                        onClick={() => {
+                          setChatState(prev => ({ ...prev, selectedCategory: category.id }));
+                          setOnboardingStep('info');
+                        }}
+                        className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-transparent bg-muted/50 hover:bg-muted hover:border-primary/30 transition-all text-center"
+                        data-testid={`category-${category.id}`}
                       >
-                        <Smile className="h-4 w-4" />
-                      </Button>
-                      {showEmojiPicker && (
-                        <div className="absolute bottom-12 left-0 z-50">
-                          <EmojiPicker onEmojiClick={handleEmojiClick} />
+                        <div className={cn("h-10 w-10 rounded-full bg-background flex items-center justify-center", category.color)}>
+                          <IconComponent className="h-5 w-5" />
                         </div>
-                      )}
-                    </div>
-                    
-                    {voiceChatEnabled && (
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => setShowVoiceDialog(true)}
-                        title="Start voice conversation"
-                        data-testid="button-hero-voice"
-                      >
-                        <Mic className="h-4 w-4" />
-                      </Button>
-                    )}
+                        <span className="font-medium text-sm">{category.label}</span>
+                        <span className="text-xs text-muted-foreground line-clamp-2">{category.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 2: Contact Info Collection */}
+          {onboardingStep === 'info' && !chatState.conversationId && !existingConversation?.conversationId && (
+            <Card className="mb-8 shadow-lg border-0 bg-card">
+              <CardContent className="p-4 sm:p-6">
+                {/* Show selected category */}
+                {chatState.selectedCategory && (
+                  <div className="mb-4 flex items-center justify-center gap-2">
+                    <Badge variant="secondary" className="gap-1.5">
+                      {(() => {
+                        const cat = SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
+                        if (cat) {
+                          const IconComponent = cat.icon;
+                          return <><IconComponent className="h-3 w-3" /> {cat.label}</>;
+                        }
+                        return chatState.selectedCategory;
+                      })()}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setOnboardingStep('category')}
+                      className="text-xs h-6"
+                    >
+                      Change
+                    </Button>
                   </div>
-                  
-                  <Button
-                    onClick={handleAskQuestion}
-                    disabled={!question.trim() || sendMessageMutation.isPending || createCustomerMutation.isPending}
-                    className="rounded-lg gap-2"
-                    data-testid="button-ask-question"
-                  >
-                    {sendMessageMutation.isPending || createCustomerMutation.isPending ? (
-                      t('chat.sending')
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4" />
-                        {t('chat.getHelp')}
-                        <ArrowRight className="h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
+                )}
+                <div className="text-center mb-6">
+                  <h2 className="text-lg font-semibold mb-2">{t('chat.customerInfo')}</h2>
+                  <p className="text-sm text-muted-foreground">{t('chat.customerInfoDescription')}</p>
+                </div>
+                <CustomerInfoForm
+                  onSubmit={(info) => {
+                    setChatState(prev => ({ ...prev, customerInfo: info as AnonymousCustomer }));
+                    setOnboardingStep('ready');
+                  }}
+                  onCancel={() => setOnboardingStep('category')}
+                  submitLabel={t('common.continue')}
+                  cancelLabel={t('common.back')}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Step 3: Message Input (Ready to chat) */}
+          {onboardingStep === 'ready' && !chatState.conversationId && !existingConversation?.conversationId && (
+            <>
+              {/* Show selected category and customer info */}
+              <div className="flex items-center justify-center gap-2 mb-4 flex-wrap">
+                {chatState.selectedCategory && (
+                  <Badge variant="secondary" className="gap-1.5">
+                    {(() => {
+                      const cat = SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
+                      if (cat) {
+                        const IconComponent = cat.icon;
+                        return <><IconComponent className="h-3 w-3" /> {cat.label}</>;
+                      }
+                      return chatState.selectedCategory;
+                    })()}
+                  </Badge>
+                )}
+                {chatState.customerInfo?.name && (
+                  <Badge variant="outline" className="gap-1.5">
+                    <User className="h-3 w-3" />
+                    {chatState.customerInfo.name}
+                  </Badge>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setOnboardingStep('category')}
+                  className="text-xs h-6"
+                >
+                  Edit
+                </Button>
+              </div>
+
+              <Card className="mb-8 shadow-lg border-0 bg-card">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex flex-col gap-3 border rounded-xl p-4 bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                    <Textarea
+                      value={question}
+                      onChange={(e) => {
+                        setQuestion(e.target.value);
+                        e.target.style.height = 'auto';
+                        e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAskQuestion();
+                        }
+                      }}
+                      placeholder={t('chat.inputPlaceholder')}
+                      className="min-h-[24px] max-h-[200px] resize-none border-0 focus-visible:ring-0 text-base p-0"
+                      style={{ height: '24px' }}
+                      data-testid="input-hero-question"
+                    />
+                    
+                    <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => fileInputRef.current?.click()}
+                          title="Attach file"
+                          data-testid="button-hero-attach"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                        </Button>
+                        
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => cameraInputRef.current?.click()}
+                          title="Take picture"
+                          data-testid="button-hero-camera"
+                        >
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                        
+                        <div className="relative">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            title="Add emoji"
+                            data-testid="button-hero-emoji"
+                          >
+                            <Smile className="h-4 w-4" />
+                          </Button>
+                          {showEmojiPicker && (
+                            <div className="absolute bottom-12 left-0 z-50">
+                              <EmojiPicker onEmojiClick={handleEmojiClick} />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {voiceChatEnabled && (
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setShowVoiceDialog(true)}
+                            title="Start voice conversation"
+                            data-testid="button-hero-voice"
+                          >
+                            <Mic className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                      
+                      <Button
+                        onClick={handleAskQuestion}
+                        disabled={!question.trim() || sendMessageMutation.isPending || createCustomerMutation.isPending}
+                        className="rounded-lg gap-2"
+                        data-testid="button-ask-question"
+                      >
+                        {sendMessageMutation.isPending || createCustomerMutation.isPending ? (
+                          t('chat.sending')
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4" />
+                            {t('chat.getHelp')}
+                            <ArrowRight className="h-4 w-4" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Suggested Questions */}
+              <div className="px-4">
+                <p className="text-center text-sm text-muted-foreground mb-4">{t('chat.popularQuestions')}</p>
+                <div className="flex flex-col gap-2 items-center">
+                  {suggestedQuestions.map((q, idx) => (
+                    <Button
+                      key={idx}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setQuestion(q)}
+                      className="text-sm rounded-full max-w-full text-left whitespace-normal h-auto py-2 px-4"
+                      data-testid={`button-suggested-${idx}`}
+                    >
+                      {q}
+                    </Button>
+                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Suggested Questions */}
-          <div className="px-4">
-            <p className="text-center text-sm text-muted-foreground mb-4">{t('chat.popularQuestions')}</p>
-            <div className="flex flex-col gap-2 items-center">
-              {suggestedQuestions.map((q, idx) => (
-                <Button
-                  key={idx}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setQuestion(q)}
-                  className="text-sm rounded-full max-w-full text-left whitespace-normal h-auto py-2 px-4"
-                  data-testid={`button-suggested-${idx}`}
-                >
-                  {q}
-                </Button>
-              ))}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </div>
-
-      {/* Category Selection Dialog */}
-      <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-headline">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <MessageCircle className="h-5 w-5 text-primary" />
-              </div>
-              <span>{t('categories.title')}</span>
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              {t('categories.subtitle')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 py-4">
-            {SUPPORT_CATEGORIES.map((category) => {
-              const Icon = category.icon;
-              return (
-                <button
-                  key={category.id}
-                  onClick={() => handleCategorySelect(category.id)}
-                  className="flex flex-col items-center p-5 rounded-xl border border-border hover-elevate active-elevate-2 transition-all text-center group"
-                  data-testid={`button-category-${category.id}`}
-                >
-                  <div className={cn(
-                    "p-3 rounded-xl mb-3 transition-transform group-hover:scale-110",
-                    category.color.replace('text-', 'bg-').replace('-500', '-100')
-                  )}>
-                    <Icon className={cn("h-6 w-6", category.color)} />
-                  </div>
-                  <span className="font-semibold text-sm mb-1">
-                    {getCategoryTranslation(t, category.id, 'name') || category.label}
-                  </span>
-                  <span className="text-xs text-muted-foreground leading-relaxed">
-                    {getCategoryTranslation(t, category.id, 'description') || category.description}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="flex justify-end pt-2">
-            <Button variant="ghost" onClick={() => setShowCategoryDialog(false)}>
-              {t('common.cancel')}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Customer Info Dialog */}
-      <Dialog open={showInfoDialog} onOpenChange={setShowInfoDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3 text-headline">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <User className="h-5 w-5 text-primary" />
-              </div>
-              <span>{t('customerInfo.title')}</span>
-            </DialogTitle>
-            <DialogDescription className="text-base">
-              {t('customerInfo.subtitle')}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mb-4 flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
-            {chatState.selectedCategory && (() => {
-              const cat = getSelectedCategoryInfo();
-              if (!cat) return null;
-              const Icon = cat.icon;
-              return (
-                <>
-                  <div className={cn(
-                    "p-2 rounded-lg",
-                    cat.color.replace('text-', 'bg-').replace('-500', '-100')
-                  )}>
-                    <Icon className={cn("h-4 w-4", cat.color)} />
-                  </div>
-                  <span className="text-sm font-medium">
-                    {getCategoryTranslation(t, cat.id, 'name') || cat.label}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleBackToCategories}
-                    className="ml-auto text-xs"
-                  >
-                    {t('common.change')}
-                  </Button>
-                </>
-              );
-            })()}
-          </div>
-          <CustomerInfoForm
-            onSubmit={handleCustomerInfoSubmit}
-            onCancel={() => setShowInfoDialog(false)}
-            isLoading={createCustomerMutation.isPending}
-            bare
-          />
-        </DialogContent>
-      </Dialog>
 
       {/* Conversation Rating Dialog */}
       {chatState.conversationId && (
