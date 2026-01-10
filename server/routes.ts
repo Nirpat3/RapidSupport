@@ -11892,9 +11892,20 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(400).json({ error: fromZodError(validation.error).message });
       }
 
+      // Resolve "default" to actual default workspace ID
+      let workspaceId = validation.data.workspaceId;
+      if (workspaceId === 'default') {
+        const defaultWorkspace = await storage.getDefaultWorkspace();
+        if (!defaultWorkspace) {
+          return res.status(400).json({ error: 'No default workspace found' });
+        }
+        workspaceId = defaultWorkspace.id;
+      }
+
       const currentUserId = (req.user as any)?.id;
       const playbook = await storage.createWorkflowPlaybook({
         ...validation.data,
+        workspaceId,
         createdBy: currentUserId,
         updatedBy: currentUserId
       });

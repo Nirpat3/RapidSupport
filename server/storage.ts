@@ -352,6 +352,7 @@ export interface IStorage {
   getWorkspace(id: string): Promise<Workspace | undefined>;
   getWorkspacesByOrganization(organizationId: string): Promise<Workspace[]>;
   getAllWorkspaces(): Promise<Workspace[]>;
+  getDefaultWorkspace(): Promise<Workspace | undefined>;
   createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
   updateWorkspace(id: string, updates: Partial<InsertWorkspace>): Promise<Workspace>;
   deleteWorkspace(id: string): Promise<void>;
@@ -2239,6 +2240,16 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error fetching all workspaces:', error);
       return [];
+    }
+  }
+
+  async getDefaultWorkspace(): Promise<Workspace | undefined> {
+    try {
+      const allWorkspaces = await this.getAllWorkspaces();
+      return allWorkspaces.find(w => w.isDefault) || allWorkspaces[0];
+    } catch (error) {
+      console.error('Error fetching default workspace:', error);
+      return undefined;
     }
   }
 
