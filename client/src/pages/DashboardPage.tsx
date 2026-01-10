@@ -24,7 +24,6 @@ import {
   HardDrive,
   CheckCircle,
   AlertTriangle,
-  DollarSign,
   ArrowUpRight,
   ArrowDownRight,
   Sparkles
@@ -42,14 +41,14 @@ import {
   Cell
 } from "recharts";
 
-const revenueData = [
-  { month: "Jan", revenue: 4200, target: 4000 },
-  { month: "Feb", revenue: 4800, target: 4200 },
-  { month: "Mar", revenue: 5100, target: 4500 },
-  { month: "Apr", revenue: 4900, target: 4800 },
-  { month: "May", revenue: 5600, target: 5000 },
-  { month: "Jun", revenue: 6200, target: 5500 },
-  { month: "Jul", revenue: 6800, target: 6000 },
+const requestsData = [
+  { month: "Jan", requests: 420, target: 400 },
+  { month: "Feb", requests: 480, target: 420 },
+  { month: "Mar", requests: 510, target: 450 },
+  { month: "Apr", requests: 490, target: 480 },
+  { month: "May", requests: 560, target: 500 },
+  { month: "Jun", requests: 620, target: 550 },
+  { month: "Jul", requests: 680, target: 600 },
 ];
 
 const systemHealthData = [
@@ -124,7 +123,7 @@ const microservices = [
 ];
 
 const quickStats = [
-  { label: "Total Revenue", value: "$42.5K", change: "+12.5%", positive: true, icon: DollarSign },
+  { label: "Total Requests", value: "3,760", change: "+12.5%", positive: true, icon: MessageSquare },
   { label: "Response Time", value: "1.2min", change: "-8.3%", positive: true, icon: Zap },
   { label: "Resolution Rate", value: "94.2%", change: "+2.1%", positive: true, icon: CheckCircle },
   { label: "Active Agents", value: "8", change: "0%", positive: true, icon: Users },
@@ -306,7 +305,7 @@ export default function DashboardPage({ embedded = false }: DashboardPageProps) 
 
       {/* Dashboard Widgets Row */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Revenue Widget */}
+        {/* Support Requests Widget */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -320,8 +319,8 @@ export default function DashboardPage({ embedded = false }: DashboardPageProps) 
                     <TrendingUp className="w-5 h-5 text-emerald-500" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Revenue Overview</CardTitle>
-                    <CardDescription>Monthly performance vs target</CardDescription>
+                    <CardTitle className="text-lg">Support Requests</CardTitle>
+                    <CardDescription>Monthly volume vs target</CardDescription>
                   </div>
                 </div>
                 <Badge className="bg-emerald-500/10 text-emerald-500 border-0">
@@ -332,9 +331,9 @@ export default function DashboardPage({ embedded = false }: DashboardPageProps) 
             <CardContent className="pt-4">
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={revenueData}>
+                  <AreaChart data={requestsData}>
                     <defs>
-                      <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="requestsGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0.3}/>
                         <stop offset="95%" stopColor="hsl(160, 84%, 39%)" stopOpacity={0}/>
                       </linearGradient>
@@ -356,7 +355,7 @@ export default function DashboardPage({ embedded = false }: DashboardPageProps) 
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
-                      tickFormatter={(value) => `$${value/1000}k`}
+                      tickFormatter={(value) => value.toLocaleString()}
                     />
                     <Tooltip 
                       contentStyle={{ 
@@ -365,7 +364,7 @@ export default function DashboardPage({ embedded = false }: DashboardPageProps) 
                         borderRadius: '8px',
                         boxShadow: 'var(--glass-shadow)'
                       }}
-                      formatter={(value: number) => [`$${value.toLocaleString()}`, '']}
+                      formatter={(value: number) => [value.toLocaleString(), '']}
                     />
                     <Area 
                       type="monotone" 
@@ -377,10 +376,10 @@ export default function DashboardPage({ embedded = false }: DashboardPageProps) 
                     />
                     <Area 
                       type="monotone" 
-                      dataKey="revenue" 
+                      dataKey="requests" 
                       stroke="hsl(160, 84%, 39%)" 
                       strokeWidth={2}
-                      fill="url(#revenueGradient)" 
+                      fill="url(#requestsGradient)" 
                     />
                   </AreaChart>
                 </ResponsiveContainer>
