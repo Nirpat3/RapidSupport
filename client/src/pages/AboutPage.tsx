@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { NovaLogo } from "@/components/NovaLogo";
 import { 
-  MessageSquare,
   Heart,
   Lightbulb,
   Lock,
@@ -23,7 +23,8 @@ import {
   Globe,
   Briefcase,
   Code,
-  Shield
+  Shield,
+  MessageSquare
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -55,12 +56,12 @@ export default function AboutPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    document.title = "About Support Board - AI-Powered Customer Support Platform";
+    document.title = "About Nova AI - AI-Powered Customer Support Platform";
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
       metaDescription.setAttribute(
         'content',
-        'Learn about Support Board, our mission to revolutionize customer support with AI, and meet our team of experienced professionals committed to helping businesses deliver exceptional customer experiences.'
+        'Learn about Nova AI, our mission to revolutionize customer support with AI, and meet our team of experienced professionals committed to helping businesses deliver exceptional customer experiences.'
       );
     }
   }, []);
@@ -167,12 +168,7 @@ export default function AboutPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <MessageSquare className="w-5 h-5 text-primary" />
-            </div>
-            <span className="font-bold text-lg">Support Board</span>
-          </div>
+          <NovaLogo size="sm" showText={false} />
           
           <nav className="hidden md:flex items-center gap-6">
             <button onClick={() => scrollToSection('mission')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -267,7 +263,7 @@ export default function AboutPage() {
                   Customer support is broken. Long wait times, repetitive questions, and frustrated customers are the norm. We're here to change that.
                 </p>
                 <p className="text-lg text-muted-foreground mb-6">
-                  Support Board combines powerful AI technology with genuine customer empathy to create support experiences that delight customers and empower teams.
+                  Nova AI combines powerful AI technology with genuine customer empathy to create support experiences that delight customers and empower teams.
                 </p>
                 <div className="space-y-3">
                   <div className="flex items-start gap-3">
@@ -356,7 +352,7 @@ export default function AboutPage() {
                   <CardContent className="p-6">
                     <h3 className="font-semibold text-lg mb-3">Making an Impact</h3>
                     <p className="text-muted-foreground text-sm">
-                      Today, Support Board serves hundreds of companies, helping them provide exceptional customer support while reducing costs and improving satisfaction.
+                      Today, Nova AI serves hundreds of companies, helping them provide exceptional customer support while reducing costs and improving satisfaction.
                     </p>
                   </CardContent>
                 </Card>
@@ -405,7 +401,7 @@ export default function AboutPage() {
                 By the Numbers
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                The real impact of Support Board across our customer base.
+                The real impact of Nova AI across our customer base.
               </p>
             </div>
 
@@ -464,7 +460,7 @@ export default function AboutPage() {
                 Built to Work Together
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                Support Board seamlessly integrates with your favorite tools and platforms.
+                Nova AI seamlessly integrates with your favorite tools and platforms.
               </p>
             </div>
 
@@ -493,7 +489,7 @@ export default function AboutPage() {
                     Get in Touch
                   </h2>
                   <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
-                    Have questions about Support Board? Want to learn more about our vision? We'd love to hear from you.
+                    Have questions about Nova AI? Want to learn more about our vision? We'd love to hear from you.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <Button size="lg" variant="secondary" className="gap-2">
@@ -519,11 +515,8 @@ export default function AboutPage() {
         <div className="container max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8">
             <div className="col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <MessageSquare className="w-5 h-5 text-primary" />
-                </div>
-                <span className="font-bold text-lg">Support Board</span>
+              <div className="mb-4">
+                <NovaLogo size="sm" />
               </div>
               <p className="text-sm text-muted-foreground mb-4">
                 Transforming customer support with AI-powered technology and human empathy.
@@ -559,7 +552,7 @@ export default function AboutPage() {
           </div>
           <div className="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              2024 Support Board. All rights reserved.
+              2024 Nova AI. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

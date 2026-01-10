@@ -3,8 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { NovaLogo } from "@/components/NovaLogo";
 import {
-  MessageSquare,
   ArrowRight,
   Menu,
   X,
@@ -129,11 +129,11 @@ const FAQS = [
   },
   {
     question: "What happens after my free trial ends?",
-    answer: "Your trial will need to be converted to a paid plan to continue using Support Board. We'll send you reminders before your trial ends.",
+    answer: "Your trial will need to be converted to a paid plan to continue using Nova AI. We'll send you reminders before your trial ends.",
   },
   {
     question: "Do you offer refunds?",
-    answer: "We offer a 30-day money-back guarantee if you're not satisfied with Support Board. No questions asked.",
+    answer: "We offer a 30-day money-back guarantee if you're not satisfied with Nova AI. No questions asked.",
   },
 ];
 
@@ -146,7 +146,7 @@ export default function PricingPage() {
   const [orgSignupOpen, setOrgSignupOpen] = useState(false);
 
   useEffect(() => {
-    document.title = "Pricing - Support Board | AI-Powered Customer Support";
+    document.title = "Pricing - Nova AI | AI-Powered Customer Support";
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
       metaDescription.setAttribute(
@@ -168,11 +168,8 @@ export default function PricingPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setLocation("/")}>
-            <div className="p-2 rounded-lg bg-primary/10">
-              <MessageSquare className="w-5 h-5 text-primary" />
-            </div>
-            <span className="font-bold text-lg">Support Board</span>
+          <div className="cursor-pointer" onClick={() => setLocation("/")}>
+            <NovaLogo size="sm" showText={false} />
           </div>
 
           <nav className="hidden md:flex items-center gap-6">
@@ -393,7 +390,7 @@ export default function PricingPage() {
                     Ready to get started?
                   </h2>
                   <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
-                    Join thousands of businesses using Support Board to deliver exceptional customer experiences. Start your free trial today with no credit card required.
+                    Join thousands of businesses using Nova AI to deliver exceptional customer experiences. Start your free trial today with no credit card required.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <Dialog open={orgSignupOpen} onOpenChange={setOrgSignupOpen}>
@@ -431,11 +428,8 @@ export default function PricingPage() {
         <div className="container max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8">
             <div className="col-span-2">
-              <div className="flex items-center gap-2 mb-4 cursor-pointer" onClick={() => setLocation("/")}>
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <MessageSquare className="w-5 h-5 text-primary" />
-                </div>
-                <span className="font-bold text-lg">Support Board</span>
+              <div className="mb-4 cursor-pointer" onClick={() => setLocation("/")}>
+                <NovaLogo size="sm" />
               </div>
               <p className="text-sm text-muted-foreground">
                 AI-powered customer support platform helping businesses deliver exceptional customer experiences.
@@ -471,7 +465,7 @@ export default function PricingPage() {
           </div>
           <div className="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              2024 Support Board. All rights reserved.
+              2024 Nova AI. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

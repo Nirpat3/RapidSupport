@@ -39,6 +39,7 @@ import {
 import { useState, useEffect } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { NovaLogo, NovaTagline } from "@/components/NovaLogo";
 
 interface PublicOrganization {
   id: string;
@@ -63,10 +64,10 @@ export default function LandingPage() {
   });
 
   useEffect(() => {
-    document.title = "Support Board - AI-Powered Customer Support Platform";
+    document.title = "Nova AI - Your Intelligent Support Companion";
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute('content', 'Transform your customer support with AI-powered chat, multi-channel integration, and enterprise-grade security. Start your free trial today.');
+      metaDescription.setAttribute('content', 'Nova AI - Your intelligent support companion. Transform customer support with AI-powered assistance, smart routing, and personalized experiences.');
     }
   }, []);
 
@@ -82,12 +83,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <MessageSquare className="w-5 h-5 text-primary" />
-            </div>
-            <span className="font-bold text-lg">Support Board</span>
-          </div>
+          <NovaLogo size="sm" />
           
           <nav className="hidden md:flex items-center gap-6">
             <button onClick={() => scrollToSection('features')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -307,7 +303,7 @@ export default function LandingPage() {
                 Get started in minutes
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                Setting up Support Board is quick and easy. Start delivering better customer support today.
+                Setting up Nova AI is quick and easy. Start delivering better customer support today.
               </p>
             </div>
             
@@ -351,13 +347,13 @@ export default function LandingPage() {
                 Trusted by growing businesses
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                See what our customers have to say about their experience with Support Board.
+                See what our customers have to say about their experience with Nova AI.
               </p>
             </div>
             
             <div className="grid md:grid-cols-3 gap-6">
               <TestimonialCard
-                quote="Support Board reduced our response time from hours to minutes. Our customers love the instant AI responses."
+                quote="Nova AI reduced our response time from hours to minutes. Our customers love the instant AI responses."
                 author="Sarah Chen"
                 role="Customer Success Manager"
                 company="TechStart Inc."
@@ -383,7 +379,7 @@ export default function LandingPage() {
             <div className="text-center mb-16">
               <Badge variant="secondary" className="mb-4">Marketplace</Badge>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Organizations using Support Board
+                Organizations using Nova AI
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
                 Join these organizations providing exceptional customer support with our platform.
@@ -496,7 +492,7 @@ export default function LandingPage() {
                     Ready to transform your customer support?
                   </h2>
                   <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
-                    Join thousands of businesses using Support Board to deliver exceptional customer experiences. Start your free trial today.
+                    Join thousands of businesses using Nova AI to deliver exceptional customer experiences. Start your free trial today.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
                     <Dialog open={orgSignupOpen} onOpenChange={setOrgSignupOpen}>
@@ -539,7 +535,7 @@ export default function LandingPage() {
                 <div className="p-2 rounded-lg bg-primary/10">
                   <MessageSquare className="w-5 h-5 text-primary" />
                 </div>
-                <span className="font-bold text-lg">Support Board</span>
+                <span className="font-bold text-lg">Nova AI</span>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
                 AI-powered customer support platform helping businesses deliver exceptional customer experiences.
@@ -575,7 +571,7 @@ export default function LandingPage() {
           </div>
           <div className="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              2024 Support Board. All rights reserved.
+              2024 Nova AI. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

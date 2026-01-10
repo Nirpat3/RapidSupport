@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { NovaLogo } from "@/components/NovaLogo";
 import {
   Select,
   SelectContent,
@@ -48,12 +49,12 @@ export default function ContactPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    document.title = "Contact Support Board - Get in Touch";
+    document.title = "Contact Nova AI - Get in Touch";
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
       metaDescription.setAttribute(
         "content",
-        "Contact Support Board for help, sales inquiries, or support. Multiple ways to reach us - email, live chat, phone support, and more."
+        "Contact Nova AI for help, sales inquiries, or support. Multiple ways to reach us - email, live chat, phone support, and more."
       );
     }
   }, []);
@@ -121,12 +122,7 @@ export default function ContactPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <MessageSquare className="w-5 h-5 text-primary" />
-            </div>
-            <span className="font-bold text-lg">Support Board</span>
-          </div>
+          <NovaLogo size="sm" showText={false} />
 
           <nav className="hidden md:flex items-center gap-6">
             <button
@@ -225,7 +221,7 @@ export default function ContactPage() {
                 <span className="text-primary">Touch with Us</span>
               </h1>
               <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Have questions about Support Board? Our team is ready to help you
+                Have questions about Nova AI? Our team is ready to help you
                 get the most out of our platform. Reach out through any of our
                 contact channels.
               </p>
@@ -553,7 +549,7 @@ export default function ContactPage() {
                 Helpful resources
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                Find answers and learn more about Support Board
+                Find answers and learn more about Nova AI
               </p>
             </div>
 
@@ -596,7 +592,7 @@ export default function ContactPage() {
                 <CardContent className="p-6">
                   <h3 className="font-semibold text-lg mb-3">Status Page</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Check the current status of Support Board and our services
+                    Check the current status of Nova AI and our services
                   </p>
                   <Button
                     variant="ghost"
@@ -622,7 +618,7 @@ export default function ContactPage() {
                 Frequently asked questions
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto">
-                Find answers to common questions about Support Board
+                Find answers to common questions about Nova AI
               </p>
             </div>
 
@@ -631,7 +627,7 @@ export default function ContactPage() {
                 <Accordion type="single" collapsible>
                   <AccordionItem value="question1">
                     <AccordionTrigger>
-                      How do I get started with Support Board?
+                      How do I get started with Nova AI?
                     </AccordionTrigger>
                     <AccordionContent>
                       Getting started is easy! Simply sign up for a free trial,
@@ -643,7 +639,7 @@ export default function ContactPage() {
 
                   <AccordionItem value="question2">
                     <AccordionTrigger>
-                      What is the cost of Support Board?
+                      What is the cost of Nova AI?
                     </AccordionTrigger>
                     <AccordionContent>
                       We offer flexible pricing plans starting at $29/month
@@ -655,10 +651,10 @@ export default function ContactPage() {
 
                   <AccordionItem value="question3">
                     <AccordionTrigger>
-                      Can I integrate Support Board with my existing tools?
+                      Can I integrate Nova AI with my existing tools?
                     </AccordionTrigger>
                     <AccordionContent>
-                      Yes! Support Board integrates with popular tools like
+                      Yes! Nova AI integrates with popular tools like
                       Slack, Salesforce, Zendesk, and more. Check our
                       integrations page for the full list of available
                       integrations and custom API options.
@@ -670,7 +666,7 @@ export default function ContactPage() {
                       Is my customer data secure?
                     </AccordionTrigger>
                     <AccordionContent>
-                      Absolutely. Support Board is GDPR compliant with
+                      Absolutely. Nova AI is GDPR compliant with
                       end-to-end encryption, comprehensive audit logs, and
                       enterprise-grade security. Your customer data is always
                       protected and never shared with third parties.
@@ -711,11 +707,8 @@ export default function ContactPage() {
         <div className="container max-w-7xl mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8">
             <div className="col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <MessageSquare className="w-5 h-5 text-primary" />
-                </div>
-                <span className="font-bold text-lg">Support Board</span>
+              <div className="mb-4">
+                <NovaLogo size="sm" />
               </div>
               <p className="text-sm text-muted-foreground mb-4">
                 AI-powered customer support platform helping businesses deliver
@@ -800,7 +793,7 @@ export default function ContactPage() {
           </div>
           <div className="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              2024 Support Board. All rights reserved.
+              2024 Nova AI. All rights reserved.
             </p>
             <div className="flex items-center gap-4">
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

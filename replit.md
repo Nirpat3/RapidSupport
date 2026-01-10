@@ -1,7 +1,7 @@
-# Support Board - Customer Support Platform
+# Nova AI - Your Intelligent Support Companion
 
 ## Overview
-Support Board is a comprehensive customer support platform designed to streamline real-time chat, conversation management, and administrative tasks. It supports various user roles (admin, agent, customer) and offers features such as conversation assignment, status tracking, priority management, and analytics. The platform includes internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base with image extraction, and advanced rich media input. It aims to enhance customer interaction and agent productivity through a robust, multi-tenant, multi-region architecture.
+Nova AI is a comprehensive customer support platform designed to streamline real-time chat, conversation management, and administrative tasks. It supports various user roles (admin, agent, customer) and offers features such as conversation assignment, status tracking, priority management, and analytics. The platform includes internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base with image extraction, and advanced rich media input. It aims to enhance customer interaction and agent productivity through a robust, multi-tenant, multi-region architecture.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
