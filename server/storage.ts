@@ -239,6 +239,8 @@ export interface IStorage {
   getCustomerOrganization(id: string): Promise<CustomerOrganization | undefined>;
   getCustomerOrganizationBySlug(slug: string): Promise<CustomerOrganization | undefined>;
   getCustomerOrganizationBySupportId(supportId: string): Promise<CustomerOrganization | undefined>;
+  getCustomerOrganizationByName(name: string): Promise<CustomerOrganization | undefined>;
+  getOrCreateCustomerOrganization(companyName: string): Promise<CustomerOrganization>;
   createCustomerOrganization(org: InsertCustomerOrganization): Promise<CustomerOrganization>;
   updateCustomerOrganization(id: string, updates: Partial<InsertCustomerOrganization>): Promise<CustomerOrganization>;
   getCustomersByOrganization(customerOrgId: string): Promise<Customer[]>;
@@ -811,6 +813,38 @@ export class DatabaseStorage implements IStorage {
   async getCustomerOrganizationBySupportId(supportId: string): Promise<CustomerOrganization | undefined> {
     const [org] = await db.select().from(customerOrganizations).where(eq(customerOrganizations.supportId, supportId));
     return org || undefined;
+  }
+
+  async getCustomerOrganizationByName(name: string): Promise<CustomerOrganization | undefined> {
+    const normalizedName = name.trim().toLowerCase();
+    const allOrgs = await db.select().from(customerOrganizations);
+    return allOrgs.find(org => org.name.trim().toLowerCase() === normalizedName) || undefined;
+  }
+
+  async getOrCreateCustomerOrganization(companyName: string): Promise<CustomerOrganization> {
+    // Try to find existing organization by name (case-insensitive)
+    const existingOrg = await this.getCustomerOrganizationByName(companyName);
+    if (existingOrg) {
+      return existingOrg;
+    }
+
+    // Create new organization with generated slug and support ID
+    const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const supportId = this.generateSupportId(companyName);
+    
+    return await this.createCustomerOrganization({
+      name: companyName.trim(),
+      slug,
+      supportId,
+      requireSupportId: false,
+    });
+  }
+
+  private generateSupportId(companyName: string): string {
+    // Generate a support ID like "ACME-7X3K" 
+    const prefix = companyName.substring(0, 4).toUpperCase().replace(/[^A-Z]/g, 'X').padEnd(4, 'X');
+    const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `${prefix}-${suffix}`;
   }
 
   async createCustomerOrganization(org: InsertCustomerOrganization): Promise<CustomerOrganization> {
@@ -1744,12 +1778,38 @@ export class DatabaseStorage implements IStorage {
     );
 
     let customer: Customer;
+    let customerOrg: CustomerOrganization | null = null;
+    let isFirstMember = false;
+    
+    // Handle organization membership if company name is provided
+    if (customerData.company && customerData.company.trim()) {
+      const existingOrg = await this.getCustomerOrganizationByName(customerData.company);
+      if (existingOrg) {
+        customerOrg = existingOrg;
+        // Check how many members this org has to determine role
+        const orgMembers = await this.getCustomersByOrganization(existingOrg.id);
+        isFirstMember = orgMembers.length === 0;
+      } else {
+        // Create new organization - this customer becomes the first member (admin)
+        customerOrg = await this.getOrCreateCustomerOrganization(customerData.company);
+        isFirstMember = true;
+      }
+      console.log(`Customer organization: ${customerOrg?.name}, isFirstMember: ${isFirstMember}`);
+    }
     
     if (existingCustomer) {
       // Update existing customer with new IP address if provided
       const updateData: any = { updatedAt: new Date() };
       if (customerData.ipAddress) {
         updateData.ipAddress = customerData.ipAddress;
+      }
+      
+      // Also link to organization if not already linked
+      if (customerOrg && !existingCustomer.customerOrganizationId) {
+        updateData.customerOrganizationId = customerOrg.id;
+        // First member of an org becomes admin, subsequent members are regular members
+        updateData.customerOrgRole = isFirstMember ? 'admin' : 'member';
+        console.log(`Linking existing customer to org ${customerOrg.name} with role: ${updateData.customerOrgRole}`);
       }
       
       await db
@@ -1759,17 +1819,27 @@ export class DatabaseStorage implements IStorage {
       
       customer = { ...existingCustomer, ...updateData };
     } else {
-      // Create new customer
+      // Create new customer with organization membership
+      const customerValues: any = {
+        name: customerData.name,
+        email: customerData.email,
+        phone: customerData.phone,
+        company: customerData.company,
+        ipAddress: customerData.ipAddress,
+        status: 'online',
+      };
+      
+      // Link to organization if one exists
+      if (customerOrg) {
+        customerValues.customerOrganizationId = customerOrg.id;
+        // First member of an org becomes admin, subsequent members are regular members
+        customerValues.customerOrgRole = isFirstMember ? 'admin' : 'member';
+        console.log(`Creating new customer in org ${customerOrg.name} with role: ${customerValues.customerOrgRole}`);
+      }
+      
       [customer] = await db
         .insert(customers)
-        .values({
-          name: customerData.name,
-          email: customerData.email,
-          phone: customerData.phone,
-          company: customerData.company,
-          ipAddress: customerData.ipAddress,
-          status: 'online',
-        })
+        .values(customerValues)
         .returning();
     }
 
