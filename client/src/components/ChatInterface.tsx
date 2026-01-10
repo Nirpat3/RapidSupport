@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal, GraduationCap, ChevronUp, ChevronDown } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal, GraduationCap, ChevronUp, ChevronDown, ArrowDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import ChatMessage, { type Message } from "./ChatMessage";
 import InternalChatPanel from "./InternalChatPanel";
@@ -144,6 +144,9 @@ export default function ChatInterface({
   // Collapsible customer header state
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
   
+  // Scroll to bottom state
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sendButtonRef = useRef<HTMLButtonElement>(null);
@@ -156,6 +159,27 @@ export default function ChatInterface({
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  // Track scroll position to show/hide scroll to bottom button
+  useEffect(() => {
+    const scrollElement = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!scrollElement) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollToBottom(!isNearBottom);
+    };
+
+    scrollElement.addEventListener('scroll', handleScroll);
+    return () => scrollElement.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   // Auto-collapse header when messages exist (for more viewing space)
   useEffect(() => {
@@ -1081,7 +1105,19 @@ export default function ChatInterface({
             </Dialog>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1 p-4 relative" ref={scrollAreaRef}>
+        {/* Scroll to bottom button */}
+        {showScrollToBottom && (
+          <Button
+            size="icon"
+            variant="secondary"
+            className="fixed bottom-24 right-6 z-50 rounded-full shadow-lg"
+            onClick={scrollToBottom}
+            data-testid="button-scroll-to-bottom"
+          >
+            <ArrowDown className="h-4 w-4" />
+          </Button>
+        )}
         <div className="space-y-4" data-testid="messages-container">
           {messages.map((message) => (
             <ChatMessage 

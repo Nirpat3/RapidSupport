@@ -16,6 +16,7 @@ import {
   Sparkles,
   MessageCircle, 
   ArrowRight,
+  ArrowDown,
   User,
   Building2,
   Mail,
@@ -174,6 +175,8 @@ export default function CustomerChatPage() {
   const [pendingMessage, setPendingMessage] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   
   // Check if voice features are enabled for this workspace
   const { voiceChatEnabled } = useWorkspaceFeatures();
@@ -597,6 +600,25 @@ export default function CustomerChatPage() {
     }
   }, [messages, chatStarted]);
 
+  // Track scroll position to show/hide scroll to bottom button
+  useEffect(() => {
+    const scrollElement = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!scrollElement) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollToBottom(!isNearBottom);
+    };
+
+    scrollElement.addEventListener('scroll', handleScroll);
+    return () => scrollElement.removeEventListener('scroll', handleScroll);
+  }, [chatStarted]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   // Sync state with existing conversation from API (don't auto-start)
   useEffect(() => {
     if (existingConversation?.conversationId && !chatState.conversationId) {
@@ -948,7 +970,19 @@ export default function CustomerChatPage() {
         </header>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 relative" ref={scrollAreaRef}>
+          {/* Scroll to bottom button */}
+          {showScrollToBottom && (
+            <Button
+              size="icon"
+              variant="secondary"
+              className="fixed bottom-24 right-6 z-50 rounded-full shadow-lg"
+              onClick={scrollToBottom}
+              data-testid="button-scroll-to-bottom"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+          )}
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-3xl">
             <div className="space-y-4">
               {messages.map((message) => (
