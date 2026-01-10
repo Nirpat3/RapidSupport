@@ -1376,6 +1376,29 @@ export default function CustomerChatPage() {
           {onboardingStep === 'info' && !chatState.conversationId && (forceNewChat || !existingConversation?.conversationId) && (
             <Card className="mb-8 shadow-lg border-0 bg-card">
               <CardContent className="p-4 sm:p-6">
+                {/* Back button when user came from existing conversation */}
+                {forceNewChat && existingConversation?.conversationId && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      // Go back to existing conversation view
+                      setForceNewChat(false);
+                      setChatState(prev => ({
+                        ...prev,
+                        conversationId: existingConversation.conversationId,
+                        customerId: existingConversation.customerId,
+                        customerInfo: existingConversation.customerInfo,
+                        selectedCategory: null,
+                      }));
+                    }}
+                    className="mb-4 gap-1.5"
+                    data-testid="button-back-to-conversation"
+                  >
+                    <ArrowDown className="h-4 w-4 rotate-90" />
+                    {t('common.back')}
+                  </Button>
+                )}
                 <div className="text-center mb-6">
                   <h2 className="text-lg font-semibold mb-2">{t('chat.customerInfo')}</h2>
                   <p className="text-sm text-muted-foreground">{t('chat.customerInfoDescription')}</p>
@@ -1394,6 +1417,30 @@ export default function CustomerChatPage() {
           {/* Message Input (Ready to chat) */}
           {onboardingStep === 'ready' && !chatState.conversationId && (forceNewChat || !existingConversation?.conversationId) && (
             <>
+              {/* Back button when user came from existing conversation */}
+              {forceNewChat && existingConversation?.conversationId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    // Go back to existing conversation view
+                    setForceNewChat(false);
+                    setChatState(prev => ({
+                      ...prev,
+                      conversationId: existingConversation.conversationId,
+                      customerId: existingConversation.customerId,
+                      customerInfo: existingConversation.customerInfo,
+                      selectedCategory: null,
+                    }));
+                  }}
+                  className="mb-4 gap-1.5"
+                  data-testid="button-back-to-conversation-ready"
+                >
+                  <ArrowDown className="h-4 w-4 rotate-90" />
+                  {t('common.back')}
+                </Button>
+              )}
+              
               {/* Show customer info */}
               {chatState.customerInfo?.name && (
                 <div className="flex items-center justify-center gap-2 mb-4 flex-wrap">
