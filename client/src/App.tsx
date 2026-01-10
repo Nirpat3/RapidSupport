@@ -16,6 +16,7 @@ import CustomersPage from "@/pages/CustomersPage";
 import CustomerProfilePage from "@/pages/CustomerProfilePage";
 import SettingsPage from "@/pages/SettingsPage";
 import CustomerChatPage from "@/pages/CustomerChatPage";
+import LandingPage from "@/pages/LandingPage";
 import SupportPage from "@/pages/SupportPage";
 import CustomerPortalKnowledgeBase from "@/pages/CustomerPortalKnowledgeBase";
 import EmbedChatWidget from "@/pages/EmbedChatWidget";
@@ -308,7 +309,8 @@ function AppContent() {
   
   // Check if we're on public routes - use wouter's reactive location
   const pathname = location.replace(/\/$/, ''); // Remove trailing slash
-  const isCustomerChatPage = pathname === '' || pathname === '/customer-chat';
+  const isLandingPage = pathname === '';
+  const isOrgChatPage = pathname.startsWith('/chat/') && pathname !== '/chat'; // /chat/:orgSlug
   const isKnowledgeBasePage = pathname === '/knowledge-base';
   const isKnowledgeCategoryPage = pathname.startsWith('/knowledge-base/category/');
   const isChatEmbedPage = pathname === '/chat'; // Embeddable chat widget
@@ -323,12 +325,25 @@ function AppContent() {
   const isPortalLoginPage = pathname === '/portal/login';
   const isPortalPage = pathname.startsWith('/portal') && pathname !== '/portal/login';
   
-  // For customer chat page (now the landing page), render without authentication
-  if (isCustomerChatPage) {
+  // Landing page with organization list
+  if (isLandingPage) {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <CustomerChatPage />
+          <LandingPage />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // Organization-specific customer chat page
+  if (isOrgChatPage) {
+    const orgSlug = pathname.replace('/chat/', '');
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <CustomerChatPage orgSlug={orgSlug} />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
