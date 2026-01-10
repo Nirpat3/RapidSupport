@@ -58,6 +58,8 @@ import ActivityHubPage from "@/pages/ActivityHubPage";
 import ApiIntegrationPage from "@/pages/ApiIntegrationPage";
 import OrgCustomerLoginPage from "@/pages/OrgCustomerLoginPage";
 import WorkspaceSelectPage from "@/pages/WorkspaceSelectPage";
+import LegalPoliciesPage from "@/pages/LegalPoliciesPage";
+import PublicPolicyPage from "@/pages/PublicPolicyPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
 import NotFound from "@/pages/not-found";
@@ -239,6 +241,13 @@ function Router() {
           <ApiIntegrationPage />
         </PermissionGuard>
       </Route>
+      <Route path="/legal-policies">
+        <PermissionGuard feature="settings">
+          <LegalPoliciesPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/policies/:type" component={PublicPolicyPage} />
+      <Route path="/org/:slug/policies/:type" component={PublicPolicyPage} />
       <Route path="/install-app" component={InstallAppPage} />
       <Route component={NotFound} />
     </Switch>
