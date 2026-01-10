@@ -366,14 +366,14 @@ export const conversations = pgTable("conversations", {
   participatingAgentIds: text("participating_agent_ids").array().default([]), // Array of agent IDs who have responded to this conversation
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => [
-  index("idx_conversations_org_status").on(table.organizationId, table.status),
-  index("idx_conversations_org_updated").on(table.organizationId, table.updatedAt),
-  index("idx_conversations_customer").on(table.customerId),
-  index("idx_conversations_agent").on(table.assignedAgentId),
-  index("idx_conversations_workspace").on(table.workspaceId, table.status),
-  index("idx_conversations_status_priority").on(table.status, table.priority),
-]);
+}, (table) => ({
+  orgStatusIdx: index("idx_conversations_org_status").on(table.organizationId, table.status),
+  orgUpdatedIdx: index("idx_conversations_org_updated").on(table.organizationId, table.updatedAt),
+  customerIdx: index("idx_conversations_customer").on(table.customerId),
+  agentIdx: index("idx_conversations_agent").on(table.assignedAgentId),
+  workspaceStatusIdx: index("idx_conversations_workspace").on(table.workspaceId, table.status),
+  statusPriorityIdx: index("idx_conversations_status_priority").on(table.status, table.priority),
+}));
 
 // Messages table
 export const messages = pgTable("messages", {
@@ -387,10 +387,10 @@ export const messages = pgTable("messages", {
   scope: text("scope").notNull().default("public"), // 'public' | 'internal' - internal messages are staff-only
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   status: text("status").notNull().default("sent"), // 'sent' | 'delivered' | 'read'
-}, (table) => [
-  index("idx_messages_conversation_timestamp").on(table.conversationId, table.timestamp),
-  index("idx_messages_sender").on(table.senderId, table.senderType),
-]);
+}, (table) => ({
+  conversationTimestampIdx: index("idx_messages_conversation_timestamp").on(table.conversationId, table.timestamp),
+  senderIdx: index("idx_messages_sender").on(table.senderId, table.senderType),
+}));
 
 // Notifications table - tracks per-user unread conversations
 export const notifications = pgTable("notifications", {
@@ -930,10 +930,10 @@ export const knowledgeChunks = pgTable("knowledge_chunks", {
   embedding: vector("embedding"), // 1536-dimensional vector for OpenAI embeddings
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => [
-  index("idx_knowledge_chunks_kb").on(table.knowledgeBaseId),
-  index("idx_knowledge_chunks_category").on(table.category),
-]);
+}, (table) => ({
+  kbIdx: index("idx_knowledge_chunks_kb").on(table.knowledgeBaseId),
+  categoryIdx: index("idx_knowledge_chunks_category").on(table.category),
+}));
 
 // API Keys table - for 3rd party integrations and widget authentication
 export const apiKeys = pgTable("api_keys", {
