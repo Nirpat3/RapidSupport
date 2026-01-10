@@ -39,6 +39,7 @@ import UserProfilePage from "@/pages/UserProfilePage";
 import SupportCategoriesPage from "@/pages/SupportCategoriesPage";
 import DocumentationPage from "@/pages/DocumentationPage";
 import DocFrameworkPage from "@/pages/DocFrameworkPage";
+import WorkflowsPage from "@/pages/WorkflowsPage";
 import WidgetSetupPage from "@/pages/WidgetSetupPage";
 import MockupPage from "@/pages/MockupPage";
 import InstallAppPage from "@/pages/InstallAppPage";
@@ -212,6 +213,11 @@ function Router() {
       <Route path="/doc-framework">
         <PermissionGuard feature="knowledge-base">
           <DocFrameworkPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/workflows">
+        <PermissionGuard feature="knowledge-base">
+          <WorkflowsPage />
         </PermissionGuard>
       </Route>
       <Route path="/widget-setup">

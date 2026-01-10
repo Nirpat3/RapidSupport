@@ -41,7 +41,8 @@ import {
   Share2,
   Palette,
   Crown,
-  Building2
+  Building2,
+  GitBranch
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -97,6 +98,12 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     url: "/knowledge-hub", 
     icon: BookOpen,
     allowedRoles: 'all'
+  },
+  {
+    title: "Workflows",
+    url: "/workflows",
+    icon: GitBranch,
+    allowedRoles: ['admin']
   },
   
   // === ADMIN ONLY HUB PAGES ===

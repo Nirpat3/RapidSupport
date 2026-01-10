@@ -35,8 +35,10 @@ import {
   BookOpen,
   Bot,
   UserCog,
+  GitBranch,
 } from "lucide-react";
 import KnowledgeSearchDialog from "@/components/KnowledgeSearchDialog";
+import { WorkflowSidebar } from "@/components/WorkflowSidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -128,6 +130,7 @@ export default function ConversationsPage() {
   
   // Knowledge search dialog state
   const [isKnowledgeSearchOpen, setIsKnowledgeSearchOpen] = useState(false);
+  const [showWorkflowSidebar, setShowWorkflowSidebar] = useState(false);
   const [messageToInsert, setMessageToInsert] = useState<string | null>(null);
 
   // WebSocket setup
@@ -940,6 +943,23 @@ export default function ConversationsPage() {
                   <TooltipContent>Search Knowledge Base</TooltipContent>
                 </Tooltip>
 
+                {/* Workflow Guide Toggle */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={showWorkflowSidebar ? "default" : "outline"}
+                      size="icon"
+                      onClick={() => setShowWorkflowSidebar(!showWorkflowSidebar)}
+                      data-testid="button-workflow-toggle"
+                    >
+                      <GitBranch className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {showWorkflowSidebar ? "Hide Workflow Guide" : "Show Workflow Guide"}
+                  </TooltipContent>
+                </Tooltip>
+
                 {/* Human Takeover Toggle */}
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1046,41 +1066,53 @@ export default function ConversationsPage() {
               </div>
             </div>
 
-            {/* Chat Messages */}
-            <ChatInterface
-              conversationId={activeConversationId}
-              customer={activeConversation.customer ? {
-                ...activeConversation.customer,
-                status: 'online' as const,
-                avatar: undefined,
-                company: undefined,
-                phone: undefined
-              } : undefined}
-              messages={activeMessages}
-              onSendMessage={handleSendMessage}
-              streamingMessage={activeConversationId ? streamingMessages.get(activeConversationId) || null : null}
-              conversationStatus={activeConversation.status}
-              onStatusChange={(status) => updateStatusMutation.mutate({ conversationId: activeConversationId, status })}
-              typingUsers={activeConversationId ? typingUsers.get(activeConversationId) || [] : []}
-              onTypingStart={() => {
-                if (ws && ws.readyState === WebSocket.OPEN && activeConversationId) {
-                  ws.send(JSON.stringify({
-                    type: 'user_typing',
-                    conversationId: activeConversationId
-                  }));
-                }
-              }}
-              onTypingStop={() => {
-                if (ws && ws.readyState === WebSocket.OPEN && activeConversationId) {
-                  ws.send(JSON.stringify({
-                    type: 'user_stopped_typing',
-                    conversationId: activeConversationId
-                  }));
-                }
-              }}
-              prefilledContent={messageToInsert}
-              onPrefilledContentUsed={() => setMessageToInsert(null)}
-            />
+            {/* Chat Messages with optional Workflow Sidebar */}
+            <div className="flex-1 flex overflow-hidden">
+              <ChatInterface
+                conversationId={activeConversationId}
+                customer={activeConversation.customer ? {
+                  ...activeConversation.customer,
+                  status: 'online' as const,
+                  avatar: undefined,
+                  company: undefined,
+                  phone: undefined
+                } : undefined}
+                messages={activeMessages}
+                onSendMessage={handleSendMessage}
+                streamingMessage={activeConversationId ? streamingMessages.get(activeConversationId) || null : null}
+                conversationStatus={activeConversation.status}
+                onStatusChange={(status) => updateStatusMutation.mutate({ conversationId: activeConversationId, status })}
+                typingUsers={activeConversationId ? typingUsers.get(activeConversationId) || [] : []}
+                onTypingStart={() => {
+                  if (ws && ws.readyState === WebSocket.OPEN && activeConversationId) {
+                    ws.send(JSON.stringify({
+                      type: 'user_typing',
+                      conversationId: activeConversationId
+                    }));
+                  }
+                }}
+                onTypingStop={() => {
+                  if (ws && ws.readyState === WebSocket.OPEN && activeConversationId) {
+                    ws.send(JSON.stringify({
+                      type: 'user_stopped_typing',
+                      conversationId: activeConversationId
+                    }));
+                  }
+                }}
+                prefilledContent={messageToInsert}
+                onPrefilledContentUsed={() => setMessageToInsert(null)}
+              />
+              
+              {/* Workflow Sidebar */}
+              {showWorkflowSidebar && activeConversationId && (
+                <div className="w-80 shrink-0">
+                  <WorkflowSidebar 
+                    conversationId={activeConversationId}
+                    onClose={() => setShowWorkflowSidebar(false)}
+                  />
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <div className="flex-1 overflow-y-auto flex items-center justify-center text-muted-foreground bg-gradient-to-br from-slate-50 dark:from-slate-900/50 via-transparent to-slate-100/50 dark:to-slate-800/30">
