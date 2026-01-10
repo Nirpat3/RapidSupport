@@ -263,6 +263,26 @@ export default function CustomerChatPage() {
   // Use modular hook for support categories
   const { categories: SUPPORT_CATEGORIES, getCategoryById, mostPopularCategory } = useSupportCategories();
 
+  // Send pending message when chat starts with existing conversation
+  useEffect(() => {
+    if (chatStarted && chatState.conversationId && pendingMessage.trim()) {
+      const sendPendingMessage = async () => {
+        try {
+          await sendMessageMutation.mutateAsync({
+            content: pendingMessage.trim(),
+            conversationId: chatState.conversationId!,
+            customerId: chatState.customerId || undefined,
+          });
+          setPendingMessage("");
+          setQuestion("");
+        } catch (error) {
+          console.error('Failed to send pending message:', error);
+        }
+      };
+      sendPendingMessage();
+    }
+  }, [chatStarted, chatState.conversationId]);
+
   // Check if conversation is closed and show rating dialog
   useEffect(() => {
     console.log('[CustomerChatPage] Conversation details:', conversationDetails);
@@ -1283,11 +1303,69 @@ export default function CustomerChatPage() {
 
           {/* Continue Conversation Card - Shows when user has existing conversation (but not when forceNewChat is true) */}
           {!forceNewChat && (chatState.conversationId || existingConversation?.conversationId) && (
-            <ExistingConversationCard
-              customerName={chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
-              onContinue={() => setChatStarted(true)}
-              onStartNew={handleStartNewConversation}
-            />
+            <>
+              <ExistingConversationCard
+                customerName={chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
+                onContinue={() => setChatStarted(true)}
+                onStartNew={handleStartNewConversation}
+                onQuickMessage={async (message) => {
+                  // Set the question and start the chat
+                  setQuestion(message);
+                  setChatStarted(true);
+                  // Let the chat view handle sending the message after it loads
+                  setPendingMessage(message);
+                }}
+                isLoading={sendMessageMutation.isPending}
+              />
+              
+              {/* Support Categories - Also show for existing conversation users */}
+              {SUPPORT_CATEGORIES.length > 0 && (
+                <div className="px-4 mb-6">
+                  <p className="text-center text-sm text-muted-foreground mb-3">
+                    Or select a topic for a new conversation
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {SUPPORT_CATEGORIES.map((category) => {
+                      const IconComponent = category.icon;
+                      const isMostPopular = mostPopularCategory?.id === category.id;
+                      return (
+                        <Button
+                          key={category.id}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Clear existing state and start new conversation with selected category
+                            localStorage.removeItem('customer-chat-state');
+                            setChatState({
+                              conversationId: null,
+                              customerId: null,
+                              sessionId: crypto.randomUUID(),
+                              customerInfo: null,
+                              selectedCategory: category.id, // Preserve the selected category
+                            });
+                            setChatStarted(false);
+                            setOnboardingStep('info');
+                            setForceNewChat(true);
+                            setQuestion('');
+                            setSelectedFiles([]);
+                          }}
+                          className="rounded-full gap-1.5 transition-all"
+                          data-testid={`category-existing-${category.id}`}
+                        >
+                          <IconComponent className="h-3.5 w-3.5" />
+                          {category.label}
+                          {isMostPopular && (
+                            <Badge variant="secondary" className="ml-1 h-4 text-[10px] px-1.5 py-0">
+                              Popular
+                            </Badge>
+                          )}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Contact Info Collection - Show for new users (no existing conversation) */}

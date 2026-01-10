@@ -1,20 +1,34 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { MessageCircle } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { MessageCircle, Send, ArrowRight } from "lucide-react";
 
 interface ExistingConversationCardProps {
   customerName?: string;
   onContinue: () => void;
   onStartNew: () => void;
+  onQuickMessage?: (message: string) => void;
+  isLoading?: boolean;
 }
 
 export function ExistingConversationCard({
   customerName,
   onContinue,
   onStartNew,
+  onQuickMessage,
+  isLoading = false,
 }: ExistingConversationCardProps) {
   const { t } = useTranslation();
+  const [quickMessage, setQuickMessage] = useState("");
+
+  const handleQuickSend = () => {
+    if (quickMessage.trim() && onQuickMessage) {
+      onQuickMessage(quickMessage.trim());
+      setQuickMessage("");
+    }
+  };
 
   return (
     <Card className="mb-8 shadow-lg border-0 bg-card">
@@ -30,16 +44,57 @@ export function ExistingConversationCard({
                 {t('chat.welcomeBack')}, {customerName}
               </p>
             )}
+            
+            {onQuickMessage && (
+              <div className="mb-4">
+                <div className="flex flex-col gap-2 border rounded-xl p-3 bg-background focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
+                  <Textarea
+                    value={quickMessage}
+                    onChange={(e) => {
+                      setQuickMessage(e.target.value);
+                      e.target.style.height = 'auto';
+                      e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleQuickSend();
+                      }
+                    }}
+                    placeholder={t('chat.inputPlaceholder')}
+                    className="min-h-[24px] max-h-[120px] resize-none border-0 focus-visible:ring-0 text-base p-0"
+                    style={{ height: '24px' }}
+                    data-testid="input-quick-message"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleQuickSend}
+                      disabled={!quickMessage.trim() || isLoading}
+                      size="sm"
+                      className="rounded-lg gap-1.5"
+                      data-testid="button-quick-send"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      {t('chat.send')}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="flex gap-2 flex-wrap">
               <Button 
                 onClick={onContinue}
+                variant="outline"
+                className="gap-1.5"
                 data-testid="button-continue-conversation"
               >
                 {t('chat.openChat')}
+                <ArrowRight className="h-4 w-4" />
               </Button>
               <Button 
                 onClick={onStartNew}
-                variant="outline"
+                variant="ghost"
                 data-testid="button-new-conversation"
               >
                 {t('chat.startNewChat')}
