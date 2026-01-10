@@ -56,6 +56,8 @@ import SettingsHubPage from "@/pages/SettingsHubPage";
 import AdministrationHubPage from "@/pages/AdministrationHubPage";
 import ActivityHubPage from "@/pages/ActivityHubPage";
 import ApiIntegrationPage from "@/pages/ApiIntegrationPage";
+import OrgCustomerLoginPage from "@/pages/OrgCustomerLoginPage";
+import WorkspaceSelectPage from "@/pages/WorkspaceSelectPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
 import NotFound from "@/pages/not-found";
@@ -321,6 +323,12 @@ function AppContent() {
   // Knowledge base article public view
   const isPublicArticlePage = pathname.startsWith('/kb/');
   
+  // Organization-specific customer login page
+  const isOrgLoginPage = pathname.startsWith('/org/') && pathname.endsWith('/login');
+  
+  // Workspace selection page
+  const isWorkspaceSelectPage = pathname === '/workspace-select';
+  
   // Customer portal pages (separate from staff portal - customers have their own login)
   const isPortalLoginPage = pathname === '/portal/login';
   const isPortalPage = pathname.startsWith('/portal') && pathname !== '/portal/login';
@@ -344,6 +352,31 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <CustomerChatPage orgSlug={orgSlug} />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // Organization-specific customer login page
+  if (isOrgLoginPage) {
+    const orgSlug = pathname.replace('/org/', '').replace('/login', '');
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <OrgCustomerLoginPage orgSlug={orgSlug} />
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  // Workspace selection page for admins with multiple workspaces
+  if (isWorkspaceSelectPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WorkspaceSelectPage />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>

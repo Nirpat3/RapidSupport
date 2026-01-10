@@ -6751,6 +6751,143 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Customer public signup
+  app.post('/api/public/customers/signup', authLimiter, async (req, res) => {
+    try {
+      const signupSchema = z.object({
+        name: z.string().min(2, 'Name must be at least 2 characters'),
+        email: z.string().email('Invalid email address'),
+        password: z.string().min(6, 'Password must be at least 6 characters'),
+        company: z.string().optional(),
+        organizationId: z.string().uuid().optional(),
+      });
+      
+      const data = signupSchema.parse(req.body);
+      
+      // Check if customer email already exists
+      const existingCustomer = await storage.getCustomerByEmail(data.email);
+      if (existingCustomer) {
+        return res.status(400).json({ error: 'An account with this email already exists' });
+      }
+      
+      // Hash password
+      const bcrypt = await import('bcryptjs');
+      const hashedPassword = await bcrypt.hash(data.password, 10);
+      
+      // Create customer with portal access
+      const customer = await storage.createCustomer({
+        name: data.name,
+        email: data.email,
+        company: data.company || null,
+        organizationId: data.organizationId || null,
+        portalPassword: hashedPassword,
+        hasPortalAccess: true,
+        status: 'offline',
+      });
+      
+      // Return customer without password
+      const { portalPassword: _, ...customerData } = customer;
+      res.status(201).json({ 
+        customer: customerData, 
+        message: 'Account created successfully' 
+      });
+    } catch (error) {
+      console.error('Customer signup error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      res.status(500).json({ error: 'Failed to create account' });
+    }
+  });
+
+  // Organization public signup
+  app.post('/api/public/organizations/signup', authLimiter, async (req, res) => {
+    try {
+      const signupSchema = z.object({
+        organization: z.object({
+          name: z.string().min(2, 'Organization name must be at least 2 characters'),
+          slug: z.string().min(2, 'Slug must be at least 2 characters')
+            .regex(/^[a-z0-9-]+$/, 'Slug can only contain lowercase letters, numbers, and hyphens'),
+          website: z.string().url().optional().or(z.literal('')),
+        }),
+        admin: z.object({
+          name: z.string().min(2, 'Name must be at least 2 characters'),
+          email: z.string().email('Invalid email address'),
+          password: z.string().min(6, 'Password must be at least 6 characters'),
+        }),
+      });
+      
+      const data = signupSchema.parse(req.body);
+      
+      // Check if slug already exists
+      const existingOrg = await storage.getOrganizationBySlug(data.organization.slug);
+      if (existingOrg) {
+        return res.status(400).json({ error: 'This organization URL is already taken' });
+      }
+      
+      // Check if admin email already exists
+      const existingUser = await storage.getUserByEmail(data.admin.email);
+      if (existingUser) {
+        return res.status(400).json({ error: 'An account with this email already exists' });
+      }
+      
+      // Hash password
+      const bcrypt = await import('bcryptjs');
+      const hashedPassword = await bcrypt.hash(data.admin.password, 10);
+      
+      // Create organization
+      const org = await storage.createOrganization({
+        name: data.organization.name,
+        slug: data.organization.slug,
+        website: data.organization.website || null,
+        status: 'active',
+        welcomeMessage: `Welcome to ${data.organization.name}! How can we help you today?`,
+      });
+      
+      // Create admin user
+      const user = await storage.createUser({
+        name: data.admin.name,
+        email: data.admin.email,
+        password: hashedPassword,
+        role: 'admin',
+        organizationId: org.id,
+      });
+      
+      // Create default workspace for the organization
+      const workspace = await storage.createWorkspace({
+        name: 'Default Workspace',
+        slug: 'default',
+        description: 'Default workspace for support operations',
+        organizationId: org.id,
+        isDefault: true,
+      });
+      
+      // Add admin to workspace as owner
+      await storage.createWorkspaceMember({
+        userId: user.id,
+        workspaceId: workspace.id,
+        role: 'owner',
+        status: 'active',
+      });
+      
+      // Return success without sensitive data
+      res.status(201).json({ 
+        organization: {
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+        },
+        message: 'Organization registered successfully' 
+      });
+    } catch (error) {
+      console.error('Organization signup error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      res.status(500).json({ error: 'Failed to register organization' });
+    }
+  });
+
   // Get all active knowledge base articles (public access)
   app.get('/api/public/knowledge-base', async (req, res) => {
     try {
