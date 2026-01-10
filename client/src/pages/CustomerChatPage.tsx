@@ -1315,6 +1315,10 @@ export default function CustomerChatPage() {
                   // Let the chat view handle sending the message after it loads
                   setPendingMessage(message);
                 }}
+                onAttachFile={() => fileInputRef.current?.click()}
+                onCamera={() => cameraInputRef.current?.click()}
+                onVoice={() => setShowVoiceDialog(true)}
+                voiceEnabled={voiceChatEnabled}
                 isLoading={sendMessageMutation.isPending}
               />
               

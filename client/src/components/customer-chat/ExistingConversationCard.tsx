@@ -3,14 +3,19 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { MessageCircle, Send, ArrowRight } from "lucide-react";
+import { MessageCircle, Send, ArrowRight, Paperclip, Camera, Smile, Mic } from "lucide-react";
+import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
 
 interface ExistingConversationCardProps {
   customerName?: string;
   onContinue: () => void;
   onStartNew: () => void;
   onQuickMessage?: (message: string) => void;
+  onAttachFile?: () => void;
+  onCamera?: () => void;
+  onVoice?: () => void;
   isLoading?: boolean;
+  voiceEnabled?: boolean;
 }
 
 export function ExistingConversationCard({
@@ -18,16 +23,26 @@ export function ExistingConversationCard({
   onContinue,
   onStartNew,
   onQuickMessage,
+  onAttachFile,
+  onCamera,
+  onVoice,
   isLoading = false,
+  voiceEnabled = false,
 }: ExistingConversationCardProps) {
   const { t } = useTranslation();
   const [quickMessage, setQuickMessage] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const handleQuickSend = () => {
     if (quickMessage.trim() && onQuickMessage) {
       onQuickMessage(quickMessage.trim());
       setQuickMessage("");
     }
+  };
+
+  const handleEmojiClick = (emojiData: EmojiClickData) => {
+    setQuickMessage(prev => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
   };
 
   return (
@@ -66,7 +81,66 @@ export function ExistingConversationCard({
                     style={{ height: '24px' }}
                     data-testid="input-quick-message"
                   />
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-between pt-2 border-t border-border/50">
+                    <div className="flex gap-1">
+                      {onAttachFile && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={onAttachFile}
+                          title="Attach file"
+                          data-testid="button-quick-attach"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                        </Button>
+                      )}
+                      
+                      {onCamera && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={onCamera}
+                          title="Take picture"
+                          data-testid="button-quick-camera"
+                        >
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                      )}
+                      
+                      <div className="relative">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                          title="Add emoji"
+                          data-testid="button-quick-emoji"
+                        >
+                          <Smile className="h-4 w-4" />
+                        </Button>
+                        {showEmojiPicker && (
+                          <div className="absolute bottom-12 left-0 z-50">
+                            <EmojiPicker onEmojiClick={handleEmojiClick} />
+                          </div>
+                        )}
+                      </div>
+                      
+                      {voiceEnabled && onVoice && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={onVoice}
+                          title="Start voice conversation"
+                          data-testid="button-quick-voice"
+                        >
+                          <Mic className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    
                     <Button
                       onClick={handleQuickSend}
                       disabled={!quickMessage.trim() || isLoading}
