@@ -41,7 +41,8 @@ export function ContactInfoStep({
         </div>
         <CustomerInfoForm 
           onSubmit={onSubmit}
-          isSubmitting={isSubmitting}
+          isLoading={isSubmitting}
+          bare={true}
         />
         <Button
           variant="ghost"

@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +17,6 @@ import {
   ArrowRight,
   ArrowDown,
   User,
-  Building2,
-  Mail,
-  Phone,
   Paperclip,
   Camera,
   Smile,
@@ -40,78 +36,14 @@ import VoiceConversationDialog from "@/components/VoiceConversationDialog";
 import { useWorkspaceFeatures } from "@/hooks/useWorkspaceFeatures";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
-import { AnonymousCustomer, SupportCategory as SupportCategoryType } from "@shared/schema";
+import { AnonymousCustomer } from "@shared/schema";
 import { renderFormattedContent } from "@/components/ChatMessage";
-import { CreditCard, DollarSign, Wrench, HelpCircle, Headphones, Package, Settings, type LucideIcon } from "lucide-react";
 
-const ICON_MAP: Record<string, LucideIcon> = {
-  CreditCard,
-  DollarSign,
-  Wrench,
-  HelpCircle,
-  Headphones,
-  Package,
-  Settings,
-};
-
-const getIconComponent = (iconName: string | null): LucideIcon => {
-  if (!iconName) return HelpCircle;
-  return ICON_MAP[iconName] || HelpCircle;
-};
-
-interface CategoryOption {
-  id: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  color: string;
-  suggestedQuestions: string[];
-  aiAgentId: string | number | null;
-}
-
-const DEFAULT_CATEGORIES: CategoryOption[] = [
-  { id: 'billing', label: 'Billing', description: 'Payment and subscription inquiries', icon: CreditCard, color: 'text-primary', suggestedQuestions: [], aiAgentId: null },
-  { id: 'sales', label: 'Sales', description: 'Product and pricing questions', icon: DollarSign, color: 'text-accent', suggestedQuestions: [], aiAgentId: null },
-  { id: 'technical', label: 'Technical Support', description: 'Technical issues and troubleshooting', icon: Wrench, color: 'text-amber-500', suggestedQuestions: [], aiAgentId: null },
-  { id: 'general', label: 'General', description: 'Other questions and feedback', icon: HelpCircle, color: 'text-primary', suggestedQuestions: [], aiAgentId: null },
-];
-
-// Helper to translate category names and descriptions
-const getCategoryTranslation = (t: (key: string) => string, categoryId: string, field: 'name' | 'description'): string | null => {
-  const categoryKeyMap: Record<string, { name: string; desc: string }> = {
-    'billing': { name: 'categories.billing', desc: 'categories.billingDesc' },
-    'technical': { name: 'categories.technical', desc: 'categories.technicalDesc' },
-    'sales': { name: 'categories.sales', desc: 'categories.salesDesc' },
-    'general': { name: 'categories.general', desc: 'categories.generalDesc' },
-    'technical-support': { name: 'categories.technical', desc: 'categories.technicalDesc' },
-  };
-  
-  const slug = categoryId.toLowerCase().replace(/\s+/g, '-');
-  const mapping = categoryKeyMap[slug];
-  if (!mapping) return null;
-  
-  const key = field === 'name' ? mapping.name : mapping.desc;
-  const translated = t(key);
-  // Return null if translation key is returned (meaning no translation found)
-  return translated !== key ? translated : null;
-};
-
-const getColorClass = (color: string | null): string => {
-  const colorMap: Record<string, string> = {
-    blue: 'text-primary',
-    indigo: 'text-primary',
-    green: 'text-accent',
-    teal: 'text-accent',
-    cyan: 'text-accent',
-    orange: 'text-amber-500',
-    yellow: 'text-amber-500',
-    red: 'text-destructive',
-    purple: 'text-primary',
-    pink: 'text-primary',
-  };
-  if (!color) return 'text-primary';
-  return colorMap[color] || 'text-primary';
-};
+import { useSupportCategories, getCategoryTranslation } from "@/hooks/customer-chat";
+import { 
+  ExistingConversationCard, 
+  CategorySelectionGrid 
+} from "@/components/customer-chat";
 
 interface Attachment {
   id: string;
@@ -232,6 +164,9 @@ export default function CustomerChatPage() {
   // Initialize chatStarted to false - let user choose to continue or start new
   const [chatStarted, setChatStarted] = useState(false);
   
+  // Track when user explicitly starts a new chat (to override existingConversation check)
+  const [forceNewChat, setForceNewChat] = useState(false);
+  
   // Onboarding step: 'category' | 'info' | 'ready'
   // 'category' = show category selection
   // 'info' = show contact info form  
@@ -329,24 +264,8 @@ export default function CustomerChatPage() {
     refetchInterval: chatStarted ? 5000 : false,
   });
 
-  // Fetch support categories from API
-  const { data: apiCategories = [] } = useQuery<SupportCategoryType[]>({
-    queryKey: ['/api/support-categories/public'],
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Transform API categories to component format, with fallback to defaults
-  const SUPPORT_CATEGORIES: CategoryOption[] = apiCategories.length > 0
-    ? apiCategories.map((cat) => ({
-        id: cat.slug,
-        label: cat.name,
-        description: cat.description || '',
-        icon: getIconComponent(cat.icon),
-        color: getColorClass(cat.color),
-        suggestedQuestions: cat.suggestedQuestions || [],
-        aiAgentId: cat.aiAgentId,
-      }))
-    : DEFAULT_CATEGORIES;
+  // Use modular hook for support categories
+  const { categories: SUPPORT_CATEGORIES, getCategoryById } = useSupportCategories();
 
   // Check if conversation is closed and show rating dialog
   useEffect(() => {
@@ -386,7 +305,7 @@ export default function CustomerChatPage() {
 
   // Helper to get selected category info
   const getSelectedCategoryInfo = () => {
-    return SUPPORT_CATEGORIES.find(c => c.id === chatState.selectedCategory);
+    return getCategoryById(chatState.selectedCategory);
   };
 
   // Create customer and conversation
@@ -414,6 +333,7 @@ export default function CustomerChatPage() {
         customerInfo: response.customerInfo,
       }));
       setChatStarted(true);
+      setForceNewChat(false); // Reset flag after conversation is created
       
       // Send the pending message and/or files with IDs from the response
       if (pendingMessage.trim() || pendingFiles.length > 0) {
@@ -637,8 +557,9 @@ export default function CustomerChatPage() {
   };
 
   // Sync state with existing conversation from API (don't auto-start)
+  // Skip sync when forceNewChat is true - user explicitly wants to start fresh
   useEffect(() => {
-    if (existingConversation?.conversationId && !chatState.conversationId) {
+    if (existingConversation?.conversationId && !chatState.conversationId && !forceNewChat) {
       setChatState((prev) => ({
         ...prev,
         conversationId: existingConversation.conversationId,
@@ -647,7 +568,7 @@ export default function CustomerChatPage() {
         customerInfo: existingConversation.customerInfo,
       }));
     }
-  }, [existingConversation]);
+  }, [existingConversation, forceNewChat]);
 
   const handleAskQuestion = async () => {
     console.log(`[HANDLE ASK QUESTION] Called. Question: "${question}", chatStarted: ${chatStarted}`);
@@ -807,6 +728,7 @@ export default function CustomerChatPage() {
     });
     setChatStarted(false);
     setOnboardingStep('category');
+    setForceNewChat(true); // Flag to override existingConversation check
     setQuestion('');
     setSelectedFiles([]);
   };
@@ -1363,91 +1285,28 @@ export default function CustomerChatPage() {
             </div>
           </div>
 
-          {/* Continue Conversation Card - Shows when user has existing conversation */}
-          {(chatState.conversationId || existingConversation?.conversationId) && (
-            <Card className="mb-8 border-primary/20 bg-primary/5">
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <MessageCircle className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold mb-1">{t('chat.continueConversation')}</h3>
-                    {(chatState.customerInfo || existingConversation?.customerInfo) && (
-                      <p className="text-sm text-muted-foreground mb-4">
-                        {t('chat.welcomeBack')}, {chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
-                      </p>
-                    )}
-                    <div className="flex gap-2 flex-wrap">
-                      <Button 
-                        onClick={() => setChatStarted(true)}
-                        data-testid="button-continue-conversation"
-                      >
-                        {t('chat.openChat')}
-                      </Button>
-                      <Button 
-                        onClick={() => {
-                          // Clear localStorage and reset state to start fresh
-                          localStorage.removeItem('customer-chat-state');
-                          setChatState({
-                            conversationId: null,
-                            customerId: null,
-                            sessionId: crypto.randomUUID(),
-                            customerInfo: null,
-                            selectedCategory: null,
-                          });
-                          setOnboardingStep('category');
-                          setQuestion("");
-                          setSelectedFiles([]);
-                        }}
-                        variant="outline"
-                        data-testid="button-new-conversation"
-                      >
-                        {t('chat.startNewChat')}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Continue Conversation Card - Shows when user has existing conversation (but not when forceNewChat is true) */}
+          {!forceNewChat && (chatState.conversationId || existingConversation?.conversationId) && (
+            <ExistingConversationCard
+              customerName={chatState.customerInfo?.name || existingConversation?.customerInfo?.name}
+              onContinue={() => setChatStarted(true)}
+              onStartNew={handleStartNewConversation}
+            />
           )}
 
-          {/* Step 1: Category Selection - Only show when no existing conversation */}
-          {onboardingStep === 'category' && !chatState.conversationId && !existingConversation?.conversationId && (
-            <Card className="mb-8 shadow-lg border-0 bg-card">
-              <CardContent className="p-4 sm:p-6">
-                <div className="text-center mb-6">
-                  <h2 className="text-lg font-semibold mb-2">{t('categories.title')}</h2>
-                  <p className="text-sm text-muted-foreground">{t('categories.subtitle')}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {SUPPORT_CATEGORIES.map((category) => {
-                    const IconComponent = category.icon;
-                    return (
-                      <button
-                        key={category.id}
-                        onClick={() => {
-                          setChatState(prev => ({ ...prev, selectedCategory: category.id }));
-                          setOnboardingStep('info');
-                        }}
-                        className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-transparent bg-muted/50 hover:bg-muted hover:border-primary/30 transition-all text-center"
-                        data-testid={`category-${category.id}`}
-                      >
-                        <div className={cn("h-10 w-10 rounded-full bg-background flex items-center justify-center", category.color)}>
-                          <IconComponent className="h-5 w-5" />
-                        </div>
-                        <span className="font-medium text-sm">{category.label}</span>
-                        <span className="text-xs text-muted-foreground line-clamp-2">{category.description}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Step 1: Category Selection - Show when no existing conversation OR when forceNewChat is true */}
+          {onboardingStep === 'category' && !chatState.conversationId && (forceNewChat || !existingConversation?.conversationId) && (
+            <CategorySelectionGrid
+              categories={SUPPORT_CATEGORIES}
+              onSelect={(categoryId) => {
+                setChatState(prev => ({ ...prev, selectedCategory: categoryId }));
+                setOnboardingStep('info');
+              }}
+            />
           )}
 
           {/* Step 2: Contact Info Collection */}
-          {onboardingStep === 'info' && !chatState.conversationId && !existingConversation?.conversationId && (
+          {onboardingStep === 'info' && !chatState.conversationId && (forceNewChat || !existingConversation?.conversationId) && (
             <Card className="mb-8 shadow-lg border-0 bg-card">
               <CardContent className="p-4 sm:p-6">
                 {/* Show selected category */}
@@ -1483,15 +1342,14 @@ export default function CustomerChatPage() {
                     setOnboardingStep('ready');
                   }}
                   onCancel={() => setOnboardingStep('category')}
-                  submitLabel={t('common.continue')}
-                  cancelLabel={t('common.back')}
+                  bare={true}
                 />
               </CardContent>
             </Card>
           )}
 
           {/* Step 3: Message Input (Ready to chat) */}
-          {onboardingStep === 'ready' && !chatState.conversationId && !existingConversation?.conversationId && (
+          {onboardingStep === 'ready' && !chatState.conversationId && (forceNewChat || !existingConversation?.conversationId) && (
             <>
               {/* Show selected category and customer info */}
               <div className="flex items-center justify-center gap-2 mb-4 flex-wrap">
