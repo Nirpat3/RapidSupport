@@ -1366,8 +1366,8 @@ export default function ChatInterface({
                   }
                 }
               }}
-              className={`resize-none border-0 focus-visible:ring-0 rounded-none min-h-[60px] ${isInternalMode ? "bg-amber-50/50 dark:bg-amber-950/30" : ""}`}
-              rows={2}
+              className={`resize-none border-0 focus-visible:ring-0 rounded-none min-h-[40px] ${isInternalMode ? "bg-amber-50/50 dark:bg-amber-950/30" : ""}`}
+              rows={1}
               data-testid="input-message"
             />
             
