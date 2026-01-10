@@ -6955,6 +6955,42 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Public contact form submission
+  app.post('/api/public/contact', authLimiter, async (req, res) => {
+    try {
+      const contactSchema = z.object({
+        name: z.string().min(1, 'Name is required'),
+        email: z.string().email('Invalid email address'),
+        company: z.string().optional(),
+        subject: z.string().min(1, 'Subject is required'),
+        message: z.string().min(10, 'Message must be at least 10 characters'),
+      });
+      
+      const data = contactSchema.parse(req.body);
+      
+      // Log the contact submission (in production, you'd send an email or store in database)
+      console.log('Contact form submission:', {
+        name: data.name,
+        email: data.email,
+        company: data.company || 'N/A',
+        subject: data.subject,
+        messageLength: data.message.length,
+        timestamp: new Date().toISOString(),
+      });
+      
+      res.status(200).json({ 
+        success: true,
+        message: 'Thank you for contacting us. We will get back to you shortly.' 
+      });
+    } catch (error) {
+      console.error('Contact form error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      res.status(500).json({ error: 'Failed to submit contact form' });
+    }
+  });
+
   // Check organization name/slug availability
   app.post('/api/public/organizations/check-availability', async (req, res) => {
     try {
