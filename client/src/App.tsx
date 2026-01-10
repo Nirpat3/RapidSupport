@@ -57,7 +57,6 @@ import ActivityHubPage from "@/pages/ActivityHubPage";
 import ApiIntegrationPage from "@/pages/ApiIntegrationPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
-import LanguageSuggestionBanner from "@/components/LanguageSuggestionBanner";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -329,7 +328,6 @@ function AppContent() {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <LanguageSuggestionBanner />
           <CustomerChatPage />
           <Toaster />
         </TooltipProvider>
@@ -342,7 +340,6 @@ function AppContent() {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <LanguageSuggestionBanner />
           <CustomerPortalKnowledgeBase />
           <Toaster />
         </TooltipProvider>
@@ -355,7 +352,6 @@ function AppContent() {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <LanguageSuggestionBanner />
           <KnowledgeCategoryPage />
           <Toaster />
         </TooltipProvider>
@@ -416,7 +412,6 @@ function AppContent() {
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <LanguageSuggestionBanner />
           <CustomerPortalRouter />
           <Toaster />
         </TooltipProvider>
