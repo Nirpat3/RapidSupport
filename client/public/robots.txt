@@ -1,7 +1,13 @@
 User-agent: *
 Allow: /
+Allow: /about
+Allow: /pricing
+Allow: /contact
 Allow: /chat
 Allow: /public-knowledge-base
+Allow: /legal/terms-of-service
+Allow: /legal/privacy-policy
+Allow: /legal/cookie-policy
 Allow: /login
 Allow: /register
 Allow: /install-app
@@ -23,5 +29,9 @@ Disallow: /channels
 Disallow: /workspaces
 Disallow: /documentation
 Disallow: /widget-setup
+Disallow: /admin
+Disallow: /platform-admin
+Disallow: /workspace-admin
+Disallow: /legal-policies
 
 Sitemap: /sitemap.xml
