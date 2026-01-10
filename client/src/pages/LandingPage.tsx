@@ -343,12 +343,12 @@ function OrganizationCard({ org, showLoginButton = false }: { org: PublicOrganiz
                 </Button>
               </Link>
             )}
-            <Link href={`/chat/${org.slug}`}>
+            <a href={`/chat/${org.slug}`} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="ghost" className="gap-1">
                 Start Chat
                 <ArrowRight className="w-4 h-4" />
               </Button>
-            </Link>
+            </a>
           </div>
         </div>
       </CardContent>
