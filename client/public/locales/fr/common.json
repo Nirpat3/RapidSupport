@@ -1,4 +1,11 @@
 {
+  "languageSuggestion": {
+    "detected": "Nous avons détecté que vous êtes en {{country}}",
+    "wouldYouLike": "Souhaitez-vous passer à {{language}}?",
+    "switchTo": "Passer à {{language}}",
+    "keepCurrent": "Garder l'anglais",
+    "dontAskAgain": "Ne plus demander"
+  },
   "nav": {
     "home": "Accueil",
     "chat": "Chat",

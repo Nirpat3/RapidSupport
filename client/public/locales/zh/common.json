@@ -1,4 +1,11 @@
 {
+  "languageSuggestion": {
+    "detected": "我们检测到您在{{country}}",
+    "wouldYouLike": "您想切换到{{language}}吗？",
+    "switchTo": "切换到{{language}}",
+    "keepCurrent": "保持英语",
+    "dontAskAgain": "不再询问"
+  },
   "nav": {
     "home": "首页",
     "chat": "聊天",

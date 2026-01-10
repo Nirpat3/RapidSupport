@@ -1,4 +1,11 @@
 {
+  "languageSuggestion": {
+    "detected": "અમને ખબર પડી કે તમે {{country}} માં છો",
+    "wouldYouLike": "શું તમે {{language}} માં બદલવા માંગો છો?",
+    "switchTo": "{{language}} માં બદલો",
+    "keepCurrent": "અંગ્રેજી રાખો",
+    "dontAskAgain": "ફરીથી ન પૂછો"
+  },
   "nav": {
     "home": "હોમ",
     "chat": "ચેટ",
