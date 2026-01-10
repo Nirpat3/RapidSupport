@@ -974,18 +974,6 @@ export default function CustomerChatPage() {
 
         {/* Messages Area */}
         <div className="flex-1 relative overflow-hidden">
-          {/* Scroll to bottom button - positioned above input area */}
-          {showScrollToBottom && (
-            <Button
-              size="icon"
-              variant="secondary"
-              className="absolute bottom-4 right-4 z-50 rounded-full shadow-lg animate-in fade-in slide-in-from-bottom-2"
-              onClick={scrollToBottom}
-              data-testid="button-scroll-to-bottom"
-            >
-              <ArrowDown className="h-4 w-4" />
-            </Button>
-          )}
           <ScrollArea className="h-full" ref={scrollAreaRef}>
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 max-w-3xl">
             <div className="space-y-4">
@@ -1093,6 +1081,22 @@ export default function CustomerChatPage() {
           </div>
           </ScrollArea>
         </div>
+
+        {/* Scroll to bottom button - positioned above input */}
+        {showScrollToBottom && (
+          <div className="flex justify-center py-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="rounded-full shadow-lg gap-2 animate-in fade-in slide-in-from-bottom-2"
+              onClick={scrollToBottom}
+              data-testid="button-scroll-to-bottom"
+            >
+              <ArrowDown className="h-4 w-4" />
+              Scroll to latest
+            </Button>
+          </div>
+        )}
 
         {/* Input Area */}
         <div className="border-t bg-card/80 backdrop-blur-sm sticky bottom-0">
