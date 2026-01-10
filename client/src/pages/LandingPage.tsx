@@ -545,27 +545,27 @@ export default function LandingPage() {
               <h4 className="font-semibold mb-4">Product</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li><a href="#features" className="hover:text-foreground transition-colors">Features</a></li>
-                <li><a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Integrations</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">API</a></li>
+                <li><Link href="/pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
+                <li><a href="#features" className="hover:text-foreground transition-colors">Integrations</a></li>
+                <li><Link href="/api-docs" className="hover:text-foreground transition-colors">API</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Company</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition-colors">About</a></li>
+                <li><Link href="/about" className="hover:text-foreground transition-colors">About</Link></li>
                 <li><a href="#" className="hover:text-foreground transition-colors">Blog</a></li>
                 <li><a href="#" className="hover:text-foreground transition-colors">Careers</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Contact</a></li>
+                <li><Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Legal</h4>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Terms of Service</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">Security</a></li>
-                <li><a href="#" className="hover:text-foreground transition-colors">GDPR</a></li>
+                <li><Link href="/legal/privacy-policy" className="hover:text-foreground transition-colors">Privacy Policy</Link></li>
+                <li><Link href="/legal/terms-of-service" className="hover:text-foreground transition-colors">Terms of Service</Link></li>
+                <li><Link href="/legal/privacy-policy" className="hover:text-foreground transition-colors">Security</Link></li>
+                <li><Link href="/legal/privacy-policy?region=eu" className="hover:text-foreground transition-colors">GDPR</Link></li>
               </ul>
             </div>
           </div>

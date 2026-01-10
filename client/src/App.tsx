@@ -78,6 +78,7 @@ const AdministrationHubPage = lazy(() => import("@/pages/AdministrationHubPage")
 const ActivityHubPage = lazy(() => import("@/pages/ActivityHubPage"));
 const ApiIntegrationPage = lazy(() => import("@/pages/ApiIntegrationPage"));
 const LegalPoliciesPage = lazy(() => import("@/pages/LegalPoliciesPage"));
+const PublicLegalPage = lazy(() => import("@/pages/PublicLegalPage"));
 
 function Router() {
   return (
@@ -340,6 +341,7 @@ function AppContent() {
   const isAboutPage = pathname === '/about';
   const isPricingPage = pathname === '/pricing';
   const isContactPage = pathname === '/contact';
+  const isLegalPage = pathname.startsWith('/legal/');
   const isOrgChatPage = pathname.startsWith('/chat/') && pathname !== '/chat';
   const isKnowledgeBasePage = pathname === '/knowledge-base';
   const isKnowledgeCategoryPage = pathname.startsWith('/knowledge-base/category/');
@@ -398,6 +400,19 @@ function AppContent() {
         <TooltipProvider>
           <Suspense fallback={<PageLoader />}>
             <ContactPage />
+          </Suspense>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  if (isLegalPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Suspense fallback={<PageLoader />}>
+            <PublicLegalPage />
           </Suspense>
           <Toaster />
         </TooltipProvider>
