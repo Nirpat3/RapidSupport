@@ -617,7 +617,7 @@ Guidelines:
         },
         {
           role: 'user',
-          content: `Analyze and identify atomic document boundaries:\n\nFilename: ${uploadedFile.originalName}\n\nContent:\n${documentContent.content.substring(0, 20000)}`
+          content: `Analyze and identify atomic document boundaries:\n\nFilename: ${uploadedFile.originalName}\n\nContent:\n${documentContent.text.substring(0, 20000)}`
         }
       ],
       temperature: 0.2,
@@ -706,7 +706,7 @@ Guidelines:
     // Phase 2: Generate each atomic document with section-specific content slicing
     const atomicDocs: (AtomicDocument & { domainId?: string | null; intentId?: string | null })[] = [];
     const progressPerDoc = 40 / sections.length;
-    const fullContent = documentContent.content;
+    const fullContent = documentContent.text;
 
     for (let i = 0; i < sections.length; i++) {
       const section = sections[i];
