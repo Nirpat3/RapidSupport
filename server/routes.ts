@@ -982,6 +982,55 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Register modular auth routes (staff login/logout, customer portal auth)
   registerAuthRoutes({ app, httpServer: null as any, wsServer: null as any });
 
+  // Geolocation detection endpoint for language suggestions
+  app.get('/api/geo/detect', async (req, res) => {
+    try {
+      // Try to get country from various headers that might be set by CDN/proxy
+      const cfCountry = req.headers['cf-ipcountry'] as string;
+      const xCountry = req.headers['x-country-code'] as string;
+      const xVercelCountry = req.headers['x-vercel-ip-country'] as string;
+      
+      // Check headers first (most reliable if behind CDN)
+      if (cfCountry && cfCountry !== 'XX') {
+        return res.json({ countryCode: cfCountry.toUpperCase(), source: 'cloudflare' });
+      }
+      if (xCountry) {
+        return res.json({ countryCode: xCountry.toUpperCase(), source: 'proxy' });
+      }
+      if (xVercelCountry) {
+        return res.json({ countryCode: xVercelCountry.toUpperCase(), source: 'vercel' });
+      }
+
+      // Get client IP
+      const forwardedFor = req.headers['x-forwarded-for'] as string;
+      const clientIp = forwardedFor ? forwardedFor.split(',')[0].trim() : req.ip;
+      
+      // Skip lookup for localhost/private IPs
+      if (!clientIp || clientIp === '127.0.0.1' || clientIp === '::1' || clientIp.startsWith('192.168.') || clientIp.startsWith('10.')) {
+        return res.json({ countryCode: null, source: 'local' });
+      }
+
+      // Use ip-api.com for free IP geolocation (limited to 45 req/min)
+      try {
+        const response = await fetch(`http://ip-api.com/json/${clientIp}?fields=countryCode`);
+        if (response.ok) {
+          const data = await response.json() as { countryCode?: string };
+          if (data.countryCode) {
+            return res.json({ countryCode: data.countryCode.toUpperCase(), source: 'ip-api' });
+          }
+        }
+      } catch (error) {
+        console.error('[Geo] IP lookup failed:', error);
+      }
+
+      // Fallback: return null
+      res.json({ countryCode: null, source: 'unknown' });
+    } catch (error) {
+      console.error('[Geo] Detection error:', error);
+      res.status(500).json({ error: 'Failed to detect location' });
+    }
+  });
+
   // Customer portal stats
   app.get('/api/customer-portal/stats', async (req, res) => {
     try {
