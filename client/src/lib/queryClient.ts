@@ -65,24 +65,33 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+const STALE_TIMES = {
+  realtime: 1000 * 30,
+  frequent: 1000 * 60 * 2,
+  standard: 1000 * 60 * 5,
+  static: 1000 * 60 * 30,
+  stable: Infinity,
+};
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      staleTime: STALE_TIMES.standard,
+      gcTime: 1000 * 60 * 10,
       retry: (failureCount, error) => {
-        // Don't retry on 4xx errors (client errors)
         if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
           return false;
         }
-        // Retry up to 3 times for network errors and 5xx errors
         return failureCount < 3;
       },
     },
     mutations: {
-      retry: false, // TEMPORARILY DISABLED FOR DEBUGGING - was causing 3x AI responses
+      retry: false,
     },
   },
 });
+
+export { STALE_TIMES };
