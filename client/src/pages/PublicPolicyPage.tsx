@@ -75,30 +75,26 @@ export default function PublicPolicyPage() {
   const [selectedRegion, setSelectedRegion] = useState('global');
 
   const { data: organization } = useQuery<Organization>({
-    queryKey: ['/api/public/organizations/slug', slug],
-    queryFn: async () => {
-      if (!slug) return null;
-      const res = await fetch(`/api/public/organizations/slug/${slug}`);
-      if (!res.ok) return null;
-      return res.json();
-    },
+    queryKey: ['/api/public/organizations/slug', slug] as const,
     enabled: !!slug
   });
 
+  const policyUrl = slug 
+    ? `/api/public/org/${slug}/policies/${policyType}?region=${selectedRegion}`
+    : `/api/public/policies/${policyType}?region=${selectedRegion}`;
+
   const { data: policy, isLoading, error } = useQuery<LegalPolicy>({
-    queryKey: ['/api/public', slug ? `org/${slug}` : '', 'policies', policyType, selectedRegion],
+    queryKey: ['/api/public/policies', slug || 'platform', policyType, selectedRegion] as const,
     queryFn: async () => {
-      const baseUrl = slug 
-        ? `/api/public/org/${slug}/policies/${policyType}` 
-        : `/api/public/policies/${policyType}`;
-      const res = await fetch(`${baseUrl}?region=${selectedRegion}`);
+      const res = await fetch(policyUrl);
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({ error: 'Policy not found' }));
         throw new Error(err.error || 'Policy not found');
       }
       return res.json();
     },
-    enabled: !!policyType
+    enabled: !!policyType,
+    staleTime: 5 * 60 * 1000
   });
 
   const Icon = POLICY_ICONS[policyType] || FileText;
