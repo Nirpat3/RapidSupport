@@ -378,8 +378,10 @@ export interface IStorage {
   getWorkspaceMember(id: string): Promise<WorkspaceMember | undefined>;
   getWorkspaceMembersByWorkspace(workspaceId: string): Promise<WorkspaceMember[]>;
   getWorkspaceMembersByUser(userId: string): Promise<WorkspaceMember[]>;
+  getWorkspaceMemberByUserAndWorkspace(userId: string, workspaceId: string): Promise<WorkspaceMember | undefined>;
   getUserWorkspaces(userId: string): Promise<Array<{ workspace: Workspace; membership: WorkspaceMember }>>;
   addWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember>;
+  createWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember>;
   updateWorkspaceMember(id: string, updates: Partial<InsertWorkspaceMember>): Promise<WorkspaceMember>;
   removeWorkspaceMember(id: string): Promise<void>;
 
@@ -2651,6 +2653,21 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getWorkspaceMemberByUserAndWorkspace(userId: string, workspaceId: string): Promise<WorkspaceMember | undefined> {
+    try {
+      const [member] = await db.select().from(workspaceMembers).where(
+        and(
+          eq(workspaceMembers.userId, userId),
+          eq(workspaceMembers.workspaceId, workspaceId)
+        )
+      );
+      return member || undefined;
+    } catch (error) {
+      console.error('Error fetching workspace member by user and workspace:', error);
+      return undefined;
+    }
+  }
+
   async getUserWorkspaces(userId: string): Promise<Array<{ workspace: Workspace; membership: WorkspaceMember }>> {
     try {
       const memberships = await db.select().from(workspaceMembers).where(and(
@@ -2680,6 +2697,10 @@ export class DatabaseStorage implements IStorage {
       console.error('Error adding workspace member:', error);
       throw error;
     }
+  }
+
+  async createWorkspaceMember(member: InsertWorkspaceMember): Promise<WorkspaceMember> {
+    return this.addWorkspaceMember(member);
   }
 
   async updateWorkspaceMember(id: string, updates: Partial<InsertWorkspaceMember>): Promise<WorkspaceMember> {

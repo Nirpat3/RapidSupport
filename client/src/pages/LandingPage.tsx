@@ -373,8 +373,8 @@ function StaffLoginForm({ onSuccess }: { onSuccess: () => void }) {
         description: `Welcome back!`,
       });
       
-      if (data.workspaces && data.workspaces.length > 1) {
-        window.location.href = '/workspace-select';
+      if (data.redirectTo) {
+        window.location.href = data.redirectTo;
       } else {
         onSuccess();
       }

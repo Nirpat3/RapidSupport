@@ -1972,6 +1972,73 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get current user's workspaces (for workspace selection after login)
+  app.get('/api/users/me/workspaces', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+      
+      // Get workspace memberships for this user
+      const memberships = await storage.getWorkspaceMembersByUser(user.id);
+      
+      // Enrich with workspace and organization details
+      const workspacesWithDetails = await Promise.all(
+        memberships
+          .filter(m => m.status === 'active')
+          .map(async (membership) => {
+            const workspace = await storage.getWorkspace(membership.workspaceId);
+            if (!workspace) return null;
+            
+            const organization = await storage.getOrganization(workspace.organizationId);
+            
+            return {
+              id: workspace.id,
+              name: workspace.name,
+              slug: workspace.slug,
+              description: workspace.description,
+              role: membership.role,
+              organizationName: organization?.name || 'Unknown',
+              organizationId: workspace.organizationId,
+              joinedAt: membership.joinedAt,
+            };
+          })
+      );
+      
+      res.json(workspacesWithDetails.filter(Boolean));
+    } catch (error) {
+      console.error('Failed to fetch user workspaces:', error);
+      res.status(500).json({ error: 'Failed to fetch workspaces' });
+    }
+  });
+
+  // Select a workspace for the current session
+  app.post('/api/users/me/select-workspace', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { workspaceId } = req.body;
+      
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'Workspace ID is required' });
+      }
+      
+      // Verify user has access to this workspace
+      const membership = await storage.getWorkspaceMemberByUserAndWorkspace(user.id, workspaceId);
+      if (!membership || membership.status !== 'active') {
+        return res.status(403).json({ error: 'You do not have access to this workspace' });
+      }
+      
+      // Store selected workspace in session
+      (req.session as any).selectedWorkspaceId = workspaceId;
+      
+      res.json({ success: true, workspaceId });
+    } catch (error) {
+      console.error('Failed to select workspace:', error);
+      res.status(500).json({ error: 'Failed to select workspace' });
+    }
+  });
+
   // Get single user by ID (admin only)
   app.get('/api/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
     try {

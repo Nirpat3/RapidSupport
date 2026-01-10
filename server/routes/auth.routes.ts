@@ -8,7 +8,7 @@ import { authLimiter, csrfProtection } from './shared';
 
 export function registerAuthRoutes({ app }: RouteContext) {
   app.post('/api/auth/login', authLimiter, csrfProtection, (req, res, next) => {
-    passport.authenticate('local', (err: any, user: any, info: any) => {
+    passport.authenticate('local', async (err: any, user: any, info: any) => {
       if (err) {
         return res.status(500).json({ error: 'Authentication error' });
       }
@@ -16,16 +16,31 @@ export function registerAuthRoutes({ app }: RouteContext) {
         return res.status(401).json({ error: info?.message || 'Invalid credentials' });
       }
       
-      req.session.regenerate((regenerateErr: any) => {
+      req.session.regenerate(async (regenerateErr: any) => {
         if (regenerateErr) {
           console.error('Session regeneration error:', regenerateErr);
           return res.status(500).json({ error: 'Session regeneration failed' });
         }
         
-        req.logIn(user, (loginErr) => {
+        req.logIn(user, async (loginErr) => {
           if (loginErr) {
             console.error('Login error:', loginErr);
             return res.status(500).json({ error: 'Login failed' });
+          }
+          
+          // Fetch user's workspaces to determine routing
+          let workspaces: Array<{ id: string; name: string; role: string }> = [];
+          try {
+            const memberships = await storage.getWorkspaceMembersByUser(user.id);
+            const activeMembers = memberships.filter(m => m.status === 'active');
+            workspaces = await Promise.all(
+              activeMembers.map(async (m) => {
+                const ws = await storage.getWorkspace(m.workspaceId);
+                return ws ? { id: ws.id, name: ws.name, role: m.role } : null;
+              })
+            ).then(results => results.filter(Boolean) as Array<{ id: string; name: string; role: string }>);
+          } catch (wsErr) {
+            console.error('Error fetching workspaces:', wsErr);
           }
           
           req.session.save((saveErr) => {
@@ -34,8 +49,22 @@ export function registerAuthRoutes({ app }: RouteContext) {
               return res.status(500).json({ error: 'Session save failed' });
             }
             
-            console.log('✅ Login successful:', user.email, '| Session ID:', req.sessionID);
-            res.json({ user, message: 'Login successful' });
+            console.log('✅ Login successful:', user.email, '| Session ID:', req.sessionID, '| Workspaces:', workspaces.length);
+            
+            // Determine redirect based on role and workspace count
+            let redirectTo = '/dashboard';
+            if (workspaces.length > 1) {
+              redirectTo = '/workspace-select';
+            } else if (user.role === 'agent') {
+              redirectTo = '/conversations';
+            }
+            
+            res.json({ 
+              user, 
+              workspaces,
+              redirectTo,
+              message: 'Login successful' 
+            });
           });
         });
       });
