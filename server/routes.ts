@@ -333,23 +333,28 @@ const upload = multer({
     fieldNameSize: 100 // Field name size limit
   },
   fileFilter: function (req, file, cb) {
-    // Strict allowlist of supported document and image types
+    // Allowlist of supported document and image MIME types
     const allowedMimes = [
       'application/pdf',
       'text/plain',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
+      'application/octet-stream', // Browsers sometimes send this for DOCX
+      'application/zip', // DOCX is a ZIP format
       'image/jpeg',
       'image/png',
       'image/gif',
       'image/webp'
     ];
     
-    // Validate file extension matches MIME type
+    // Validate file extension
     const fileExt = file.originalname.toLowerCase().split('.').pop();
     const validExtensions = ['pdf', 'txt', 'docx', 'doc', 'jpg', 'jpeg', 'png', 'gif', 'webp'];
     
-    if (allowedMimes.includes(file.mimetype) && fileExt && validExtensions.includes(fileExt)) {
+    // Accept if extension is valid (even if MIME type is generic like octet-stream)
+    if (fileExt && validExtensions.includes(fileExt)) {
+      cb(null, true);
+    } else if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
       const error = new Error(`Unsupported file type: ${file.mimetype}. Only PDF, TXT, DOCX, and image files are supported.`);

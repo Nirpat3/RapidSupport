@@ -54,8 +54,27 @@ export class DocumentProcessor {
    */
   static async extractText(filePath: string, originalName: string, mimeType: string): Promise<DocumentContent> {
     const fileSize = fs.statSync(filePath).size;
+    const ext = originalName.toLowerCase().split('.').pop();
     
     try {
+      // Check by extension first as browsers may report inconsistent MIME types
+      if (ext === 'txt') {
+        return await this.extractTextFromPlainText(filePath, originalName, fileSize);
+      }
+      
+      if (ext === 'pdf') {
+        return await this.extractTextFromPDF(filePath, originalName, fileSize);
+      }
+      
+      if (ext === 'docx') {
+        return await this.extractTextFromWord(filePath, originalName, fileSize);
+      }
+      
+      if (ext === 'doc') {
+        throw new Error('Legacy .doc files are not supported. Please convert to .docx format.');
+      }
+      
+      // Fall back to MIME type if extension doesn't match known types
       switch (mimeType) {
         case 'text/plain':
           return await this.extractTextFromPlainText(filePath, originalName, fileSize);
@@ -70,7 +89,7 @@ export class DocumentProcessor {
           throw new Error('Legacy .doc files are not supported. Please convert to .docx format.');
         
         default:
-          throw new Error(`Unsupported document type: ${mimeType}`);
+          throw new Error(`Unsupported document type: ${mimeType} (extension: ${ext})`);
       }
     } catch (error) {
       console.error(`Error extracting text from ${originalName}:`, error);
