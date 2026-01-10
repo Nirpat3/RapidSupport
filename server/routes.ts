@@ -796,6 +796,12 @@ Guidelines:
           ? ['member', 'admin'] 
           : ['member', 'admin', 'viewer'];
 
+      // Ensure tags and aiActions are proper arrays
+      const safeTags = Array.isArray(atomicDoc.tags) ? atomicDoc.tags : 
+        (typeof atomicDoc.tags === 'string' ? [atomicDoc.tags] : []);
+      const safeAiActions = Array.isArray(atomicDoc.aiActions) ? atomicDoc.aiActions :
+        (typeof atomicDoc.aiActions === 'string' ? [atomicDoc.aiActions] : undefined);
+
       // Create the document with correct schema fields and resolved taxonomy IDs
       const document = await storage.createDocument({
         workspaceId,
@@ -807,9 +813,9 @@ Guidelines:
         status: 'draft',
         isPublic,
         roleAccess,
-        tags: atomicDoc.tags,
+        tags: safeTags,
         createdBy: userId,
-        aiActions: atomicDoc.aiActions,
+        aiActions: safeAiActions,
       });
 
       // Create the version with correct schema fields (markdownBody, frontMatter)
