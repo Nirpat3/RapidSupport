@@ -126,6 +126,50 @@ export const brandConfig = pgTable("brand_config", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Legal Policies - Region-specific terms, privacy, cookie policies
+export const legalPolicies = pgTable("legal_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Organization scope (null = platform-wide default)
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  
+  // Policy type
+  type: text("type").notNull(), // 'terms' | 'privacy' | 'cookies'
+  
+  // Region targeting
+  region: text("region").notNull().default("global"), // 'us' | 'eu' | 'uk' | 'caribbean' | 'global' etc.
+  
+  // Content
+  title: text("title").notNull(),
+  content: text("content").notNull(), // Full policy content (markdown)
+  summary: text("summary"), // Brief summary of the policy
+  
+  // Versioning
+  version: text("version").notNull().default("1.0"),
+  effectiveDate: timestamp("effective_date").notNull().defaultNow(),
+  
+  // Generation metadata
+  generatedByAi: boolean("generated_by_ai").notNull().default(false),
+  aiModel: text("ai_model"), // e.g., 'gpt-5'
+  generationPrompt: text("generation_prompt"), // Store prompt used for regeneration
+  
+  // Status
+  status: text("status").notNull().default("draft"), // 'draft' | 'published' | 'archived'
+  publishedAt: timestamp("published_at"),
+  publishedBy: varchar("published_by").references(() => users.id),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+}, (table) => ({
+  uniqueOrgTypeRegion: unique().on(table.organizationId, table.type, table.region),
+}));
+
+export const insertLegalPolicySchema = createInsertSchema(legalPolicies).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertLegalPolicy = z.infer<typeof insertLegalPolicySchema>;
+export type LegalPolicy = typeof legalPolicies.$inferSelect;
+
 // Users table - for agents and admins
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
