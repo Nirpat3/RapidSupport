@@ -3,7 +3,7 @@
     "detected": "हमने पता लगाया कि आप {{country}} में हैं",
     "wouldYouLike": "क्या आप {{language}} में बदलना चाहेंगे?",
     "switchTo": "{{language}} में बदलें",
-    "keepCurrent": "अंग्रेजी रखें",
+    "keepCurrent": "{{language}} रखें",
     "dontAskAgain": "दोबारा मत पूछो"
   },
   "nav": {

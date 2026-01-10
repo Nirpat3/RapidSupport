@@ -3,7 +3,7 @@
     "detected": "Wir haben erkannt, dass Sie sich in {{country}} befinden",
     "wouldYouLike": "Möchten Sie zu {{language}} wechseln?",
     "switchTo": "Zu {{language}} wechseln",
-    "keepCurrent": "Englisch behalten",
+    "keepCurrent": "{{language}} behalten",
     "dontAskAgain": "Nicht erneut fragen"
   },
   "nav": {

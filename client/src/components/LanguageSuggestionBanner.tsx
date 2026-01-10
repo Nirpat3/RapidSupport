@@ -11,6 +11,7 @@ import {
 
 const STORAGE_KEY = 'language-suggestion-dismissed';
 const COUNTRY_STORAGE_KEY = 'detected-country-code';
+const USER_SELECTED_LANGUAGE_KEY = 'language-user-selected';
 
 interface GeoResponse {
   countryCode: string | null;
@@ -30,8 +31,8 @@ export default function LanguageSuggestionBanner() {
         return;
       }
 
-      const userHasChosen = localStorage.getItem('i18nextLng');
-      if (userHasChosen) {
+      const userHasExplicitlyChosen = localStorage.getItem(USER_SELECTED_LANGUAGE_KEY);
+      if (userHasExplicitlyChosen === 'true') {
         return;
       }
 
@@ -84,12 +85,14 @@ export default function LanguageSuggestionBanner() {
     if (suggestedLanguage) {
       i18n.changeLanguage(suggestedLanguage);
       localStorage.setItem('i18nextLng', suggestedLanguage);
+      localStorage.setItem(USER_SELECTED_LANGUAGE_KEY, 'true');
     }
     setShow(false);
   };
 
   const handleKeepCurrent = () => {
     localStorage.setItem('i18nextLng', i18n.language);
+    localStorage.setItem(USER_SELECTED_LANGUAGE_KEY, 'true');
     setShow(false);
   };
 
