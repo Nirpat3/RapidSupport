@@ -40,6 +40,7 @@ import { AnonymousCustomer } from "@shared/schema";
 import { renderFormattedContent } from "@/components/ChatMessage";
 
 import { ExistingConversationCard } from "@/components/customer-chat";
+import { useSupportCategories, type CategoryOption } from "@/hooks/customer-chat";
 
 interface Attachment {
   id: string;
@@ -77,6 +78,7 @@ interface ChatState {
   customerId: string | null;
   sessionId: string;
   customerInfo: AnonymousCustomer | null;
+  selectedCategory: string | null;
 }
 
 interface ConversationDetails {
@@ -141,6 +143,7 @@ export default function CustomerChatPage() {
           customerId: parsed.customerId || null,
           sessionId: parsed.sessionId || crypto.randomUUID(),
           customerInfo: parsed.customerInfo || null,
+          selectedCategory: parsed.selectedCategory || null,
         };
       } catch (e) {
         console.error('Failed to parse saved chat state:', e);
@@ -151,6 +154,7 @@ export default function CustomerChatPage() {
       customerId: null,
       sessionId: crypto.randomUUID(),
       customerInfo: null,
+      selectedCategory: null,
     };
   });
 
@@ -256,6 +260,9 @@ export default function CustomerChatPage() {
     refetchInterval: chatStarted ? 5000 : false,
   });
 
+  // Use modular hook for support categories
+  const { categories: SUPPORT_CATEGORIES, getCategoryById, mostPopularCategory } = useSupportCategories();
+
   // Check if conversation is closed and show rating dialog
   useEffect(() => {
     console.log('[CustomerChatPage] Conversation details:', conversationDetails);
@@ -292,13 +299,24 @@ export default function CustomerChatPage() {
     }
   }, [conversationDetails?.status, chatState.conversationId]);
 
+  // Helper to get selected category info
+  const getSelectedCategoryInfo = () => {
+    return getCategoryById(chatState.selectedCategory);
+  };
+
   // Create customer and conversation
   const createCustomerMutation = useMutation<CreateCustomerResponse, Error, AnonymousCustomer>({
     mutationFn: async (customerData: AnonymousCustomer) => {
+      const selectedCategory = getSelectedCategoryInfo();
       const response = await apiRequest('/api/customer-chat/create-customer', 'POST', {
         ...customerData,
         ipAddress: '',
         sessionId: chatState.sessionId,
+        contextData: {
+          selectedCategory: chatState.selectedCategory,
+          categoryLabel: selectedCategory?.label,
+          aiAgentId: selectedCategory?.aiAgentId,
+        },
       });
       return response;
     },
@@ -728,6 +746,7 @@ export default function CustomerChatPage() {
       customerId: null,
       sessionId: crypto.randomUUID(),
       customerInfo: null,
+      selectedCategory: null,
     });
     setChatStarted(false);
     setOnboardingStep('info');
@@ -1409,6 +1428,50 @@ export default function CustomerChatPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Support Categories */}
+              <div className="px-4 mb-6">
+                <p className="text-center text-sm text-muted-foreground mb-3">
+                  Select a topic to help us assist you better
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {SUPPORT_CATEGORIES.map((category) => {
+                    const IconComponent = category.icon;
+                    const isSelected = chatState.selectedCategory === category.id;
+                    const isMostPopular = mostPopularCategory?.id === category.id;
+                    return (
+                      <Button
+                        key={category.id}
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setChatState(prev => ({ 
+                          ...prev, 
+                          selectedCategory: isSelected ? null : category.id 
+                        }))}
+                        className={cn(
+                          "rounded-full gap-1.5 transition-all",
+                          isSelected && "ring-2 ring-primary/20",
+                          isMostPopular && !isSelected && "border-primary/50"
+                        )}
+                        data-testid={`category-${category.id}`}
+                      >
+                        <IconComponent className="h-3.5 w-3.5" />
+                        {category.label}
+                        {isMostPopular && (
+                          <Badge variant="secondary" className="ml-1 h-4 text-[10px] px-1.5 py-0">
+                            Popular
+                          </Badge>
+                        )}
+                      </Button>
+                    );
+                  })}
+                </div>
+                {chatState.selectedCategory && (
+                  <p className="text-center text-xs text-muted-foreground mt-2">
+                    {getCategoryById(chatState.selectedCategory)?.description}
+                  </p>
+                )}
+              </div>
 
               {/* Suggested Questions */}
               <div className="px-4">
