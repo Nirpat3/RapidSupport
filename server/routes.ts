@@ -1030,7 +1030,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
-  // Customer portal all conversations
+  // Customer portal all conversations - supports organization-based filtering for admins
   app.get('/api/customer-portal/conversations', async (req, res) => {
     try {
       const customerId = (req.session as any).customerId;
@@ -1040,7 +1040,21 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(401).json({ error: 'Not authenticated' });
       }
 
-      const conversations = await storage.getConversationsByCustomer(customerId);
+      // Get current customer to check organization membership and role
+      const customer = await storage.getCustomer(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+
+      let conversations;
+      
+      // If customer is an org admin, get all organization conversations
+      // Otherwise, get only their own conversations
+      if (customer.customerOrganizationId && customer.customerOrgRole === 'admin') {
+        conversations = await storage.getConversationsByCustomerOrganization(customer.customerOrganizationId);
+      } else {
+        conversations = await storage.getConversationsByCustomer(customerId);
+      }
       
       // Get unread counts for all customer conversations
       const unreadCounts = await storage.getUnreadMessageCountsPerConversation(customerId);
@@ -1056,6 +1070,16 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         const agent = await storage.getUser(agentId);
         if (agent) {
           agentMap.set(agentId, { name: agent.name || 'Support Agent' });
+        }
+      }
+
+      // Get customer info for organization-wide conversations (when admin views others' conversations)
+      const customerIds = [...new Set(conversations.map(c => c.customerId))];
+      const customerMap = new Map<string, { name: string; email: string }>();
+      for (const cId of customerIds) {
+        const c = await storage.getCustomer(cId);
+        if (c) {
+          customerMap.set(cId, { name: c.name, email: c.email });
         }
       }
       
@@ -1083,6 +1107,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           unreadCount: unreadMap.get(conv.id) || 0,
           assignedAgentId: conv.assignedAgentId || null,
           assignedAgentName: conv.assignedAgentId ? agentMap.get(conv.assignedAgentId)?.name || 'Support Agent' : null,
+          // Include customer info for org admins viewing all conversations
+          customerId: conv.customerId,
+          customerName: customerMap.get(conv.customerId)?.name || 'Unknown',
+          customerEmail: customerMap.get(conv.customerId)?.email || '',
+          isOwnConversation: conv.customerId === customerId,
         }));
 
       res.json(allConversations);
@@ -1655,6 +1684,109 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(400).json({ error: error.errors[0]?.message || 'Invalid request data' });
       }
       res.status(500).json({ error: 'Failed to send message' });
+    }
+  });
+
+  // Get customer organization info (for portal users)
+  app.get('/api/customer-portal/organization', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const customer = await storage.getCustomer(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: 'Customer not found' });
+      }
+
+      if (!customer.customerOrganizationId) {
+        return res.json({ hasOrganization: false });
+      }
+
+      const org = await storage.getCustomerOrganization(customer.customerOrganizationId);
+      if (!org) {
+        return res.json({ hasOrganization: false });
+      }
+
+      // Get organization members if user is admin
+      let members: any[] = [];
+      if (customer.customerOrgRole === 'admin') {
+        const orgCustomers = await storage.getCustomersByOrganization(customer.customerOrganizationId);
+        members = orgCustomers.map(c => ({
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          role: c.customerOrgRole,
+          isCurrentUser: c.id === customerId,
+        }));
+      }
+
+      res.json({
+        hasOrganization: true,
+        organization: {
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          supportId: org.supportId,
+          requireSupportId: org.requireSupportId,
+        },
+        role: customer.customerOrgRole,
+        isAdmin: customer.customerOrgRole === 'admin',
+        members: customer.customerOrgRole === 'admin' ? members : undefined,
+      });
+    } catch (error) {
+      console.error('Get customer organization error:', error);
+      res.status(500).json({ error: 'Failed to get organization info' });
+    }
+  });
+
+  // Update customer organization member role (admin only)
+  app.put('/api/customer-portal/organization/members/:memberId/role', async (req, res) => {
+    try {
+      const customerId = (req.session as any).customerId;
+      const userType = (req.session as any).userType;
+      const { memberId } = req.params;
+
+      if (!customerId || userType !== 'customer') {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+
+      const customer = await storage.getCustomer(customerId);
+      if (!customer || !customer.customerOrganizationId || customer.customerOrgRole !== 'admin') {
+        return res.status(403).json({ error: 'Not authorized - admin role required' });
+      }
+
+      const roleData = z.object({
+        role: z.enum(['admin', 'member']),
+      }).parse(req.body);
+
+      // Verify the member belongs to the same organization
+      const member = await storage.getCustomer(memberId);
+      if (!member || member.customerOrganizationId !== customer.customerOrganizationId) {
+        return res.status(404).json({ error: 'Member not found in organization' });
+      }
+
+      // Prevent removing the last admin
+      if (roleData.role === 'member' && member.customerOrgRole === 'admin') {
+        const orgMembers = await storage.getCustomersByOrganization(customer.customerOrganizationId);
+        const adminCount = orgMembers.filter(m => m.customerOrgRole === 'admin').length;
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: 'Cannot remove the last admin from the organization' });
+        }
+      }
+
+      await storage.updateCustomerOrganizationMembership(memberId, customer.customerOrganizationId, roleData.role);
+
+      res.json({ message: 'Member role updated successfully' });
+    } catch (error) {
+      console.error('Update member role error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
+      res.status(500).json({ error: 'Failed to update member role' });
     }
   });
 

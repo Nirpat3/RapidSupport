@@ -1,6 +1,7 @@
 import {
   users,
   customers,
+  customerOrganizations,
   conversations,
   messages,
   notifications,
@@ -55,6 +56,8 @@ import {
   type UpdateDepartment,
   type DepartmentMember,
   type InsertDepartmentMember,
+  type CustomerOrganization,
+  type InsertCustomerOrganization,
   type Customer,
   type InsertCustomer,
   type BrandConfig,
@@ -232,11 +235,21 @@ export interface IStorage {
   getAllAgents(): Promise<User[]>;
   getAllUsers(): Promise<User[]>;
 
+  // Customer Organization operations (business accounts for customer portal)
+  getCustomerOrganization(id: string): Promise<CustomerOrganization | undefined>;
+  getCustomerOrganizationBySlug(slug: string): Promise<CustomerOrganization | undefined>;
+  getCustomerOrganizationBySupportId(supportId: string): Promise<CustomerOrganization | undefined>;
+  createCustomerOrganization(org: InsertCustomerOrganization): Promise<CustomerOrganization>;
+  updateCustomerOrganization(id: string, updates: Partial<InsertCustomerOrganization>): Promise<CustomerOrganization>;
+  getCustomersByOrganization(customerOrgId: string): Promise<Customer[]>;
+  getConversationsByCustomerOrganization(customerOrgId: string): Promise<Conversation[]>;
+  
   // Customer operations
   getCustomer(id: string): Promise<Customer | undefined>;
   getCustomerByEmail(email: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomerStatus(id: string, status: string): Promise<void>;
+  updateCustomerOrganizationMembership(customerId: string, customerOrgId: string, role: string): Promise<void>;
   getAllCustomers(options?: {
     page?: number;
     limit?: number;
@@ -784,6 +797,57 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users).orderBy(desc(users.updatedAt));
   }
 
+  // Customer Organization operations (business accounts for customer portal)
+  async getCustomerOrganization(id: string): Promise<CustomerOrganization | undefined> {
+    const [org] = await db.select().from(customerOrganizations).where(eq(customerOrganizations.id, id));
+    return org || undefined;
+  }
+
+  async getCustomerOrganizationBySlug(slug: string): Promise<CustomerOrganization | undefined> {
+    const [org] = await db.select().from(customerOrganizations).where(eq(customerOrganizations.slug, slug));
+    return org || undefined;
+  }
+
+  async getCustomerOrganizationBySupportId(supportId: string): Promise<CustomerOrganization | undefined> {
+    const [org] = await db.select().from(customerOrganizations).where(eq(customerOrganizations.supportId, supportId));
+    return org || undefined;
+  }
+
+  async createCustomerOrganization(org: InsertCustomerOrganization): Promise<CustomerOrganization> {
+    const [newOrg] = await db
+      .insert(customerOrganizations)
+      .values({
+        ...org,
+        updatedAt: new Date(),
+      })
+      .returning();
+    return newOrg;
+  }
+
+  async updateCustomerOrganization(id: string, updates: Partial<InsertCustomerOrganization>): Promise<CustomerOrganization> {
+    const [org] = await db
+      .update(customerOrganizations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(customerOrganizations.id, id))
+      .returning();
+    return org;
+  }
+
+  async getCustomersByOrganization(customerOrgId: string): Promise<Customer[]> {
+    return await db.select().from(customers).where(eq(customers.customerOrganizationId, customerOrgId));
+  }
+
+  async getConversationsByCustomerOrganization(customerOrgId: string): Promise<Conversation[]> {
+    // Get all customers in the organization, then get their conversations
+    const orgCustomers = await this.getCustomersByOrganization(customerOrgId);
+    if (orgCustomers.length === 0) return [];
+    
+    const customerIds = orgCustomers.map(c => c.id);
+    return await db.select().from(conversations)
+      .where(inArray(conversations.customerId, customerIds))
+      .orderBy(desc(conversations.updatedAt));
+  }
+
   // Customer operations
   async getCustomer(id: string): Promise<Customer | undefined> {
     const [customer] = await db.select().from(customers).where(eq(customers.id, id));
@@ -811,6 +875,17 @@ export class DatabaseStorage implements IStorage {
       .update(customers)
       .set({ status, updatedAt: new Date() })
       .where(eq(customers.id, id));
+  }
+
+  async updateCustomerOrganizationMembership(customerId: string, customerOrgId: string, role: string): Promise<void> {
+    await db
+      .update(customers)
+      .set({ 
+        customerOrganizationId: customerOrgId, 
+        customerOrgRole: role,
+        updatedAt: new Date() 
+      })
+      .where(eq(customers.id, customerId));
   }
 
   async getAllCustomers(options?: {

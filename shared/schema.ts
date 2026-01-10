@@ -201,6 +201,32 @@ export const departmentMembers = pgTable("department_members", {
   uniqueMemberDepartment: unique().on(table.workspaceMemberId, table.departmentId),
 }));
 
+// Customer Organizations table - Business accounts for customer portal
+// Represents a business/company that has multiple customer users
+export const customerOrganizations = pgTable("customer_organizations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Business identification
+  name: text("name").notNull(), // Business name (e.g., "Acme Corp")
+  slug: text("slug").notNull().unique(), // URL-friendly identifier
+  
+  // Optional support ID for verification
+  supportId: text("support_id").unique(), // Unique support ID that customers can share (e.g., "ACME-2024-001")
+  requireSupportId: boolean("require_support_id").notNull().default(false), // Toggle: require support ID for new members
+  
+  // Multi-tenant scoping (links to staff organization)
+  organizationId: varchar("organization_id").references(() => organizations.id), // Which staff org serves this customer org
+  
+  // Settings
+  settings: jsonb("settings"), // JSON for additional settings
+  
+  // Status
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Customers table
 export const customers = pgTable("customers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -212,6 +238,11 @@ export const customers = pgTable("customers", {
   tags: text("tags").array(), // Array of tags for categorization
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
+  
+  // Customer organization membership (business account)
+  customerOrganizationId: varchar("customer_organization_id").references(() => customerOrganizations.id), // Which business this customer belongs to
+  customerOrgRole: text("customer_org_role").default("member"), // 'admin' | 'member' - admin can see all org conversations
+  
   // Portal access fields
   portalPassword: text("portal_password"), // Hashed password for portal login (nullable - not all customers have portal access)
   hasPortalAccess: boolean("has_portal_access").notNull().default(false), // Whether customer can access portal
@@ -1298,6 +1329,17 @@ export const insertDepartmentMemberSchema = createInsertSchema(departmentMembers
   role: true,
 });
 
+// Customer Organization insert schema
+export const insertCustomerOrganizationSchema = createInsertSchema(customerOrganizations).pick({
+  name: true,
+  slug: true,
+  supportId: true,
+  requireSupportId: true,
+  organizationId: true,
+  settings: true,
+  isActive: true,
+});
+
 export const insertCustomerSchema = createInsertSchema(customers).pick({
   name: true,
   email: true,
@@ -1305,6 +1347,8 @@ export const insertCustomerSchema = createInsertSchema(customers).pick({
   company: true,
   ipAddress: true,
   tags: true,
+  customerOrganizationId: true,
+  customerOrgRole: true,
 });
 
 // Anonymous customer schema for chat widget
@@ -1884,6 +1928,8 @@ export type UpdateDepartment = z.infer<typeof updateDepartmentSchema>;
 export type Department = typeof departments.$inferSelect;
 export type InsertDepartmentMember = z.infer<typeof insertDepartmentMemberSchema>;
 export type DepartmentMember = typeof departmentMembers.$inferSelect;
+export type InsertCustomerOrganization = z.infer<typeof insertCustomerOrganizationSchema>;
+export type CustomerOrganization = typeof customerOrganizations.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Customer = typeof customers.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;

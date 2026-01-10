@@ -17,16 +17,29 @@ import {
   AlertTriangle,
   Flame,
   User,
-  UserCheck
+  UserCheck,
+  Building2,
+  Users
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 
 type ConversationStatus = 'all' | 'open' | 'in_progress' | 'closed' | 'resolved';
+type ConversationOwner = 'all' | 'mine' | 'team';
 
 export default function CustomerPortalConversations() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<ConversationStatus>('all');
+  const [ownerFilter, setOwnerFilter] = useState<ConversationOwner>('all');
+
+  // Get organization info to check if user is admin
+  const { data: orgInfo } = useQuery<{
+    hasOrganization: boolean;
+    organization?: { id: string; name: string };
+    isAdmin?: boolean;
+  }>({
+    queryKey: ['/api/customer-portal/organization'],
+  });
 
   // Get all conversations
   const { data: conversations, isLoading } = useQuery<Array<{
@@ -39,6 +52,10 @@ export default function CustomerPortalConversations() {
     unreadCount?: number;
     assignedAgentId?: string | null;
     assignedAgentName?: string | null;
+    customerId?: string;
+    customerName?: string;
+    customerEmail?: string;
+    isOwnConversation?: boolean;
   }>>({
     queryKey: ['/api/customer-portal/conversations'],
   });
@@ -85,9 +102,22 @@ export default function CustomerPortalConversations() {
 
   const filteredConversations = conversations?.filter(conv => {
     const matchesSearch = !searchQuery || 
-      conv.subject?.toLowerCase().includes(searchQuery.toLowerCase());
+      conv.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.customerEmail?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || conv.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    
+    // Owner filter only applies if user is an org admin
+    let matchesOwner = true;
+    if (orgInfo?.isAdmin && orgInfo?.hasOrganization) {
+      if (ownerFilter === 'mine') {
+        matchesOwner = conv.isOwnConversation === true;
+      } else if (ownerFilter === 'team') {
+        matchesOwner = conv.isOwnConversation === false;
+      }
+    }
+    
+    return matchesSearch && matchesStatus && matchesOwner;
   });
 
   const statusCounts = {
@@ -105,7 +135,11 @@ export default function CustomerPortalConversations() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h2 className="text-3xl font-bold" data-testid="title-conversations">Conversations</h2>
-            <p className="text-muted-foreground">View and manage your support conversations</p>
+            <p className="text-muted-foreground">
+              {orgInfo?.isAdmin && orgInfo?.hasOrganization 
+                ? `View all support conversations for ${orgInfo.organization?.name}`
+                : 'View and manage your support conversations'}
+            </p>
           </div>
           <Link href="/portal/chat">
             <Button className="gap-2" data-testid="button-new-conversation">
@@ -115,34 +149,78 @@ export default function CustomerPortalConversations() {
           </Link>
         </div>
 
+        {/* Organization Admin Notice */}
+        {orgInfo?.isAdmin && orgInfo?.hasOrganization && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="py-3 px-4">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Building2 className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Organization Admin View</p>
+                  <p className="text-xs text-muted-foreground">
+                    You can see all conversations from your organization's team members
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Search and Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search conversations..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-              data-testid="input-search"
-            />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={orgInfo?.isAdmin ? "Search conversations, team members..." : "Search conversations..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-search"
+              />
+            </div>
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as ConversationStatus)}>
+              <TabsList>
+                <TabsTrigger value="all" data-testid="filter-all">
+                  All ({statusCounts.all})
+                </TabsTrigger>
+                <TabsTrigger value="open" data-testid="filter-open">
+                  Open ({statusCounts.open})
+                </TabsTrigger>
+                <TabsTrigger value="in_progress" data-testid="filter-in-progress">
+                  In Progress ({statusCounts.in_progress})
+                </TabsTrigger>
+                <TabsTrigger value="closed" data-testid="filter-closed">
+                  Closed ({statusCounts.closed + statusCounts.resolved})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
-          <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as ConversationStatus)}>
-            <TabsList>
-              <TabsTrigger value="all" data-testid="filter-all">
-                All ({statusCounts.all})
-              </TabsTrigger>
-              <TabsTrigger value="open" data-testid="filter-open">
-                Open ({statusCounts.open})
-              </TabsTrigger>
-              <TabsTrigger value="in_progress" data-testid="filter-in-progress">
-                In Progress ({statusCounts.in_progress})
-              </TabsTrigger>
-              <TabsTrigger value="closed" data-testid="filter-closed">
-                Closed ({statusCounts.closed + statusCounts.resolved})
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          
+          {/* Owner filter for organization admins */}
+          {orgInfo?.isAdmin && orgInfo?.hasOrganization && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Show:</span>
+              <Tabs value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as ConversationOwner)}>
+                <TabsList>
+                  <TabsTrigger value="all" data-testid="owner-filter-all" className="gap-1.5">
+                    <Users className="h-3.5 w-3.5" />
+                    All Team
+                  </TabsTrigger>
+                  <TabsTrigger value="mine" data-testid="owner-filter-mine" className="gap-1.5">
+                    <User className="h-3.5 w-3.5" />
+                    My Conversations
+                  </TabsTrigger>
+                  <TabsTrigger value="team" data-testid="owner-filter-team" className="gap-1.5">
+                    <Building2 className="h-3.5 w-3.5" />
+                    Team Members
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
         </div>
 
         {/* Conversations List */}
@@ -186,6 +264,13 @@ export default function CustomerPortalConversations() {
                           {conv.unreadCount && conv.unreadCount > 0 && (
                             <Badge variant="destructive" className="text-xs">
                               {conv.unreadCount} new
+                            </Badge>
+                          )}
+                          {/* Show team member badge for org admins viewing others' conversations */}
+                          {orgInfo?.isAdmin && orgInfo?.hasOrganization && !conv.isOwnConversation && (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <Users className="h-3 w-3" />
+                              {conv.customerName || 'Team Member'}
                             </Badge>
                           )}
                         </div>
