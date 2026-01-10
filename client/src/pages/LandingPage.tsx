@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { 
   Building2, 
@@ -22,9 +21,22 @@ import {
   EyeOff,
   Users,
   Briefcase,
-  CheckCircle2
+  CheckCircle2,
+  Zap,
+  Globe,
+  BookOpen,
+  BarChart3,
+  Palette,
+  Lock,
+  Mail,
+  Phone,
+  Play,
+  Star,
+  Check,
+  Menu,
+  X
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,42 +53,62 @@ interface PublicOrganization {
 export default function LandingPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("home");
-  
+  const [staffLoginOpen, setStaffLoginOpen] = useState(false);
   const [customerSignupOpen, setCustomerSignupOpen] = useState(false);
   const [orgSignupOpen, setOrgSignupOpen] = useState(false);
-  const [staffLoginOpen, setStaffLoginOpen] = useState(false);
-  
-  const [showPassword, setShowPassword] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const { data: organizations = [], isLoading } = useQuery<PublicOrganization[]>({
     queryKey: ['/api/public/organizations'],
   });
 
-  const filteredOrgs = organizations.filter(org =>
-    org.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    document.title = "Support Board - AI-Powered Customer Support Platform";
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute('content', 'Transform your customer support with AI-powered chat, multi-channel integration, and enterprise-grade security. Start your free trial today.');
+    }
+  }, []);
+
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+    setMobileMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary/10">
               <MessageSquare className="w-5 h-5 text-primary" />
             </div>
             <span className="font-bold text-lg">Support Board</span>
           </div>
-          <nav className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setActiveTab("organizations")}>
-              Organizations
-            </Button>
+          
+          <nav className="hidden md:flex items-center gap-6">
+            <button onClick={() => scrollToSection('features')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Features
+            </button>
+            <button onClick={() => scrollToSection('how-it-works')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              How It Works
+            </button>
+            <button onClick={() => scrollToSection('pricing')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Pricing
+            </button>
+            <button onClick={() => scrollToSection('organizations')} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              Marketplace
+            </button>
+          </nav>
+
+          <div className="hidden md:flex items-center gap-2">
             <Dialog open={staffLoginOpen} onOpenChange={setStaffLoginOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1">
-                  <LogIn className="w-4 h-4" />
-                  Staff Login
+                <Button variant="ghost" size="sm">
+                  Sign In
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -88,55 +120,82 @@ export default function LandingPage() {
                 />
               </DialogContent>
             </Dialog>
-          </nav>
+            <Button size="sm" onClick={() => scrollToSection('pricing')}>
+              Start Free Trial
+            </Button>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </Button>
         </div>
+
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t bg-background p-4 space-y-4">
+            <button onClick={() => scrollToSection('features')} className="block w-full text-left py-2 text-sm">
+              Features
+            </button>
+            <button onClick={() => scrollToSection('how-it-works')} className="block w-full text-left py-2 text-sm">
+              How It Works
+            </button>
+            <button onClick={() => scrollToSection('pricing')} className="block w-full text-left py-2 text-sm">
+              Pricing
+            </button>
+            <button onClick={() => scrollToSection('organizations')} className="block w-full text-left py-2 text-sm">
+              Marketplace
+            </button>
+            <div className="flex gap-2 pt-2">
+              <Dialog open={staffLoginOpen} onOpenChange={setStaffLoginOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex-1">
+                    Sign In
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <StaffLoginForm 
+                    onSuccess={() => {
+                      setStaffLoginOpen(false);
+                      setLocation("/dashboard");
+                    }} 
+                  />
+                </DialogContent>
+              </Dialog>
+              <Button size="sm" className="flex-1" onClick={() => scrollToSection('pricing')}>
+                Start Free Trial
+              </Button>
+            </div>
+          </div>
+        )}
       </header>
 
-      <main className="container max-w-6xl mx-auto px-4 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-8">
-            <TabsTrigger value="home">Home</TabsTrigger>
-            <TabsTrigger value="organizations">Organizations</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="home">
-            <div className="text-center mb-12">
-              <Badge variant="secondary" className="mb-4">Customer Support Platform</Badge>
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">
-                Get Support from <span className="text-primary">Any Organization</span>
+      <main>
+        <section className="relative overflow-hidden py-20 md:py-32">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5" />
+          <div className="container max-w-7xl mx-auto px-4 relative">
+            <div className="max-w-4xl mx-auto text-center">
+              <Badge variant="secondary" className="mb-6">
+                <Sparkles className="w-3 h-3 mr-1" />
+                AI-Powered Customer Support Platform
+              </Badge>
+              <h1 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight">
+                Transform Customer Support with{" "}
+                <span className="text-primary">Intelligent AI</span>
               </h1>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-                Connect with organizations instantly. Whether you need help with a product, 
-                service, or have questions - we make customer support simple.
+              <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+                Deliver exceptional customer experiences with AI-powered chat, smart routing, 
+                and seamless multi-channel support. Reduce response times by 80% while increasing customer satisfaction.
               </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-                <Dialog open={customerSignupOpen} onOpenChange={setCustomerSignupOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="lg" className="gap-2">
-                      <UserPlus className="w-5 h-5" />
-                      Sign Up as Customer
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <CustomerSignupForm 
-                      organizations={organizations}
-                      onSuccess={() => {
-                        setCustomerSignupOpen(false);
-                        toast({
-                          title: "Account created",
-                          description: "You can now access the customer portal.",
-                        });
-                      }} 
-                    />
-                  </DialogContent>
-                </Dialog>
-                
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Dialog open={orgSignupOpen} onOpenChange={setOrgSignupOpen}>
                   <DialogTrigger asChild>
-                    <Button size="lg" variant="outline" className="gap-2">
-                      <Building2 className="w-5 h-5" />
-                      Register Your Organization
+                    <Button size="lg" className="gap-2">
+                      Start Free Trial
+                      <ArrowRight className="w-4 h-4" />
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-lg">
@@ -152,40 +211,175 @@ export default function LandingPage() {
                     />
                   </DialogContent>
                 </Dialog>
+                <Button size="lg" variant="outline" className="gap-2">
+                  <Play className="w-4 h-4" />
+                  See Demo
+                </Button>
+              </div>
+              <div className="flex items-center justify-center gap-8 mt-12 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
+                  14-day free trial
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
+                  No credit card required
+                </div>
+                <div className="hidden sm:flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-primary" />
+                  Cancel anytime
+                </div>
               </div>
             </div>
+          </div>
+        </section>
 
-            <div className="grid md:grid-cols-3 gap-6 mb-12">
-              <Card className="text-center p-6">
-                <div className="p-3 rounded-xl bg-emerald-500/10 w-fit mx-auto mb-3">
-                  <Clock className="w-6 h-6 text-emerald-500" />
-                </div>
-                <h3 className="font-semibold mb-2">Instant Support</h3>
-                <p className="text-sm text-muted-foreground">Get help immediately with AI-powered responses</p>
-              </Card>
-              <Card className="text-center p-6">
-                <div className="p-3 rounded-xl bg-blue-500/10 w-fit mx-auto mb-3">
-                  <Sparkles className="w-6 h-6 text-blue-500" />
-                </div>
-                <h3 className="font-semibold mb-2">Smart Assistance</h3>
-                <p className="text-sm text-muted-foreground">AI agents trained on organization knowledge bases</p>
-              </Card>
-              <Card className="text-center p-6">
-                <div className="p-3 rounded-xl bg-purple-500/10 w-fit mx-auto mb-3">
-                  <Shield className="w-6 h-6 text-purple-500" />
-                </div>
-                <h3 className="font-semibold mb-2">Secure & Private</h3>
-                <p className="text-sm text-muted-foreground">Your conversations are protected and confidential</p>
-              </Card>
+        <section id="features" className="py-20 bg-muted/30">
+          <div className="container max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <Badge variant="secondary" className="mb-4">Features</Badge>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Everything you need for exceptional support
+              </h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Powerful features designed to help your team deliver outstanding customer experiences at scale.
+              </p>
             </div>
-
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold mb-2">Popular Organizations</h2>
-              <p className="text-muted-foreground">Start chatting with these organizations</p>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <FeatureCard
+                icon={<Sparkles className="w-6 h-6" />}
+                title="AI-Powered Chat Support"
+                description="Smart routing and automated responses powered by advanced AI. Resolve common queries instantly while routing complex issues to the right agents."
+                color="blue"
+              />
+              <FeatureCard
+                icon={<Globe className="w-6 h-6" />}
+                title="Multi-channel Integration"
+                description="Seamlessly manage conversations across web, email, and mobile from a single unified inbox. Meet customers where they are."
+                color="green"
+              />
+              <FeatureCard
+                icon={<BookOpen className="w-6 h-6" />}
+                title="Knowledge Base Management"
+                description="Build a self-service portal with AI-powered search. Help customers find answers instantly and reduce support ticket volume."
+                color="purple"
+              />
+              <FeatureCard
+                icon={<BarChart3 className="w-6 h-6" />}
+                title="Analytics & Insights"
+                description="Track performance metrics, customer satisfaction, and team productivity with real-time dashboards and detailed reports."
+                color="amber"
+              />
+              <FeatureCard
+                icon={<Palette className="w-6 h-6" />}
+                title="Multi-tenant Support"
+                description="White-label solution with custom branding for each organization. Perfect for agencies and enterprise deployments."
+                color="rose"
+              />
+              <FeatureCard
+                icon={<Shield className="w-6 h-6" />}
+                title="Enterprise Security"
+                description="GDPR compliant with end-to-end encryption, SSO support, and comprehensive audit logs. Your data is always protected."
+                color="cyan"
+              />
             </div>
+          </div>
+        </section>
 
+        <section id="how-it-works" className="py-20">
+          <div className="container max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <Badge variant="secondary" className="mb-4">How It Works</Badge>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Get started in minutes
+              </h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Setting up Support Board is quick and easy. Start delivering better customer support today.
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-8">
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                  <span className="text-2xl font-bold text-primary">1</span>
+                </div>
+                <h3 className="text-xl font-semibold mb-3">Create Your Workspace</h3>
+                <p className="text-muted-foreground">
+                  Sign up and customize your support portal with your branding, colors, and welcome messages.
+                </p>
+              </div>
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                  <span className="text-2xl font-bold text-primary">2</span>
+                </div>
+                <h3 className="text-xl font-semibold mb-3">Import Your Knowledge</h3>
+                <p className="text-muted-foreground">
+                  Upload documents, FAQs, and product information to train your AI assistant.
+                </p>
+              </div>
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6">
+                  <span className="text-2xl font-bold text-primary">3</span>
+                </div>
+                <h3 className="text-xl font-semibold mb-3">Go Live</h3>
+                <p className="text-muted-foreground">
+                  Embed the chat widget on your website and start providing instant AI-powered support.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-20 bg-muted/30">
+          <div className="container max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <Badge variant="secondary" className="mb-4">Testimonials</Badge>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Trusted by growing businesses
+              </h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                See what our customers have to say about their experience with Support Board.
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-6">
+              <TestimonialCard
+                quote="Support Board reduced our response time from hours to minutes. Our customers love the instant AI responses."
+                author="Sarah Chen"
+                role="Customer Success Manager"
+                company="TechStart Inc."
+              />
+              <TestimonialCard
+                quote="The multi-tenant feature is perfect for our agency. Each client gets their own branded portal."
+                author="Michael Rodriguez"
+                role="CEO"
+                company="Digital Agency Co."
+              />
+              <TestimonialCard
+                quote="We've seen a 60% reduction in support tickets since implementing the knowledge base."
+                author="Emily Watson"
+                role="Head of Support"
+                company="SaaS Solutions"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section id="organizations" className="py-20">
+          <div className="container max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <Badge variant="secondary" className="mb-4">Marketplace</Badge>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Organizations using Support Board
+              </h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Join these organizations providing exceptional customer support with our platform.
+              </p>
+            </div>
+            
             {isLoading ? (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[1, 2, 3].map(i => (
                   <Card key={i} className="animate-pulse">
                     <CardContent className="p-6">
@@ -201,107 +395,312 @@ export default function LandingPage() {
                 ))}
               </div>
             ) : organizations.length === 0 ? (
-              <Card className="p-12 text-center">
+              <Card className="p-12 text-center max-w-md mx-auto">
                 <Building2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No organizations yet</h3>
-                <p className="text-muted-foreground mb-4">Be the first to register your organization!</p>
+                <h3 className="text-lg font-semibold mb-2">Be the first!</h3>
+                <p className="text-muted-foreground mb-4">Register your organization and start providing AI-powered support.</p>
                 <Button onClick={() => setOrgSignupOpen(true)}>
                   Register Now
                 </Button>
               </Card>
             ) : (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {organizations.slice(0, 6).map(org => (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {organizations.map(org => (
                   <OrganizationCard key={org.id} org={org} />
                 ))}
               </div>
             )}
+          </div>
+        </section>
 
-            {organizations.length > 6 && (
-              <div className="text-center mt-8">
-                <Button variant="outline" onClick={() => setActiveTab("organizations")}>
-                  View All Organizations
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="organizations">
-            <div className="mb-8">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Building2 className="w-6 h-6" />
-                    All Organizations
-                  </h2>
-                  <p className="text-muted-foreground">
-                    {organizations.length} organization{organizations.length !== 1 ? 's' : ''} registered
-                  </p>
-                </div>
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search organizations..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-
-              {isLoading ? (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {[1, 2, 3, 4, 5, 6].map(i => (
-                    <Card key={i} className="animate-pulse">
-                      <CardContent className="p-6">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-full bg-muted" />
-                          <div className="flex-1">
-                            <div className="h-5 bg-muted rounded w-3/4 mb-2" />
-                            <div className="h-4 bg-muted rounded w-1/2" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : filteredOrgs.length === 0 ? (
-                <Card className="p-12 text-center">
-                  <Building2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">
-                    {searchQuery ? "No organizations found" : "No organizations available"}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {searchQuery 
-                      ? "Try a different search term" 
-                      : "Organizations will appear here once registered"}
-                  </p>
-                </Card>
-              ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredOrgs.map(org => (
-                    <OrganizationCard key={org.id} org={org} showLoginButton />
-                  ))}
-                </div>
-              )}
+        <section id="pricing" className="py-20 bg-muted/30">
+          <div className="container max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <Badge variant="secondary" className="mb-4">Pricing</Badge>
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                Simple, transparent pricing
+              </h2>
+              <p className="text-muted-foreground max-w-2xl mx-auto">
+                Choose the plan that fits your team. All plans include a 14-day free trial.
+              </p>
             </div>
-          </TabsContent>
-        </Tabs>
+            
+            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+              <PricingCard
+                name="Starter"
+                price="$29"
+                description="Perfect for small teams getting started"
+                features={[
+                  "Up to 3 team members",
+                  "1,000 conversations/month",
+                  "AI-powered responses",
+                  "Basic analytics",
+                  "Email support",
+                  "Knowledge base (100 articles)"
+                ]}
+              />
+              <PricingCard
+                name="Professional"
+                price="$99"
+                description="For growing teams with advanced needs"
+                features={[
+                  "Up to 10 team members",
+                  "10,000 conversations/month",
+                  "Advanced AI with training",
+                  "Full analytics suite",
+                  "Priority support",
+                  "Unlimited knowledge base",
+                  "Custom branding",
+                  "API access"
+                ]}
+                popular
+              />
+              <PricingCard
+                name="Enterprise"
+                price="Custom"
+                description="For large organizations with custom requirements"
+                features={[
+                  "Unlimited team members",
+                  "Unlimited conversations",
+                  "Custom AI training",
+                  "Advanced security (SSO, SAML)",
+                  "Dedicated account manager",
+                  "SLA guarantees",
+                  "White-label solution",
+                  "On-premise deployment option"
+                ]}
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="py-20">
+          <div className="container max-w-7xl mx-auto px-4">
+            <Card className="bg-primary text-primary-foreground overflow-hidden">
+              <CardContent className="p-12 text-center relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary via-primary to-primary/80" />
+                <div className="relative z-10">
+                  <h2 className="text-3xl md:text-4xl font-bold mb-4">
+                    Ready to transform your customer support?
+                  </h2>
+                  <p className="text-primary-foreground/80 max-w-2xl mx-auto mb-8">
+                    Join thousands of businesses using Support Board to deliver exceptional customer experiences. Start your free trial today.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Dialog open={orgSignupOpen} onOpenChange={setOrgSignupOpen}>
+                      <DialogTrigger asChild>
+                        <Button size="lg" variant="secondary" className="gap-2">
+                          Get Started Free
+                          <ArrowRight className="w-4 h-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-lg">
+                        <OrganizationSignupForm 
+                          onSuccess={() => {
+                            setOrgSignupOpen(false);
+                            queryClient.invalidateQueries({ queryKey: ['/api/public/organizations'] });
+                            toast({
+                              title: "Organization registered",
+                              description: "Your organization is now set up. Check your email for login details.",
+                            });
+                          }} 
+                        />
+                      </DialogContent>
+                    </Dialog>
+                    <Button size="lg" variant="outline" className="gap-2 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
+                      <Mail className="w-4 h-4" />
+                      Contact Sales
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
       </main>
 
-      <footer className="border-t mt-12">
-        <div className="container max-w-6xl mx-auto px-4 py-8">
-          <div className="text-center text-sm text-muted-foreground">
-            <p>Powered by Support Board - Multi-tenant Customer Support Platform</p>
+      <footer className="border-t bg-muted/30 py-12">
+        <div className="container max-w-7xl mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-8">
+            <div className="col-span-2">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <MessageSquare className="w-5 h-5 text-primary" />
+                </div>
+                <span className="font-bold text-lg">Support Board</span>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                AI-powered customer support platform helping businesses deliver exceptional customer experiences.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Product</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#features" className="hover:text-foreground transition-colors">Features</a></li>
+                <li><a href="#pricing" className="hover:text-foreground transition-colors">Pricing</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Integrations</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">API</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Company</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-foreground transition-colors">About</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Blog</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Careers</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Contact</a></li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-4">Legal</h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li><a href="#" className="hover:text-foreground transition-colors">Privacy Policy</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Terms of Service</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">Security</a></li>
+                <li><a href="#" className="hover:text-foreground transition-colors">GDPR</a></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">
+              2024 Support Board. All rights reserved.
+            </p>
+            <div className="flex items-center gap-4">
+              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+                </svg>
+              </a>
+              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                </svg>
+              </a>
+              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fillRule="evenodd" d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" clipRule="evenodd" />
+                </svg>
+              </a>
+            </div>
           </div>
         </div>
       </footer>
+
+      <Dialog open={customerSignupOpen} onOpenChange={setCustomerSignupOpen}>
+        <DialogContent className="max-w-md">
+          <CustomerSignupForm 
+            organizations={organizations}
+            onSuccess={() => {
+              setCustomerSignupOpen(false);
+              toast({
+                title: "Account created",
+                description: "You can now access the customer portal.",
+              });
+            }} 
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function OrganizationCard({ org, showLoginButton = false }: { org: PublicOrganization; showLoginButton?: boolean }) {
+function FeatureCard({ icon, title, description, color }: { 
+  icon: React.ReactNode; 
+  title: string; 
+  description: string;
+  color: 'blue' | 'green' | 'purple' | 'amber' | 'rose' | 'cyan';
+}) {
+  const colorClasses = {
+    blue: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    green: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+    purple: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
+    amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    rose: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+    cyan: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
+  };
+
+  return (
+    <Card className="h-full">
+      <CardContent className="p-6">
+        <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-4 ${colorClasses[color]}`}>
+          {icon}
+        </div>
+        <h3 className="font-semibold text-lg mb-2">{title}</h3>
+        <p className="text-muted-foreground text-sm">{description}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TestimonialCard({ quote, author, role, company }: {
+  quote: string;
+  author: string;
+  role: string;
+  company: string;
+}) {
+  return (
+    <Card className="h-full">
+      <CardContent className="p-6">
+        <div className="flex gap-1 mb-4">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Star key={i} className="w-4 h-4 fill-amber-400 text-amber-400" />
+          ))}
+        </div>
+        <p className="text-muted-foreground mb-6">"{quote}"</p>
+        <div className="flex items-center gap-3">
+          <Avatar className="w-10 h-10">
+            <AvatarFallback>{author.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-medium text-sm">{author}</p>
+            <p className="text-xs text-muted-foreground">{role}, {company}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PricingCard({ name, price, description, features, popular = false }: {
+  name: string;
+  price: string;
+  description: string;
+  features: string[];
+  popular?: boolean;
+}) {
+  return (
+    <Card className={`h-full relative ${popular ? 'border-primary shadow-lg' : ''}`}>
+      {popular && (
+        <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
+          Most Popular
+        </Badge>
+      )}
+      <CardHeader className="text-center pb-4">
+        <CardTitle className="text-xl">{name}</CardTitle>
+        <div className="mt-4">
+          <span className="text-4xl font-bold">{price}</span>
+          {price !== 'Custom' && <span className="text-muted-foreground">/month</span>}
+        </div>
+        <CardDescription className="mt-2">{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <ul className="space-y-3 mb-6">
+          {features.map((feature, i) => (
+            <li key={i} className="flex items-start gap-2 text-sm">
+              <Check className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+              <span>{feature}</span>
+            </li>
+          ))}
+        </ul>
+        <Button className="w-full" variant={popular ? 'default' : 'outline'}>
+          {price === 'Custom' ? 'Contact Sales' : 'Start Free Trial'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OrganizationCard({ org }: { org: PublicOrganization }) {
   return (
     <Card className="hover-elevate transition-all duration-200 h-full">
       <CardContent className="p-6">
@@ -335,14 +734,12 @@ function OrganizationCard({ org, showLoginButton = false }: { org: PublicOrganiz
             Chat Available
           </Badge>
           <div className="flex gap-2">
-            {showLoginButton && (
-              <Link href={`/org/${org.slug}/login`}>
-                <Button size="sm" variant="ghost" className="gap-1">
-                  <LogIn className="w-3 h-3" />
-                  Login
-                </Button>
-              </Link>
-            )}
+            <Link href={`/org/${org.slug}/login`}>
+              <Button size="sm" variant="ghost" className="gap-1">
+                <LogIn className="w-3 h-3" />
+                Login
+              </Button>
+            </Link>
             <a href={`/chat/${org.slug}`} target="_blank" rel="noopener noreferrer">
               <Button size="sm" variant="ghost" className="gap-1">
                 Start Chat
@@ -595,30 +992,27 @@ function CustomerSignupForm({ organizations, onSuccess }: { organizations: Publi
 function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
   const [step, setStep] = useState(1);
-  
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
-  const [website, setWebsite] = useState("");
-  
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
-  const generateSlug = (name: string) => {
-    return name.toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-  };
-
   const signupMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: { 
+      organizationName: string; 
+      slug: string; 
+      adminName: string; 
+      adminEmail: string; 
+      adminPassword: string;
+    }) => {
       return await apiRequest('/api/public/organizations/signup', 'POST', data);
     },
     onSuccess: () => {
       toast({
         title: "Organization registered",
-        description: "Your organization has been set up. You can now log in.",
+        description: "Your organization is now set up. You can sign in with your admin credentials.",
       });
       onSuccess();
     },
@@ -638,35 +1032,28 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
         toast({
           variant: "destructive",
           title: "Missing information",
-          description: "Please enter organization name and slug",
+          description: "Please fill in organization name and URL",
         });
         return;
       }
       setStep(2);
-      return;
-    }
-    
-    if (!adminName || !adminEmail || !adminPassword) {
-      toast({
-        variant: "destructive",
-        title: "Missing information",
-        description: "Please fill in all admin details",
-      });
-      return;
-    }
-    
-    signupMutation.mutate({
-      organization: {
-        name: orgName,
-        slug: orgSlug,
-        website: website || undefined,
-      },
-      admin: {
-        name: adminName,
-        email: adminEmail,
-        password: adminPassword,
+    } else {
+      if (!adminName || !adminEmail || !adminPassword) {
+        toast({
+          variant: "destructive",
+          title: "Missing information",
+          description: "Please fill in all admin details",
+        });
+        return;
       }
-    });
+      signupMutation.mutate({
+        organizationName: orgName,
+        slug: orgSlug,
+        adminName,
+        adminEmail,
+        adminPassword,
+      });
+    }
   };
 
   return (
@@ -677,21 +1064,10 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
           Register Your Organization
         </DialogTitle>
         <DialogDescription>
-          Set up your organization to provide customer support
+          {step === 1 ? "Set up your organization details" : "Create your admin account"}
         </DialogDescription>
       </DialogHeader>
-
-      <div className="flex items-center justify-center gap-2 my-4">
-        <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-          <Briefcase className="w-4 h-4" />
-        </div>
-        <div className={`w-12 h-1 ${step >= 2 ? 'bg-primary' : 'bg-muted'}`} />
-        <div className={`flex items-center justify-center w-8 h-8 rounded-full ${step >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-          <Users className="w-4 h-4" />
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 mt-4">
         {step === 1 ? (
           <>
             <div className="space-y-2">
@@ -702,35 +1078,21 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
                 value={orgName}
                 onChange={(e) => {
                   setOrgName(e.target.value);
-                  if (!orgSlug || orgSlug === generateSlug(orgName)) {
-                    setOrgSlug(generateSlug(e.target.value));
-                  }
+                  setOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
                 }}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="org-slug">URL Slug *</Label>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">/chat/</span>
+              <Label htmlFor="org-slug">Organization URL *</Label>
+              <div className="flex items-center">
+                <span className="text-sm text-muted-foreground mr-1">/chat/</span>
                 <Input
                   id="org-slug"
-                  placeholder="acme"
+                  placeholder="acme-corp"
                   value={orgSlug}
-                  onChange={(e) => setOrgSlug(generateSlug(e.target.value))}
+                  onChange={(e) => setOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                This will be your organization's unique URL
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="org-website">Website (optional)</Label>
-              <Input
-                id="org-website"
-                placeholder="https://acme.com"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-              />
             </div>
             <Button type="submit" className="w-full">
               Continue
@@ -739,13 +1101,6 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
           </>
         ) : (
           <>
-            <div className="p-3 rounded-lg bg-muted/50 mb-4">
-              <div className="flex items-center gap-2 text-sm">
-                <CheckCircle2 className="w-4 h-4 text-primary" />
-                <span className="font-medium">{orgName}</span>
-              </div>
-            </div>
-            
             <div className="space-y-2">
               <Label htmlFor="admin-name">Admin Name *</Label>
               <Input
@@ -773,7 +1128,7 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
                 <Input
                   id="admin-password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Create a strong password"
+                  placeholder="Create a secure password"
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
                   disabled={signupMutation.isPending}
@@ -794,7 +1149,7 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
                 Back
               </Button>
               <Button type="submit" className="flex-1" disabled={signupMutation.isPending}>
-                {signupMutation.isPending ? "Registering..." : "Complete Registration"}
+                {signupMutation.isPending ? "Registering..." : "Register Organization"}
               </Button>
             </div>
           </>

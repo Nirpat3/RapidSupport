@@ -6955,6 +6955,94 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Check organization name/slug availability
+  app.post('/api/public/organizations/check-availability', async (req, res) => {
+    try {
+      const { name, slug, website } = req.body;
+      const result: { nameAvailable?: boolean; slugAvailable?: boolean; duplicateOrg?: { name: string } } = {};
+      
+      if (name) {
+        const duplicate = await storage.checkOrganizationDuplicate(name, website);
+        result.nameAvailable = !duplicate.isDuplicate;
+        if (duplicate.isDuplicate && duplicate.existingOrg) {
+          result.duplicateOrg = { name: duplicate.existingOrg.name };
+        }
+      }
+      
+      if (slug) {
+        const existingOrg = await storage.getOrganizationBySlug(slug);
+        result.slugAvailable = !existingOrg;
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Check availability error:', error);
+      res.status(500).json({ error: 'Failed to check availability' });
+    }
+  });
+
+  // Organization application (formal business application with review)
+  app.post('/api/public/organizations/apply', authLimiter, async (req, res) => {
+    try {
+      const applicationSchema = z.object({
+        organizationName: z.string().min(2, 'Organization name must be at least 2 characters'),
+        slug: z.string().min(2, 'Slug must be at least 2 characters')
+          .regex(/^[a-z0-9-]+$/, 'Slug can only contain lowercase letters, numbers, and hyphens'),
+        website: z.string().url().optional().or(z.literal('')),
+        industry: z.string().optional(),
+        companySize: z.string().optional(),
+        contactName: z.string().min(2, 'Contact name is required'),
+        contactEmail: z.string().email('Invalid email address'),
+        contactPhone: z.string().optional(),
+        contactRole: z.string().optional(),
+        useCase: z.string().optional(),
+        expectedVolume: z.string().optional(),
+        currentSolution: z.string().optional(),
+      });
+      
+      const data = applicationSchema.parse(req.body);
+      
+      // Check for duplicate organization
+      const duplicate = await storage.checkOrganizationDuplicate(data.organizationName, data.website || undefined);
+      
+      // Create the application
+      const application = await storage.createOrganizationApplication({
+        organizationName: data.organizationName,
+        slug: data.slug,
+        website: data.website || null,
+        industry: data.industry || null,
+        companySize: data.companySize || null,
+        contactName: data.contactName,
+        contactEmail: data.contactEmail,
+        contactPhone: data.contactPhone || null,
+        contactRole: data.contactRole || null,
+        useCase: data.useCase || null,
+        expectedVolume: data.expectedVolume || null,
+        currentSolution: data.currentSolution || null,
+      });
+      
+      // If duplicate detected, mark it
+      if (duplicate.isDuplicate && duplicate.existingOrg) {
+        await storage.updateOrganizationApplication(application.id, {
+          status: 'pending',
+          duplicateOfOrgId: duplicate.existingOrg.id,
+        });
+      }
+      
+      res.status(201).json({ 
+        applicationId: application.id,
+        message: 'Application submitted successfully. We will review your application and get back to you within 2 business days.',
+        hasDuplicate: duplicate.isDuplicate
+      });
+    } catch (error) {
+      console.error('Organization application error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      res.status(500).json({ error: 'Failed to submit application' });
+    }
+  });
+
   // Get all active knowledge base articles (public access)
   app.get('/api/public/knowledge-base', async (req, res) => {
     try {
