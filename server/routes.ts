@@ -6692,6 +6692,65 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get all active organizations for public landing page
+  app.get('/api/public/organizations', async (req, res) => {
+    try {
+      const allOrgs = await storage.getAllOrganizations();
+      
+      // Filter to only return active organizations
+      const activeOrgs = allOrgs.filter(org => org.status === 'active');
+      
+      // Return only safe fields for public display (no secrets)
+      const publicOrgs = activeOrgs.map(org => ({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        logo: org.logo,
+        primaryColor: org.primaryColor,
+        welcomeMessage: org.welcomeMessage,
+        website: org.website
+      }));
+      
+      res.json(publicOrgs);
+    } catch (error) {
+      console.error('Failed to fetch public organizations:', error);
+      res.status(500).json({ error: 'Failed to fetch organizations' });
+    }
+  });
+
+  // Get single organization by slug for public chat page
+  app.get('/api/public/organizations/:slug', async (req, res) => {
+    try {
+      const { slug } = req.params;
+      const org = await storage.getOrganizationBySlug(slug);
+      
+      if (!org) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+      
+      if (org.status !== 'active') {
+        return res.status(403).json({ error: 'Organization is not active' });
+      }
+      
+      // Return only safe fields
+      res.json({
+        id: org.id,
+        name: org.name,
+        slug: org.slug,
+        logo: org.logo,
+        primaryColor: org.primaryColor,
+        secondaryColor: org.secondaryColor,
+        welcomeMessage: org.welcomeMessage,
+        website: org.website,
+        aiEnabled: org.aiEnabled,
+        knowledgeBaseEnabled: org.knowledgeBaseEnabled
+      });
+    } catch (error) {
+      console.error('Failed to fetch organization:', error);
+      res.status(500).json({ error: 'Failed to fetch organization' });
+    }
+  });
+
   // Get all active knowledge base articles (public access)
   app.get('/api/public/knowledge-base', async (req, res) => {
     try {
