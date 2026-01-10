@@ -97,7 +97,11 @@ interface OrganizationBranding {
   welcomeMessage: string | null;
 }
 
-export default function CustomerChatPage() {
+interface CustomerChatPageProps {
+  orgSlug?: string;
+}
+
+export default function CustomerChatPage({ orgSlug }: CustomerChatPageProps) {
   const { t, i18n } = useTranslation();
   const [question, setQuestion] = useState("");
   const [pendingMessage, setPendingMessage] = useState("");
@@ -122,14 +126,15 @@ export default function CustomerChatPage() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   
-  // White-label branding: Get organization slug from URL query params
+  // White-label branding: Use prop if provided, otherwise get from URL query params
   const urlParams = new URLSearchParams(window.location.search);
-  const orgSlug = urlParams.get('org');
+  const urlOrgSlug = urlParams.get('org');
+  const effectiveOrgSlug = orgSlug || urlOrgSlug;
   
   // Fetch organization branding if org slug is provided
-  const { data: branding } = useQuery<OrganizationBranding>({
-    queryKey: ['/api/organizations', orgSlug, 'branding'],
-    enabled: !!orgSlug,
+  const { data: branding, isLoading: brandingLoading, isError: brandingError } = useQuery<OrganizationBranding>({
+    queryKey: ['/api/public/organizations', effectiveOrgSlug],
+    enabled: !!effectiveOrgSlug,
   });
 
   // Initialize chat state with localStorage persistence
