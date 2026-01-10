@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, unique, customType, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, unique, customType, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -254,7 +254,13 @@ export const customers = pgTable("customers", {
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [
+  // Partial unique index: ensures only ONE admin per customer organization
+  // This prevents race conditions where concurrent signups could both become admin
+  uniqueIndex("idx_customers_one_admin_per_org")
+    .on(table.customerOrganizationId)
+    .where(sql`${table.customerOrgRole} = 'admin'`),
+]);
 
 // Conversations table
 export const conversations = pgTable("conversations", {

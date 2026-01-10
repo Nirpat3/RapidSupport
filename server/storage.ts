@@ -822,22 +822,59 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrCreateCustomerOrganization(companyName: string): Promise<CustomerOrganization> {
-    // Try to find existing organization by name (case-insensitive)
-    const existingOrg = await this.getCustomerOrganizationByName(companyName);
+    // Generate slug first - this is the unique key
+    const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'org';
+    
+    // Try to find existing organization by slug (unique, case-insensitive via normalization)
+    const existingOrg = await this.getCustomerOrganizationBySlug(slug);
     if (existingOrg) {
       return existingOrg;
     }
 
     // Create new organization with generated slug and support ID
-    const slug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    // Use upsert pattern to handle race conditions - if slug already exists, return existing
     const supportId = this.generateSupportId(companyName);
     
-    return await this.createCustomerOrganization({
-      name: companyName.trim(),
-      slug,
-      supportId,
-      requireSupportId: false,
-    });
+    try {
+      const [newOrg] = await db
+        .insert(customerOrganizations)
+        .values({
+          name: companyName.trim(),
+          slug,
+          supportId,
+          requireSupportId: false,
+          updatedAt: new Date(),
+        })
+        .onConflictDoNothing({ target: customerOrganizations.slug })
+        .returning();
+      
+      // If insert succeeded, return new org
+      if (newOrg) {
+        return newOrg;
+      }
+      
+      // If conflict occurred, fetch and return existing org
+      const conflictOrg = await this.getCustomerOrganizationBySlug(slug);
+      if (conflictOrg) {
+        return conflictOrg;
+      }
+      
+      // This should never happen, but fallback to re-querying by name
+      const fallbackOrg = await this.getCustomerOrganizationByName(companyName);
+      if (fallbackOrg) {
+        return fallbackOrg;
+      }
+      
+      throw new Error(`Failed to create or find organization for "${companyName}"`);
+    } catch (error) {
+      // Handle unique constraint violation (in case onConflictDoNothing doesn't catch it)
+      console.error('Error creating customer organization:', error);
+      const existingBySlug = await this.getCustomerOrganizationBySlug(slug);
+      if (existingBySlug) {
+        return existingBySlug;
+      }
+      throw error;
+    }
   }
 
   private generateSupportId(companyName: string): string {
@@ -1770,77 +1807,186 @@ export class DatabaseStorage implements IStorage {
     console.log('customerData.contextData:', customerData.contextData);
     console.log('customerData.contextData type:', typeof customerData.contextData);
     
-    // First check if customer already exists
-    const existingCustomer = await this.findExistingCustomer(
-      customerData.email,
-      customerData.phone,
-      customerData.company
-    );
+    // First check if customer already exists by email (primary identifier)
+    const existingCustomer = await this.getCustomerByEmail(customerData.email);
 
     let customer: Customer;
     let customerOrg: CustomerOrganization | null = null;
-    let isFirstMember = false;
-    
-    // Handle organization membership if company name is provided
-    if (customerData.company && customerData.company.trim()) {
-      const existingOrg = await this.getCustomerOrganizationByName(customerData.company);
-      if (existingOrg) {
-        customerOrg = existingOrg;
-        // Check how many members this org has to determine role
-        const orgMembers = await this.getCustomersByOrganization(existingOrg.id);
-        isFirstMember = orgMembers.length === 0;
-      } else {
-        // Create new organization - this customer becomes the first member (admin)
-        customerOrg = await this.getOrCreateCustomerOrganization(customerData.company);
-        isFirstMember = true;
-      }
-      console.log(`Customer organization: ${customerOrg?.name}, isFirstMember: ${isFirstMember}`);
-    }
     
     if (existingCustomer) {
-      // Update existing customer with new IP address if provided
-      const updateData: any = { updatedAt: new Date() };
+      // Update existing customer with new info
+      const updateData: any = { 
+        updatedAt: new Date(),
+        name: customerData.name, // Update name in case it changed
+      };
       if (customerData.ipAddress) {
         updateData.ipAddress = customerData.ipAddress;
       }
-      
-      // Also link to organization if not already linked
-      if (customerOrg && !existingCustomer.customerOrganizationId) {
-        updateData.customerOrganizationId = customerOrg.id;
-        // First member of an org becomes admin, subsequent members are regular members
-        updateData.customerOrgRole = isFirstMember ? 'admin' : 'member';
-        console.log(`Linking existing customer to org ${customerOrg.name} with role: ${updateData.customerOrgRole}`);
+      if (customerData.phone) {
+        updateData.phone = customerData.phone;
+      }
+      if (customerData.company) {
+        updateData.company = customerData.company;
       }
       
-      await db
-        .update(customers)
-        .set(updateData)
-        .where(eq(customers.id, existingCustomer.id));
-      
-      customer = { ...existingCustomer, ...updateData };
+      // Handle organization membership for existing customer
+      if (customerData.company && customerData.company.trim()) {
+        customerOrg = await this.getOrCreateCustomerOrganization(customerData.company);
+        
+        // If customer is not in this org yet, link them
+        if (existingCustomer.customerOrganizationId !== customerOrg.id) {
+          // Step 1: Link as member first (safe, no race condition)
+          updateData.customerOrganizationId = customerOrg.id;
+          updateData.customerOrgRole = 'member';
+          
+          await db
+            .update(customers)
+            .set(updateData)
+            .where(eq(customers.id, existingCustomer.id));
+          
+          // Step 2: Try to claim admin if no admin exists
+          // Protected by partial unique index idx_customers_one_admin_per_org
+          try {
+            const claimAdminResult = await db.execute(sql`
+              UPDATE customers 
+              SET customer_org_role = 'admin', updated_at = NOW()
+              WHERE id = ${existingCustomer.id}
+              AND customer_organization_id = ${customerOrg.id}
+              AND NOT EXISTS (
+                SELECT 1 FROM customers 
+                WHERE customer_organization_id = ${customerOrg.id} 
+                AND customer_org_role = 'admin'
+                AND id != ${existingCustomer.id}
+              )
+              RETURNING *
+            `);
+            
+            // Refresh customer data - db.execute returns { rows } for pg driver
+            // Re-fetch to get properly typed camelCase record
+            const rows = (claimAdminResult as any).rows || claimAdminResult;
+            if (rows && rows.length > 0) {
+              const refreshedCustomer = await this.getCustomer(existingCustomer.id);
+              customer = refreshedCustomer || { ...existingCustomer, ...updateData, customerOrgRole: 'admin' };
+              console.log(`Existing customer ${customer.id} claimed admin for org ${customerOrg.name}`);
+            } else {
+              const refreshedCustomer = await this.getCustomer(existingCustomer.id);
+              customer = refreshedCustomer || { ...existingCustomer, ...updateData };
+              console.log(`Existing customer linked to org ${customerOrg.name} as member (admin exists)`);
+            }
+          } catch (err: any) {
+            // Unique constraint violation means another customer already claimed admin
+            if (err.code === '23505') {
+              const refreshedCustomer = await this.getCustomer(existingCustomer.id);
+              customer = refreshedCustomer || { ...existingCustomer, ...updateData };
+              console.log(`Existing customer linked to org as member (concurrent admin claim resolved)`);
+            } else {
+              throw err;
+            }
+          }
+        } else {
+          // Customer already in this org, just update other fields
+          await db
+            .update(customers)
+            .set(updateData)
+            .where(eq(customers.id, existingCustomer.id));
+          customer = { ...existingCustomer, ...updateData };
+        }
+      } else {
+        // No company - just update the customer
+        await db
+          .update(customers)
+          .set(updateData)
+          .where(eq(customers.id, existingCustomer.id));
+        customer = { ...existingCustomer, ...updateData };
+      }
     } else {
-      // Create new customer with organization membership
-      const customerValues: any = {
-        name: customerData.name,
-        email: customerData.email,
-        phone: customerData.phone,
-        company: customerData.company,
-        ipAddress: customerData.ipAddress,
-        status: 'online',
-      };
+      // Handle organization membership for new customer
+      let orgId: string | null = null;
       
-      // Link to organization if one exists
-      if (customerOrg) {
-        customerValues.customerOrganizationId = customerOrg.id;
-        // First member of an org becomes admin, subsequent members are regular members
-        customerValues.customerOrgRole = isFirstMember ? 'admin' : 'member';
-        console.log(`Creating new customer in org ${customerOrg.name} with role: ${customerValues.customerOrgRole}`);
+      if (customerData.company && customerData.company.trim()) {
+        customerOrg = await this.getOrCreateCustomerOrganization(customerData.company);
+        orgId = customerOrg.id;
+        console.log(`New customer will join org ${customerOrg?.name}`);
       }
       
-      [customer] = await db
-        .insert(customers)
-        .values(customerValues)
-        .returning();
+      // Create new customer with organization membership
+      // Strategy: Insert as 'member', then try to claim admin if no admin exists
+      // This prevents race conditions - at most one customer can claim admin per org
+      if (orgId) {
+        // Step 1: Insert as member (safe, no race condition possible)
+        const customerValues: any = {
+          name: customerData.name,
+          email: customerData.email,
+          phone: customerData.phone,
+          company: customerData.company,
+          ipAddress: customerData.ipAddress,
+          status: 'online',
+          customerOrganizationId: orgId,
+          customerOrgRole: 'member', // Start as member
+        };
+        
+        [customer] = await db
+          .insert(customers)
+          .values(customerValues)
+          .returning();
+        
+        // Step 2: Try to claim admin if no admin exists for this org
+        // This UPDATE is protected by partial unique index idx_customers_one_admin_per_org
+        // which ensures only ONE customer can have admin role per organization
+        try {
+          const claimAdminResult = await db.execute(sql`
+            UPDATE customers 
+            SET customer_org_role = 'admin', updated_at = NOW()
+            WHERE id = ${customer.id}
+            AND customer_organization_id = ${orgId}
+            AND NOT EXISTS (
+              SELECT 1 FROM customers 
+              WHERE customer_organization_id = ${orgId} 
+              AND customer_org_role = 'admin'
+              AND id != ${customer.id}
+            )
+            RETURNING *
+          `);
+          
+          // Check if we claimed admin - db.execute returns { rows } for pg driver
+          // Also need to re-fetch customer since raw SQL returns snake_case columns
+          const rows = (claimAdminResult as any).rows || claimAdminResult;
+          if (rows && rows.length > 0) {
+            // Refresh customer to get properly typed record with camelCase fields
+            const refreshedCustomer = await this.getCustomer(customer.id);
+            if (refreshedCustomer) {
+              customer = refreshedCustomer;
+            }
+            console.log(`Customer ${customer.id} claimed admin role for org ${orgId}`);
+          } else {
+            console.log(`Customer ${customer.id} joined org ${orgId} as member (admin already exists)`);
+          }
+        } catch (err: any) {
+          // Unique constraint violation means another customer already claimed admin
+          if (err.code === '23505') {
+            console.log(`Customer ${customer.id} joined org ${orgId} as member (concurrent admin claim resolved)`);
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        // No org - create customer without org membership
+        const customerValues: any = {
+          name: customerData.name,
+          email: customerData.email,
+          phone: customerData.phone,
+          company: customerData.company,
+          ipAddress: customerData.ipAddress,
+          status: 'online',
+          customerOrganizationId: null,
+          customerOrgRole: null,
+        };
+        
+        [customer] = await db
+          .insert(customers)
+          .values(customerValues)
+          .returning();
+      }
     }
 
     // Create new conversation

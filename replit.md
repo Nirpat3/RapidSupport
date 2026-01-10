@@ -44,6 +44,10 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Documentation Framework**: Enterprise-grade structured documentation system for AI agents with controlled vocabulary, versioning, RBAC, document relationships, and an atomic document pipeline for AI export.
 - **Resolution History Tracking**: Tracks successful issue resolutions per customer, enabling agents to see past solutions for recurring issues. AI automatically injects proven solutions into context for better suggestions. Supports issue categorization, solution sources (KB articles, manual steps, external links, agent actions), and outcome tracking (resolved, partially resolved, not resolved). Full multi-tenant scoping ensures data isolation between organizations.
 - **Troubleshooting Workflows**: Guided decision-tree workflows for structured agent assistance. Features include: workflow playbooks with nodes (question/action/info/resolution types), edges with branching logic, workflow sessions tied to conversations, step-by-step progression with answer tracking, and a sidebar integration in the Conversations page. Admins can create and manage workflows at `/admin/workflows`, and agents access them via the GitBranch toggle button during conversations.
+- **Customer Organizations (Business Accounts)**: Multi-user business accounts for customer portal access. Customers from the same company are grouped into organizations based on company name during onboarding. Role-based access: 'admin' can see all org conversations, 'member' sees only their own. First member to join becomes admin (race-condition protected by partial unique index). Implemented in CustomerPortalConversations.tsx with filter options ("All Team", "My Conversations", "Team Members").
+
+### Database Indexes
+- **idx_customers_one_admin_per_org**: Partial unique index on customers table `(customer_organization_id) WHERE customer_org_role = 'admin'`. Ensures exactly one admin per customer organization and prevents race conditions during concurrent onboarding. Defined in shared/schema.ts.
 
 ## External Dependencies
 
