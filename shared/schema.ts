@@ -3272,3 +3272,178 @@ export const insertResolutionRecordSchema = createInsertSchema(resolutionRecords
 });
 export type InsertResolutionRecord = z.infer<typeof insertResolutionRecordSchema>;
 export type ResolutionRecord = typeof resolutionRecords.$inferSelect;
+
+// ============================================
+// WORKFLOW PLAYBOOKS (Decision Trees / Troubleshooting Flows)
+// Structured conversation guides for agents with branching logic
+// ============================================
+
+// Main workflow/playbook container
+export const workflowPlaybooks = pgTable("workflow_playbooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Identity
+  name: text("name").notNull(), // e.g., "PAX Disconnection Troubleshooting"
+  slug: text("slug").notNull(), // URL-friendly identifier
+  description: text("description"), // Brief description of what this workflow handles
+  
+  // Categorization
+  category: text("category"), // e.g., "hardware", "billing", "technical"
+  triggerKeywords: text("trigger_keywords").array(), // Keywords that suggest this workflow: ["pax", "disconnected", "terminal"]
+  
+  // Status and versioning
+  status: text("status").notNull().default("draft"), // 'draft' | 'published' | 'retired'
+  version: integer("version").notNull().default(1),
+  
+  // Entry point
+  startNodeId: varchar("start_node_id"), // The first node in the workflow
+  
+  // Tenant scoping
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  
+  // Visibility
+  visibility: text("visibility").notNull().default("workspace"), // 'workspace' | 'organization' | 'global'
+  
+  // Audit
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueSlugWorkspace: unique().on(table.slug, table.workspaceId),
+  workspaceIdx: index("workflow_playbook_workspace_idx").on(table.workspaceId),
+  statusIdx: index("workflow_playbook_status_idx").on(table.status),
+  categoryIdx: index("workflow_playbook_category_idx").on(table.category),
+}));
+
+// Workflow nodes - individual steps in the decision tree
+export const workflowNodes = pgTable("workflow_nodes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Parent workflow
+  playbookId: varchar("playbook_id").notNull().references(() => workflowPlaybooks.id, { onDelete: 'cascade' }),
+  
+  // Node type determines behavior
+  nodeType: text("node_type").notNull(), // 'question' | 'action' | 'condition' | 'resolution' | 'info'
+  
+  // Content
+  title: text("title").notNull(), // Short title: "Check Power Status"
+  prompt: text("prompt"), // Question to ask or action to perform: "Did the customer experience a power outage?"
+  description: text("description"), // Extended instructions for the agent
+  
+  // For 'question' nodes - predefined answer options
+  options: jsonb("options"), // Array: [{ value: 'power_outage', label: 'Yes, power outage' }, { value: 'pax_update', label: 'No, PAX was updated' }]
+  
+  // For 'action' nodes - automated or manual steps
+  actionType: text("action_type"), // 'manual' | 'automated' | 'api_call'
+  actionConfig: jsonb("action_config"), // Configuration for automated actions
+  
+  // For 'resolution' nodes
+  resolutionType: text("resolution_type"), // 'success' | 'escalate' | 'external'
+  resolutionMessage: text("resolution_message"), // Final message or next steps
+  
+  // Knowledge base integration
+  linkedArticleId: varchar("linked_article_id"), // Link to KB article for reference
+  linkedDocumentId: varchar("linked_document_id").references(() => documents.id),
+  
+  // Position for visual editor
+  positionX: integer("position_x").default(0),
+  positionY: integer("position_y").default(0),
+  
+  // Metadata
+  isEntryPoint: boolean("is_entry_point").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  playbookIdx: index("workflow_node_playbook_idx").on(table.playbookId),
+  nodeTypeIdx: index("workflow_node_type_idx").on(table.nodeType),
+}));
+
+// Workflow edges - connections between nodes with branching logic
+export const workflowEdges = pgTable("workflow_edges", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Connection
+  playbookId: varchar("playbook_id").notNull().references(() => workflowPlaybooks.id, { onDelete: 'cascade' }),
+  sourceNodeId: varchar("source_node_id").notNull().references(() => workflowNodes.id, { onDelete: 'cascade' }),
+  targetNodeId: varchar("target_node_id").notNull().references(() => workflowNodes.id, { onDelete: 'cascade' }),
+  
+  // Condition for this path (when does this edge apply?)
+  conditionType: text("condition_type").notNull().default("default"), // 'default' | 'option' | 'expression'
+  conditionValue: text("condition_value"), // The value that triggers this edge (e.g., 'power_outage')
+  conditionLabel: text("condition_label"), // Display label: "If power outage"
+  
+  // Ordering for fallback paths
+  priority: integer("priority").notNull().default(0), // Lower = higher priority
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  playbookIdx: index("workflow_edge_playbook_idx").on(table.playbookId),
+  sourceIdx: index("workflow_edge_source_idx").on(table.sourceNodeId),
+  targetIdx: index("workflow_edge_target_idx").on(table.targetNodeId),
+}));
+
+// Workflow sessions - tracks agent progress through a workflow for a conversation
+export const workflowSessions = pgTable("workflow_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Links
+  playbookId: varchar("playbook_id").notNull().references(() => workflowPlaybooks.id),
+  conversationId: varchar("conversation_id").notNull().references(() => conversations.id),
+  
+  // Progress tracking
+  currentNodeId: varchar("current_node_id").references(() => workflowNodes.id),
+  status: text("status").notNull().default("active"), // 'active' | 'completed' | 'abandoned' | 'escalated'
+  
+  // History of visited nodes and answers
+  nodeHistory: jsonb("node_history"), // Array: [{ nodeId, answer, timestamp }]
+  
+  // Outcome
+  resolutionNodeId: varchar("resolution_node_id").references(() => workflowNodes.id),
+  resolutionOutcome: text("resolution_outcome"), // 'success' | 'escalated' | 'unresolved'
+  resolutionNotes: text("resolution_notes"),
+  
+  // Agent and timing
+  agentId: varchar("agent_id").references(() => users.id),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  conversationIdx: index("workflow_session_conversation_idx").on(table.conversationId),
+  playbookIdx: index("workflow_session_playbook_idx").on(table.playbookId),
+  statusIdx: index("workflow_session_status_idx").on(table.status),
+}));
+
+// Workflow Playbooks insert schema and types
+export const insertWorkflowPlaybookSchema = createInsertSchema(workflowPlaybooks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertWorkflowPlaybook = z.infer<typeof insertWorkflowPlaybookSchema>;
+export type WorkflowPlaybook = typeof workflowPlaybooks.$inferSelect;
+
+// Workflow Nodes insert schema and types
+export const insertWorkflowNodeSchema = createInsertSchema(workflowNodes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertWorkflowNode = z.infer<typeof insertWorkflowNodeSchema>;
+export type WorkflowNode = typeof workflowNodes.$inferSelect;
+
+// Workflow Edges insert schema and types
+export const insertWorkflowEdgeSchema = createInsertSchema(workflowEdges).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertWorkflowEdge = z.infer<typeof insertWorkflowEdgeSchema>;
+export type WorkflowEdge = typeof workflowEdges.$inferSelect;
+
+// Workflow Sessions insert schema and types
+export const insertWorkflowSessionSchema = createInsertSchema(workflowSessions).omit({
+  id: true,
+  startedAt: true,
+});
+export type InsertWorkflowSession = z.infer<typeof insertWorkflowSessionSchema>;
+export type WorkflowSession = typeof workflowSessions.$inferSelect;
