@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { randomUUID } from "crypto";
 import crypto from "crypto";
 import rateLimit from 'express-rate-limit';
+import OpenAI from 'openai';
 import { DocumentProcessor } from './document-processor';
 import { AIDocumentAnalyzer } from './ai-document-analyzer';
 import { z } from 'zod';
@@ -580,7 +581,7 @@ async function processDocumentImport(
     console.log(`[DocImport] Extracted ${documentContent.metadata?.wordCount || 0} words from ${uploadedFile.originalName}`);
 
     // Phase 1: AI analyzes content and identifies atomic document boundaries
-    const openai = await getOpenAIClient();
+    const openai = new OpenAI();
     const analysisResponse = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -10739,10 +10740,20 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       }
       
       // Create the uploaded file record
-      const uploadedFile = await storage.createFile({
+      // Generate stored name from the path (the filename portion)
+      const storedName = file.path.split('/').pop() || file.filename || `upload-${Date.now()}`;
+      // Generate a simple hash from the file path and size for uniqueness
+      const crypto = await import('crypto');
+      const fs = await import('fs');
+      const fileBuffer = fs.readFileSync(file.path);
+      const sha256Hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+      
+      const uploadedFile = await storage.createUploadedFile({
         originalName: file.originalname,
+        storedName: storedName,
         mimeType: file.mimetype,
         size: file.size,
+        sha256Hash: sha256Hash,
         filePath: file.path,
         createdBy: user.id,
       });
