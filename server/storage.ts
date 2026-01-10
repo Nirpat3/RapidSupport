@@ -221,6 +221,9 @@ import {
   legalPolicies,
   type LegalPolicy,
   type InsertLegalPolicy,
+  organizationApplications,
+  type OrganizationApplication,
+  type InsertOrganizationApplication,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -410,6 +413,13 @@ export interface IStorage {
   getAllOrganizations(): Promise<Organization[]>;
   createOrganization(org: InsertOrganization): Promise<Organization>;
   updateOrganization(id: string, updates: Partial<InsertOrganization>): Promise<Organization>;
+
+  // Organization Application operations (business signup)
+  getOrganizationApplication(id: string): Promise<OrganizationApplication | undefined>;
+  getAllOrganizationApplications(status?: string): Promise<OrganizationApplication[]>;
+  createOrganizationApplication(app: InsertOrganizationApplication): Promise<OrganizationApplication>;
+  updateOrganizationApplication(id: string, updates: Partial<OrganizationApplication>): Promise<OrganizationApplication>;
+  checkOrganizationDuplicate(name: string, website?: string): Promise<{ isDuplicate: boolean; existingOrg?: Organization }>;
 
   // Knowledge Base operations
   getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined>;
@@ -2916,6 +2926,77 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error updating organization:', error);
       throw error;
+    }
+  }
+
+  // Organization Application operations (business signup)
+  async getOrganizationApplication(id: string): Promise<OrganizationApplication | undefined> {
+    try {
+      const [app] = await db.select().from(organizationApplications).where(eq(organizationApplications.id, id));
+      return app || undefined;
+    } catch (error) {
+      console.error('Error fetching organization application:', error);
+      return undefined;
+    }
+  }
+
+  async getAllOrganizationApplications(status?: string): Promise<OrganizationApplication[]> {
+    try {
+      if (status) {
+        return await db.select().from(organizationApplications)
+          .where(eq(organizationApplications.status, status))
+          .orderBy(desc(organizationApplications.createdAt));
+      }
+      return await db.select().from(organizationApplications)
+        .orderBy(desc(organizationApplications.createdAt));
+    } catch (error) {
+      console.error('Error fetching organization applications:', error);
+      return [];
+    }
+  }
+
+  async createOrganizationApplication(app: InsertOrganizationApplication): Promise<OrganizationApplication> {
+    try {
+      const [created] = await db.insert(organizationApplications).values(app).returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating organization application:', error);
+      throw error;
+    }
+  }
+
+  async updateOrganizationApplication(id: string, updates: Partial<OrganizationApplication>): Promise<OrganizationApplication> {
+    try {
+      const [updated] = await db.update(organizationApplications)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(organizationApplications.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error('Error updating organization application:', error);
+      throw error;
+    }
+  }
+
+  async checkOrganizationDuplicate(name: string, website?: string): Promise<{ isDuplicate: boolean; existingOrg?: Organization }> {
+    try {
+      const normalizedName = name.toLowerCase().trim();
+      const existingOrgs = await db.select().from(organizations);
+      
+      for (const org of existingOrgs) {
+        if (org.name.toLowerCase().trim() === normalizedName) {
+          return { isDuplicate: true, existingOrg: org };
+        }
+        if (website && org.website && org.website.toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '') === 
+            website.toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')) {
+          return { isDuplicate: true, existingOrg: org };
+        }
+      }
+      
+      return { isDuplicate: false };
+    } catch (error) {
+      console.error('Error checking organization duplicate:', error);
+      return { isDuplicate: false };
     }
   }
 

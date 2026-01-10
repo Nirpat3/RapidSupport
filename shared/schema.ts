@@ -87,6 +87,37 @@ export const organizations = pgTable("organizations", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Organization Applications - For businesses requesting to join the platform
+export const organizationApplications = pgTable("organization_applications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Organization Details
+  organizationName: text("organization_name").notNull(),
+  slug: text("slug").notNull(), // Proposed URL-friendly identifier
+  website: text("website"),
+  industry: text("industry"),
+  companySize: text("company_size"), // '1-10', '11-50', '51-200', '201-500', '500+'
+  // Contact Information
+  contactName: text("contact_name").notNull(),
+  contactEmail: text("contact_email").notNull(),
+  contactPhone: text("contact_phone"),
+  contactRole: text("contact_role"), // e.g., 'CEO', 'CTO', 'Support Manager'
+  // Business Details
+  useCase: text("use_case"), // How they plan to use the platform
+  expectedVolume: text("expected_volume"), // Expected monthly conversation volume
+  currentSolution: text("current_solution"), // What they currently use
+  // Application Status
+  status: text("status").notNull().default("pending"), // 'pending', 'approved', 'rejected', 'duplicate'
+  duplicateOfOrgId: varchar("duplicate_of_org_id").references(() => organizations.id),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  // If approved, link to created organization
+  approvedOrgId: varchar("approved_org_id").references(() => organizations.id),
+  // Timestamps
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Brand Voice Configuration - Centralized AI tone and style settings (Singleton table)
 export const brandConfig = pgTable("brand_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1323,6 +1354,27 @@ export const updateOrganizationSchema = createInsertSchema(organizations).omit({
   updatedAt: true,
 }).partial();
 
+export const insertOrganizationApplicationSchema = createInsertSchema(organizationApplications).pick({
+  organizationName: true,
+  slug: true,
+  website: true,
+  industry: true,
+  companySize: true,
+  contactName: true,
+  contactEmail: true,
+  contactPhone: true,
+  contactRole: true,
+  useCase: true,
+  expectedVolume: true,
+  currentSolution: true,
+});
+
+export const updateOrganizationApplicationSchema = createInsertSchema(organizationApplications).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).partial();
+
 export const insertBrandConfigSchema = createInsertSchema(brandConfig).omit({
   id: true,
   createdAt: true,
@@ -1974,6 +2026,8 @@ export const insertAiTrainingQueueSchema = createInsertSchema(aiTrainingQueue).p
 // Types
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 export type Organization = typeof organizations.$inferSelect;
+export type InsertOrganizationApplication = z.infer<typeof insertOrganizationApplicationSchema>;
+export type OrganizationApplication = typeof organizationApplications.$inferSelect;
 export type InsertBrandConfig = z.infer<typeof insertBrandConfigSchema>;
 export type UpdateBrandConfig = z.infer<typeof updateBrandConfigSchema>;
 export type BrandConfig = typeof brandConfig.$inferSelect;
