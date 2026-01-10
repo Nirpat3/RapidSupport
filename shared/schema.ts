@@ -80,6 +80,9 @@ export const organizations = pgTable("organizations", {
   // Status
   status: text("status").notNull().default("active"), // 'active' | 'suspended' | 'trial'
   trialEndsAt: timestamp("trial_ends_at"), // For trial accounts
+  // Embed Integration
+  embedSecret: text("embed_secret"), // Secret key for signing customer JWT tokens for embed widget
+  embedSecretCreatedAt: timestamp("embed_secret_created_at"), // When the embed secret was last generated
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -1269,6 +1272,12 @@ export const insertOrganizationSchema = createInsertSchema(organizations).pick({
   website: true,
   status: true,
 });
+
+export const updateOrganizationSchema = createInsertSchema(organizations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).partial();
 
 export const insertBrandConfigSchema = createInsertSchema(brandConfig).omit({
   id: true,

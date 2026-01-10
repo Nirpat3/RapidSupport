@@ -34,6 +34,7 @@ import {
   Bell,
   FileText,
   Code,
+  Code2,
   Tags,
   Sparkles,
   Zap,
@@ -129,6 +130,12 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     title: "Administration",
     url: "/administration",
     icon: Shield,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "API Integration",
+    url: "/api-integration",
+    icon: Code2,
     allowedRoles: ['admin']
   },
   {

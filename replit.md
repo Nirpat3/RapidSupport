@@ -58,6 +58,20 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Legacy backfill**: `scripts/backfill-customer-org-ids.ts` can populate organizationId for historical customers
 - **Key methods**: `getCustomerByEmailAndOrg`, `updateCustomerOrganizationId` added to IStorage interface
 
+### API Integration Admin Page
+Self-service admin console for embedding support chat in external websites and mobile apps.
+- **Location**: `/api-integration` (admin-only, Settings permission)
+- **Organization Selector**: Choose which organization to configure embed settings for
+- **Credentials Management**: Generate, rotate, and revoke embed secrets per organization
+  - Secrets stored in `organizations.embedSecret` and `organizations.embedSecretCreatedAt` database columns
+  - POST `/api/admin/organizations/:orgId/embed-secret` - Generate/rotate secret (admin auth required)
+  - GET `/api/admin/organizations/:orgId/embed-config` - Get embed configuration
+  - DELETE `/api/admin/organizations/:orgId/embed-secret` - Revoke secret
+- **Web Integration Guides**: Copy-paste embed code snippets for anonymous and pre-authenticated users
+- **Server-Side Token Generation**: Node.js and Python code samples for generating customer JWT tokens
+- **Mobile Integration**: React Native WebView example and native app guidance
+- **Documentation Tab**: How-it-works flow, authentication flows (anonymous vs pre-authenticated), API endpoints reference, and security best practices
+
 ## External Dependencies
 
 - **Database**: PostgreSQL (Neon serverless)

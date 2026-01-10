@@ -2,8 +2,13 @@ import type { RouteContext } from './types';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { storage } from '../storage';
-import { verifyCustomerToken, createSimpleToken, verifySimpleToken, generateEmbedSecret } from '../embed-auth';
+import { verifyCustomerToken, createSimpleToken, verifySimpleToken, generateEmbedSecret, registerEmbedSecret } from '../embed-auth';
+import { requireAuth, requireRole } from '../auth';
 import type { SupportCategory } from '@shared/schema';
+
+const orgIdParamSchema = z.object({
+  orgId: z.string().uuid(),
+});
 
 const tokenExchangeSchema = z.object({
   token: z.string(),
@@ -302,6 +307,108 @@ Store this secret securely on your server. Use it to sign customer tokens:
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to generate secret' });
+    }
+  });
+
+  app.post('/api/admin/organizations/:orgId/embed-secret', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const parseResult = orgIdParamSchema.safeParse(req.params);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid organization ID format' });
+      }
+      const { orgId } = parseResult.data;
+      
+      const org = await storage.getOrganization(orgId);
+      if (!org) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+      
+      const secret = generateEmbedSecret();
+      
+      await storage.updateOrganization(orgId, {
+        embedSecret: secret,
+        embedSecretCreatedAt: new Date(),
+      });
+      
+      registerEmbedSecret(org.slug, secret);
+      
+      res.json({
+        success: true,
+        secret,
+        createdAt: new Date().toISOString(),
+        message: 'Embed secret generated successfully. Store this securely - it will not be shown again.',
+      });
+    } catch (error) {
+      console.error('[Embed] Failed to generate embed secret:', error);
+      res.status(500).json({ error: 'Failed to generate embed secret' });
+    }
+  });
+
+  app.get('/api/admin/organizations/:orgId/embed-config', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const parseResult = orgIdParamSchema.safeParse(req.params);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid organization ID format' });
+      }
+      const { orgId } = parseResult.data;
+      
+      const org = await storage.getOrganization(orgId);
+      if (!org) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+      
+      const hasSecret = !!org.embedSecret;
+      const secretCreatedAt = org.embedSecretCreatedAt;
+      
+      if (hasSecret && org.embedSecret) {
+        registerEmbedSecret(org.slug, org.embedSecret);
+      }
+      
+      res.json({
+        organizationId: org.id,
+        organizationSlug: org.slug,
+        organizationName: org.name,
+        hasEmbedSecret: hasSecret,
+        embedSecretCreatedAt: secretCreatedAt,
+        embedWidgetUrl: `/embed/widget.js`,
+        embedEndpoints: {
+          exchangeToken: '/api/embed/exchange-token',
+          initSession: '/api/embed/init-session',
+          resumeSession: '/api/embed/resume-session',
+          config: `/api/embed/config/${org.slug}`,
+        },
+      });
+    } catch (error) {
+      console.error('[Embed] Failed to get embed config:', error);
+      res.status(500).json({ error: 'Failed to get embed configuration' });
+    }
+  });
+
+  app.delete('/api/admin/organizations/:orgId/embed-secret', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const parseResult = orgIdParamSchema.safeParse(req.params);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: 'Invalid organization ID format' });
+      }
+      const { orgId } = parseResult.data;
+      
+      const org = await storage.getOrganization(orgId);
+      if (!org) {
+        return res.status(404).json({ error: 'Organization not found' });
+      }
+      
+      await storage.updateOrganization(orgId, {
+        embedSecret: null,
+        embedSecretCreatedAt: null,
+      });
+      
+      res.json({
+        success: true,
+        message: 'Embed secret revoked. All existing embed tokens will no longer work.',
+      });
+    } catch (error) {
+      console.error('[Embed] Failed to revoke embed secret:', error);
+      res.status(500).json({ error: 'Failed to revoke embed secret' });
     }
   });
 }

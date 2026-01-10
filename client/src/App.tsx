@@ -54,6 +54,7 @@ import KnowledgeHubPage from "@/pages/KnowledgeHubPage";
 import SettingsHubPage from "@/pages/SettingsHubPage";
 import AdministrationHubPage from "@/pages/AdministrationHubPage";
 import ActivityHubPage from "@/pages/ActivityHubPage";
+import ApiIntegrationPage from "@/pages/ApiIntegrationPage";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
 import NotFound from "@/pages/not-found";
@@ -228,6 +229,11 @@ function Router() {
       <Route path="/branding">
         <PermissionGuard feature="settings">
           <BrandingSettingsPage />
+        </PermissionGuard>
+      </Route>
+      <Route path="/api-integration">
+        <PermissionGuard feature="settings">
+          <ApiIntegrationPage />
         </PermissionGuard>
       </Route>
       <Route path="/install-app" component={InstallAppPage} />
