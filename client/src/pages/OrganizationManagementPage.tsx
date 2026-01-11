@@ -141,8 +141,7 @@ export default function OrganizationManagementPage() {
 
   const inviteMutation = useMutation({
     mutationFn: async (data: InviteForm) => {
-      const response = await apiRequest('/api/admin/organizations/invite', 'POST', data);
-      return response.json();
+      return apiRequest('/api/admin/organizations/invite', 'POST', data);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/organization-setup-tokens'] });
@@ -159,8 +158,7 @@ export default function OrganizationManagementPage() {
 
   const approveMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest(`/api/admin/organization-applications/${id}/approve`, 'POST', {});
-      return response.json();
+      return apiRequest(`/api/admin/organization-applications/${id}/approve`, 'POST', {});
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/organization-applications'] });

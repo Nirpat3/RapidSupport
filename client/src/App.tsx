@@ -369,6 +369,7 @@ function AppContent() {
   const isPublicArticlePage = pathname.startsWith('/kb/');
   const isOrgLoginPage = pathname.startsWith('/org/') && pathname.endsWith('/login');
   const isWorkspaceSelectPage = pathname === '/workspace-select';
+  const isOrganizationSetupPage = pathname === '/setup-organization';
   const isPortalLoginPage = pathname === '/portal/login';
   const isPortalPage = pathname.startsWith('/portal') && pathname !== '/portal/login';
   
@@ -475,6 +476,19 @@ function AppContent() {
         <TooltipProvider>
           <Suspense fallback={<PageLoader />}>
             <WorkspaceSelectPage />
+          </Suspense>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  if (isOrganizationSetupPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Suspense fallback={<PageLoader />}>
+            <OrganizationSetupPage />
           </Suspense>
           <Toaster />
         </TooltipProvider>
