@@ -3887,3 +3887,111 @@ export const insertCloudStorageFileSchema = createInsertSchema(cloudStorageFiles
 });
 export type InsertCloudStorageFile = z.infer<typeof insertCloudStorageFileSchema>;
 export type CloudStorageFile = typeof cloudStorageFiles.$inferSelect;
+
+// ============================================
+// RAG EVALUATION & QUALITY TRACKING
+// ============================================
+
+// RAG Query Traces - Log every retrieval for evaluation and improvement
+export const ragQueryTraces = pgTable("rag_query_traces", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Context
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  customerId: varchar("customer_id").references(() => customers.id),
+  
+  // Query details
+  query: text("query").notNull(),
+  queryEmbedding: vector("query_embedding"), // For similarity analysis
+  expandedTerms: text("expanded_terms").array(), // Synonyms/expansions used
+  
+  // Retrieval results
+  retrievedChunkIds: text("retrieved_chunk_ids").array(), // Ordered list of chunk IDs
+  retrievedScores: text("retrieved_scores").array(), // Corresponding scores as strings
+  searchType: text("search_type").notNull().default("hybrid"), // 'keyword' | 'semantic' | 'hybrid'
+  totalChunksSearched: integer("total_chunks_searched"),
+  retrievalTimeMs: integer("retrieval_time_ms"),
+  
+  // Generation
+  generatedResponse: text("generated_response"),
+  responseTimeMs: integer("response_time_ms"),
+  tokensUsed: integer("tokens_used"),
+  modelUsed: text("model_used"),
+  
+  // Quality signals
+  confidenceScore: integer("confidence_score"), // 0-100: AI's confidence in the response
+  uncertaintyDetected: boolean("uncertainty_detected").default(false), // Did AI admit uncertainty?
+  humanTakeoverTriggered: boolean("human_takeover_triggered").default(false),
+  
+  // Feedback
+  userRating: integer("user_rating"), // 1-5 stars from user
+  agentRating: integer("agent_rating"), // 1-5 from human agent review
+  feedbackNote: text("feedback_note"),
+  wasHelpful: boolean("was_helpful"),
+  
+  // Analysis
+  relevanceGap: boolean("relevance_gap").default(false), // Retrieved content wasn't relevant
+  missingInfo: boolean("missing_info").default(false), // KB lacked needed information
+  incorrectInfo: boolean("incorrect_info").default(false), // KB had wrong information
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("rag_trace_org_idx").on(table.organizationId),
+  convIdx: index("rag_trace_conv_idx").on(table.conversationId),
+  createdIdx: index("rag_trace_created_idx").on(table.createdAt),
+}));
+
+// Document Quality Scores - Track quality metrics for knowledge articles
+export const documentQualityScores = pgTable("document_quality_scores", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  knowledgeBaseId: varchar("knowledge_base_id").notNull().references(() => knowledgeBase.id, { onDelete: 'cascade' }),
+  
+  // Structure quality (0-100)
+  hasHeadings: boolean("has_headings").default(false),
+  hasFAQs: boolean("has_faqs").default(false),
+  hasStepByStep: boolean("has_step_by_step").default(false),
+  hasImages: boolean("has_images").default(false),
+  structureScore: integer("structure_score").default(0),
+  
+  // Content quality (0-100)
+  wordCount: integer("word_count").default(0),
+  avgSentenceLength: integer("avg_sentence_length").default(0),
+  readabilityScore: integer("readability_score").default(0), // Flesch-Kincaid style
+  contentScore: integer("content_score").default(0),
+  
+  // Chunking quality
+  chunkCount: integer("chunk_count").default(0),
+  avgChunkSize: integer("avg_chunk_size").default(0), // In tokens
+  chunkSizeVariance: integer("chunk_size_variance").default(0),
+  chunkingScore: integer("chunking_score").default(0),
+  
+  // Overall
+  overallScore: integer("overall_score").default(0),
+  lastAnalyzedAt: timestamp("last_analyzed_at"),
+  issues: text("issues").array(), // List of detected issues
+  suggestions: text("suggestions").array(), // Improvement suggestions
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  kbIdx: uniqueIndex("doc_quality_kb_idx").on(table.knowledgeBaseId),
+}));
+
+// RAG Query Traces insert schema and types
+export const insertRagQueryTraceSchema = createInsertSchema(ragQueryTraces).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertRagQueryTrace = z.infer<typeof insertRagQueryTraceSchema>;
+export type RagQueryTrace = typeof ragQueryTraces.$inferSelect;
+
+// Document Quality Scores insert schema and types
+export const insertDocumentQualityScoreSchema = createInsertSchema(documentQualityScores).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertDocumentQualityScore = z.infer<typeof insertDocumentQualityScoreSchema>;
+export type DocumentQualityScore = typeof documentQualityScores.$inferSelect;
