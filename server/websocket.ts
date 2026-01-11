@@ -732,6 +732,79 @@ class ChatWebSocketServer {
   }
 
   /**
+   * Send a message to a specific user via WebSocket
+   * Returns true if message was sent to at least one connection
+   */
+  public sendToUser(userId: string, message: any): boolean {
+    const userConnections = this.connections.get(userId);
+    if (!userConnections || userConnections.size === 0) return false;
+
+    let sent = false;
+    const connectionArray = Array.from(userConnections);
+    for (const ws of connectionArray) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(message));
+        sent = true;
+      }
+    }
+    return sent;
+  }
+
+  /**
+   * Get list of connected user IDs filtered by role
+   */
+  public getConnectedUsersByRole(roles: string[]): string[] {
+    const userIds: string[] = [];
+    const entries = Array.from(this.connections.entries());
+    
+    for (const [userId, connectionSet] of entries) {
+      const connectionArray = Array.from(connectionSet);
+      for (const ws of connectionArray) {
+        if (ws.readyState === WebSocket.OPEN && ws.userRole && roles.includes(ws.userRole)) {
+          userIds.push(userId);
+          break;
+        }
+      }
+    }
+    return userIds;
+  }
+
+  /**
+   * Broadcast a message to all users with specific roles
+   */
+  public broadcastToRoles(roles: string[], message: any, excludeUserIds: string[] = []): void {
+    const entries = Array.from(this.connections.entries());
+    
+    for (const [userId, connectionSet] of entries) {
+      if (excludeUserIds.includes(userId)) continue;
+      
+      const connectionArray = Array.from(connectionSet);
+      for (const ws of connectionArray) {
+        if (ws.readyState === WebSocket.OPEN && ws.userRole && roles.includes(ws.userRole)) {
+          ws.send(JSON.stringify(message));
+        }
+      }
+    }
+  }
+
+  /**
+   * Broadcast a notification to all connected staff (admin + agent)
+   */
+  public broadcastNotificationToStaff(notification: {
+    type: string;
+    title: string;
+    message: string;
+    data?: any;
+    priority?: string;
+    actionUrl?: string;
+  }): void {
+    this.broadcastToRoles(['admin', 'agent'], {
+      ...notification,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  /**
    * Send push notification for a new message to users who are offline
    * This is called after broadcasting via WebSocket to catch users who aren't connected
    */
