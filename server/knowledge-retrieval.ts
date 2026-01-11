@@ -471,36 +471,44 @@ export class KnowledgeRetrievalService {
 
   /**
    * Perform semantic search using embeddings
+   * ✅ RAG ENHANCEMENT: Accepts precomputed embedding to leverage cache
    */
+  private semanticSearchWithEmbedding(
+    chunks: KnowledgeChunk[], 
+    queryEmbedding: number[]
+  ): SearchResult[] {
+    if (queryEmbedding.length === 0) return [];
+    
+    const results: SearchResult[] = [];
+    
+    // Calculate similarity scores
+    for (const chunk of chunks) {
+      if (!chunk.embedding || chunk.embedding.length === 0) continue;
+      
+      const similarity = this.cosineSimilarity(queryEmbedding, chunk.embedding);
+      if (similarity > 0.15) { // ✅ Threshold for quality matches
+        const priorityBoost = (chunk.priority / 100) * 0.2;
+        const finalScore = similarity + priorityBoost;
+        
+        results.push({
+          chunk,
+          score: finalScore,
+          matchType: 'semantic',
+        });
+      }
+    }
+    
+    return results.sort((a, b) => b.score - a.score);
+  }
+
   /**
-   * ✅ PHASE 1 IMPROVEMENT: Increased semantic similarity threshold for quality
+   * Legacy semantic search - generates embedding internally
+   * @deprecated Use semanticSearchWithEmbedding with cached embedding instead
    */
   private async semanticSearch(chunks: KnowledgeChunk[], query: string): Promise<SearchResult[]> {
     try {
-      // Generate query embedding
       const queryEmbedding = await this.generateEmbedding(query);
-      if (queryEmbedding.length === 0) return [];
-      
-      const results: SearchResult[] = [];
-      
-      // Calculate similarity scores
-      for (const chunk of chunks) {
-        if (!chunk.embedding || chunk.embedding.length === 0) continue;
-        
-        const similarity = this.cosineSimilarity(queryEmbedding, chunk.embedding);
-        if (similarity > 0.15) { // ✅ Increased from 0.1 to 0.15 for better quality
-          const priorityBoost = (chunk.priority / 100) * 0.2;
-          const finalScore = similarity + priorityBoost;
-          
-          results.push({
-            chunk,
-            score: finalScore,
-            matchType: 'semantic',
-          });
-        }
-      }
-      
-      return results.sort((a, b) => b.score - a.score);
+      return this.semanticSearchWithEmbedding(chunks, queryEmbedding);
     } catch (error) {
       console.error('Error in semantic search:', error);
       return [];
@@ -665,6 +673,8 @@ export class KnowledgeRetrievalService {
       searchType?: string;
       confidence?: number;
       uncertaintyDetected?: boolean;
+      queryType?: string;
+      queryTypeConfidence?: number;
     }
   ): Promise<string | undefined> {
     try {
@@ -868,7 +878,7 @@ export class KnowledgeRetrievalService {
 
   /**
    * Enhanced search with reranking, confidence scoring, and RAG trace logging
-   * ✅ RAG BEST PRACTICES: Hybrid search + MMR reranking + confidence + logging
+   * ✅ RAG BEST PRACTICES: Hybrid search + MMR reranking + confidence + logging + query classification
    */
   async searchEnhanced(
     query: string,
@@ -889,6 +899,9 @@ export class KnowledgeRetrievalService {
         context,
         enableLogging = true,
       } = options;
+      
+      // ✅ RAG ENHANCEMENT: Classify query type for optimized retrieval
+      const queryClassification = this.classifyQuery(query);
       
       // Get chunks for the specified knowledge base IDs
       let chunks = await this.getChunks(knowledgeBaseIds);
@@ -921,11 +934,32 @@ export class KnowledgeRetrievalService {
       let finalResults: SearchResult[] = keywordResults;
       let queryEmbedding: number[] = [];
       
-      // Perform semantic search if enabled (only generate embeddings when needed)
+      // Perform semantic search if enabled (use cached embeddings for performance)
       if (useSemanticSearch) {
-        queryEmbedding = await this.generateEmbedding(query);
-        const semanticResults = await this.semanticSearch(chunks, query);
+        queryEmbedding = await this.getOrCreateEmbedding(query);
+        const semanticResults = this.semanticSearchWithEmbedding(chunks, queryEmbedding);
         finalResults = this.combineSearchResults(keywordResults, semanticResults);
+      }
+      
+      // ✅ RAG ENHANCEMENT: Boost results based on query type
+      if (queryClassification.type === 'procedural' || queryClassification.type === 'troubleshooting') {
+        // Boost step-by-step content for procedural/troubleshooting queries
+        finalResults.forEach(result => {
+          const content = result.chunk.content.toLowerCase();
+          const hasSteps = /\b(step|steps|instructions|tutorial|guide|how\s+to)\b/.test(content) ||
+                           /\d+[.)]\s/.test(result.chunk.content);
+          if (hasSteps) {
+            result.score *= 1.3;
+          }
+        });
+      } else if (queryClassification.type === 'factual') {
+        // Boost concise definitions for factual queries
+        finalResults.forEach(result => {
+          const wordCount = result.chunk.content.split(/\s+/).length;
+          if (wordCount < 200) { // Prefer concise answers
+            result.score *= 1.1;
+          }
+        });
       }
       
       // Filter by minimum score
@@ -967,7 +1001,7 @@ export class KnowledgeRetrievalService {
       
       const retrievalTimeMs = Date.now() - startTime;
       
-      // Log RAG trace for evaluation
+      // Log RAG trace for evaluation (includes query type)
       let traceId: string | undefined;
       if (enableLogging) {
         traceId = await this.logRagTrace(query, finalResults, {
@@ -978,6 +1012,8 @@ export class KnowledgeRetrievalService {
           searchType: useSemanticSearch ? 'hybrid' : 'keyword',
           confidence,
           uncertaintyDetected: !hasHighQualityMatch || confidence < 50,
+          queryType: queryClassification.type,
+          queryTypeConfidence: queryClassification.confidence,
         });
       }
       
@@ -1240,6 +1276,436 @@ export class KnowledgeRetrievalService {
         suggestions: quality.suggestions,
       };
     });
+  }
+
+  // ============================================
+  // RAG ENHANCEMENTS - Query Processing
+  // ============================================
+
+  /**
+   * Query embedding cache for performance optimization
+   */
+  private queryEmbeddingCache = new Map<string, { embedding: number[]; timestamp: number }>();
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+  /**
+   * Get cached embedding or generate new one
+   */
+  async getOrCreateEmbedding(query: string): Promise<number[]> {
+    const normalizedQuery = query.toLowerCase().trim();
+    const cached = this.queryEmbeddingCache.get(normalizedQuery);
+    
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL_MS) {
+      return cached.embedding;
+    }
+    
+    const embedding = await this.generateEmbedding(query);
+    this.queryEmbeddingCache.set(normalizedQuery, { embedding, timestamp: Date.now() });
+    
+    // Clean up old cache entries periodically
+    if (this.queryEmbeddingCache.size > 1000) {
+      const now = Date.now();
+      const entries = Array.from(this.queryEmbeddingCache.entries());
+      for (const [key, value] of entries) {
+        if (now - value.timestamp > this.CACHE_TTL_MS) {
+          this.queryEmbeddingCache.delete(key);
+        }
+      }
+    }
+    
+    return embedding;
+  }
+
+  /**
+   * Query Classification - Detect query type for optimized retrieval
+   * Types: factual (what/who), procedural (how-to), comparison, troubleshooting, general
+   */
+  classifyQuery(query: string): {
+    type: 'factual' | 'procedural' | 'comparison' | 'troubleshooting' | 'general';
+    confidence: number;
+    signals: string[];
+  } {
+    const lowerQuery = query.toLowerCase();
+    const signals: string[] = [];
+    let type: 'factual' | 'procedural' | 'comparison' | 'troubleshooting' | 'general' = 'general';
+    let maxScore = 0;
+    
+    // Factual patterns (what, who, when, where, which)
+    const factualScore = this.matchPatterns(lowerQuery, [
+      /^what\s+(is|are|was|were)\b/,
+      /^who\s+(is|are|was|were)\b/,
+      /^when\s+(did|does|is|was)\b/,
+      /^where\s+(is|are|can)\b/,
+      /^which\s+/,
+      /\b(definition|meaning|explain)\b/,
+    ]);
+    if (factualScore > maxScore) {
+      maxScore = factualScore;
+      type = 'factual';
+      signals.push('factual_keywords');
+    }
+    
+    // Procedural patterns (how to, steps, guide)
+    const proceduralScore = this.matchPatterns(lowerQuery, [
+      /^how\s+(do\s+i|to|can\s+i)\b/,
+      /\b(steps?\s+to|guide|tutorial|instructions?)\b/,
+      /\b(setup|set\s+up|install|configure|create)\b/,
+      /\bcan\s+you\s+(show|tell|help)\b/,
+    ]);
+    if (proceduralScore > maxScore) {
+      maxScore = proceduralScore;
+      type = 'procedural';
+      signals.push('procedural_keywords');
+    }
+    
+    // Comparison patterns
+    const comparisonScore = this.matchPatterns(lowerQuery, [
+      /\b(vs|versus|compared?\s+to|difference\s+between)\b/,
+      /\b(better|best|worse|which\s+one)\b/,
+      /\bor\b.*\?$/,
+    ]);
+    if (comparisonScore > maxScore) {
+      maxScore = comparisonScore;
+      type = 'comparison';
+      signals.push('comparison_keywords');
+    }
+    
+    // Troubleshooting patterns
+    const troubleshootingScore = this.matchPatterns(lowerQuery, [
+      /\b(not\s+working|broken|error|issue|problem|fail|stuck)\b/,
+      /\b(fix|solve|resolve|troubleshoot|debug)\b/,
+      /\bwhy\s+(is|does|can'?t|won'?t)\b/,
+      /\b(doesn'?t|can'?t|won'?t|isn'?t)\s+work/,
+    ]);
+    if (troubleshootingScore > maxScore) {
+      maxScore = troubleshootingScore;
+      type = 'troubleshooting';
+      signals.push('troubleshooting_keywords');
+    }
+    
+    return {
+      type,
+      confidence: Math.min(100, maxScore * 25),
+      signals,
+    };
+  }
+
+  private matchPatterns(text: string, patterns: RegExp[]): number {
+    let matches = 0;
+    for (const pattern of patterns) {
+      if (pattern.test(text)) matches++;
+    }
+    return matches;
+  }
+
+  /**
+   * LLM-based query expansion for better recall
+   * Generates semantically related queries
+   */
+  async expandQueryWithLLM(query: string): Promise<{
+    originalQuery: string;
+    expandedQueries: string[];
+    keywords: string[];
+  }> {
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-5',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a query expansion assistant. Given a user query, generate 2-3 alternative phrasings and extract key search terms.
+            
+Respond in JSON format:
+{
+  "alternatives": ["alternative query 1", "alternative query 2"],
+  "keywords": ["key", "search", "terms"]
+}
+
+Keep alternatives concise and semantically similar to the original.`,
+          },
+          {
+            role: 'user',
+            content: query,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 150,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (content) {
+        const parsed = JSON.parse(content);
+        return {
+          originalQuery: query,
+          expandedQueries: parsed.alternatives || [],
+          keywords: parsed.keywords || [],
+        };
+      }
+    } catch (error) {
+      console.error('[QueryExpansion] LLM expansion failed:', error);
+    }
+    
+    // Fallback to synonym-based expansion
+    return {
+      originalQuery: query,
+      expandedQueries: [],
+      keywords: this.expandQueryWithSynonyms(query).slice(0, 10),
+    };
+  }
+
+  // ============================================
+  // RAG ENHANCEMENTS - Answer Quality
+  // ============================================
+
+  /**
+   * Calculate answer grounding score - how well the answer is supported by retrieved chunks
+   */
+  calculateGroundingScore(
+    answer: string,
+    retrievedChunks: SearchResult[]
+  ): {
+    score: number; // 0-100
+    groundedClaims: number;
+    ungroundedClaims: number;
+    citationCoverage: number;
+  } {
+    if (!answer || retrievedChunks.length === 0) {
+      return { score: 0, groundedClaims: 0, ungroundedClaims: 0, citationCoverage: 0 };
+    }
+    
+    // Extract factual claims from the answer (sentences with specific information)
+    const sentences = answer.split(/[.!?]+/).filter(s => s.trim().length > 10);
+    const claims = sentences.filter(s => {
+      const lower = s.toLowerCase();
+      // Filter out meta-statements and hedging
+      return !lower.includes('i can help') &&
+             !lower.includes("i'm not sure") &&
+             !lower.includes('let me') &&
+             !lower.includes('please ') &&
+             s.trim().length > 20;
+    });
+    
+    if (claims.length === 0) {
+      return { score: 100, groundedClaims: 0, ungroundedClaims: 0, citationCoverage: 100 };
+    }
+    
+    // Combine all retrieved content for matching
+    const sourceContent = retrievedChunks
+      .map(r => r.chunk.content.toLowerCase())
+      .join(' ');
+    
+    // Check each claim for grounding
+    let groundedCount = 0;
+    for (const claim of claims) {
+      const claimWords = claim.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      const matchingWords = claimWords.filter(w => sourceContent.includes(w));
+      const matchRatio = matchingWords.length / claimWords.length;
+      
+      if (matchRatio >= 0.4) { // 40% word overlap indicates grounding
+        groundedCount++;
+      }
+    }
+    
+    const ungroundedCount = claims.length - groundedCount;
+    const groundingScore = Math.round((groundedCount / claims.length) * 100);
+    
+    // Citation coverage - what % of top sources contributed to the answer
+    const usedSources = new Set<string>();
+    for (const chunk of retrievedChunks.slice(0, 3)) {
+      const chunkContent = chunk.chunk.content.toLowerCase();
+      for (const claim of claims) {
+        const claimWords = claim.toLowerCase().split(/\s+/).filter(w => w.length > 4);
+        if (claimWords.some(w => chunkContent.includes(w))) {
+          usedSources.add(chunk.chunk.knowledgeBaseId);
+          break;
+        }
+      }
+    }
+    const citationCoverage = Math.round((usedSources.size / Math.min(3, retrievedChunks.length)) * 100);
+    
+    return {
+      score: groundingScore,
+      groundedClaims: groundedCount,
+      ungroundedClaims: ungroundedCount,
+      citationCoverage,
+    };
+  }
+
+  /**
+   * Verify citations - check that referenced content matches source documents
+   */
+  verifyCitations(
+    answer: string,
+    retrievedChunks: SearchResult[]
+  ): {
+    isVerified: boolean;
+    verificationScore: number;
+    issues: string[];
+  } {
+    const issues: string[] = [];
+    
+    if (!answer || retrievedChunks.length === 0) {
+      return { isVerified: false, verificationScore: 0, issues: ['No sources available'] };
+    }
+    
+    // Check for potential hallucination indicators
+    const hallucIndicators = [
+      /\b(according to|the documentation states|as per the guide)\b/i,
+      /\b(step \d+)\b/i,
+      /\b(version \d+\.\d+)\b/i,
+      /\b(in \d{4})\b/i, // Year references
+    ];
+    
+    const sourceContent = retrievedChunks.map(r => r.chunk.content).join(' ');
+    let verificationsNeeded = 0;
+    let verificationsFound = 0;
+    
+    for (const indicator of hallucIndicators) {
+      const matches = answer.match(indicator);
+      if (matches) {
+        verificationsNeeded++;
+        // Check if this claim exists in sources
+        if (indicator.test(sourceContent)) {
+          verificationsFound++;
+        } else {
+          issues.push(`Claim "${matches[0]}" not found in sources`);
+        }
+      }
+    }
+    
+    // Check for specific numbers or statistics
+    const numberPattern = /\b\d+(\.\d+)?%?(\s*(minutes?|hours?|days?|steps?|users?|customers?))?\b/g;
+    const answerNumbers = answer.match(numberPattern) || [];
+    
+    for (const num of answerNumbers.slice(0, 5)) { // Check first 5 numbers
+      verificationsNeeded++;
+      if (sourceContent.includes(num)) {
+        verificationsFound++;
+      } else {
+        issues.push(`Number "${num}" not verified in sources`);
+      }
+    }
+    
+    const verificationScore = verificationsNeeded === 0 
+      ? 100 
+      : Math.round((verificationsFound / verificationsNeeded) * 100);
+    
+    return {
+      isVerified: issues.length === 0 || verificationScore >= 80,
+      verificationScore,
+      issues,
+    };
+  }
+
+  // ============================================
+  // RAG ENHANCEMENTS - User Feedback Integration
+  // ============================================
+
+  /**
+   * Record user feedback on AI response quality
+   */
+  async recordResponseFeedback(
+    conversationId: string,
+    messageId: string,
+    feedback: {
+      rating: 'helpful' | 'not_helpful' | 'partial';
+      knowledgeBaseIds: string[];
+      agentId?: string;
+      userQuery: string;
+      comment?: string;
+    }
+  ): Promise<void> {
+    try {
+      // Update AI knowledge feedback for each knowledge base article used
+      for (const kbId of feedback.knowledgeBaseIds) {
+        await storage.createAiKnowledgeFeedback?.({
+          conversationId,
+          messageId,
+          knowledgeBaseId: kbId,
+          agentId: feedback.agentId || null,
+          userQuery: feedback.userQuery,
+          outcome: feedback.rating,
+          agentFeedback: feedback.comment || null,
+          wasUsedInResponse: true,
+          requiredHumanTakeover: feedback.rating === 'not_helpful',
+        });
+        
+        // Update aggregated metrics
+        await this.updateArticleMetrics(kbId, feedback.rating);
+      }
+    } catch (error) {
+      console.error('[Feedback] Error recording response feedback:', error);
+    }
+  }
+
+  /**
+   * Update aggregated article metrics based on feedback
+   */
+  private async updateArticleMetrics(
+    knowledgeBaseId: string,
+    outcome: 'helpful' | 'not_helpful' | 'partial'
+  ): Promise<void> {
+    try {
+      // Check if storage methods exist
+      if (!storage.getKnowledgeArticleMetrics || !storage.updateKnowledgeArticleMetrics) {
+        console.log('[Metrics] Article metrics storage methods not available');
+        return;
+      }
+      
+      const existing = await storage.getKnowledgeArticleMetrics(knowledgeBaseId);
+      
+      if (existing) {
+        const updates: Record<string, unknown> = {
+          timesUsedInResponse: existing.timesUsedInResponse + 1,
+          lastUsedAt: new Date(),
+        };
+        
+        if (outcome === 'helpful') {
+          updates.helpfulCount = existing.helpfulCount + 1;
+          updates.lastHelpfulAt = new Date();
+        } else if (outcome === 'not_helpful') {
+          updates.notHelpfulCount = existing.notHelpfulCount + 1;
+        } else {
+          updates.partialCount = existing.partialCount + 1;
+        }
+        
+        // Recalculate success rate
+        const helpfulCount = (updates.helpfulCount as number) || existing.helpfulCount;
+        const notHelpfulCount = (updates.notHelpfulCount as number) || existing.notHelpfulCount;
+        const partialCount = (updates.partialCount as number) || existing.partialCount;
+        const totalRated = helpfulCount + notHelpfulCount + partialCount;
+        if (totalRated > 0) {
+          updates.successRate = ((helpfulCount + partialCount * 0.5) / totalRated * 100).toFixed(1);
+        }
+        
+        await storage.updateKnowledgeArticleMetrics(knowledgeBaseId, updates);
+      }
+      // Note: Creating new metrics entries requires additional storage method
+    } catch (error) {
+      console.error('[Metrics] Error updating article metrics:', error);
+    }
+  }
+
+  /**
+   * Get top performing knowledge articles based on feedback
+   * Note: Requires storage.getAllKnowledgeArticleMetrics to be implemented
+   */
+  async getTopPerformingArticles(limit: number = 10): Promise<Array<{
+    articleId: string;
+    title: string;
+    successRate: number;
+    usageCount: number;
+  }>> {
+    try {
+      // This method would require a storage method to fetch all metrics sorted by success rate
+      // For now, return empty until the storage method is implemented
+      console.log('[Metrics] getTopPerformingArticles - storage method not yet implemented');
+      return [];
+    } catch (error) {
+      console.error('[Metrics] Error getting top articles:', error);
+      return [];
+    }
   }
 }
 
