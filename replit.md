@@ -20,7 +20,16 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 ### Feature Specifications
 - **Real-time Communication**: Custom WebSocket server for chat, presence, routing, and typing indicators.
 - **AI Capabilities**: A multi-agent AI system (OpenAI GPT-5) for intent classification, smart routing, and agent handoff, with a Centralized Brand Voice System and enhanced RAG optimization. Conversational Intelligence provides customer memory, sentiment analysis, and conversation tracking.
-- **Enhanced RAG System**: Features hybrid search (keyword + semantic), MMR reranking, confidence scoring with 70% human takeover threshold, "I Don't Know" guardrails, query trace logging, and optimized chunking (300-500 words with 60-word overlap) with semantic boundary detection. Advanced features include query classification (factual/procedural/troubleshooting/comparison), query embedding caching (5-min TTL), answer grounding scores, citation verification, LLM-based query expansion, and user feedback integration with article metrics.
+- **Enhanced RAG System**: Industry-standard RAG with hybrid search (keyword + semantic), MMR reranking, confidence scoring with 70% human takeover threshold, and optimized chunking (300-500 words with 60-word overlap). Advanced capabilities include:
+  - **Multi-Turn Memory**: Conversation context tracking with coreference resolution (resolves "it", "they", "that" to referenced entities)
+  - **Voice Optimization**: Concise formatting for TTS, prosody hints, clarification prompts for ambiguous input
+  - **Self-Correcting Retrieval**: Automatic query reformulation (up to 2 retries) when confidence <50%
+  - **Multi-Hop Reasoning**: Decomposes complex queries into sub-queries (up to 3 hops) for information synthesis
+  - **Tiered Retrieval**: Fast keyword-first search, semantic fallback only when needed (score <0.7 or <3 results)
+  - **Hallucination Detection**: Citation verification, consistency checking, source grounding validation
+  - **Confidence Calibration**: Tracks prediction accuracy by query type, adjusts confidence based on historical outcomes
+  - **Time-Aware Retrieval**: Prioritizes recent articles, detects temporal relevance in queries
+  - **Negative Retrieval**: Detects knowledge gaps and generates appropriate "I don't know" responses
 - **Knowledge Base Integration**: AI analyzes documents (TXT, PDF, DOCX) for metadata, FAQ generation, and vector embedding. Includes automatic hourly reindexing.
 - **Rich Media Input**: Supports file attachments, camera capture, emoji picker, and voice-to-text.
 - **AI Learning System**: Active learning pipeline for continuous AI improvement from human feedback.
