@@ -9,6 +9,7 @@ interface User {
   name: string;
   role: 'admin' | 'agent' | 'customer';
   status: string;
+  hasCompletedOnboarding?: boolean;
 }
 
 interface AuthContextType {
@@ -71,8 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           title: "Login successful",
           description: `Welcome back, ${data.user.name}!`
         });
-        // Use wouter navigation instead of full page reload to avoid 404 flash
-        setLocation('/dashboard');
+        // Redirect first-time users to welcome page, otherwise to dashboard
+        if (data.user.hasCompletedOnboarding === false) {
+          setLocation('/welcome');
+        } else {
+          setLocation('/dashboard');
+        }
         return true;
       } else {
         const errorData = await response.json();

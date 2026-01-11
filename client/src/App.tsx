@@ -39,6 +39,7 @@ const CustomerPortalLogin = lazy(() => import("@/pages/CustomerPortalLogin"));
 const OrgCustomerLoginPage = lazy(() => import("@/pages/OrgCustomerLoginPage"));
 const WorkspaceSelectPage = lazy(() => import("@/pages/WorkspaceSelectPage"));
 const InstallAppPage = lazy(() => import("@/pages/InstallAppPage"));
+const WelcomePage = lazy(() => import("@/pages/WelcomePage"));
 const MockupPage = lazy(() => import("@/pages/MockupPage"));
 const PublicPolicyPage = lazy(() => import("@/pages/PublicPolicyPage"));
 
@@ -84,6 +85,8 @@ function Router() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Switch>
+        <Route path="/welcome" component={WelcomePage} />
+        <Route path="/install-app" component={InstallAppPage} />
         <Route path="/mockup" component={MockupPage} />
         <Route path="/platform-admin">
           <PermissionGuard feature="platform-admin">

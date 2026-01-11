@@ -101,6 +101,21 @@ export function registerAuthRoutes({ app }: RouteContext) {
     }
   });
 
+  app.post('/api/auth/complete-onboarding', requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any)?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'Not authenticated' });
+      }
+      
+      await storage.completeUserOnboarding(userId);
+      res.json({ success: true, message: 'Onboarding completed' });
+    } catch (error) {
+      console.error('Complete onboarding error:', error);
+      res.status(500).json({ error: 'Failed to complete onboarding' });
+    }
+  });
+
   app.post('/api/portal/auth/login', authLimiter, csrfProtection, async (req, res) => {
     try {
       const loginData = z.object({
@@ -191,7 +206,7 @@ export function registerAuthRoutes({ app }: RouteContext) {
       }).parse(req.body);
 
       const hashedPassword = await hash(password, 10);
-      await storage.setCustomerPortalAccess(customerId, hashedPassword);
+      await storage.setCustomerPortalPassword(customerId, hashedPassword);
       
       res.json({ success: true, message: 'Portal access granted successfully' });
     } catch (error) {

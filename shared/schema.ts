@@ -211,6 +211,7 @@ export const users = pgTable("users", {
   isPlatformAdmin: boolean("is_platform_admin").notNull().default(false), // Platform-level admin who manages all organizations
   organizationId: varchar("organization_id").references(() => organizations.id), // Staff belong to organizations
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
+  hasCompletedOnboarding: boolean("has_completed_onboarding").notNull().default(false), // Whether user has seen/completed welcome onboarding
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

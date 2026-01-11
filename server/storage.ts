@@ -238,6 +238,7 @@ export interface IStorage {
   updateUserStatus(id: string, status: string): Promise<void>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User>;
   deleteUser(id: string): Promise<void>;
+  completeUserOnboarding(userId: string): Promise<void>;
   getAllAgents(): Promise<User[]>;
   getAllUsers(): Promise<User[]>;
 
@@ -819,6 +820,13 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUser(id: string): Promise<void> {
     await db.delete(users).where(eq(users.id, id));
+  }
+
+  async completeUserOnboarding(userId: string): Promise<void> {
+    await db
+      .update(users)
+      .set({ hasCompletedOnboarding: true, updatedAt: new Date() })
+      .where(eq(users.id, userId));
   }
 
   async getAllAgents(): Promise<User[]> {

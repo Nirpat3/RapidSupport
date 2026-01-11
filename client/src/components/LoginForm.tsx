@@ -50,7 +50,7 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
             <LogIn className="w-8 h-8 text-primary-foreground" />
           </div>
           <div>
-            <CardTitle className="text-2xl font-semibold">Support Board</CardTitle>
+            <CardTitle className="text-2xl font-semibold">Nova AI</CardTitle>
             <CardDescription className="mt-2">
               Enter your login details below
             </CardDescription>

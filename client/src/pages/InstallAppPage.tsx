@@ -1,3 +1,4 @@
+import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,22 +15,40 @@ import {
   Globe,
   Zap,
   Bell,
-  WifiOff
+  WifiOff,
+  ArrowLeft
 } from "lucide-react";
+import { NovaLogo } from "@/components/NovaLogo";
 
 export default function InstallAppPage() {
   return (
-    <div className="min-h-screen p-4 sm:p-6 space-y-6" data-testid="install-app-page">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5" data-testid="install-app-page">
+      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/">
+            <div className="flex items-center gap-2 cursor-pointer">
+              <NovaLogo size="sm" />
+            </div>
+          </Link>
+          <Link href="/welcome">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+          </Link>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
             <Smartphone className="w-8 h-8 text-primary" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold mb-2" data-testid="page-title">
-            Install Support Board App
+            Install Nova AI App
           </h1>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Add Support Board to your home screen for quick access, just like a native app. 
+            Add Nova AI to your home screen for quick access, just like a native app. 
             Works offline and provides a seamless mobile experience.
           </p>
         </div>
@@ -284,7 +303,7 @@ export default function InstallAppPage() {
                     <div className="flex-1">
                       <h4 className="font-semibold mb-1">Alternative: Use the Menu</h4>
                       <p className="text-sm text-muted-foreground mb-2">
-                        Click the three dots menu in Chrome, then select "Install Support Board..." 
+                        Click the three dots menu in Chrome, then select "Install Nova AI..." 
                         or "Save and Share" and then "Install as app" in Edge.
                       </p>
                     </div>

@@ -182,7 +182,7 @@ export default function OnboardingChecklist({ onDismiss, variant = 'full' }: Onb
             <Sparkles className="w-6 h-6 text-white" />
           </div>
           <div>
-            <CardTitle>Welcome to Support Board!</CardTitle>
+            <CardTitle>Welcome to Nova AI!</CardTitle>
             <CardDescription>
               Complete these steps to get the most out of your support platform
             </CardDescription>
