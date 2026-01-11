@@ -43,6 +43,7 @@ import {
   departments,
   departmentMembers,
   organizations,
+  auditLog,
   type User,
   type Organization,
   type InsertOrganization,
@@ -224,6 +225,8 @@ import {
   organizationApplications,
   type OrganizationApplication,
   type InsertOrganizationApplication,
+  type AuditLog,
+  type InsertAuditLog,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -239,8 +242,8 @@ export interface IStorage {
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User>;
   deleteUser(id: string): Promise<void>;
   completeUserOnboarding(userId: string): Promise<void>;
-  getAllAgents(): Promise<User[]>;
-  getAllUsers(): Promise<User[]>;
+  getAllAgents(includeDeleted?: boolean): Promise<User[]>;
+  getAllUsers(includeDeleted?: boolean): Promise<User[]>;
 
   // Customer Organization operations (business accounts for customer portal)
   getCustomerOrganization(id: string): Promise<CustomerOrganization | undefined>;
@@ -268,6 +271,7 @@ export interface IStorage {
     status?: string;
     sortBy?: 'createdAt' | 'updatedAt' | 'name';
     sortOrder?: 'asc' | 'desc';
+    includeDeleted?: boolean;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }>;
   setCustomerPortalPassword(customerId: string, hashedPassword: string): Promise<void>;
   updateCustomerPortalLastLogin(customerId: string): Promise<void>;
@@ -375,7 +379,7 @@ export interface IStorage {
   // Workspace operations
   getWorkspace(id: string): Promise<Workspace | undefined>;
   getWorkspacesByOrganization(organizationId: string): Promise<Workspace[]>;
-  getAllWorkspaces(): Promise<Workspace[]>;
+  getAllWorkspaces(includeDeleted?: boolean): Promise<Workspace[]>;
   getDefaultWorkspace(): Promise<Workspace | undefined>;
   createWorkspace(workspace: InsertWorkspace): Promise<Workspace>;
   updateWorkspace(id: string, updates: Partial<InsertWorkspace>): Promise<Workspace>;
@@ -411,9 +415,9 @@ export interface IStorage {
   // Organization operations (for white-label branding)
   getOrganization(id: string): Promise<Organization | undefined>;
   getOrganizationBySlug(slug: string): Promise<Organization | undefined>;
-  getAllOrganizations(): Promise<Organization[]>;
+  getAllOrganizations(includeDeleted?: boolean): Promise<Organization[]>;
   createOrganization(org: InsertOrganization): Promise<Organization>;
-  updateOrganization(id: string, updates: Partial<InsertOrganization>): Promise<Organization>;
+  updateOrganization(id: string, updates: Partial<InsertOrganization>, performedBy?: string): Promise<Organization>;
 
   // Organization Application operations (business signup)
   getOrganizationApplication(id: string): Promise<OrganizationApplication | undefined>;
@@ -421,6 +425,22 @@ export interface IStorage {
   createOrganizationApplication(app: InsertOrganizationApplication): Promise<OrganizationApplication>;
   updateOrganizationApplication(id: string, updates: Partial<OrganizationApplication>): Promise<OrganizationApplication>;
   checkOrganizationDuplicate(name: string, website?: string): Promise<{ isDuplicate: boolean; existingOrg?: Organization }>;
+  
+  // Soft Delete operations - marks records as deleted without removing them
+  softDeleteOrganization(id: string, deletedBy: string, reason?: string): Promise<void>;
+  softDeleteUser(id: string, deletedBy: string, reason?: string): Promise<void>;
+  softDeleteWorkspace(id: string, deletedBy: string, reason?: string): Promise<void>;
+  softDeleteCustomer(id: string, deletedBy: string, reason?: string): Promise<void>;
+  restoreOrganization(id: string, restoredBy: string): Promise<void>;
+  restoreUser(id: string, restoredBy: string): Promise<void>;
+  restoreWorkspace(id: string, restoredBy: string): Promise<void>;
+  restoreCustomer(id: string, restoredBy: string): Promise<void>;
+  
+  // Audit Log operations - tracks all significant changes for historical data preservation
+  createAuditLog(entry: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogsForEntity(entityType: string, entityId: string): Promise<AuditLog[]>;
+  getAuditLogsByOrganization(organizationId: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]>;
+  getRecentAuditLogs(options?: { limit?: number; entityTypes?: string[] }): Promise<AuditLog[]>;
 
   // Knowledge Base operations
   getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined>;
@@ -829,12 +849,24 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId));
   }
 
-  async getAllAgents(): Promise<User[]> {
-    return await db.select().from(users).where(eq(users.role, 'agent'));
+  async getAllAgents(includeDeleted: boolean = false): Promise<User[]> {
+    if (includeDeleted) {
+      return await db.select().from(users).where(eq(users.role, 'agent'));
+    }
+    // Filter out soft-deleted agents
+    return await db.select().from(users).where(
+      and(eq(users.role, 'agent'), isNull(users.deletedAt))
+    );
   }
 
-  async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(desc(users.updatedAt));
+  async getAllUsers(includeDeleted: boolean = false): Promise<User[]> {
+    if (includeDeleted) {
+      return await db.select().from(users).orderBy(desc(users.updatedAt));
+    }
+    // Filter out soft-deleted users
+    return await db.select().from(users)
+      .where(isNull(users.deletedAt))
+      .orderBy(desc(users.updatedAt));
   }
 
   // Customer Organization operations (business accounts for customer portal)
@@ -1036,6 +1068,7 @@ export class DatabaseStorage implements IStorage {
     status?: string;
     sortBy?: 'createdAt' | 'updatedAt' | 'name';
     sortOrder?: 'asc' | 'desc';
+    includeDeleted?: boolean;
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> {
     const {
       page = 1,
@@ -1043,7 +1076,8 @@ export class DatabaseStorage implements IStorage {
       search,
       status,
       sortBy = 'createdAt',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
+      includeDeleted = false
     } = options || {};
 
     let query = db.select().from(customers).$dynamic();
@@ -1051,6 +1085,11 @@ export class DatabaseStorage implements IStorage {
 
     // Apply filters
     const whereConditions: any[] = [];
+    
+    // Filter out soft-deleted customers by default
+    if (!includeDeleted) {
+      whereConditions.push(isNull(customers.deletedAt));
+    }
     
     if (search) {
       const searchLower = `%${search.toLowerCase()}%`;
@@ -2609,9 +2648,15 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getAllWorkspaces(): Promise<Workspace[]> {
+  async getAllWorkspaces(includeDeleted: boolean = false): Promise<Workspace[]> {
     try {
-      return await db.select().from(workspaces).orderBy(desc(workspaces.createdAt));
+      if (includeDeleted) {
+        return await db.select().from(workspaces).orderBy(desc(workspaces.createdAt));
+      }
+      // Filter out soft-deleted workspaces
+      return await db.select().from(workspaces)
+        .where(isNull(workspaces.deletedAt))
+        .orderBy(desc(workspaces.createdAt));
     } catch (error) {
       console.error('Error fetching all workspaces:', error);
       return [];
@@ -2905,9 +2950,15 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getAllOrganizations(): Promise<Organization[]> {
+  async getAllOrganizations(includeDeleted: boolean = false): Promise<Organization[]> {
     try {
-      return await db.select().from(organizations).orderBy(desc(organizations.createdAt));
+      if (includeDeleted) {
+        return await db.select().from(organizations).orderBy(desc(organizations.createdAt));
+      }
+      // Filter out soft-deleted organizations
+      return await db.select().from(organizations)
+        .where(isNull(organizations.deletedAt))
+        .orderBy(desc(organizations.createdAt));
     } catch (error) {
       console.error('Error fetching all organizations:', error);
       return [];
@@ -2924,12 +2975,39 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async updateOrganization(id: string, updates: Partial<InsertOrganization>): Promise<Organization> {
+  async updateOrganization(id: string, updates: Partial<InsertOrganization>, performedBy?: string): Promise<Organization> {
     try {
+      // Get current org state for audit logging
+      const currentOrg = await this.getOrganization(id);
+      
       const [updatedOrg] = await db.update(organizations)
         .set({ ...updates, updatedAt: new Date() })
         .where(eq(organizations.id, id))
         .returning();
+      
+      // Create audit log entries for significant field changes (like name)
+      if (currentOrg && performedBy) {
+        const fieldsToTrack = ['name', 'slug', 'status', 'customDomain', 'subdomain'];
+        for (const field of fieldsToTrack) {
+          const oldVal = (currentOrg as any)[field];
+          const newVal = (updates as any)[field];
+          if (newVal !== undefined && oldVal !== newVal) {
+            await this.createAuditLog({
+              entityType: 'organization',
+              entityId: id,
+              action: 'update',
+              performedBy: performedBy,
+              performedByType: 'user',
+              organizationId: id,
+              fieldName: field,
+              oldValue: oldVal?.toString() || null,
+              newValue: newVal?.toString() || null,
+              entitySnapshot: currentOrg as any,
+            });
+          }
+        }
+      }
+      
       return updatedOrg;
     } catch (error) {
       console.error('Error updating organization:', error);
@@ -3005,6 +3083,290 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error checking organization duplicate:', error);
       return { isDuplicate: false };
+    }
+  }
+
+  // ============================================
+  // SOFT DELETE OPERATIONS
+  // ============================================
+
+  async softDeleteOrganization(id: string, deletedBy: string, reason?: string): Promise<void> {
+    try {
+      const org = await this.getOrganization(id);
+      if (!org) throw new Error('Organization not found');
+      
+      const now = new Date();
+      
+      // Create audit log entry with snapshot
+      await this.createAuditLog({
+        entityType: 'organization',
+        entityId: id,
+        action: 'delete',
+        performedBy: deletedBy,
+        performedByType: 'user',
+        organizationId: id,
+        entitySnapshot: org as any,
+        reason: reason,
+      });
+      
+      // Soft delete by setting deletedAt
+      await db.update(organizations)
+        .set({ deletedAt: now, deletedBy: deletedBy, updatedAt: now })
+        .where(eq(organizations.id, id));
+    } catch (error) {
+      console.error('Error soft deleting organization:', error);
+      throw error;
+    }
+  }
+
+  async softDeleteUser(id: string, deletedBy: string, reason?: string): Promise<void> {
+    try {
+      const user = await this.getUser(id);
+      if (!user) throw new Error('User not found');
+      
+      const now = new Date();
+      
+      // Create audit log entry with snapshot
+      await this.createAuditLog({
+        entityType: 'user',
+        entityId: id,
+        action: 'delete',
+        performedBy: deletedBy,
+        performedByType: 'user',
+        organizationId: user.organizationId || undefined,
+        entitySnapshot: { ...user, password: '[REDACTED]' } as any,
+        reason: reason,
+      });
+      
+      // Soft delete by setting deletedAt
+      await db.update(users)
+        .set({ deletedAt: now, deletedBy: deletedBy, updatedAt: now })
+        .where(eq(users.id, id));
+    } catch (error) {
+      console.error('Error soft deleting user:', error);
+      throw error;
+    }
+  }
+
+  async softDeleteWorkspace(id: string, deletedBy: string, reason?: string): Promise<void> {
+    try {
+      const workspace = await this.getWorkspace(id);
+      if (!workspace) throw new Error('Workspace not found');
+      
+      const now = new Date();
+      
+      // Create audit log entry with snapshot
+      await this.createAuditLog({
+        entityType: 'workspace',
+        entityId: id,
+        action: 'delete',
+        performedBy: deletedBy,
+        performedByType: 'user',
+        organizationId: workspace.organizationId,
+        entitySnapshot: workspace as any,
+        reason: reason,
+      });
+      
+      // Soft delete by setting deletedAt
+      await db.update(workspaces)
+        .set({ deletedAt: now, deletedBy: deletedBy, updatedAt: now })
+        .where(eq(workspaces.id, id));
+    } catch (error) {
+      console.error('Error soft deleting workspace:', error);
+      throw error;
+    }
+  }
+
+  async softDeleteCustomer(id: string, deletedBy: string, reason?: string): Promise<void> {
+    try {
+      const customer = await this.getCustomer(id);
+      if (!customer) throw new Error('Customer not found');
+      
+      const now = new Date();
+      
+      // Create audit log entry with snapshot
+      await this.createAuditLog({
+        entityType: 'customer',
+        entityId: id,
+        action: 'delete',
+        performedBy: deletedBy,
+        performedByType: 'user',
+        organizationId: customer.organizationId || undefined,
+        entitySnapshot: { ...customer, portalPassword: '[REDACTED]' } as any,
+        reason: reason,
+      });
+      
+      // Soft delete by setting deletedAt
+      await db.update(customers)
+        .set({ deletedAt: now, deletedBy: deletedBy, updatedAt: now })
+        .where(eq(customers.id, id));
+    } catch (error) {
+      console.error('Error soft deleting customer:', error);
+      throw error;
+    }
+  }
+
+  async restoreOrganization(id: string, restoredBy: string): Promise<void> {
+    try {
+      const [org] = await db.select().from(organizations).where(eq(organizations.id, id));
+      if (!org) throw new Error('Organization not found');
+      
+      // Create audit log entry for restoration
+      await this.createAuditLog({
+        entityType: 'organization',
+        entityId: id,
+        action: 'restore',
+        performedBy: restoredBy,
+        performedByType: 'user',
+        organizationId: id,
+      });
+      
+      // Restore by clearing deletedAt
+      await db.update(organizations)
+        .set({ deletedAt: null, deletedBy: null, updatedAt: new Date() })
+        .where(eq(organizations.id, id));
+    } catch (error) {
+      console.error('Error restoring organization:', error);
+      throw error;
+    }
+  }
+
+  async restoreUser(id: string, restoredBy: string): Promise<void> {
+    try {
+      const [user] = await db.select().from(users).where(eq(users.id, id));
+      if (!user) throw new Error('User not found');
+      
+      // Create audit log entry for restoration
+      await this.createAuditLog({
+        entityType: 'user',
+        entityId: id,
+        action: 'restore',
+        performedBy: restoredBy,
+        performedByType: 'user',
+        organizationId: user.organizationId || undefined,
+      });
+      
+      // Restore by clearing deletedAt
+      await db.update(users)
+        .set({ deletedAt: null, deletedBy: null, updatedAt: new Date() })
+        .where(eq(users.id, id));
+    } catch (error) {
+      console.error('Error restoring user:', error);
+      throw error;
+    }
+  }
+
+  async restoreWorkspace(id: string, restoredBy: string): Promise<void> {
+    try {
+      const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, id));
+      if (!workspace) throw new Error('Workspace not found');
+      
+      // Create audit log entry for restoration
+      await this.createAuditLog({
+        entityType: 'workspace',
+        entityId: id,
+        action: 'restore',
+        performedBy: restoredBy,
+        performedByType: 'user',
+        organizationId: workspace.organizationId,
+      });
+      
+      // Restore by clearing deletedAt
+      await db.update(workspaces)
+        .set({ deletedAt: null, deletedBy: null, updatedAt: new Date() })
+        .where(eq(workspaces.id, id));
+    } catch (error) {
+      console.error('Error restoring workspace:', error);
+      throw error;
+    }
+  }
+
+  async restoreCustomer(id: string, restoredBy: string): Promise<void> {
+    try {
+      const [customer] = await db.select().from(customers).where(eq(customers.id, id));
+      if (!customer) throw new Error('Customer not found');
+      
+      // Create audit log entry for restoration
+      await this.createAuditLog({
+        entityType: 'customer',
+        entityId: id,
+        action: 'restore',
+        performedBy: restoredBy,
+        performedByType: 'user',
+        organizationId: customer.organizationId || undefined,
+      });
+      
+      // Restore by clearing deletedAt
+      await db.update(customers)
+        .set({ deletedAt: null, deletedBy: null, updatedAt: new Date() })
+        .where(eq(customers.id, id));
+    } catch (error) {
+      console.error('Error restoring customer:', error);
+      throw error;
+    }
+  }
+
+  // ============================================
+  // AUDIT LOG OPERATIONS
+  // ============================================
+
+  async createAuditLog(entry: InsertAuditLog): Promise<AuditLog> {
+    try {
+      const [created] = await db.insert(auditLog).values(entry).returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating audit log entry:', error);
+      throw error;
+    }
+  }
+
+  async getAuditLogsForEntity(entityType: string, entityId: string): Promise<AuditLog[]> {
+    try {
+      return await db.select().from(auditLog)
+        .where(and(
+          eq(auditLog.entityType, entityType),
+          eq(auditLog.entityId, entityId)
+        ))
+        .orderBy(desc(auditLog.createdAt));
+    } catch (error) {
+      console.error('Error fetching audit logs for entity:', error);
+      return [];
+    }
+  }
+
+  async getAuditLogsByOrganization(organizationId: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]> {
+    try {
+      const limit = options?.limit ?? 100;
+      const offset = options?.offset ?? 0;
+      
+      return await db.select().from(auditLog)
+        .where(eq(auditLog.organizationId, organizationId))
+        .orderBy(desc(auditLog.createdAt))
+        .limit(limit)
+        .offset(offset);
+    } catch (error) {
+      console.error('Error fetching audit logs by organization:', error);
+      return [];
+    }
+  }
+
+  async getRecentAuditLogs(options?: { limit?: number; entityTypes?: string[] }): Promise<AuditLog[]> {
+    try {
+      const limit = options?.limit ?? 50;
+      
+      if (options?.entityTypes && options.entityTypes.length > 0) {
+        return await db.select().from(auditLog)
+          .where(inArray(auditLog.entityType, options.entityTypes))
+          .orderBy(desc(auditLog.createdAt))
+          .limit(limit);
+      }
+      
+      return await db.select().from(auditLog)
+        .orderBy(desc(auditLog.createdAt))
+        .limit(limit);
+    } catch (error) {
+      console.error('Error fetching recent audit logs:', error);
+      return [];
     }
   }
 

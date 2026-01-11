@@ -85,6 +85,9 @@ export const organizations = pgTable("organizations", {
   embedSecretCreatedAt: timestamp("embed_secret_created_at"), // When the embed secret was last generated
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Soft delete
+  deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
+  deletedBy: varchar("deleted_by"), // User ID who deleted this record
 });
 
 // Organization Applications - For businesses requesting to join the platform
@@ -117,6 +120,53 @@ export const organizationApplications = pgTable("organization_applications", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// ============================================
+// AUDIT LOG - Track all changes for historical data preservation
+// ============================================
+
+// Audit Log - Records all significant changes to entities for historical tracking
+export const auditLog = pgTable("audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // What was changed
+  entityType: text("entity_type").notNull(), // 'organization' | 'user' | 'workspace' | 'customer'
+  entityId: varchar("entity_id").notNull(), // ID of the entity that was changed
+  
+  // What kind of change
+  action: text("action").notNull(), // 'create' | 'update' | 'delete' | 'restore'
+  
+  // Who made the change
+  performedBy: varchar("performed_by"), // User ID who made the change (null for system actions)
+  performedByType: text("performed_by_type").default("user"), // 'user' | 'system' | 'customer'
+  
+  // Organization scope for multi-tenant isolation
+  organizationId: varchar("organization_id"), // Organization context (null for platform-level changes)
+  
+  // Change details
+  fieldName: text("field_name"), // Which field was changed (null for create/delete)
+  oldValue: text("old_value"), // Previous value (JSON stringified for complex types)
+  newValue: text("new_value"), // New value (JSON stringified for complex types)
+  
+  // Full snapshot of entity at time of change (for name changes, deletions, etc.)
+  entitySnapshot: jsonb("entity_snapshot"), // Complete entity state at time of change
+  
+  // Additional context
+  reason: text("reason"), // Optional reason for the change
+  metadata: jsonb("metadata"), // Additional context (IP address, user agent, etc.)
+  
+  // Timestamp
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_audit_log_entity").on(table.entityType, table.entityId),
+  index("idx_audit_log_org").on(table.organizationId),
+  index("idx_audit_log_performed_by").on(table.performedBy),
+  index("idx_audit_log_created_at").on(table.createdAt),
+]);
+
+export const insertAuditLogSchema = createInsertSchema(auditLog).omit({ id: true, createdAt: true });
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = typeof auditLog.$inferSelect;
 
 // Brand Voice Configuration - Centralized AI tone and style settings (Singleton table)
 export const brandConfig = pgTable("brand_config", {
@@ -214,6 +264,9 @@ export const users = pgTable("users", {
   hasCompletedOnboarding: boolean("has_completed_onboarding").notNull().default(false), // Whether user has seen/completed welcome onboarding
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Soft delete
+  deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
+  deletedBy: varchar("deleted_by"), // User ID who deleted this record
 });
 
 // Workspaces table - sub-divisions within organizations
@@ -233,6 +286,9 @@ export const workspaces = pgTable("workspaces", {
   settings: jsonb("settings"), // Workspace-specific settings (JSON)
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Soft delete
+  deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
+  deletedBy: varchar("deleted_by"), // User ID who deleted this record
 });
 
 // Workspace Members - junction table for users to workspaces (supports cross-org access)
@@ -333,6 +389,9 @@ export const customers = pgTable("customers", {
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Soft delete
+  deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
+  deletedBy: varchar("deleted_by"), // User ID who deleted this record
 }, (table) => [
   // Partial unique index: ensures only ONE admin per customer organization
   // This prevents race conditions where concurrent signups could both become admin
