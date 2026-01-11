@@ -902,6 +902,53 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Register modular auth routes (staff login/logout, customer portal auth)
   registerAuthRoutes({ app, httpServer: null as any, wsServer: null as any });
 
+  // Notification API routes
+  app.get('/api/notifications', requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const unreadOnly = req.query.unreadOnly === 'true';
+      const limit = parseInt(req.query.limit as string) || 50;
+      
+      const { notificationService } = await import('./notification-service');
+      const notifications = notificationService.getNotifications(userId, { unreadOnly, limit });
+      const unreadCount = notificationService.getUnreadCount(userId);
+      
+      res.json({ notifications, unreadCount });
+    } catch (error) {
+      console.error('Failed to get notifications:', error);
+      res.status(500).json({ error: 'Failed to get notifications' });
+    }
+  });
+
+  app.post('/api/notifications/:id/read', requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const notificationId = req.params.id;
+      
+      const { notificationService } = await import('./notification-service');
+      const success = notificationService.markAsRead(userId, notificationId);
+      
+      res.json({ success });
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
+      res.status(500).json({ error: 'Failed to mark notification as read' });
+    }
+  });
+
+  app.post('/api/notifications/mark-all-read', requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      
+      const { notificationService } = await import('./notification-service');
+      const count = notificationService.markAllAsRead(userId);
+      
+      res.json({ success: true, count });
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+      res.status(500).json({ error: 'Failed to mark all notifications as read' });
+    }
+  });
+
   // Geolocation detection endpoint for language suggestions
   app.get('/api/geo/detect', async (req, res) => {
     try {
@@ -2516,6 +2563,21 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         action: actionType,
         details
       });
+
+      // Emit real-time notification for assignment
+      try {
+        const customer = await storage.getCustomer(conversation.customerId);
+        const customerName = customer?.name || 'Customer';
+        const { notificationService } = await import('./notification-service');
+        await notificationService.emitConversationAssigned(
+          conversationId,
+          agentId,
+          user.id,
+          customerName
+        );
+      } catch (notifError) {
+        console.error('Failed to emit assignment notification:', notifError);
+      }
 
       res.json({ message: 'Conversation assigned successfully' });
     } catch (error) {
@@ -4150,6 +4212,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         : 'http://localhost:5000';
       const setupUrl = `${baseUrl}/setup-organization?token=${token}`;
       
+      // Emit real-time notification for approval
+      try {
+        const { notificationService } = await import('./notification-service');
+        await notificationService.emitOrganizationApplicationApproved(
+          id,
+          application.organizationName,
+          application.contactEmail
+        );
+      } catch (notifError) {
+        console.error('Failed to emit approval notification:', notifError);
+      }
+
       res.json({
         success: true,
         setupToken: setupToken,
@@ -13450,6 +13524,11 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   
   // Store WebSocket server reference for use in message broadcasting
   (app as any).wsServer = wsServer;
+
+  // Initialize notification service with WebSocket server
+  const { notificationService } = await import('./notification-service');
+  notificationService.setWebSocketServer(wsServer);
+  (app as any).notificationService = notificationService;
 
   // Register modular routes
   const routeContext: RouteContext = { app, httpServer, wsServer };
