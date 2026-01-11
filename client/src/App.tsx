@@ -412,7 +412,11 @@ function AppContent() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Suspense fallback={<PageLoader />}>
-            <PublicLegalPage />
+            <Switch>
+              <Route path="/legal/:type">
+                <PublicLegalPage />
+              </Route>
+            </Switch>
           </Suspense>
           <Toaster />
         </TooltipProvider>

@@ -40,6 +40,7 @@ import { useState, useEffect } from "react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { NovaLogo, NovaTagline } from "@/components/NovaLogo";
+import { SEO, generateOrganizationSchema, generateWebsiteSchema, generateSoftwareApplicationSchema } from "@/components/SEO";
 
 interface PublicOrganization {
   id: string;
@@ -63,13 +64,14 @@ export default function LandingPage() {
     queryKey: ['/api/public/organizations'],
   });
 
-  useEffect(() => {
-    document.title = "Nova AI - Your Intelligent Support Companion";
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute('content', 'Nova AI - Your intelligent support companion. Transform customer support with AI-powered assistance, smart routing, and personalized experiences.');
-    }
-  }, []);
+  const combinedSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      generateOrganizationSchema(),
+      generateWebsiteSchema(),
+      generateSoftwareApplicationSchema()
+    ]
+  };
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -81,6 +83,13 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Nova AI - Your Intelligent Support Companion"
+        description="Transform customer support with AI-powered assistance, smart routing, and personalized experiences. Trusted by businesses worldwide for exceptional customer service."
+        keywords="AI customer support, chatbot, help desk, customer service automation, live chat, knowledge base, AI assistant"
+        ogType="website"
+        structuredData={combinedSchema}
+      />
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <NovaLogo size="sm" />

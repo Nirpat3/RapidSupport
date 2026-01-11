@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { NovaLogo } from "@/components/NovaLogo";
+import { SEO, generateOrganizationSchema, generateBreadcrumbSchema } from "@/components/SEO";
 import { 
   Heart,
   Lightbulb,
@@ -55,16 +56,12 @@ export default function AboutPage() {
   const { toast } = useToast();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    document.title = "About Nova AI - AI-Powered Customer Support Platform";
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute(
-        'content',
-        'Learn about Nova AI, our mission to revolutionize customer support with AI, and meet our team of experienced professionals committed to helping businesses deliver exceptional customer experiences.'
-      );
-    }
-  }, []);
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const breadcrumbSchema = generateBreadcrumbSchema([
+    { name: "Home", url: baseUrl },
+    { name: "About", url: `${baseUrl}/about` }
+  ]);
+  const organizationSchema = generateOrganizationSchema();
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -166,6 +163,13 @@ export default function AboutPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="About Nova AI - AI-Powered Customer Support Platform"
+        description="Learn about Nova AI, our mission to revolutionize customer support with AI, and meet our team of professionals committed to helping businesses deliver exceptional customer experiences."
+        keywords="about Nova AI, customer support company, AI technology, customer service platform, company mission"
+        ogType="website"
+        structuredData={{ "@context": "https://schema.org", "@graph": [breadcrumbSchema, organizationSchema] }}
+      />
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <NovaLogo size="sm" showText={false} />

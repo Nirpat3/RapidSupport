@@ -1,7 +1,7 @@
 {
-  "name": "Support Board",
-  "short_name": "Support Board",
-  "description": "Professional customer support platform with real-time chat, conversation management, and admin dashboard.",
+  "name": "Nova AI - Your Intelligent Support Companion",
+  "short_name": "Nova AI",
+  "description": "Transform customer support with AI-powered assistance, smart routing, and personalized experiences. Trusted by businesses worldwide.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -63,26 +63,26 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["business", "productivity"],
+  "categories": ["business", "productivity", "utilities"],
   "screenshots": [],
   "shortcuts": [
     {
       "name": "Conversations",
-      "short_name": "Conversations",
+      "short_name": "Chat",
       "url": "/conversations",
-      "description": "View customer conversations"
+      "description": "View and manage customer conversations"
     },
     {
       "name": "Dashboard",
       "short_name": "Dashboard",
       "url": "/dashboard",
-      "description": "View the dashboard"
+      "description": "View analytics and performance metrics"
     },
     {
       "name": "Knowledge Base",
       "short_name": "Knowledge",
       "url": "/knowledge",
-      "description": "Manage knowledge base"
+      "description": "Manage AI knowledge base articles"
     }
   ]
 }

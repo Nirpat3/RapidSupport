@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, Shield, Cookie, Globe, Building2 } from "lucide-react";
 import { useState } from "react";
 import { NovaLogo } from "@/components/NovaLogo";
+import { SEO, generateBreadcrumbSchema } from "@/components/SEO";
 
 const REGIONS = [
   { code: "us", name: "United States", flag: "US" },
@@ -53,9 +54,21 @@ export default function PublicLegalPage() {
   });
 
   const selectedRegionInfo = REGIONS.find(r => r.code === selectedRegion);
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const breadcrumbSchema = generateBreadcrumbSchema([
+    { name: "Home", url: baseUrl },
+    { name: policyInfo.title, url: `${baseUrl}/legal/${type}` }
+  ]);
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title={`${policyInfo.title} | Nova AI`}
+        description={policyInfo.description + ". Read our full policy to understand how Nova AI handles your data and privacy."}
+        keywords={`${policyInfo.title.toLowerCase()}, Nova AI legal, data protection, user rights, ${selectedRegion === "eu" ? "GDPR compliance" : "privacy"}`}
+        ogType="article"
+        structuredData={breadcrumbSchema}
+      />
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">

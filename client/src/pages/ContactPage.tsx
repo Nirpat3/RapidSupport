@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NovaLogo } from "@/components/NovaLogo";
+import { SEO, generateBreadcrumbSchema, generateFAQSchema } from "@/components/SEO";
 import {
   Select,
   SelectContent,
@@ -48,16 +49,22 @@ export default function ContactPage() {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    document.title = "Contact Nova AI - Get in Touch";
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute(
-        "content",
-        "Contact Nova AI for help, sales inquiries, or support. Multiple ways to reach us - email, live chat, phone support, and more."
-      );
-    }
-  }, []);
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const contactFaqs = [
+    { question: "What is your response time?", answer: "We typically respond within 24 hours during business days." },
+    { question: "Do you offer phone support?", answer: "Yes, phone support is available for Professional and Enterprise plans." },
+    { question: "Can I schedule a demo?", answer: "Absolutely! Use the contact form to request a personalized demo." }
+  ];
+  const combinedSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      generateBreadcrumbSchema([
+        { name: "Home", url: baseUrl },
+        { name: "Contact", url: `${baseUrl}/contact` }
+      ]),
+      generateFAQSchema(contactFaqs)
+    ]
+  };
 
   const contactMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -120,6 +127,13 @@ export default function ContactPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Contact Nova AI - Get in Touch"
+        description="Contact Nova AI for help, sales inquiries, or support. Multiple ways to reach us including email, live chat, and phone support. We typically respond within 24 hours."
+        keywords="contact Nova AI, customer support contact, sales inquiry, help desk contact, Nova AI support"
+        ogType="website"
+        structuredData={combinedSchema}
+      />
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <NovaLogo size="sm" showText={false} />

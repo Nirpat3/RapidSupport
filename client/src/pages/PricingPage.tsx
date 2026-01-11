@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { NovaLogo } from "@/components/NovaLogo";
+import { SEO, generateProductSchema, generateBreadcrumbSchema, generateFAQSchema } from "@/components/SEO";
 import {
   ArrowRight,
   Menu,
@@ -145,16 +146,29 @@ export default function PricingPage() {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [orgSignupOpen, setOrgSignupOpen] = useState(false);
 
-  useEffect(() => {
-    document.title = "Pricing - Nova AI | AI-Powered Customer Support";
-    const metaDescription = document.querySelector('meta[name="description"]');
-    if (metaDescription) {
-      metaDescription.setAttribute(
-        "content",
-        "Simple, transparent pricing for AI-powered customer support. Choose the perfect plan for your team. 14-day free trial included."
-      );
-    }
-  }, []);
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const pricingFaqs = [
+    { question: "Is there a free trial?", answer: "Yes! All plans come with a 14-day free trial. No credit card required." },
+    { question: "Can I change plans later?", answer: "Absolutely. You can upgrade or downgrade your plan at any time." },
+    { question: "What payment methods do you accept?", answer: "We accept all major credit cards, PayPal, and bank transfers for annual plans." },
+    { question: "Is there a setup fee?", answer: "No setup fees. You only pay for your subscription." }
+  ];
+  const combinedSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      generateBreadcrumbSchema([
+        { name: "Home", url: baseUrl },
+        { name: "Pricing", url: `${baseUrl}/pricing` }
+      ]),
+      generateFAQSchema(pricingFaqs),
+      generateProductSchema({
+        name: "Nova AI Customer Support Platform",
+        description: "AI-powered customer support platform with real-time chat, knowledge base, and intelligent automation",
+        price: 29,
+        currency: "USD"
+      })
+    ]
+  };
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -166,6 +180,13 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEO
+        title="Pricing - Nova AI | AI-Powered Customer Support"
+        description="Simple, transparent pricing for AI-powered customer support. Choose the perfect plan for your team. Start with a 14-day free trial. No credit card required."
+        keywords="Nova AI pricing, customer support plans, AI chatbot pricing, help desk pricing, customer service software cost"
+        ogType="website"
+        structuredData={combinedSchema}
+      />
       <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="cursor-pointer" onClick={() => setLocation("/")}>
