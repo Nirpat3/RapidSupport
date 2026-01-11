@@ -208,26 +208,10 @@ export default function LandingPage() {
                 and seamless multi-channel support. Reduce response times by 80% while increasing customer satisfaction.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Dialog open={orgSignupOpen} onOpenChange={setOrgSignupOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="lg" className="gap-2">
-                      Start Free Trial
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-lg">
-                    <OrganizationSignupForm 
-                      onSuccess={() => {
-                        setOrgSignupOpen(false);
-                        queryClient.invalidateQueries({ queryKey: ['/api/public/organizations'] });
-                        toast({
-                          title: "Organization registered",
-                          description: "Your organization is now set up. Check your email for login details.",
-                        });
-                      }} 
-                    />
-                  </DialogContent>
-                </Dialog>
+                <Button size="lg" className="gap-2" onClick={() => setOrgSignupOpen(true)}>
+                  Start Free Trial
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
                 <Button size="lg" variant="outline" className="gap-2">
                   <Play className="w-4 h-4" />
                   See Demo
@@ -504,26 +488,10 @@ export default function LandingPage() {
                     Join thousands of businesses using Nova AI to deliver exceptional customer experiences. Start your free trial today.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <Dialog open={orgSignupOpen} onOpenChange={setOrgSignupOpen}>
-                      <DialogTrigger asChild>
-                        <Button size="lg" variant="secondary" className="gap-2">
-                          Get Started Free
-                          <ArrowRight className="w-4 h-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-lg">
-                        <OrganizationSignupForm 
-                          onSuccess={() => {
-                            setOrgSignupOpen(false);
-                            queryClient.invalidateQueries({ queryKey: ['/api/public/organizations'] });
-                            toast({
-                              title: "Organization registered",
-                              description: "Your organization is now set up. Check your email for login details.",
-                            });
-                          }} 
-                        />
-                      </DialogContent>
-                    </Dialog>
+                    <Button size="lg" variant="secondary" className="gap-2" onClick={() => setOrgSignupOpen(true)}>
+                      Get Started Free
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
                     <Button size="lg" variant="outline" className="gap-2 bg-transparent border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
                       <Mail className="w-4 h-4" />
                       Contact Sales
@@ -612,6 +580,21 @@ export default function LandingPage() {
               toast({
                 title: "Account created",
                 description: "You can now access the customer portal.",
+              });
+            }} 
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={orgSignupOpen} onOpenChange={setOrgSignupOpen}>
+        <DialogContent className="max-w-lg">
+          <OrganizationSignupForm 
+            onSuccess={() => {
+              setOrgSignupOpen(false);
+              queryClient.invalidateQueries({ queryKey: ['/api/public/organizations'] });
+              toast({
+                title: "Organization registered",
+                description: "Your organization is now set up. Check your email for login details.",
               });
             }} 
           />
@@ -1024,7 +1007,17 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
       adminEmail: string; 
       adminPassword: string;
     }) => {
-      return await apiRequest('/api/public/organizations/signup', 'POST', data);
+      return await apiRequest('/api/public/organizations/signup', 'POST', {
+        organization: {
+          name: data.organizationName,
+          slug: data.slug,
+        },
+        admin: {
+          name: data.adminName,
+          email: data.adminEmail,
+          password: data.adminPassword,
+        },
+      });
     },
     onSuccess: () => {
       toast({
@@ -1091,6 +1084,8 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
               <Label htmlFor="org-name">Organization Name *</Label>
               <Input
                 id="org-name"
+                name="organizationName"
+                data-testid="org-name-input"
                 placeholder="Acme Corporation"
                 value={orgName}
                 onChange={(e) => {
@@ -1105,13 +1100,15 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
                 <span className="text-sm text-muted-foreground mr-1">/chat/</span>
                 <Input
                   id="org-slug"
+                  name="organizationSlug"
+                  data-testid="org-slug-input"
                   placeholder="acme-corp"
                   value={orgSlug}
                   onChange={(e) => setOrgSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                 />
               </div>
             </div>
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full" data-testid="org-continue-btn">
               Continue
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
@@ -1122,6 +1119,8 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
               <Label htmlFor="admin-name">Admin Name *</Label>
               <Input
                 id="admin-name"
+                name="adminName"
+                data-testid="admin-name-input"
                 placeholder="John Smith"
                 value={adminName}
                 onChange={(e) => setAdminName(e.target.value)}
@@ -1132,6 +1131,8 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
               <Label htmlFor="admin-email">Admin Email *</Label>
               <Input
                 id="admin-email"
+                name="adminEmail"
+                data-testid="admin-email-input"
                 type="email"
                 placeholder="admin@acme.com"
                 value={adminEmail}
@@ -1144,6 +1145,8 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
               <div className="relative">
                 <Input
                   id="admin-password"
+                  name="adminPassword"
+                  data-testid="admin-password-input"
                   type={showPassword ? "text" : "password"}
                   placeholder="Create a secure password"
                   value={adminPassword}
@@ -1165,7 +1168,7 @@ function OrganizationSignupForm({ onSuccess }: { onSuccess: () => void }) {
               <Button type="button" variant="outline" onClick={() => setStep(1)} disabled={signupMutation.isPending}>
                 Back
               </Button>
-              <Button type="submit" className="flex-1" disabled={signupMutation.isPending}>
+              <Button type="submit" className="flex-1" data-testid="org-register-btn" disabled={signupMutation.isPending}>
                 {signupMutation.isPending ? "Registering..." : "Register Organization"}
               </Button>
             </div>
