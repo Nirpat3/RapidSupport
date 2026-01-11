@@ -582,7 +582,7 @@ export interface IStorage {
 
   // Post read operations for notifications
   markPostAsRead(postId: string, userId: string): Promise<void>;
-  getUnreadPostsCount(userId: string): Promise<number>;
+  getUnreadPostsCount(userId: string, userType: 'staff' | 'customer'): Promise<number>;
   getUnreadPosts(userId: string): Promise<Post[]>;
   hasUserReadPost(postId: string, userId: string): Promise<boolean>;
 
@@ -4660,7 +4660,29 @@ export class DatabaseStorage implements IStorage {
       .onConflictDoNothing();
   }
 
-  async getUnreadPostsCount(userId: string): Promise<number> {
+  async getUnreadPostsCount(userId: string, userType: 'staff' | 'customer'): Promise<number> {
+    // Build visibility filter based on user type
+    let visibilityCondition;
+    if (userType === 'staff') {
+      // Staff can see internal posts and targeted posts for them
+      visibilityCondition = or(
+        eq(posts.visibility, 'internal'),
+        and(
+          eq(posts.visibility, 'targeted'),
+          sql`${userId} = ANY(${posts.targetedUserIds})`
+        )
+      );
+    } else {
+      // Customers can see all_customers posts and targeted posts for them
+      visibilityCondition = or(
+        eq(posts.visibility, 'all_customers'),
+        and(
+          eq(posts.visibility, 'targeted'),
+          sql`${userId} = ANY(${posts.targetedUserIds})`
+        )
+      );
+    }
+
     const [result] = await db
       .select({ count: sql<number>`count(*)` })
       .from(posts)
@@ -4668,7 +4690,10 @@ export class DatabaseStorage implements IStorage {
         eq(posts.id, postReads.postId),
         eq(postReads.userId, userId)
       ))
-      .where(isNull(postReads.id));
+      .where(and(
+        isNull(postReads.id),
+        visibilityCondition
+      ));
 
     return Number(result.count);
   }

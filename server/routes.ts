@@ -9183,7 +9183,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.get('/api/feed/unread-count', requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
-      const count = await storage.getUnreadPostsCount(user.id);
+      const userType: 'staff' | 'customer' = (user.role === 'admin' || user.role === 'agent') ? 'staff' : 'customer';
+      const count = await storage.getUnreadPostsCount(user.id, userType);
       res.json({ count });
     } catch (error) {
       console.error('Failed to fetch unread count:', error);
