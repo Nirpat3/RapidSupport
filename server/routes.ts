@@ -112,90 +112,6 @@ const addCollectionToWorkspaceSchema = z.object({
   accessLevel: z.enum(['read', 'contribute', 'manage']).default('read')
 });
 
-// Helper function to generate mock AI learning data for demonstration
-async function generateMockLearningData() {
-  const agents = await storage.getAllAiAgents();
-  if (agents.length === 0) {
-    // Return empty array if no agents exist
-    return [];
-  }
-
-  const sampleQueries = [
-    "How do I cancel my subscription?",
-    "What are your refund policies?", 
-    "I can't log into my account",
-    "How do I upgrade my plan?",
-    "Why was I charged twice?",
-    "Can I get a discount for students?",
-    "How do I export my data?",
-    "What payment methods do you accept?",
-    "Is there a mobile app available?",
-    "How do I contact support?",
-    "Where can I find my invoice?",
-    "How do I reset my password?",
-    "What features are included in premium?",
-    "Can I share my account with others?",
-    "How do I delete my account?",
-    "When will my subscription renew?",
-    "Can I pause my subscription?",
-    "How do I update my payment method?",
-    "What's your privacy policy?",
-    "How do I report a bug?"
-  ];
-
-  const sampleResponses = [
-    "To cancel your subscription, go to your account settings and click 'Cancel Subscription'. You can also contact our support team for assistance.",
-    "Our refund policy allows for full refunds within 30 days of purchase. Please see our terms of service for complete details.",
-    "If you're having trouble logging in, try resetting your password using the 'Forgot Password' link on the login page.",
-    "You can upgrade your plan anytime from your billing settings. Simply select the plan you want and confirm the upgrade.",
-    "Double charges can occur due to payment processing issues. Please contact our billing team to resolve this immediately.",
-    "Yes! We offer a 50% student discount. Please verify your student status through our education portal.",
-    "You can export your data from the Settings > Data Export section. We support JSON, CSV, and XML formats.",
-    "We accept all major credit cards, PayPal, and bank transfers for annual plans.",
-    "Yes, our mobile app is available on both iOS and Android. Search for 'SupportBoard' in your app store.",
-    "You can reach our support team through live chat, email at support@supportboard.com, or this help portal.",
-    "Your invoices are available in your account dashboard under the 'Billing' section.",
-    "Click the 'Forgot Password' link on the login page and follow the instructions sent to your email.",
-    "Premium includes unlimited conversations, priority support, advanced analytics, and API access.",
-    "Account sharing isn't permitted under our terms. Consider our team plans for multiple users.",
-    "To delete your account, go to Settings > Account > Delete Account. This action is permanent.",
-    "Your subscription renews automatically on the same date each month. Check your billing settings for details.",
-    "You can pause your subscription for up to 6 months from your account settings.",
-    "Update your payment method in Settings > Billing > Payment Methods.",
-    "Our privacy policy is available at supportboard.com/privacy and explains how we handle your data.",
-    "Please report bugs through our contact form or email support@supportboard.com with details."
-  ];
-
-  const mockEntries = [];
-  const numEntries = Math.min(25, sampleQueries.length);
-
-  for (let i = 0; i < numEntries; i++) {
-    const agent = agents[i % agents.length];
-    const confidence = 30 + (i * 3) + (Math.random() * 40); // Mix of low and high confidence
-    const humanTookOver = confidence < 60 || Math.random() < 0.3;
-    const wasHelpful = confidence > 70 ? (Math.random() > 0.2) : (Math.random() > 0.6);
-    
-    mockEntries.push({
-      id: `mock-learning-${i}`,
-      agentId: agent.id,
-      agentName: agent.name,
-      conversationId: `mock-conv-${i}`,
-      customerQuery: sampleQueries[i],
-      aiResponse: sampleResponses[i],
-      confidence: Math.round(confidence),
-      humanTookOver,
-      customerSatisfaction: wasHelpful ? (4 + Math.round(Math.random())) : (Math.random() < 0.5 ? null : (1 + Math.round(Math.random() * 2))),
-      knowledgeUsed: [`kb-${(i % 5) + 1}`, `kb-${(i % 3) + 3}`],
-      improvementSuggestion: !wasHelpful && Math.random() > 0.5 ? 
-        ["Response was too generic", "Needs more specific steps", "Outdated information", "Missing context"][i % 4] : null,
-      wasHelpful,
-      createdAt: new Date(Date.now() - (i * 86400000 / 5)).toISOString() // Spread over last 5 days
-    });
-  }
-
-  return mockEntries;
-}
-
 const conversationCreateSchema = z.object({
   customerId: z.string().uuid('Invalid customer ID'),
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
@@ -5386,19 +5302,10 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         offset: parseInt(offset as string)
       });
 
-      // If no real data exists, return mock data for demonstration
-      if (learningEntries.length === 0) {
-        const mockData = await generateMockLearningData();
-        res.json({
-          success: true,
-          data: mockData
-        });
-      } else {
-        res.json({
-          success: true,
-          data: learningEntries
-        });
-      }
+      res.json({
+        success: true,
+        data: learningEntries
+      });
     } catch (error) {
       console.error('Failed to fetch AI learning data:', error);
       res.status(500).json({ error: 'Failed to fetch AI learning data' });

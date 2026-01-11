@@ -35,7 +35,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customersApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ticketApi } from "@/lib/ticketStore";
+import { apiRequest } from "@/lib/queryClient";
 
 const statusColors = {
   online: 'bg-green-500',
@@ -51,31 +51,18 @@ const priorityColors = {
   urgent: 'border-red-500 text-red-700 bg-red-50'
 };
 
-// Using shared ticket store instead of local mock data
-
-const mockFAQs = [
-  {
-    id: '1',
-    question: 'How do I reset my password?',
-    answer: 'Go to the login page and click "Forgot Password". Enter your email address and follow the instructions sent to your inbox.',
-    category: 'Authentication',
-    helpful: true
-  },
-  {
-    id: '2',
-    question: 'What are the premium features?',
-    answer: 'Premium features include advanced analytics, priority support, custom integrations, and increased storage limits.',
-    category: 'Billing',
-    helpful: false
-  },
-  {
-    id: '3',
-    question: 'How do I contact support?',
-    answer: 'You can contact support through the chat widget, email us at support@company.com, or create a ticket in your dashboard.',
-    category: 'General',
-    helpful: true
-  }
-];
+interface Ticket {
+  id: string;
+  title: string;
+  description: string;
+  status: 'open' | 'in-progress' | 'closed';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  category: string;
+  customerId: string;
+  conversationId?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
 
 export default function CustomerProfilePage() {
   const { id } = useParams<{ id: string }>();
@@ -140,22 +127,52 @@ export default function CustomerProfilePage() {
     }
   });
   
-  const handleTicketStatusChange = (ticketId: string, newStatus: 'open' | 'in-progress' | 'closed') => {
-    const success = ticketApi.updateTicketStatus(ticketId, newStatus);
-    if (success) {
+  // Mutation for updating ticket status
+  const updateTicketStatusMutation = useMutation({
+    mutationFn: async ({ ticketId, status }: { ticketId: string; status: string }) => {
+      return apiRequest('PUT', `/api/tickets/${ticketId}/status`, { status });
+    },
+    onSuccess: () => {
       toast({
         title: "Status Updated",
-        description: `Ticket ${ticketId} status changed to ${newStatus}`,
+        description: "Ticket status has been updated.",
       });
-      // Force re-render by updating component state
-      setActiveTab(activeTab); // Trigger refresh
-    } else {
+      queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
+    },
+    onError: (error: any) => {
       toast({
         title: "Error",
-        description: "Failed to update ticket status",
+        description: error.message || "Failed to update ticket status",
         variant: "destructive",
       });
     }
+  });
+
+  // Mutation for creating a ticket
+  const createTicketMutation = useMutation({
+    mutationFn: async (data: { customerId: string; title: string; description: string; priority: string; category: string }) => {
+      return apiRequest('POST', '/api/tickets', data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Ticket created successfully!",
+      });
+      setIsAddTicketOpen(false);
+      setNewTicket({ title: "", description: "", priority: "medium", category: "General" });
+      queryClient.invalidateQueries({ queryKey: ['/api/tickets'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create ticket",
+        variant: "destructive",
+      });
+    }
+  });
+  
+  const handleTicketStatusChange = (ticketId: string, newStatus: 'open' | 'in-progress' | 'closed') => {
+    updateTicketStatusMutation.mutate({ ticketId, status: newStatus });
   };
 
   // Fetch customer details
@@ -172,6 +189,19 @@ export default function CustomerProfilePage() {
       const response = await fetch(`/api/customers/${id}/conversations`);
       if (!response.ok) {
         throw new Error('Failed to fetch conversations');
+      }
+      return response.json();
+    },
+    enabled: !!id,
+  });
+
+  // Fetch tickets for this customer
+  const { data: tickets = [], isLoading: ticketsLoading } = useQuery<Ticket[]>({
+    queryKey: ['/api/tickets', { customerId: id }],
+    queryFn: async () => {
+      const response = await fetch(`/api/tickets?customerId=${id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch tickets');
       }
       return response.json();
     },
@@ -352,38 +382,18 @@ export default function CustomerProfilePage() {
                       return;
                     }
                     
-                    // Create new ticket with proper ID and timestamps
-                    const ticket = {
-                      id: `T-${Date.now().toString().slice(-6)}`,
+                    createTicketMutation.mutate({
+                      customerId: customer.id,
                       title: newTicket.title,
                       description: newTicket.description,
-                      status: 'open' as const,
-                      priority: newTicket.priority as 'low' | 'medium' | 'high' | 'urgent',
-                      createdAt: new Date(),
-                      category: newTicket.category,
-                      customerId: customer.id
-                    };
-                    
-                    // Add to shared ticket store
-                    ticketApi.createTicket({
-                      title: newTicket.title,
-                      description: newTicket.description,
-                      status: 'open',
-                      priority: newTicket.priority as 'low' | 'medium' | 'high' | 'urgent',
-                      category: newTicket.category,
-                      customerId: customer.id
+                      priority: newTicket.priority,
+                      category: newTicket.category
                     });
-                    
-                    toast({
-                      title: "Success",
-                      description: `Ticket created successfully!`,
-                    });
-                    setIsAddTicketOpen(false);
-                    setNewTicket({ title: "", description: "", priority: "medium", category: "General" });
                   }}
+                  disabled={createTicketMutation.isPending}
                   data-testid="button-submit-ticket"
                 >
-                  Create Ticket
+                  {createTicketMutation.isPending ? "Creating..." : "Create Ticket"}
                 </Button>
               </div>
             </DialogContent>
@@ -640,84 +650,92 @@ export default function CustomerProfilePage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {ticketApi.getTicketsByCustomer(customer.id).map((ticket) => (
-                  <div key={ticket.id} className="border rounded-lg p-4 hover-elevate" data-testid={`ticket-${ticket.id}`}>
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-sm font-mono text-muted-foreground">{ticket.id}</span>
-                          <h4 className="font-medium">{ticket.title}</h4>
-                          <Badge 
-                            variant={ticket.status === 'closed' ? 'default' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {ticket.status}
-                          </Badge>
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${priorityColors[ticket.priority as keyof typeof priorityColors]}`}
-                          >
-                            {ticket.priority}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {ticket.description}
-                        </p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>Category: {ticket.category}</span>
-                          <span>
-                            Created {formatDistanceToNow(ticket.createdAt, { addSuffix: true })}
-                          </span>
-                          {ticket.resolvedAt && (
+              {ticketsLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              ) : tickets.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Ticket className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No tickets yet</p>
+                  <p className="text-sm">Create a ticket to track support requests</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {tickets.map((ticket) => (
+                    <div key={ticket.id} className="border rounded-lg p-4 hover-elevate" data-testid={`ticket-${ticket.id}`}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <span className="text-sm font-mono text-muted-foreground">{ticket.id.slice(0, 8)}</span>
+                            <h4 className="font-medium">{ticket.title}</h4>
+                            <Badge 
+                              variant={ticket.status === 'closed' ? 'default' : 'secondary'}
+                              className="text-xs"
+                            >
+                              {ticket.status}
+                            </Badge>
+                            <Badge 
+                              variant="outline" 
+                              className={`text-xs ${priorityColors[ticket.priority as keyof typeof priorityColors]}`}
+                            >
+                              {ticket.priority}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            {ticket.description}
+                          </p>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                            <span>Category: {ticket.category}</span>
                             <span>
-                              Resolved {formatDistanceToNow(ticket.resolvedAt, { addSuffix: true })}
+                              Created {formatDistanceToNow(new Date(ticket.createdAt), { addSuffix: true })}
                             </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {ticket.status === 'open' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleTicketStatusChange(ticket.id, 'in-progress')}
+                              disabled={updateTicketStatusMutation.isPending}
+                              data-testid={`button-start-ticket-${ticket.id}`}
+                            >
+                              <Play className="w-3 h-3 mr-1" />
+                              Start
+                            </Button>
+                          )}
+                          {ticket.status === 'in-progress' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleTicketStatusChange(ticket.id, 'closed')}
+                              disabled={updateTicketStatusMutation.isPending}
+                              data-testid={`button-close-ticket-${ticket.id}`}
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Close
+                            </Button>
+                          )}
+                          {ticket.status === 'closed' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleTicketStatusChange(ticket.id, 'open')}
+                              disabled={updateTicketStatusMutation.isPending}
+                              data-testid={`button-reopen-ticket-${ticket.id}`}
+                            >
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Reopen
+                            </Button>
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {ticket.status === 'open' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleTicketStatusChange(ticket.id, 'in-progress')}
-                            data-testid={`button-start-ticket-${ticket.id}`}
-                          >
-                            <Play className="w-3 h-3 mr-1" />
-                            Start
-                          </Button>
-                        )}
-                        {ticket.status === 'in-progress' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleTicketStatusChange(ticket.id, 'closed')}
-                            data-testid={`button-close-ticket-${ticket.id}`}
-                          >
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Close
-                          </Button>
-                        )}
-                        {ticket.status === 'closed' && (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleTicketStatusChange(ticket.id, 'open')}
-                            data-testid={`button-reopen-ticket-${ticket.id}`}
-                          >
-                            <AlertCircle className="w-3 h-3 mr-1" />
-                            Reopen
-                          </Button>
-                        )}
-                        <Button variant="outline" size="sm" data-testid={`button-view-ticket-${ticket.id}`}>
-                          View
-                        </Button>
-                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -725,39 +743,17 @@ export default function CustomerProfilePage() {
         <TabsContent value="faqs" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Frequently Asked Questions</CardTitle>
-              <CardDescription>Common questions and answers that might help {customer.name}</CardDescription>
+              <CardTitle>Knowledge Base</CardTitle>
+              <CardDescription>Browse the knowledge base for helpful articles</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {mockFAQs.map((faq) => (
-                  <div key={faq.id} className="border rounded-lg p-4" data-testid={`faq-${faq.id}`}>
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <div className="flex items-center gap-2">
-                        <HelpCircle className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
-                        <h4 className="font-medium">{faq.question}</h4>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {faq.category}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mb-3 pl-6">
-                      {faq.answer}
-                    </p>
-                    <div className="flex items-center justify-between pl-6">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {faq.helpful ? (
-                          <span className="text-green-600">✓ Marked as helpful</span>
-                        ) : (
-                          <span>Not yet rated</span>
-                        )}
-                      </div>
-                      <Button variant="outline" size="sm" data-testid={`button-send-faq-${faq.id}`}>
-                        Send to Customer
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-center py-8 text-muted-foreground">
+                <HelpCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Access the Knowledge Base</p>
+                <p className="text-sm mb-4">Search for articles to help answer customer questions</p>
+                <Button variant="outline" asChild>
+                  <Link href="/knowledge">Open Knowledge Base</Link>
+                </Button>
               </div>
             </CardContent>
           </Card>
