@@ -58,6 +58,10 @@ import { z } from "zod";
 interface Workspace {
   id: string;
   name: string;
+  companyName: string | null;
+  dba: string;
+  phone: string | null;
+  email: string;
   description: string | null;
   slug: string;
   organizationId: string | null;
@@ -87,9 +91,12 @@ interface UserData {
 }
 
 const createWorkspaceSchema = z.object({
+  companyName: z.string().optional(),
+  dba: z.string().min(1, "DBA is required"),
   name: z.string().min(1, "Name is required"),
+  phone: z.string().optional(),
+  email: z.string().email("Valid email is required"),
   description: z.string().optional(),
-  slug: z.string().min(1, "Slug is required").regex(/^[a-z0-9-]+$/, "Slug must be lowercase alphanumeric with hyphens"),
 });
 
 const inviteMemberSchema = z.object({
@@ -127,9 +134,12 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
   const createForm = useForm<CreateWorkspaceForm>({
     resolver: zodResolver(createWorkspaceSchema),
     defaultValues: {
+      companyName: "",
+      dba: "",
       name: "",
+      phone: "",
+      email: "",
       description: "",
-      slug: "",
     },
   });
 
@@ -143,7 +153,11 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
 
   const createWorkspaceMutation = useMutation({
     mutationFn: async (data: CreateWorkspaceForm) => {
-      return apiRequest('/api/workspaces', 'POST', data);
+      // Auto-generate slug from name
+      const slug = data.name.toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+      return apiRequest('/api/workspaces', 'POST', { ...data, slug });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/workspaces'] });
@@ -219,11 +233,6 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
     }
   };
 
-  const handleNameChange = (name: string) => {
-    createForm.setValue('name', name);
-    const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    createForm.setValue('slug', slug);
-  };
 
   if (workspacesLoading) {
     return (
@@ -277,16 +286,12 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
                 <form onSubmit={createForm.handleSubmit((d) => createWorkspaceMutation.mutate(d))} className="space-y-4">
                   <FormField
                     control={createForm.control}
-                    name="name"
+                    name="companyName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Name</FormLabel>
+                        <FormLabel>Company Name</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="Acme Support"
-                            {...field}
-                            onChange={(e) => handleNameChange(e.target.value)}
-                          />
+                          <Input placeholder="Acme Corporation" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -295,17 +300,61 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
 
                   <FormField
                     control={createForm.control}
-                    name="slug"
+                    name="dba"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Slug</FormLabel>
+                        <FormLabel>DBA <span className="text-destructive">*</span></FormLabel>
                         <FormControl>
-                          <Input placeholder="acme-support" {...field} />
+                          <Input placeholder="Doing Business As" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
+                  <FormField
+                    control={createForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name <span className="text-destructive">*</span></FormLabel>
+                        <FormControl>
+                          <Input placeholder="Workspace name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={createForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+1 (555) 000-0000" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={createForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email <span className="text-destructive">*</span></FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="support@company.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
 
                   <FormField
                     control={createForm.control}
@@ -366,34 +415,76 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
                 <form onSubmit={createForm.handleSubmit((d) => createWorkspaceMutation.mutate(d))} className="space-y-4">
                   <FormField
                     control={createForm.control}
+                    name="companyName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Company Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Acme Corporation" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="dba"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>DBA <span className="text-destructive">*</span></FormLabel>
+                        <FormControl>
+                          <Input placeholder="Doing Business As" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Name</FormLabel>
+                        <FormLabel>Name <span className="text-destructive">*</span></FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="Acme Support"
-                            {...field}
-                            onChange={(e) => handleNameChange(e.target.value)}
-                          />
+                          <Input placeholder="Workspace name" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={createForm.control}
-                    name="slug"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Slug</FormLabel>
-                        <FormControl>
-                          <Input placeholder="acme-support" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={createForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+1 (555) 000-0000" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={createForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email <span className="text-destructive">*</span></FormLabel>
+                          <FormControl>
+                            <Input type="email" placeholder="support@company.com" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
                   <FormField
                     control={createForm.control}
                     name="description"
@@ -407,6 +498,7 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
                       </FormItem>
                     )}
                   />
+
                   <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
                       Cancel

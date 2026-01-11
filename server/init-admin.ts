@@ -151,6 +151,8 @@ async function ensureDefaultWorkspace() {
       
       const [newWorkspace] = await db.insert(workspaces).values({
         name: 'Default Workspace',
+        dba: 'Nova AI Support',
+        email: 'support@novaai.com',
         description: 'Main support workspace for all conversations',
         slug: defaultWorkspaceSlug,
         organizationId,

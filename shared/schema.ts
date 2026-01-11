@@ -299,8 +299,12 @@ export const users = pgTable("users", {
 export const workspaces = pgTable("workspaces", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
+  companyName: text("company_name"), // Legal company name
+  dba: text("dba").notNull(), // Doing Business As (required)
+  phone: text("phone"), // Contact phone number
+  email: text("email").notNull(), // Contact email (required)
   description: text("description"),
-  slug: text("slug").notNull(), // URL-friendly identifier
+  slug: text("slug").notNull(), // URL-friendly identifier (auto-generated)
   organizationId: varchar("organization_id").notNull().references(() => organizations.id),
   isDefault: boolean("is_default").notNull().default(false), // Default workspace for new org members
   // Region and locale settings (override organization defaults)
@@ -1497,6 +1501,10 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 export const insertWorkspaceSchema = createInsertSchema(workspaces).pick({
   name: true,
+  companyName: true,
+  dba: true,
+  phone: true,
+  email: true,
   description: true,
   slug: true,
   organizationId: true,
