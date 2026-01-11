@@ -159,6 +159,12 @@ const settingsSubItems: NavigationItem[] = [
     url: "/api-integration",
     icon: Code2,
     allowedRoles: ['admin']
+  },
+  {
+    title: "Organizations",
+    url: "/organization-management",
+    icon: Building2,
+    allowedRoles: ['admin']
   }
 ];
 

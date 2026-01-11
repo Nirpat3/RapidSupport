@@ -81,6 +81,8 @@ const ApiIntegrationPage = lazy(() => import("@/pages/ApiIntegrationPage"));
 const LegalPoliciesPage = lazy(() => import("@/pages/LegalPoliciesPage"));
 const PublicLegalPage = lazy(() => import("@/pages/PublicLegalPage"));
 const QuantumOptimizationPage = lazy(() => import("@/pages/QuantumOptimizationPage"));
+const OrganizationManagementPage = lazy(() => import("@/pages/OrganizationManagementPage"));
+const OrganizationSetupPage = lazy(() => import("@/pages/OrganizationSetupPage"));
 
 function Router() {
   return (
@@ -94,6 +96,12 @@ function Router() {
             <PlatformAdminPage />
           </PermissionGuard>
         </Route>
+        <Route path="/organization-management">
+          <PermissionGuard feature="platform-admin">
+            <OrganizationManagementPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/setup-organization" component={OrganizationSetupPage} />
         <Route path="/workspace-admin">
           <PermissionGuard feature="workspace-admin">
             <WorkspaceAdminPage />
