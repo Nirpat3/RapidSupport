@@ -225,6 +225,9 @@ import {
   organizationApplications,
   type OrganizationApplication,
   type InsertOrganizationApplication,
+  organizationSetupTokens,
+  type OrganizationSetupToken,
+  type InsertOrganizationSetupToken,
   type AuditLog,
   type InsertAuditLog,
 } from "@shared/schema";
@@ -425,6 +428,14 @@ export interface IStorage {
   createOrganizationApplication(app: InsertOrganizationApplication): Promise<OrganizationApplication>;
   updateOrganizationApplication(id: string, updates: Partial<OrganizationApplication>): Promise<OrganizationApplication>;
   checkOrganizationDuplicate(name: string, website?: string): Promise<{ isDuplicate: boolean; existingOrg?: Organization }>;
+  
+  // Organization Setup Token operations (shareable invitation links)
+  getOrganizationSetupToken(id: string): Promise<OrganizationSetupToken | undefined>;
+  getOrganizationSetupTokenByToken(token: string): Promise<OrganizationSetupToken | undefined>;
+  getAllOrganizationSetupTokens(status?: string): Promise<OrganizationSetupToken[]>;
+  createOrganizationSetupToken(token: InsertOrganizationSetupToken): Promise<OrganizationSetupToken>;
+  updateOrganizationSetupToken(id: string, updates: Partial<OrganizationSetupToken>): Promise<OrganizationSetupToken>;
+  completeOrganizationSetup(tokenId: string, organizationId: string): Promise<void>;
   
   // Soft Delete operations - marks records as deleted without removing them
   softDeleteOrganization(id: string, deletedBy: string, reason?: string): Promise<void>;
@@ -3083,6 +3094,83 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error checking organization duplicate:', error);
       return { isDuplicate: false };
+    }
+  }
+
+  // ============================================
+  // ORGANIZATION SETUP TOKEN OPERATIONS
+  // ============================================
+
+  async getOrganizationSetupToken(id: string): Promise<OrganizationSetupToken | undefined> {
+    try {
+      const [token] = await db.select().from(organizationSetupTokens).where(eq(organizationSetupTokens.id, id));
+      return token || undefined;
+    } catch (error) {
+      console.error('Error fetching organization setup token:', error);
+      return undefined;
+    }
+  }
+
+  async getOrganizationSetupTokenByToken(token: string): Promise<OrganizationSetupToken | undefined> {
+    try {
+      const [result] = await db.select().from(organizationSetupTokens).where(eq(organizationSetupTokens.token, token));
+      return result || undefined;
+    } catch (error) {
+      console.error('Error fetching organization setup token by token:', error);
+      return undefined;
+    }
+  }
+
+  async getAllOrganizationSetupTokens(status?: string): Promise<OrganizationSetupToken[]> {
+    try {
+      if (status) {
+        return await db.select().from(organizationSetupTokens)
+          .where(eq(organizationSetupTokens.status, status))
+          .orderBy(desc(organizationSetupTokens.createdAt));
+      }
+      return await db.select().from(organizationSetupTokens)
+        .orderBy(desc(organizationSetupTokens.createdAt));
+    } catch (error) {
+      console.error('Error fetching organization setup tokens:', error);
+      return [];
+    }
+  }
+
+  async createOrganizationSetupToken(token: InsertOrganizationSetupToken): Promise<OrganizationSetupToken> {
+    try {
+      const [created] = await db.insert(organizationSetupTokens).values(token).returning();
+      return created;
+    } catch (error) {
+      console.error('Error creating organization setup token:', error);
+      throw error;
+    }
+  }
+
+  async updateOrganizationSetupToken(id: string, updates: Partial<OrganizationSetupToken>): Promise<OrganizationSetupToken> {
+    try {
+      const [updated] = await db.update(organizationSetupTokens)
+        .set(updates)
+        .where(eq(organizationSetupTokens.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error('Error updating organization setup token:', error);
+      throw error;
+    }
+  }
+
+  async completeOrganizationSetup(tokenId: string, organizationId: string): Promise<void> {
+    try {
+      await db.update(organizationSetupTokens)
+        .set({ 
+          status: 'completed', 
+          completedAt: new Date(),
+          organizationId: organizationId 
+        })
+        .where(eq(organizationSetupTokens.id, tokenId));
+    } catch (error) {
+      console.error('Error completing organization setup:', error);
+      throw error;
     }
   }
 

@@ -121,6 +121,32 @@ export const organizationApplications = pgTable("organization_applications", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Organization Setup Tokens - Shareable links for organization contact to complete setup
+export const organizationSetupTokens = pgTable("organization_setup_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: text("token").notNull().unique(), // Secure random token for the setup link
+  organizationId: varchar("organization_id").references(() => organizations.id), // Linked org (if already created)
+  applicationId: varchar("application_id").references(() => organizationApplications.id), // Linked application (if from approval)
+  // Contact details for the person who will complete setup
+  contactName: text("contact_name").notNull(),
+  contactEmail: text("contact_email").notNull(),
+  contactRole: text("contact_role"),
+  // Organization details (pre-filled from admin or application)
+  organizationName: text("organization_name").notNull(),
+  organizationSlug: text("organization_slug").notNull(),
+  // Token status
+  status: text("status").notNull().default("pending"), // 'pending' | 'completed' | 'expired' | 'revoked'
+  expiresAt: timestamp("expires_at").notNull(), // When the token becomes invalid
+  completedAt: timestamp("completed_at"), // When setup was completed
+  // Who created this invitation
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertOrganizationSetupTokenSchema = createInsertSchema(organizationSetupTokens).omit({ id: true, createdAt: true });
+export type InsertOrganizationSetupToken = z.infer<typeof insertOrganizationSetupTokenSchema>;
+export type OrganizationSetupToken = typeof organizationSetupTokens.$inferSelect;
+
 // ============================================
 // AUDIT LOG - Track all changes for historical data preservation
 // ============================================
