@@ -230,6 +230,18 @@ import {
   type InsertOrganizationSetupToken,
   type AuditLog,
   type InsertAuditLog,
+  cloudStorageConnections,
+  cloudStorageFolders,
+  cloudStorageSyncRuns,
+  cloudStorageFiles,
+  type CloudStorageConnection,
+  type InsertCloudStorageConnection,
+  type CloudStorageFolder,
+  type InsertCloudStorageFolder,
+  type CloudStorageSyncRun,
+  type InsertCloudStorageSyncRun,
+  type CloudStorageFile,
+  type InsertCloudStorageFile,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -807,6 +819,39 @@ export interface IStorage {
   updateLegalPolicy(id: string, updates: Partial<InsertLegalPolicy>): Promise<LegalPolicy>;
   deleteLegalPolicy(id: string): Promise<void>;
   getPublishedPolicies(organizationId: string | null): Promise<LegalPolicy[]>;
+
+  // ============================================================================
+  // CLOUD STORAGE INTEGRATION OPERATIONS
+  // ============================================================================
+  
+  // Cloud Storage Connection operations
+  createCloudStorageConnection(connection: InsertCloudStorageConnection): Promise<CloudStorageConnection>;
+  getCloudStorageConnection(id: string): Promise<CloudStorageConnection | undefined>;
+  getCloudStorageConnectionsByWorkspace(workspaceId: string): Promise<CloudStorageConnection[]>;
+  getCloudStorageConnectionsByOrganization(organizationId: string): Promise<CloudStorageConnection[]>;
+  updateCloudStorageConnection(id: string, updates: Partial<InsertCloudStorageConnection>): Promise<CloudStorageConnection>;
+  deleteCloudStorageConnection(id: string): Promise<void>;
+  
+  // Cloud Storage Folder operations
+  createCloudStorageFolder(folder: InsertCloudStorageFolder): Promise<CloudStorageFolder>;
+  getCloudStorageFolder(id: string): Promise<CloudStorageFolder | undefined>;
+  getCloudStorageFoldersByConnection(connectionId: string): Promise<CloudStorageFolder[]>;
+  updateCloudStorageFolder(id: string, updates: Partial<InsertCloudStorageFolder>): Promise<CloudStorageFolder>;
+  deleteCloudStorageFolder(id: string): Promise<void>;
+  
+  // Cloud Storage Sync Run operations
+  createCloudStorageSyncRun(run: InsertCloudStorageSyncRun): Promise<CloudStorageSyncRun>;
+  getCloudStorageSyncRun(id: string): Promise<CloudStorageSyncRun | undefined>;
+  getCloudStorageSyncRunsByConnection(connectionId: string, limit?: number): Promise<CloudStorageSyncRun[]>;
+  updateCloudStorageSyncRun(id: string, updates: Partial<InsertCloudStorageSyncRun>): Promise<CloudStorageSyncRun>;
+  
+  // Cloud Storage File operations  
+  createCloudStorageFile(file: InsertCloudStorageFile): Promise<CloudStorageFile>;
+  getCloudStorageFile(id: string): Promise<CloudStorageFile | undefined>;
+  getCloudStorageFileByProviderId(connectionId: string, providerFileId: string): Promise<CloudStorageFile | undefined>;
+  getCloudStorageFilesByFolder(folderId: string): Promise<CloudStorageFile[]>;
+  updateCloudStorageFile(id: string, updates: Partial<InsertCloudStorageFile>): Promise<CloudStorageFile>;
+  deleteCloudStorageFile(id: string): Promise<void>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -7439,6 +7484,134 @@ export class DatabaseStorage implements IStorage {
       : and(eq(legalPolicies.organizationId, organizationId), eq(legalPolicies.status, 'published'));
     
     return await db.select().from(legalPolicies).where(conditions).orderBy(asc(legalPolicies.type));
+  }
+
+  // ============================================================================
+  // CLOUD STORAGE INTEGRATION OPERATIONS
+  // ============================================================================
+
+  async createCloudStorageConnection(connection: InsertCloudStorageConnection): Promise<CloudStorageConnection> {
+    const [created] = await db.insert(cloudStorageConnections).values(connection).returning();
+    return created;
+  }
+
+  async getCloudStorageConnection(id: string): Promise<CloudStorageConnection | undefined> {
+    const [connection] = await db.select().from(cloudStorageConnections).where(eq(cloudStorageConnections.id, id));
+    return connection || undefined;
+  }
+
+  async getCloudStorageConnectionsByWorkspace(workspaceId: string): Promise<CloudStorageConnection[]> {
+    return await db.select().from(cloudStorageConnections)
+      .where(eq(cloudStorageConnections.workspaceId, workspaceId))
+      .orderBy(desc(cloudStorageConnections.createdAt));
+  }
+
+  async getCloudStorageConnectionsByOrganization(organizationId: string): Promise<CloudStorageConnection[]> {
+    return await db.select().from(cloudStorageConnections)
+      .where(eq(cloudStorageConnections.organizationId, organizationId))
+      .orderBy(desc(cloudStorageConnections.createdAt));
+  }
+
+  async updateCloudStorageConnection(id: string, updates: Partial<InsertCloudStorageConnection>): Promise<CloudStorageConnection> {
+    const [updated] = await db.update(cloudStorageConnections)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(cloudStorageConnections.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCloudStorageConnection(id: string): Promise<void> {
+    await db.delete(cloudStorageConnections).where(eq(cloudStorageConnections.id, id));
+  }
+
+  async createCloudStorageFolder(folder: InsertCloudStorageFolder): Promise<CloudStorageFolder> {
+    const [created] = await db.insert(cloudStorageFolders).values(folder).returning();
+    return created;
+  }
+
+  async getCloudStorageFolder(id: string): Promise<CloudStorageFolder | undefined> {
+    const [folder] = await db.select().from(cloudStorageFolders).where(eq(cloudStorageFolders.id, id));
+    return folder || undefined;
+  }
+
+  async getCloudStorageFoldersByConnection(connectionId: string): Promise<CloudStorageFolder[]> {
+    return await db.select().from(cloudStorageFolders)
+      .where(eq(cloudStorageFolders.connectionId, connectionId))
+      .orderBy(asc(cloudStorageFolders.folderPath));
+  }
+
+  async updateCloudStorageFolder(id: string, updates: Partial<InsertCloudStorageFolder>): Promise<CloudStorageFolder> {
+    const [updated] = await db.update(cloudStorageFolders)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(cloudStorageFolders.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCloudStorageFolder(id: string): Promise<void> {
+    await db.delete(cloudStorageFolders).where(eq(cloudStorageFolders.id, id));
+  }
+
+  async createCloudStorageSyncRun(run: InsertCloudStorageSyncRun): Promise<CloudStorageSyncRun> {
+    const [created] = await db.insert(cloudStorageSyncRuns).values(run).returning();
+    return created;
+  }
+
+  async getCloudStorageSyncRun(id: string): Promise<CloudStorageSyncRun | undefined> {
+    const [run] = await db.select().from(cloudStorageSyncRuns).where(eq(cloudStorageSyncRuns.id, id));
+    return run || undefined;
+  }
+
+  async getCloudStorageSyncRunsByConnection(connectionId: string, limit = 10): Promise<CloudStorageSyncRun[]> {
+    return await db.select().from(cloudStorageSyncRuns)
+      .where(eq(cloudStorageSyncRuns.connectionId, connectionId))
+      .orderBy(desc(cloudStorageSyncRuns.startedAt))
+      .limit(limit);
+  }
+
+  async updateCloudStorageSyncRun(id: string, updates: Partial<InsertCloudStorageSyncRun>): Promise<CloudStorageSyncRun> {
+    const [updated] = await db.update(cloudStorageSyncRuns)
+      .set(updates)
+      .where(eq(cloudStorageSyncRuns.id, id))
+      .returning();
+    return updated;
+  }
+
+  async createCloudStorageFile(file: InsertCloudStorageFile): Promise<CloudStorageFile> {
+    const [created] = await db.insert(cloudStorageFiles).values(file).returning();
+    return created;
+  }
+
+  async getCloudStorageFile(id: string): Promise<CloudStorageFile | undefined> {
+    const [file] = await db.select().from(cloudStorageFiles).where(eq(cloudStorageFiles.id, id));
+    return file || undefined;
+  }
+
+  async getCloudStorageFileByProviderId(connectionId: string, providerFileId: string): Promise<CloudStorageFile | undefined> {
+    const [file] = await db.select().from(cloudStorageFiles)
+      .where(and(
+        eq(cloudStorageFiles.connectionId, connectionId),
+        eq(cloudStorageFiles.providerFileId, providerFileId)
+      ));
+    return file || undefined;
+  }
+
+  async getCloudStorageFilesByFolder(folderId: string): Promise<CloudStorageFile[]> {
+    return await db.select().from(cloudStorageFiles)
+      .where(eq(cloudStorageFiles.folderId, folderId))
+      .orderBy(asc(cloudStorageFiles.fileName));
+  }
+
+  async updateCloudStorageFile(id: string, updates: Partial<InsertCloudStorageFile>): Promise<CloudStorageFile> {
+    const [updated] = await db.update(cloudStorageFiles)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(cloudStorageFiles.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCloudStorageFile(id: string): Promise<void> {
+    await db.delete(cloudStorageFiles).where(eq(cloudStorageFiles.id, id));
   }
 
 }

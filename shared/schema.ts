@@ -3714,3 +3714,176 @@ export const insertWorkflowSessionSchema = createInsertSchema(workflowSessions).
 });
 export type InsertWorkflowSession = z.infer<typeof insertWorkflowSessionSchema>;
 export type WorkflowSession = typeof workflowSessions.$inferSelect;
+
+// ============================================
+// CLOUD STORAGE INTEGRATION - Marketplace Connections
+// ============================================
+
+// Cloud Storage Connections - OAuth connections to Google Drive, OneDrive, Dropbox
+export const cloudStorageConnections = pgTable("cloud_storage_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Multi-tenant scoping
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  
+  // Provider info
+  provider: text("provider").notNull(), // 'google_drive' | 'onedrive' | 'dropbox'
+  displayName: text("display_name").notNull(), // User-friendly name for the connection
+  accountEmail: text("account_email"), // Email associated with the cloud account
+  accountName: text("account_name"), // Display name of the cloud account
+  
+  // OAuth tokens (encrypted at rest)
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  scopes: text("scopes").array(), // Granted OAuth scopes
+  
+  // Connection status
+  status: text("status").notNull().default("connected"), // 'connected' | 'error' | 'expired' | 'disconnected'
+  errorMessage: text("error_message"),
+  
+  // Sync configuration
+  syncMode: text("sync_mode").notNull().default("manual"), // 'manual' | 'scheduled' | 'realtime'
+  syncIntervalMinutes: integer("sync_interval_minutes").default(60),
+  lastSyncAt: timestamp("last_sync_at"),
+  nextSyncAt: timestamp("next_sync_at"),
+  
+  // Metadata
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("cloud_storage_conn_org_idx").on(table.organizationId),
+  workspaceIdx: index("cloud_storage_conn_workspace_idx").on(table.workspaceId),
+  providerIdx: index("cloud_storage_conn_provider_idx").on(table.provider),
+  statusIdx: index("cloud_storage_conn_status_idx").on(table.status),
+  uniqueConnection: uniqueIndex("cloud_storage_conn_unique_idx").on(table.workspaceId, table.provider, table.accountEmail),
+}));
+
+// Cloud Storage Folders - Selected folders to sync from cloud storage
+export const cloudStorageFolders = pgTable("cloud_storage_folders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Connection reference
+  connectionId: varchar("connection_id").notNull().references(() => cloudStorageConnections.id, { onDelete: 'cascade' }),
+  
+  // Folder info from provider
+  providerFolderId: text("provider_folder_id").notNull(), // The folder ID in the provider's system
+  folderName: text("folder_name").notNull(),
+  folderPath: text("folder_path"), // Full path like /Documents/Support
+  
+  // Sync settings
+  syncEnabled: boolean("sync_enabled").notNull().default(true),
+  includeSubfolders: boolean("include_subfolders").notNull().default(true),
+  
+  // Sync state
+  syncCursor: text("sync_cursor"), // Provider-specific cursor/token for delta sync
+  lastImportedAt: timestamp("last_imported_at"),
+  filesImported: integer("files_imported").notNull().default(0),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  connectionIdx: index("cloud_storage_folder_conn_idx").on(table.connectionId),
+  uniqueFolder: uniqueIndex("cloud_storage_folder_unique_idx").on(table.connectionId, table.providerFolderId),
+}));
+
+// Cloud Storage Sync Runs - Logging of sync operations
+export const cloudStorageSyncRuns = pgTable("cloud_storage_sync_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  connectionId: varchar("connection_id").notNull().references(() => cloudStorageConnections.id, { onDelete: 'cascade' }),
+  folderId: varchar("folder_id").references(() => cloudStorageFolders.id, { onDelete: 'set null' }),
+  
+  // Sync details
+  syncType: text("sync_type").notNull(), // 'full' | 'delta' | 'manual'
+  status: text("status").notNull().default("running"), // 'running' | 'completed' | 'failed' | 'cancelled'
+  
+  // Stats
+  filesScanned: integer("files_scanned").notNull().default(0),
+  filesImported: integer("files_imported").notNull().default(0),
+  filesSkipped: integer("files_skipped").notNull().default(0),
+  filesFailed: integer("files_failed").notNull().default(0),
+  
+  // Timing
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  
+  // Error tracking
+  errorMessage: text("error_message"),
+  errorDetails: jsonb("error_details"),
+}, (table) => ({
+  connectionIdx: index("cloud_storage_sync_conn_idx").on(table.connectionId),
+  statusIdx: index("cloud_storage_sync_status_idx").on(table.status),
+}));
+
+// Cloud Storage Files - Track imported files to avoid duplicates
+export const cloudStorageFiles = pgTable("cloud_storage_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // References
+  connectionId: varchar("connection_id").notNull().references(() => cloudStorageConnections.id, { onDelete: 'cascade' }),
+  folderId: varchar("folder_id").references(() => cloudStorageFolders.id, { onDelete: 'set null' }),
+  knowledgeBaseId: varchar("knowledge_base_id").references(() => knowledgeBase.id, { onDelete: 'set null' }),
+  
+  // File info from provider
+  providerFileId: text("provider_file_id").notNull(),
+  fileName: text("file_name").notNull(),
+  filePath: text("file_path"),
+  mimeType: text("mime_type"),
+  fileSize: integer("file_size"),
+  
+  // Version tracking for delta sync
+  providerVersion: text("provider_version"), // ETag or version ID
+  providerModifiedAt: timestamp("provider_modified_at"),
+  contentHash: text("content_hash"), // Hash of file content for change detection
+  
+  // Import status
+  importStatus: text("import_status").notNull().default("pending"), // 'pending' | 'importing' | 'imported' | 'failed' | 'skipped'
+  importError: text("import_error"),
+  lastImportedAt: timestamp("last_imported_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  connectionIdx: index("cloud_storage_file_conn_idx").on(table.connectionId),
+  folderIdx: index("cloud_storage_file_folder_idx").on(table.folderId),
+  kbIdx: index("cloud_storage_file_kb_idx").on(table.knowledgeBaseId),
+  uniqueFile: uniqueIndex("cloud_storage_file_unique_idx").on(table.connectionId, table.providerFileId),
+}));
+
+// Cloud Storage Connections insert schema and types
+export const insertCloudStorageConnectionSchema = createInsertSchema(cloudStorageConnections).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCloudStorageConnection = z.infer<typeof insertCloudStorageConnectionSchema>;
+export type CloudStorageConnection = typeof cloudStorageConnections.$inferSelect;
+
+// Cloud Storage Folders insert schema and types
+export const insertCloudStorageFolderSchema = createInsertSchema(cloudStorageFolders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCloudStorageFolder = z.infer<typeof insertCloudStorageFolderSchema>;
+export type CloudStorageFolder = typeof cloudStorageFolders.$inferSelect;
+
+// Cloud Storage Sync Runs insert schema and types
+export const insertCloudStorageSyncRunSchema = createInsertSchema(cloudStorageSyncRuns).omit({
+  id: true,
+  startedAt: true,
+});
+export type InsertCloudStorageSyncRun = z.infer<typeof insertCloudStorageSyncRunSchema>;
+export type CloudStorageSyncRun = typeof cloudStorageSyncRuns.$inferSelect;
+
+// Cloud Storage Files insert schema and types
+export const insertCloudStorageFileSchema = createInsertSchema(cloudStorageFiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCloudStorageFile = z.infer<typeof insertCloudStorageFileSchema>;
+export type CloudStorageFile = typeof cloudStorageFiles.$inferSelect;

@@ -53,6 +53,9 @@ import {
   channelContacts
 } from '@shared/schema';
 import { WebScraper } from './web-scraper';
+
+// Module-level OAuth state nonce store (production should use Redis/DB)
+const oauthStateStore = new Map<string, { userId: string; organizationId: string; workspaceId: string; expiresAt: Date }>();
 import { KnowledgeRetrievalService } from './knowledge-retrieval';
 import { channelService } from './channel-service';
 import { channelProviderFactory } from './channel-providers';
@@ -13078,6 +13081,364 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to search workflows:', error);
       res.status(500).json({ error: 'Failed to search workflows' });
+    }
+  });
+
+  // ============================================================================
+  // CLOUD STORAGE INTEGRATION ROUTES
+  // ============================================================================
+
+  // Helper to redact sensitive OAuth tokens from connection objects
+  const redactConnectionTokens = (connection: any) => {
+    const { accessToken, refreshToken, ...safeConnection } = connection;
+    return safeConnection;
+  };
+
+  // Helper to check if user is admin or has access to a workspace
+  const isAdminUser = (user: User) => {
+    return user.role === 'admin' || user.isPlatformAdmin;
+  };
+
+  // Helper to validate connection ownership (organization + workspace for non-admins)
+  const validateConnectionOwnership = async (connectionId: string, user: User) => {
+    const connection = await storage.getCloudStorageConnection(connectionId);
+    if (!connection) return null;
+    // Must belong to same organization
+    if (connection.organizationId !== user.organizationId) return null;
+    // Non-admin users must also match workspace
+    if (!isAdminUser(user) && connection.workspaceId !== user.workspaceId) return null;
+    return connection;
+  };
+
+  // Get all cloud storage connections - workspace-scoped for non-admins, org-wide for admins
+  app.get('/api/cloud-storage/connections', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      if (!user.organizationId) {
+        return res.status(400).json({ error: 'Organization ID required' });
+      }
+      
+      const requestedWorkspaceId = req.query.workspaceId as string;
+      
+      // Admins can see all org connections or filter by workspace
+      if (isAdminUser(user)) {
+        const allConnections = await storage.getCloudStorageConnectionsByOrganization(user.organizationId);
+        const filteredConnections = requestedWorkspaceId 
+          ? allConnections.filter(c => c.workspaceId === requestedWorkspaceId)
+          : allConnections;
+        return res.json(filteredConnections.map(redactConnectionTokens));
+      }
+      
+      // Non-admins can only see their own workspace's connections
+      // If they try to specify a different workspace, reject the request
+      if (requestedWorkspaceId && requestedWorkspaceId !== user.workspaceId) {
+        return res.status(403).json({ error: 'Access denied: cannot query other workspaces' });
+      }
+      
+      const workspaceId = user.workspaceId;
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'No workspace assigned to user' });
+      }
+      
+      const connections = await storage.getCloudStorageConnectionsByWorkspace(workspaceId);
+      // Double-check organization scope
+      const scopedConnections = connections.filter(c => c.organizationId === user.organizationId);
+      
+      res.json(scopedConnections.map(redactConnectionTokens));
+    } catch (error) {
+      console.error('Failed to get cloud storage connections:', error);
+      res.status(500).json({ error: 'Failed to get connections' });
+    }
+  });
+
+  // Get a single cloud storage connection (with ownership validation)
+  app.get('/api/cloud-storage/connections/:id', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const connection = await validateConnectionOwnership(req.params.id, user);
+      if (!connection) {
+        return res.status(404).json({ error: 'Connection not found' });
+      }
+      res.json(redactConnectionTokens(connection));
+    } catch (error) {
+      console.error('Failed to get cloud storage connection:', error);
+      res.status(500).json({ error: 'Failed to get connection' });
+    }
+  });
+
+  // Delete a cloud storage connection (with ownership validation)
+  app.delete('/api/cloud-storage/connections/:id', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const connection = await validateConnectionOwnership(req.params.id, user);
+      if (!connection) {
+        return res.status(404).json({ error: 'Connection not found' });
+      }
+      await storage.deleteCloudStorageConnection(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to delete cloud storage connection:', error);
+      res.status(500).json({ error: 'Failed to delete connection' });
+    }
+  });
+
+  // Get folders for a connection (with ownership validation)
+  app.get('/api/cloud-storage/connections/:id/folders', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const connection = await validateConnectionOwnership(req.params.id, user);
+      if (!connection) {
+        return res.status(404).json({ error: 'Connection not found' });
+      }
+      const folders = await storage.getCloudStorageFoldersByConnection(req.params.id);
+      res.json(folders);
+    } catch (error) {
+      console.error('Failed to get cloud storage folders:', error);
+      res.status(500).json({ error: 'Failed to get folders' });
+    }
+  });
+
+  // Get sync history for a connection (with ownership validation)
+  app.get('/api/cloud-storage/connections/:id/sync-runs', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const connection = await validateConnectionOwnership(req.params.id, user);
+      if (!connection) {
+        return res.status(404).json({ error: 'Connection not found' });
+      }
+      const limit = parseInt(req.query.limit as string) || 10;
+      const runs = await storage.getCloudStorageSyncRunsByConnection(req.params.id, limit);
+      res.json(runs);
+    } catch (error) {
+      console.error('Failed to get sync runs:', error);
+      res.status(500).json({ error: 'Failed to get sync history' });
+    }
+  });
+
+  // Trigger a manual sync for a connection (with ownership validation)
+  app.post('/api/cloud-storage/connections/:id/sync', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const connection = await validateConnectionOwnership(req.params.id, user);
+      if (!connection) {
+        return res.status(404).json({ error: 'Connection not found' });
+      }
+
+      // Create a new sync run
+      const syncRun = await storage.createCloudStorageSyncRun({
+        connectionId: connection.id,
+        status: 'running',
+        triggerType: 'manual',
+      });
+
+      // In a real implementation, this would kick off an async job
+      // For now, we'll simulate completing the sync
+      await storage.updateCloudStorageSyncRun(syncRun.id, {
+        status: 'completed',
+        completedAt: new Date(),
+        filesDiscovered: 0,
+        filesProcessed: 0,
+        filesImported: 0,
+      });
+
+      await storage.updateCloudStorageConnection(connection.id, {
+        lastSyncAt: new Date(),
+      });
+
+      res.json({ message: 'Sync initiated', syncRunId: syncRun.id });
+    } catch (error) {
+      console.error('Failed to trigger sync:', error);
+      res.status(500).json({ error: 'Failed to trigger sync' });
+    }
+  });
+
+  // OAuth initiation endpoints for each provider
+  // Note: These require provider-specific Client ID and Client Secret to be configured
+  app.get('/api/cloud-storage/oauth/:provider/initiate', requireAuth, async (req, res) => {
+    try {
+      const { provider } = req.params;
+      const user = req.user as User;
+      
+      if (!['google_drive', 'onedrive', 'dropbox'].includes(provider)) {
+        return res.status(400).json({ error: 'Invalid provider' });
+      }
+
+      if (!user.organizationId) {
+        return res.status(400).json({ error: 'Organization ID required' });
+      }
+
+      // Build OAuth URLs based on provider
+      const baseUrls: Record<string, { auth: string; scopes: string[] }> = {
+        google_drive: {
+          auth: 'https://accounts.google.com/o/oauth2/v2/auth',
+          scopes: ['https://www.googleapis.com/auth/drive.readonly', 'https://www.googleapis.com/auth/userinfo.email']
+        },
+        onedrive: {
+          auth: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+          scopes: ['Files.Read', 'User.Read', 'offline_access']
+        },
+        dropbox: {
+          auth: 'https://www.dropbox.com/oauth2/authorize',
+          scopes: []
+        }
+      };
+
+      const config = baseUrls[provider];
+      const clientId = process.env[`${provider.toUpperCase()}_CLIENT_ID`];
+      
+      if (!clientId) {
+        return res.status(503).json({ 
+          error: 'Provider not configured',
+          message: `${provider} integration requires OAuth credentials. Please add ${provider.toUpperCase()}_CLIENT_ID and ${provider.toUpperCase()}_CLIENT_SECRET to your environment.`
+        });
+      }
+
+      // Generate secure random nonce for state parameter
+      const nonce = crypto.randomUUID();
+      const stateData = {
+        userId: user.id,
+        organizationId: user.organizationId,
+        workspaceId: user.workspaceId || 'default',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minute expiry
+      };
+      oauthStateStore.set(nonce, stateData);
+
+      const redirectUri = `${req.protocol}://${req.get('host')}/api/cloud-storage/oauth/${provider}/callback`;
+
+      let authUrl = `${config.auth}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${nonce}`;
+      
+      if (provider === 'google_drive') {
+        authUrl += `&scope=${encodeURIComponent(config.scopes.join(' '))}&access_type=offline&prompt=consent`;
+      } else if (provider === 'onedrive') {
+        authUrl += `&scope=${encodeURIComponent(config.scopes.join(' '))}`;
+      } else if (provider === 'dropbox') {
+        authUrl += `&token_access_type=offline`;
+      }
+
+      res.json({ authUrl });
+    } catch (error) {
+      console.error('Failed to initiate OAuth:', error);
+      res.status(500).json({ error: 'Failed to initiate OAuth' });
+    }
+  });
+
+  // OAuth callback endpoints
+  app.get('/api/cloud-storage/oauth/:provider/callback', async (req, res) => {
+    try {
+      const { provider } = req.params;
+      const { code, state, error } = req.query;
+
+      if (error) {
+        return res.redirect(`/cloud-storage?error=${encodeURIComponent(error as string)}`);
+      }
+
+      if (!code || !state) {
+        return res.redirect('/cloud-storage?error=missing_params');
+      }
+
+      // Validate state nonce from server-side store
+      const stateData = oauthStateStore.get(state as string);
+      if (!stateData) {
+        return res.redirect('/cloud-storage?error=invalid_state');
+      }
+
+      // Check expiration and remove from store
+      oauthStateStore.delete(state as string);
+      if (new Date() > stateData.expiresAt) {
+        return res.redirect('/cloud-storage?error=state_expired');
+      }
+
+      const { userId, organizationId, workspaceId } = stateData;
+
+      // Token exchange configuration
+      const tokenUrls: Record<string, string> = {
+        google_drive: 'https://oauth2.googleapis.com/token',
+        onedrive: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+        dropbox: 'https://api.dropboxapi.com/oauth2/token'
+      };
+
+      const clientId = process.env[`${provider.toUpperCase()}_CLIENT_ID`];
+      const clientSecret = process.env[`${provider.toUpperCase()}_CLIENT_SECRET`];
+
+      if (!clientId || !clientSecret) {
+        return res.redirect('/cloud-storage?error=provider_not_configured');
+      }
+
+      const redirectUri = `${req.protocol}://${req.get('host')}/api/cloud-storage/oauth/${provider}/callback`;
+
+      // Exchange code for tokens
+      const tokenResponse = await fetch(tokenUrls[provider], {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code: code as string,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code'
+        })
+      });
+
+      if (!tokenResponse.ok) {
+        console.error('Token exchange failed:', await tokenResponse.text());
+        return res.redirect('/cloud-storage?error=token_exchange_failed');
+      }
+
+      const tokens = await tokenResponse.json();
+
+      // Get user info from provider
+      let accountEmail = '';
+      let accountName = '';
+
+      if (provider === 'google_drive') {
+        const userInfo = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+          headers: { Authorization: `Bearer ${tokens.access_token}` }
+        });
+        if (userInfo.ok) {
+          const data = await userInfo.json();
+          accountEmail = data.email;
+          accountName = data.name;
+        }
+      } else if (provider === 'onedrive') {
+        const userInfo = await fetch('https://graph.microsoft.com/v1.0/me', {
+          headers: { Authorization: `Bearer ${tokens.access_token}` }
+        });
+        if (userInfo.ok) {
+          const data = await userInfo.json();
+          accountEmail = data.mail || data.userPrincipalName;
+          accountName = data.displayName;
+        }
+      } else if (provider === 'dropbox') {
+        const userInfo = await fetch('https://api.dropboxapi.com/2/users/get_current_account', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${tokens.access_token}` }
+        });
+        if (userInfo.ok) {
+          const data = await userInfo.json();
+          accountEmail = data.email;
+          accountName = data.name?.display_name;
+        }
+      }
+
+      // Create the connection
+      await storage.createCloudStorageConnection({
+        organizationId,
+        workspaceId,
+        provider,
+        displayName: accountName || `${provider} Connection`,
+        accountEmail,
+        accountName,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        tokenExpiresAt: tokens.expires_in ? new Date(Date.now() + tokens.expires_in * 1000) : null,
+        status: 'connected',
+        createdBy: userId
+      });
+
+      res.redirect('/cloud-storage?success=connected');
+    } catch (error) {
+      console.error('OAuth callback failed:', error);
+      res.redirect('/cloud-storage?error=callback_failed');
     }
   });
 

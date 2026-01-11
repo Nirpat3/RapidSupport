@@ -1,0 +1,59 @@
+Which retrieval methods give highest accuracy for document RAG
+
+For document‑based RAG today, the most accurate retrieval setups use **hybrid dense+sparse search with a reranking stage**, rather than a single retriever alone. [1][2][3][4][5]
+
+## Retrieval methods ranked by typical accuracy
+
+- **Hybrid dense + sparse (BM25) + reranker**  
+  - Run both a dense retriever (embeddings) and a sparse retriever (BM25/keyword), then fuse their results (e.g., weighted sum or Reciprocal Rank Fusion), and finally rerank top candidates with a cross‑encoder or ColBERT. [1][2][3][4][5]
+  - Benchmarks and case studies show this “three‑stage” pipeline significantly boosts both recall and precision and is now considered an industry gold standard for serious RAG deployments. [1][2][3][4][5]
+
+- **Hybrid dense + sparse (no reranker)**  
+  - Use BM25 and embeddings in parallel and fuse lists via weighted scores or RRF. [1][2][3][5][6]
+  - Consistently outperforms dense‑only or sparse‑only retrieval, especially in technical/jargon‑heavy domains. [1][2][3][5]
+
+- **Dense‑only retrieval**  
+  - Use embedding vectors with approximate nearest neighbor (ANN) search. [1][5]
+  - Strong for semantic similarity and paraphrases but can miss exact‑term or rare‑token matches, so often used as a baseline rather than final setup. [1][7][5]
+
+- **Sparse‑only retrieval (BM25/TF‑IDF)**  
+  - Classical keyword search; surprisingly competitive in some domains and often forms one leg of a hybrid baseline. [1][7][5]
+  - Tends to underperform hybrid and reranked pipelines on nuanced, natural‑language questions. [1][2][5]
+
+## Enhancements that further improve accuracy
+
+- **Cross‑encoder / ColBERT reranking**  
+  - Take the top‑k (e.g., 50–200) retrieved chunks and rerank using a cross‑encoder or ColBERT “late interaction” model, which reads query+document together. [2][3][4][5]
+  - Reported gains of 15–48% in retrieval quality metrics over non‑reranked baselines. [3][4]
+
+- **Query reformulation & multi‑query (RAG‑fusion)**  
+  - Generate multiple variants of the question, retrieve for each, then fuse results (reciprocal rank fusion) to cover more angles and context. [8][2][5]
+  - Helps especially when user queries are short, vague, or under‑specified. [8][2]
+
+- **Corrective / self‑reflective RAG**  
+  - Add a lightweight evaluator step that checks whether retrieved passages actually answer the question, and if not, re‑queries or falls back to another source. [8]
+  - Improves robustness where accuracy is critical or data is noisy. [8]
+
+## Practical recommendation
+
+For a support assistant over documents, a strong, realistic choice is:  
+- BM25 + dense embeddings in parallel → fuse with RRF or weighted sum → rerank top‑k with a cross‑encoder or ColBERT, plus good chunking and domain‑tuned embeddings. [2][3][4][5][6]
+
+If you share your stack (e.g., pgvector, Pinecone, Elasticsearch, or cloud search), a concrete retrieval pipeline (exact fusion formula and reranker type) can be sketched for your setup.
+
+Citations:
+[1] Top 3 RAG Retrieval Strategies: Sparse, Dense, & Hybrid Explained https://www.youtube.com/watch?v=r0Dciuq0knU
+[2] Optimizing RAG with Hybrid Search & Reranking - Superlinked https://superlinked.com/vectorhub/articles/optimizing-rag-with-hybrid-search-reranking
+[3] RAG Series - Hybrid Search with Re-ranking - dbi services https://www.dbi-services.com/blog/rag-series-hybrid-search-with-re-ranking/
+[4] Mastering Ranked Retrieval Agents: 2025 Deep Dive - Sparkco https://sparkco.ai/blog/mastering-ranked-retrieval-agents-2025-deep-dive
+[5] Advanced RAG: From Naive Retrieval to Hybrid Search and Re ... https://dev.to/kuldeep_paul/advanced-rag-from-naive-retrieval-to-hybrid-search-and-re-ranking-4km3
+[6] Hybrid Search for RAG | Dense & Sparse Retrieval https://apxml.com/courses/optimizing-rag-for-production/chapter-2-advanced-retrieval-optimization/hybrid-search-rag
+[7] BM25, Embeddings, and the Power of Agentic Search : r/Rag - Reddit https://www.reddit.com/r/Rag/comments/1o7c44y/rag_retrieval_deep_dive_bm25_embeddings_and_the/
+[8] Four retrieval techniques to improve RAG you need to know https://www.thoughtworks.com/en-us/insights/blog/generative-ai/four-retrieval-techniques-improve-rag
+[9] What are some ways to test and improve my RAGs retrieval strategy? https://www.reddit.com/r/Rag/comments/1fku970/what_are_some_ways_to_test_and_improve_my_rags/
+[10] A complete guide to RAG evaluation: metrics, testing and best ... https://www.evidentlyai.com/llm-guide/rag-evaluation
+[11] RAG systems: Best practices to master evaluation for accurate and ... https://cloud.google.com/blog/products/ai-machine-learning/optimizing-rag-retrieval
+[12] 5 RAG Chunking Strategies for Better Retrieval-Augmented ... - Lettria https://www.lettria.com/blogpost/5-rag-chunking-strategies-for-better-retrieval-augmented-generation
+[13] What's the Best RAG (Retrieval-Augmented Generation) System for ... https://www.reddit.com/r/LocalLLaMA/comments/1gd9o1w/whats_the_best_rag_retrievalaugmented_generation/
+[14] Running Evals on a Bloated RAG Pipeline - Towards Data Science https://towardsdatascience.com/doing-evals-on-a-bloated-rag-pipeline/
+[15] RAG evaluation: a technical guide to measuring retrieval ... - Toloka AI https://toloka.ai/blog/rag-evaluation-a-technical-guide-to-measuring-retrieval-augmented-generation/

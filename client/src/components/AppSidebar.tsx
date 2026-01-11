@@ -49,7 +49,8 @@ import {
   Building2,
   GitBranch,
   Atom,
-  ChevronRight
+  ChevronRight,
+  Cloud
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -164,6 +165,12 @@ const settingsSubItems: NavigationItem[] = [
     title: "Organizations",
     url: "/organization-management",
     icon: Building2,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Cloud Storage",
+    url: "/cloud-storage",
+    icon: Cloud,
     allowedRoles: ['admin']
   }
 ];

@@ -83,6 +83,7 @@ const PublicLegalPage = lazy(() => import("@/pages/PublicLegalPage"));
 const QuantumOptimizationPage = lazy(() => import("@/pages/QuantumOptimizationPage"));
 const OrganizationManagementPage = lazy(() => import("@/pages/OrganizationManagementPage"));
 const OrganizationSetupPage = lazy(() => import("@/pages/OrganizationSetupPage"));
+const CloudStorageMarketplacePage = lazy(() => import("@/pages/CloudStorageMarketplacePage"));
 
 function Router() {
   return (
@@ -155,6 +156,11 @@ function Router() {
         <Route path="/settings-hub">
           <PermissionGuard feature="settings">
             <SettingsHubPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/cloud-storage">
+          <PermissionGuard feature="settings">
+            <CloudStorageMarketplacePage />
           </PermissionGuard>
         </Route>
         <Route path="/administration">
