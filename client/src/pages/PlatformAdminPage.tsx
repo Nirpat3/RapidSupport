@@ -90,7 +90,15 @@ interface UserData {
   isPlatformAdmin?: boolean;
 }
 
+interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+}
+
 const createWorkspaceSchema = z.object({
+  organizationId: z.string().min(1, "Organization is required"),
   companyName: z.string().optional(),
   dba: z.string().min(1, "DBA is required"),
   name: z.string().min(1, "Name is required"),
@@ -122,6 +130,10 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
     queryKey: ['/api/workspaces'],
   });
 
+  const { data: organizations } = useQuery<Organization[]>({
+    queryKey: ['/api/admin/organizations'],
+  });
+
   const { data: users } = useQuery<UserData[]>({
     queryKey: ['/api/users'],
   });
@@ -134,6 +146,7 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
   const createForm = useForm<CreateWorkspaceForm>({
     resolver: zodResolver(createWorkspaceSchema),
     defaultValues: {
+      organizationId: "",
       companyName: "",
       dba: "",
       name: "",
@@ -267,7 +280,10 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
               />
             </div>
 
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <Dialog open={createDialogOpen} onOpenChange={(open) => {
+            if (open) createForm.reset();
+            setCreateDialogOpen(open);
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -284,6 +300,31 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
 
               <Form {...createForm}>
                 <form onSubmit={createForm.handleSubmit((d) => createWorkspaceMutation.mutate(d))} className="space-y-4">
+                  <FormField
+                    control={createForm.control}
+                    name="organizationId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Organization <span className="text-destructive">*</span></FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select an organization" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {organizations?.filter(org => org.status === 'active').map((org) => (
+                              <SelectItem key={org.id} value={org.id}>
+                                {org.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <FormField
                     control={createForm.control}
                     name="companyName"
@@ -397,7 +438,10 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
               className="pl-9 w-[250px]"
             />
           </div>
-          <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <Dialog open={createDialogOpen} onOpenChange={(open) => {
+            if (open) createForm.reset();
+            setCreateDialogOpen(open);
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
@@ -413,6 +457,31 @@ export default function PlatformAdminPage({ embedded = false }: PlatformAdminPag
               </DialogHeader>
               <Form {...createForm}>
                 <form onSubmit={createForm.handleSubmit((d) => createWorkspaceMutation.mutate(d))} className="space-y-4">
+                  <FormField
+                    control={createForm.control}
+                    name="organizationId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Organization <span className="text-destructive">*</span></FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select an organization" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {organizations?.filter(org => org.status === 'active').map((org) => (
+                              <SelectItem key={org.id} value={org.id}>
+                                {org.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <FormField
                     control={createForm.control}
                     name="companyName"
