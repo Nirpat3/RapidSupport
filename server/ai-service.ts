@@ -5,8 +5,10 @@ import { knowledgeRetrieval, type SearchResult, type RetrievalOptions } from './
 import { conversationLogger } from './conversation-logger';
 import { convIntel } from './conversational-intelligence';
 
-// Model pricing (per 1M tokens) - as of 2024
+// Model pricing (per 1M tokens) - updated for GPT-5
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  // the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
+  'gpt-5': { input: 5.00, output: 15.00 },
   'gpt-4o-mini': { input: 0.15, output: 0.60 },
   'gpt-4o': { input: 2.50, output: 10.00 },
   'gpt-4-turbo': { input: 10.00, output: 30.00 },
@@ -19,7 +21,7 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
 
 // Calculate cost based on model and token counts
 function calculateCost(model: string, promptTokens: number, completionTokens: number): string {
-  const pricing = MODEL_PRICING[model] || MODEL_PRICING['gpt-4o-mini'];
+  const pricing = MODEL_PRICING[model] || MODEL_PRICING['gpt-5'];
   const inputCost = (promptTokens / 1_000_000) * pricing.input;
   const outputCost = (completionTokens / 1_000_000) * pricing.output;
   return (inputCost + outputCost).toFixed(6);
@@ -362,13 +364,12 @@ Provide a JSON response with:
 - reasoning: Brief explanation (1-2 sentences) of why you chose this category`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.3,
-        max_tokens: 200,
+        max_completion_tokens: 200,
       });
 
       let responseContent = completion.choices[0].message.content || '{}';
@@ -427,13 +428,12 @@ Respond with JSON format:
 }`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Translate to ${targetLangName}:\n\n${text}` }
         ],
-        temperature: 0.3,
-        max_tokens: 2000,
+        max_completion_tokens: 2000,
       });
 
       let responseContent = completion.choices[0].message.content || '{}';
@@ -471,13 +471,12 @@ Respond with JSON format:
 }`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Detect language:\n\n${text}` }
         ],
-        temperature: 0.1,
-        max_tokens: 100,
+        max_completion_tokens: 100,
       });
 
       let responseContent = completion.choices[0].message.content || '{}';
@@ -524,13 +523,12 @@ Provide a JSON response with all four scores:
 }`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.3,
-        max_tokens: 300,
+        max_completion_tokens: 300,
       });
 
       let responseContent = completion.choices[0].message.content || '{}';
@@ -675,13 +673,12 @@ Respond with a JSON object containing:
 If no improvements are needed, return hasChanges: false and suggestedText should be the same as originalText.`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.3,
-        max_tokens: 1000,
+        max_completion_tokens: 1000,
       });
 
       // Parse AI response, handling markdown code blocks if present
@@ -763,13 +760,12 @@ Provide a JSON response with:
 Keep all suggestions professional, helpful, and appropriate for customer support.`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.4,
-        max_tokens: 2000,
+        max_completion_tokens: 2000,
       });
 
       let responseContent = completion.choices[0].message.content || '{}';
@@ -826,13 +822,12 @@ Provide a JSON response with:
 - suggestedActions: Array of recommended next steps`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.3,
-        max_tokens: 1500,
+        max_completion_tokens: 1500,
       });
 
       // Parse AI response, handling markdown code blocks if present
@@ -902,13 +897,12 @@ Focus on:
 - Overall quality of the support experience from customer's perspective`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.3,
-        max_tokens: 1000,
+        max_completion_tokens: 1000,
       });
 
       // Parse AI response, handling markdown code blocks if present
@@ -1022,13 +1016,12 @@ Provide ONLY an array of 4 question strings in JSON format:
 ["Question 1", "Question 2", "Question 3", "Question 4"]`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.7,
-        max_tokens: 300,
+        max_completion_tokens: 300,
       });
 
       let responseContent = completion.choices[0].message.content || '[]';
@@ -1119,13 +1112,12 @@ FORMATTING GUIDELINES:
 IMPORTANT: If no relevant knowledge base information is available, set requiresHumanTakeover to true and explain that you need to connect them with a human agent who can help with their specific question.`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.4,
-        max_tokens: 1000,
+        max_completion_tokens: 1000,
       });
 
       // Parse AI response, handling markdown code blocks if present
@@ -2046,13 +2038,13 @@ The more details you can share, the better I can help you resolve this quickly!"
 
       const startTime = Date.now();
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: (agent.temperature || 30) / 100,
-        max_tokens: agent.maxTokens || 1000,
+        // Note: gpt-5 doesn't support temperature parameter
+        max_completion_tokens: agent.maxTokens || 1000,
         response_format: { type: "json_object" }  // Enforce JSON output
       });
       const latencyMs = Date.now() - startTime;
@@ -3264,13 +3256,13 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
 
       // Call OpenAI with streaming enabled
       const stream = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
         messages: [
           { role: "system", content: enhancedSystemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: (agent.temperature || 30) / 100,
-        max_tokens: agent.maxTokens || 1000,
+        // Note: gpt-5 doesn't support temperature parameter
+        max_completion_tokens: agent.maxTokens || 1000,
         stream: true, // Enable streaming
       });
 
@@ -3559,17 +3551,16 @@ If the knowledge base doesn't help, acknowledge this and offer to connect them w
 
     const startTime = Date.now();
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5', // the newest OpenAI model is "gpt-5" which was released August 7, 2025
       messages,
-      temperature: 0.7,
-      max_tokens: 300
+      max_completion_tokens: 300
     });
     const latencyMs = Date.now() - startTime;
 
     // Track token usage
     await trackTokenUsage(
       completion.usage,
-      'gpt-4o-mini',
+      'gpt-5',
       'voice_response',
       { latencyMs }
     );
