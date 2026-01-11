@@ -4365,6 +4365,25 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         isPlatformAdmin: false,
       });
       
+      // Create a default workspace for the organization
+      const defaultWorkspace = await storage.createWorkspace({
+        name: 'Default Workspace',
+        slug: `${organization.slug}-default`,
+        description: 'Main workspace for support operations',
+        organizationId: organization.id,
+        isDefault: true,
+        dba: organization.name,
+        email: data.adminEmail,
+      });
+      
+      // Add admin user to the default workspace as owner
+      await storage.createWorkspaceMember({
+        userId: adminUser.id,
+        workspaceId: defaultWorkspace.id,
+        role: 'owner',
+        status: 'active',
+      });
+      
       // Mark setup as complete
       await storage.completeOrganizationSetup(setupToken.id, organization.id);
       

@@ -309,10 +309,12 @@ function AuthenticatedApp() {
                 <div className="h-5 w-px bg-border/50 hidden sm:block" />
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">NA</span>
+                    <span className="text-white text-xs font-bold">
+                      {user?.organizationName ? user.organizationName.substring(0, 2).toUpperCase() : 'NA'}
+                    </span>
                   </div>
                   <h2 className="font-semibold text-sm sm:text-lg truncate hidden sm:block" data-testid="page-header">
-                    Nova AI
+                    {user?.organizationName || 'Nova AI'}
                   </h2>
                 </div>
               </div>

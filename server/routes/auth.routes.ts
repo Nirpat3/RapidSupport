@@ -43,7 +43,7 @@ export function registerAuthRoutes({ app }: RouteContext) {
             console.error('Error fetching workspaces:', wsErr);
           }
           
-          req.session.save((saveErr) => {
+          req.session.save(async (saveErr) => {
             if (saveErr) {
               console.error('Session save error:', saveErr);
               return res.status(500).json({ error: 'Session save failed' });
@@ -59,8 +59,19 @@ export function registerAuthRoutes({ app }: RouteContext) {
               redirectTo = '/conversations';
             }
             
+            // Enrich user with organization name if they have an organizationId
+            let organizationName = null;
+            if (user.organizationId) {
+              try {
+                const org = await storage.getOrganization(user.organizationId);
+                organizationName = org?.name || null;
+              } catch (orgErr) {
+                console.error('Error fetching organization:', orgErr);
+              }
+            }
+            
             res.json({ 
-              user, 
+              user: { ...user, organizationName }, 
               workspaces,
               redirectTo,
               message: 'Login successful' 

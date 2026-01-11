@@ -54,9 +54,17 @@ passport.deserializeUser(async (id: string, done) => {
       return done(null, false);
     }
     
-    // Return user without password
+    // Return user without password, include organization name if available
     const { password: _, ...userWithoutPassword } = user;
-    done(null, userWithoutPassword);
+    
+    // Fetch organization name if user has an organizationId
+    let organizationName = null;
+    if (user.organizationId) {
+      const org = await storage.getOrganization(user.organizationId);
+      organizationName = org?.name || null;
+    }
+    
+    done(null, { ...userWithoutPassword, organizationName });
   } catch (error) {
     done(error);
   }

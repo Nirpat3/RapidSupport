@@ -10,6 +10,8 @@ interface User {
   role: 'admin' | 'agent' | 'customer';
   status: string;
   hasCompletedOnboarding?: boolean;
+  organizationId?: string;
+  organizationName?: string | null;
 }
 
 interface AuthContextType {
