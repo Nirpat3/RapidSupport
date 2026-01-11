@@ -4070,6 +4070,330 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // ============================================
+  // ORGANIZATION APPLICATIONS & SETUP TOKENS
+  // ============================================
+
+  // Admin endpoint: Get all organization applications
+  app.get('/api/admin/organization-applications', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const applications = await storage.getAllOrganizationApplications(status);
+      res.json(applications);
+    } catch (error) {
+      console.error('Error fetching organization applications:', error);
+      res.status(500).json({ error: 'Failed to fetch organization applications' });
+    }
+  });
+
+  // Admin endpoint: Get single organization application
+  app.get('/api/admin/organization-applications/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const application = await storage.getOrganizationApplication(req.params.id);
+      if (!application) {
+        return res.status(404).json({ error: 'Application not found' });
+      }
+      res.json(application);
+    } catch (error) {
+      console.error('Error fetching organization application:', error);
+      res.status(500).json({ error: 'Failed to fetch organization application' });
+    }
+  });
+
+  // Admin endpoint: Approve organization application
+  app.post('/api/admin/organization-applications/:id/approve', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user as any;
+      
+      const application = await storage.getOrganizationApplication(id);
+      if (!application) {
+        return res.status(404).json({ error: 'Application not found' });
+      }
+      
+      if (application.status !== 'pending') {
+        return res.status(400).json({ error: 'Application has already been processed' });
+      }
+      
+      // Generate setup token for the contact person
+      const crypto = await import('crypto');
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days to complete setup
+      
+      const setupToken = await storage.createOrganizationSetupToken({
+        token,
+        applicationId: id,
+        contactName: application.contactName,
+        contactEmail: application.contactEmail,
+        contactRole: application.contactRole || undefined,
+        organizationName: application.organizationName,
+        organizationSlug: application.slug,
+        status: 'pending',
+        expiresAt,
+        createdBy: user.id,
+      });
+      
+      // Update application status
+      await storage.updateOrganizationApplication(id, {
+        status: 'approved',
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+        reviewNotes: req.body.notes || null,
+      });
+      
+      // Generate the setup URL
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : 'http://localhost:5000';
+      const setupUrl = `${baseUrl}/setup-organization?token=${token}`;
+      
+      res.json({
+        success: true,
+        setupToken: setupToken,
+        setupUrl,
+        message: 'Application approved. Share the setup link with the contact person.',
+      });
+    } catch (error) {
+      console.error('Error approving organization application:', error);
+      res.status(500).json({ error: 'Failed to approve application' });
+    }
+  });
+
+  // Admin endpoint: Reject organization application
+  app.post('/api/admin/organization-applications/:id/reject', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user as any;
+      
+      const application = await storage.getOrganizationApplication(id);
+      if (!application) {
+        return res.status(404).json({ error: 'Application not found' });
+      }
+      
+      if (application.status !== 'pending') {
+        return res.status(400).json({ error: 'Application has already been processed' });
+      }
+      
+      await storage.updateOrganizationApplication(id, {
+        status: 'rejected',
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+        reviewNotes: req.body.reason || null,
+      });
+      
+      res.json({ success: true, message: 'Application rejected' });
+    } catch (error) {
+      console.error('Error rejecting organization application:', error);
+      res.status(500).json({ error: 'Failed to reject application' });
+    }
+  });
+
+  // Admin endpoint: Generate setup link for new organization (direct invite)
+  app.post('/api/admin/organizations/invite', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      const inviteSchema = z.object({
+        organizationName: z.string().min(1, 'Organization name is required'),
+        organizationSlug: z.string().min(1).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens'),
+        contactName: z.string().min(1, 'Contact name is required'),
+        contactEmail: z.string().email('Valid email is required'),
+        contactRole: z.string().optional(),
+      });
+      
+      const data = inviteSchema.parse(req.body);
+      
+      // Check if slug is already taken
+      const existingOrg = await storage.getOrganizationBySlug(data.organizationSlug);
+      if (existingOrg) {
+        return res.status(400).json({ error: 'Organization slug is already in use' });
+      }
+      
+      // Generate setup token
+      const crypto = await import('crypto');
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days to complete setup
+      
+      const setupToken = await storage.createOrganizationSetupToken({
+        token,
+        contactName: data.contactName,
+        contactEmail: data.contactEmail,
+        contactRole: data.contactRole || undefined,
+        organizationName: data.organizationName,
+        organizationSlug: data.organizationSlug,
+        status: 'pending',
+        expiresAt,
+        createdBy: user.id,
+      });
+      
+      // Generate the setup URL
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : 'http://localhost:5000';
+      const setupUrl = `${baseUrl}/setup-organization?token=${token}`;
+      
+      res.json({
+        success: true,
+        setupToken,
+        setupUrl,
+        message: 'Setup link generated. Share with the contact person to complete organization setup.',
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid data', details: fromZodError(error).toString() });
+      }
+      console.error('Error generating organization invite:', error);
+      res.status(500).json({ error: 'Failed to generate invite' });
+    }
+  });
+
+  // Admin endpoint: Get all setup tokens
+  app.get('/api/admin/organization-setup-tokens', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const tokens = await storage.getAllOrganizationSetupTokens(status);
+      res.json(tokens);
+    } catch (error) {
+      console.error('Error fetching setup tokens:', error);
+      res.status(500).json({ error: 'Failed to fetch setup tokens' });
+    }
+  });
+
+  // Admin endpoint: Revoke setup token
+  app.delete('/api/admin/organization-setup-tokens/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      await storage.updateOrganizationSetupToken(req.params.id, { status: 'revoked' });
+      res.json({ success: true, message: 'Setup token revoked' });
+    } catch (error) {
+      console.error('Error revoking setup token:', error);
+      res.status(500).json({ error: 'Failed to revoke setup token' });
+    }
+  });
+
+  // Public endpoint: Validate setup token
+  app.get('/api/public/organization-setup/:token', async (req, res) => {
+    try {
+      const setupToken = await storage.getOrganizationSetupTokenByToken(req.params.token);
+      
+      if (!setupToken) {
+        return res.status(404).json({ error: 'Invalid or expired setup link' });
+      }
+      
+      if (setupToken.status === 'completed') {
+        return res.status(400).json({ error: 'Setup has already been completed' });
+      }
+      
+      if (setupToken.status === 'revoked') {
+        return res.status(400).json({ error: 'This setup link has been revoked' });
+      }
+      
+      if (new Date() > new Date(setupToken.expiresAt)) {
+        await storage.updateOrganizationSetupToken(setupToken.id, { status: 'expired' });
+        return res.status(400).json({ error: 'Setup link has expired' });
+      }
+      
+      res.json({
+        valid: true,
+        organizationName: setupToken.organizationName,
+        organizationSlug: setupToken.organizationSlug,
+        contactName: setupToken.contactName,
+        contactEmail: setupToken.contactEmail,
+      });
+    } catch (error) {
+      console.error('Error validating setup token:', error);
+      res.status(500).json({ error: 'Failed to validate setup link' });
+    }
+  });
+
+  // Public endpoint: Complete organization setup
+  app.post('/api/public/organization-setup/:token/complete', async (req, res) => {
+    try {
+      const setupToken = await storage.getOrganizationSetupTokenByToken(req.params.token);
+      
+      if (!setupToken) {
+        return res.status(404).json({ error: 'Invalid or expired setup link' });
+      }
+      
+      if (setupToken.status !== 'pending') {
+        return res.status(400).json({ error: 'Setup link is no longer valid' });
+      }
+      
+      if (new Date() > new Date(setupToken.expiresAt)) {
+        await storage.updateOrganizationSetupToken(setupToken.id, { status: 'expired' });
+        return res.status(400).json({ error: 'Setup link has expired' });
+      }
+      
+      const setupSchema = z.object({
+        adminName: z.string().min(1, 'Admin name is required'),
+        adminEmail: z.string().email('Valid email is required'),
+        adminPassword: z.string().min(8, 'Password must be at least 8 characters'),
+        welcomeMessage: z.string().optional(),
+        supportEmail: z.string().email().optional(),
+        website: z.string().url().optional(),
+      });
+      
+      const data = setupSchema.parse(req.body);
+      
+      // Check if admin email is already in use
+      const existingUser = await storage.getUserByEmail(data.adminEmail);
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email is already in use' });
+      }
+      
+      // Create the organization
+      const organization = await storage.createOrganization({
+        name: setupToken.organizationName,
+        slug: setupToken.organizationSlug,
+        welcomeMessage: data.welcomeMessage,
+        supportEmail: data.supportEmail,
+        website: data.website,
+        status: 'active',
+      });
+      
+      // Create the admin user for this organization
+      const bcrypt = await import('bcryptjs');
+      const hashedPassword = await bcrypt.hash(data.adminPassword, 10);
+      
+      const adminUser = await storage.createUser({
+        name: data.adminName,
+        email: data.adminEmail,
+        password: hashedPassword,
+        role: 'admin',
+        status: 'active',
+        organizationId: organization.id,
+        isPlatformAdmin: false,
+      });
+      
+      // Mark setup as complete
+      await storage.completeOrganizationSetup(setupToken.id, organization.id);
+      
+      // If this was from an application, update the application
+      if (setupToken.applicationId) {
+        await storage.updateOrganizationApplication(setupToken.applicationId, {
+          approvedOrgId: organization.id,
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: 'Organization setup complete! You can now log in.',
+        organization: {
+          id: organization.id,
+          name: organization.name,
+          slug: organization.slug,
+        },
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid data', details: fromZodError(error).toString() });
+      }
+      console.error('Error completing organization setup:', error);
+      res.status(500).json({ error: 'Failed to complete organization setup' });
+    }
+  });
+
+  // ============================================
   // CUSTOMER CHAT WIDGET API ENDPOINTS (Modular)
   // ============================================
   // Customer chat routes are registered via registerCustomerChatRoutes() at startup
