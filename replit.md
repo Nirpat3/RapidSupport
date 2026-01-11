@@ -20,7 +20,7 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 ### Feature Specifications
 - **Real-time Communication**: Custom WebSocket server for chat, presence, routing, and typing indicators.
 - **AI Capabilities**: A multi-agent AI system (OpenAI GPT-5) for intent classification, smart routing, and agent handoff, with a Centralized Brand Voice System and enhanced RAG optimization. Conversational Intelligence provides customer memory, sentiment analysis, and conversation tracking.
-- **Enhanced RAG System**: Features hybrid search, MMR reranking, confidence scoring, "I Don't Know" guardrails, query trace logging, and optimized chunking (300-500 words with 60-word overlap) with semantic boundary detection.
+- **Enhanced RAG System**: Features hybrid search (keyword + semantic), MMR reranking, confidence scoring with 70% human takeover threshold, "I Don't Know" guardrails, query trace logging, and optimized chunking (300-500 words with 60-word overlap) with semantic boundary detection. Advanced features include query classification (factual/procedural/troubleshooting/comparison), query embedding caching (5-min TTL), answer grounding scores, citation verification, LLM-based query expansion, and user feedback integration with article metrics.
 - **Knowledge Base Integration**: AI analyzes documents (TXT, PDF, DOCX) for metadata, FAQ generation, and vector embedding. Includes automatic hourly reindexing.
 - **Rich Media Input**: Supports file attachments, camera capture, emoji picker, and voice-to-text.
 - **AI Learning System**: Active learning pipeline for continuous AI improvement from human feedback.
