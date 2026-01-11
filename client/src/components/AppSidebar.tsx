@@ -10,8 +10,12 @@ import {
   SidebarMenu, 
   SidebarMenuButton, 
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarHeader
 } from "@/components/ui/sidebar";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,7 +48,8 @@ import {
   Crown,
   Building2,
   GitBranch,
-  Atom
+  Atom,
+  ChevronRight
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -122,13 +127,17 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     allowedRoles: ['admin']
   },
   {
-    title: "Quantum Optimization",
-    url: "/quantum-optimization", 
-    icon: Atom,
+    title: "Lead Tracking",
+    url: "/leads",
+    icon: TrendingUp,
     allowedRoles: ['admin']
-  },
+  }
+];
+
+// Settings sub-items (admin only)
+const settingsSubItems: NavigationItem[] = [
   {
-    title: "Settings",
+    title: "General Settings",
     url: "/settings-hub",
     icon: Settings,
     allowedRoles: ['admin']
@@ -140,15 +149,15 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     allowedRoles: ['admin']
   },
   {
-    title: "API Integration",
-    url: "/api-integration",
-    icon: Code2,
+    title: "Quantum Optimization",
+    url: "/quantum-optimization", 
+    icon: Atom,
     allowedRoles: ['admin']
   },
   {
-    title: "Lead Tracking",
-    url: "/leads",
-    icon: TrendingUp,
+    title: "API Integration",
+    url: "/api-integration",
+    icon: Code2,
     allowedRoles: ['admin']
   }
 ];
@@ -230,6 +239,19 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
     return hasRoleAccess(item, user.role);
   });
 
+  const filteredSettingsItems = settingsSubItems.filter((item) => {
+    if (!hasRoleAccess(item, user.role)) {
+      return false;
+    }
+    if (isUrlHidden(item.url)) {
+      return false;
+    }
+    return true;
+  });
+
+  // Check if any settings sub-item is active
+  const isSettingsActive = settingsSubItems.some(item => location === item.url);
+
   return (
     <Sidebar className="border-r border-sidebar-border/50">
       <SidebarHeader className="border-b border-sidebar-border/50">
@@ -282,6 +304,42 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              
+              {/* Settings Collapsible Menu (Admin Only) */}
+              {filteredSettingsItems.length > 0 && (
+                <Collapsible defaultOpen={isSettingsActive} className="group/collapsible">
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton 
+                        className="group relative transition-smooth rounded-lg data-[state=open]:bg-sidebar-accent"
+                        data-testid="nav-settings"
+                      >
+                        <Settings className="w-4 h-4 transition-smooth" />
+                        <span className="flex-1">Settings</span>
+                        <ChevronRight className="w-4 h-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {filteredSettingsItems.map((item) => (
+                          <SidebarMenuSubItem key={item.title}>
+                            <SidebarMenuSubButton 
+                              asChild
+                              isActive={location === item.url}
+                              data-testid={`nav-${item.title.toLowerCase().replace(/ /g, '-')}`}
+                            >
+                              <Link href={item.url}>
+                                <item.icon className="w-4 h-4" />
+                                <span>{item.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
