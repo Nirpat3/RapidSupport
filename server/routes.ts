@@ -22,6 +22,7 @@ import { eq, desc } from 'drizzle-orm';
 import { registerAuthRoutes } from './routes/auth.routes';
 import { registerCustomerChatRoutes } from './routes/customer-chat.routes';
 import { registerEmbedRoutes } from './routes/embed.routes';
+import { registerQuantumRoutes } from './routes/quantum.routes';
 import type { RouteContext } from './routes/types';
 import { 
   insertCustomerSchema, 
@@ -12750,6 +12751,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   registerAuthRoutes(routeContext);
   registerCustomerChatRoutes(routeContext);
   registerEmbedRoutes(routeContext);
+  registerQuantumRoutes(routeContext);
 
   return { server: httpServer, wsServer };
 }
