@@ -63,6 +63,51 @@ export interface EnhancedSearchResponse {
   traceId?: string; // For debugging and evaluation
 }
 
+// Voice formatting types
+export interface ProsodyHint {
+  position: number;
+  type: 'pause' | 'emphasis';
+}
+
+export interface VoiceFormattedResponse {
+  spokenText: string;
+  prosodyHints: ProsodyHint[];
+  originalLength: number;
+  truncated: boolean;
+}
+
+// Multi-hop retrieval types
+export interface MultiHopResult {
+  results: SearchResult[];
+  hops: Array<{ query: string; resultCount: number }>;
+  synthesizedContext: string;
+}
+
+// Knowledge gap detection
+export interface KnowledgeGapResult {
+  hasGap: boolean;
+  gapType: 'no_coverage' | 'partial_coverage' | 'outdated' | 'none';
+  suggestion: string;
+}
+
+// Hallucination detection result
+export interface HallucinationDetectionResult {
+  hasPotentialHallucination: boolean;
+  suspiciousClaims: string[];
+  confidence: number;
+}
+
+// Tiered search response
+export interface TieredSearchResponse extends EnhancedSearchResponse {
+  tier: 'keyword' | 'semantic' | 'hybrid';
+}
+
+// Self-correcting search response
+export interface SelfCorrectingSearchResponse extends EnhancedSearchResponse {
+  reformulated: boolean;
+  attempts: number;
+}
+
 export class KnowledgeRetrievalService {
   private static instance: KnowledgeRetrievalService;
   private synonymMap = new Map<string, string[]>();
@@ -1698,14 +1743,747 @@ Keep alternatives concise and semantically similar to the original.`,
     usageCount: number;
   }>> {
     try {
-      // This method would require a storage method to fetch all metrics sorted by success rate
-      // For now, return empty until the storage method is implemented
       console.log('[Metrics] getTopPerformingArticles - storage method not yet implemented');
       return [];
     } catch (error) {
       console.error('[Metrics] Error getting top articles:', error);
       return [];
     }
+  }
+
+  // ============================================
+  // CONVERSATIONAL CONTEXT & MULTI-TURN MEMORY
+  // ============================================
+
+  /**
+   * Conversation context for multi-turn memory
+   */
+  private conversationContextCache = new Map<string, {
+    recentTopics: string[];
+    mentionedEntities: Map<string, string>; // "it" -> "printer", "that" -> "setup guide"
+    previousQueries: string[];
+    timestamp: number;
+  }>();
+
+  /**
+   * Resolve coreferences (pronouns/references) using conversation context
+   */
+  resolveCoferences(
+    query: string,
+    conversationId: string,
+    recentMessages: Array<{ content: string; senderType: string }>
+  ): { resolvedQuery: string; substitutions: string[] } {
+    const substitutions: string[] = [];
+    let resolvedQuery = query;
+    
+    // Get or create conversation context
+    let context = this.conversationContextCache.get(conversationId);
+    if (!context) {
+      context = {
+        recentTopics: [],
+        mentionedEntities: new Map(),
+        previousQueries: [],
+        timestamp: Date.now(),
+      };
+    }
+    
+    // Extract entities from recent messages
+    const entityPatterns = [
+      { pattern: /\b(printer|receipt printer|thermal printer)\b/i, entity: 'printer' },
+      { pattern: /\b(pax|pax device|terminal|card reader)\b/i, entity: 'PAX device' },
+      { pattern: /\b(ipad|tablet|ios device)\b/i, entity: 'iPad' },
+      { pattern: /\b(order|orders|transaction)\b/i, entity: 'order' },
+      { pattern: /\b(customer|client|user)\b/i, entity: 'customer' },
+      { pattern: /\b(report|reports|analytics)\b/i, entity: 'report' },
+      { pattern: /\b(payment|payments|charge)\b/i, entity: 'payment' },
+      { pattern: /\b(refund|refunds)\b/i, entity: 'refund' },
+      { pattern: /\b(menu|items|products)\b/i, entity: 'menu items' },
+      { pattern: /\b(wifi|network|internet)\b/i, entity: 'network' },
+    ];
+    
+    // Build entity context from recent messages
+    for (const msg of recentMessages.slice(-5)) {
+      for (const { pattern, entity } of entityPatterns) {
+        if (pattern.test(msg.content)) {
+          context.mentionedEntities.set(entity.toLowerCase(), entity);
+        }
+      }
+    }
+    
+    // Resolve pronouns and references
+    const pronounPatterns = [
+      { pattern: /\bit\b/gi, type: 'singular' },
+      { pattern: /\bthat\b/gi, type: 'singular' },
+      { pattern: /\bthis\b/gi, type: 'singular' },
+      { pattern: /\bthem\b/gi, type: 'plural' },
+      { pattern: /\bthose\b/gi, type: 'plural' },
+      { pattern: /\bthe same (thing|one)\b/gi, type: 'singular' },
+      { pattern: /\bthe other (one|thing)\b/gi, type: 'singular' },
+    ];
+    
+    // Get the most recently mentioned entity
+    const entities = Array.from(context.mentionedEntities.values());
+    const lastEntity = entities[entities.length - 1];
+    
+    if (lastEntity) {
+      for (const { pattern } of pronounPatterns) {
+        if (pattern.test(query)) {
+          resolvedQuery = resolvedQuery.replace(pattern, lastEntity);
+          substitutions.push(`Resolved reference to "${lastEntity}"`);
+        }
+      }
+    }
+    
+    // Update context with current query
+    context.previousQueries.push(query);
+    if (context.previousQueries.length > 10) {
+      context.previousQueries.shift();
+    }
+    context.timestamp = Date.now();
+    this.conversationContextCache.set(conversationId, context);
+    
+    // Clean old context entries
+    if (this.conversationContextCache.size > 500) {
+      const now = Date.now();
+      const entries = Array.from(this.conversationContextCache.entries());
+      for (const [id, ctx] of entries) {
+        if (now - ctx.timestamp > 30 * 60 * 1000) { // 30 minutes
+          this.conversationContextCache.delete(id);
+        }
+      }
+    }
+    
+    return { resolvedQuery, substitutions };
+  }
+
+  /**
+   * Session-based retrieval - prioritize chunks related to current conversation topic
+   */
+  applySessionContext(
+    results: SearchResult[],
+    conversationId: string
+  ): SearchResult[] {
+    const context = this.conversationContextCache.get(conversationId);
+    if (!context || context.recentTopics.length === 0) {
+      return results;
+    }
+    
+    // Boost results that match recent topics
+    return results.map(result => {
+      const content = result.chunk.content.toLowerCase();
+      let boost = 0;
+      
+      for (const topic of context.recentTopics) {
+        if (content.includes(topic.toLowerCase())) {
+          boost += 0.1;
+        }
+      }
+      
+      return {
+        ...result,
+        score: result.score * (1 + boost),
+      };
+    }).sort((a, b) => b.score - a.score);
+  }
+
+  // ============================================
+  // VOICE-SPECIFIC OPTIMIZATIONS
+  // ============================================
+
+  /**
+   * Format response for voice/TTS delivery
+   */
+  formatForVoice(
+    response: string,
+    options: { maxSentences?: number; includeProsodyHints?: boolean } = {}
+  ): VoiceFormattedResponse {
+    const { maxSentences = 4, includeProsodyHints = true } = options;
+    const prosodyHints: ProsodyHint[] = [];
+    
+    // Remove markdown formatting
+    let spokenText = response
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Bold
+      .replace(/\*([^*]+)\*/g, '$1') // Italic
+      .replace(/#{1,6}\s+/g, '') // Headers
+      .replace(/`([^`]+)`/g, '$1') // Code
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Links
+      .replace(/^\s*[-*]\s+/gm, '') // List bullets
+      .replace(/^\s*\d+\.\s+/gm, '') // Numbered lists
+      .replace(/\n{2,}/g, '. ') // Multiple newlines to pause
+      .replace(/\n/g, ' ') // Single newlines to space
+      .trim();
+    
+    // Convert lists to flowing sentences
+    const listPattern = /:\s*\n/g;
+    spokenText = spokenText.replace(listPattern, ': ');
+    
+    // Split into sentences and limit
+    const sentences = spokenText.split(/(?<=[.!?])\s+/).filter(s => s.trim());
+    const truncated = sentences.length > maxSentences;
+    const limitedSentences = sentences.slice(0, maxSentences);
+    
+    spokenText = limitedSentences.join(' ');
+    
+    // Add prosody hints
+    if (includeProsodyHints) {
+      let position = 0;
+      for (const sentence of limitedSentences) {
+        // Add pause after each sentence
+        position += sentence.length;
+        prosodyHints.push({ position, type: 'pause' });
+        
+        // Add emphasis on key words
+        const emphasisWords = sentence.match(/\b(important|note|warning|remember|key|critical)\b/gi);
+        if (emphasisWords) {
+          const wordPos = sentence.toLowerCase().indexOf(emphasisWords[0].toLowerCase());
+          if (wordPos > 0) {
+            prosodyHints.push({ position: position - sentence.length + wordPos, type: 'emphasis' });
+          }
+        }
+      }
+    }
+    
+    return {
+      spokenText,
+      prosodyHints,
+      originalLength: response.length,
+      truncated,
+    };
+  }
+
+  /**
+   * Generate clarification prompt for ambiguous voice input
+   */
+  generateClarificationPrompt(
+    query: string,
+    possibleInterpretations: string[]
+  ): string {
+    if (possibleInterpretations.length === 0) {
+      return "I didn't quite catch that. Could you please rephrase your question?";
+    }
+    
+    if (possibleInterpretations.length === 1) {
+      return `Just to confirm, are you asking about ${possibleInterpretations[0]}?`;
+    }
+    
+    const options = possibleInterpretations.slice(0, 3);
+    return `I want to make sure I understand. Are you asking about ${options.slice(0, -1).join(', ')} or ${options[options.length - 1]}?`;
+  }
+
+  // ============================================
+  // SELF-CORRECTING RETRIEVAL
+  // ============================================
+
+  /**
+   * Self-correcting retrieval - retry with reformulated query if results are weak
+   */
+  async searchWithSelfCorrection(
+    query: string,
+    knowledgeBaseIds: string[],
+    options: RetrievalOptions & { context?: RagTraceContext; maxRetries?: number } = {}
+  ): Promise<EnhancedSearchResponse & { reformulated: boolean; attempts: number }> {
+    const { maxRetries = 2 } = options;
+    let attempts = 1;
+    let reformulated = false;
+    
+    // First attempt with original query
+    let result = await this.searchEnhanced(query, knowledgeBaseIds, options);
+    
+    // If results are weak, try reformulating
+    if (result.confidence < 50 && attempts < maxRetries) {
+      const reformulatedQuery = await this.reformulateQuery(query, result.uncertaintyReason);
+      
+      if (reformulatedQuery !== query) {
+        attempts++;
+        reformulated = true;
+        const retryResult = await this.searchEnhanced(reformulatedQuery, knowledgeBaseIds, options);
+        
+        // Use reformulated result if better
+        if (retryResult.confidence > result.confidence) {
+          result = retryResult;
+        }
+      }
+    }
+    
+    return { ...result, reformulated, attempts };
+  }
+
+  /**
+   * Reformulate a query based on why it failed
+   */
+  private async reformulateQuery(query: string, uncertaintyReason?: string): Promise<string> {
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-5',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a query reformulation assistant. Given a search query that didn't find good results, generate a better version.
+            
+Rules:
+- Keep the core intent
+- Try different phrasing or synonyms
+- Make it more specific or more general as needed
+- Return only the reformulated query, nothing else`,
+          },
+          {
+            role: 'user',
+            content: `Original query: "${query}"${uncertaintyReason ? `\nIssue: ${uncertaintyReason}` : ''}`,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 100,
+      });
+
+      return response.choices[0]?.message?.content?.trim() || query;
+    } catch (error) {
+      console.error('[Reformulate] Error:', error);
+      return query;
+    }
+  }
+
+  // ============================================
+  // MULTI-HOP REASONING
+  // ============================================
+
+  /**
+   * Multi-hop retrieval for complex questions requiring information synthesis
+   */
+  async multiHopRetrieval(
+    query: string,
+    knowledgeBaseIds: string[],
+    options: RetrievalOptions & { context?: RagTraceContext; maxHops?: number } = {}
+  ): Promise<{
+    results: SearchResult[];
+    hops: Array<{ query: string; resultCount: number }>;
+    synthesizedContext: string;
+  }> {
+    const { maxHops = 3 } = options;
+    const hops: Array<{ query: string; resultCount: number }> = [];
+    const allResults = new Map<string, SearchResult>();
+    
+    // Decompose complex query into sub-queries
+    const subQueries = await this.decomposeQuery(query);
+    const queriesToProcess = [query, ...subQueries].slice(0, maxHops);
+    
+    // Retrieve for each sub-query
+    for (const subQuery of queriesToProcess) {
+      const result = await this.searchEnhanced(subQuery, knowledgeBaseIds, {
+        ...options,
+        maxResults: 5,
+        enableLogging: false,
+      });
+      
+      hops.push({ query: subQuery, resultCount: result.results.length });
+      
+      // Merge results, keeping best scores
+      for (const r of result.results) {
+        const existing = allResults.get(r.chunk.id);
+        if (!existing || r.score > existing.score) {
+          allResults.set(r.chunk.id, r);
+        }
+      }
+    }
+    
+    // Sort by score and take top results
+    const sortedResults = Array.from(allResults.values())
+      .sort((a, b) => b.score - a.score)
+      .slice(0, options.maxResults || 10);
+    
+    // Synthesize context from multiple sources
+    const synthesizedContext = sortedResults
+      .map(r => r.chunk.content)
+      .join('\n\n---\n\n');
+    
+    return { results: sortedResults, hops, synthesizedContext };
+  }
+
+  /**
+   * Decompose complex query into simpler sub-queries
+   */
+  private async decomposeQuery(query: string): Promise<string[]> {
+    // Check if query is complex enough to decompose
+    const complexIndicators = [
+      /\band\b/i,
+      /\bcompare\b/i,
+      /\bdifference\b/i,
+      /\bboth\b/i,
+      /\ball\b.*\b(steps|ways|methods)\b/i,
+    ];
+    
+    const isComplex = complexIndicators.some(p => p.test(query));
+    if (!isComplex) return [];
+    
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-5',
+        messages: [
+          {
+            role: 'system',
+            content: `Decompose a complex question into 2-3 simpler sub-questions. Return as JSON array.
+Example: "How do I set up the printer and connect it to WiFi?" -> ["How do I set up the printer?", "How do I connect the printer to WiFi?"]
+Return only the JSON array.`,
+          },
+          { role: 'user', content: query },
+        ],
+        temperature: 0.2,
+        max_tokens: 200,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (content) {
+        const parsed = JSON.parse(content);
+        return parsed.queries || parsed.subQueries || [];
+      }
+    } catch (error) {
+      console.error('[Decompose] Error:', error);
+    }
+    
+    return [];
+  }
+
+  // ============================================
+  // TIME-AWARE & NEGATIVE RETRIEVAL
+  // ============================================
+
+  /**
+   * Time-aware retrieval - prioritize recent content
+   */
+  applyTimeAwareness(
+    results: SearchResult[],
+    recentBoostDays: number = 30
+  ): SearchResult[] {
+    const now = Date.now();
+    const boostWindow = recentBoostDays * 24 * 60 * 60 * 1000;
+    
+    return results.map(result => {
+      // Check chunk metadata for update time
+      const metadata = result.chunk.metadata as any;
+      const updatedAt = metadata?.updatedAt ? new Date(metadata.updatedAt).getTime() : 0;
+      
+      if (updatedAt > 0) {
+        const age = now - updatedAt;
+        if (age < boostWindow) {
+          // Boost recent content (up to 20% boost for very recent)
+          const freshness = 1 - (age / boostWindow);
+          const boost = freshness * 0.2;
+          return { ...result, score: result.score * (1 + boost) };
+        }
+      }
+      
+      return result;
+    }).sort((a, b) => b.score - a.score);
+  }
+
+  /**
+   * Detect knowledge gaps - identify what the KB doesn't cover
+   */
+  detectKnowledgeGap(
+    query: string,
+    results: SearchResult[],
+    confidence: number
+  ): {
+    hasGap: boolean;
+    gapType: 'no_coverage' | 'partial_coverage' | 'outdated' | 'none';
+    suggestion: string;
+  } {
+    if (results.length === 0 || confidence < 20) {
+      return {
+        hasGap: true,
+        gapType: 'no_coverage',
+        suggestion: "I don't have information about this topic in my knowledge base. Let me connect you with someone who can help.",
+      };
+    }
+    
+    if (confidence < 50) {
+      return {
+        hasGap: true,
+        gapType: 'partial_coverage',
+        suggestion: "I found some related information, but I'm not confident it fully answers your question. Would you like me to connect you with a specialist?",
+      };
+    }
+    
+    // Check for outdated indicators
+    const outdatedPatterns = [
+      /\b(deprecated|obsolete|old version|legacy)\b/i,
+      /\b(no longer|discontinued|retired)\b/i,
+    ];
+    
+    const hasOutdatedContent = results.some(r => 
+      outdatedPatterns.some(p => p.test(r.chunk.content))
+    );
+    
+    if (hasOutdatedContent) {
+      return {
+        hasGap: true,
+        gapType: 'outdated',
+        suggestion: "Some of this information may be outdated. Would you like me to verify the current process?",
+      };
+    }
+    
+    return { hasGap: false, gapType: 'none', suggestion: '' };
+  }
+
+  // ============================================
+  // HALLUCINATION DETECTION & CONSISTENCY
+  // ============================================
+
+  /**
+   * Detect potential hallucinations in AI response
+   */
+  detectHallucinations(
+    response: string,
+    retrievedChunks: SearchResult[]
+  ): {
+    hasPotentialHallucination: boolean;
+    suspiciousClaims: string[];
+    confidence: number;
+  } {
+    const suspiciousClaims: string[] = [];
+    const sourceContent = retrievedChunks.map(r => r.chunk.content.toLowerCase()).join(' ');
+    
+    // Extract specific claims from response
+    const claimPatterns = [
+      // Specific numbers/percentages
+      { pattern: /\b(\d+(?:\.\d+)?%)\b/g, type: 'percentage' },
+      // Time durations
+      { pattern: /\b(\d+)\s*(minutes?|hours?|days?|weeks?)\b/gi, type: 'duration' },
+      // Version numbers
+      { pattern: /\bversion\s*(\d+(?:\.\d+)*)\b/gi, type: 'version' },
+      // Specific counts
+      { pattern: /\b(\d+)\s*(steps?|items?|options?|ways?)\b/gi, type: 'count' },
+      // Dates
+      { pattern: /\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:,?\s+\d{4})?\b/gi, type: 'date' },
+    ];
+    
+    for (const { pattern, type } of claimPatterns) {
+      const matches = response.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          // Check if this claim exists in sources
+          if (!sourceContent.includes(match.toLowerCase())) {
+            suspiciousClaims.push(`${type}: "${match}" not found in sources`);
+          }
+        }
+      }
+    }
+    
+    // Check for authoritative claims not in sources
+    const authoritativePhrases = [
+      /according to (?:the |our )?(?:documentation|guide|manual)/gi,
+      /the official (?:procedure|process|method)/gi,
+      /it is required to/gi,
+      /you must always/gi,
+    ];
+    
+    for (const pattern of authoritativePhrases) {
+      if (pattern.test(response) && !pattern.test(sourceContent)) {
+        suspiciousClaims.push(`Authoritative claim "${pattern.source}" not verified`);
+      }
+    }
+    
+    const hasPotentialHallucination = suspiciousClaims.length > 0;
+    const confidence = hasPotentialHallucination 
+      ? Math.max(0, 100 - (suspiciousClaims.length * 20))
+      : 100;
+    
+    return { hasPotentialHallucination, suspiciousClaims, confidence };
+  }
+
+  /**
+   * Check response consistency with previous statements
+   */
+  checkConsistency(
+    currentResponse: string,
+    previousResponses: string[]
+  ): {
+    isConsistent: boolean;
+    contradictions: string[];
+  } {
+    const contradictions: string[] = [];
+    
+    // Extract key statements from current response
+    const currentStatements = this.extractKeyStatements(currentResponse);
+    
+    for (const prevResponse of previousResponses.slice(-3)) {
+      const prevStatements = this.extractKeyStatements(prevResponse);
+      
+      // Check for contradictions
+      for (const current of currentStatements) {
+        for (const prev of prevStatements) {
+          if (this.areContradictory(current, prev)) {
+            contradictions.push(`"${current}" contradicts earlier statement "${prev}"`);
+          }
+        }
+      }
+    }
+    
+    return {
+      isConsistent: contradictions.length === 0,
+      contradictions,
+    };
+  }
+
+  private extractKeyStatements(text: string): string[] {
+    // Extract sentences with definitive statements
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
+    return sentences.filter(s => {
+      const lower = s.toLowerCase();
+      return /\b(is|are|must|should|always|never|requires?|needs?)\b/.test(lower);
+    }).map(s => s.trim());
+  }
+
+  private areContradictory(statement1: string, statement2: string): boolean {
+    const s1 = statement1.toLowerCase();
+    const s2 = statement2.toLowerCase();
+    
+    // Check for negation patterns
+    const negationPairs = [
+      ['is required', 'is not required'],
+      ['is optional', 'is required'],
+      ['must', 'must not'],
+      ['always', 'never'],
+      ['can', 'cannot'],
+      ['should', 'should not'],
+    ];
+    
+    for (const [positive, negative] of negationPairs) {
+      if ((s1.includes(positive) && s2.includes(negative)) ||
+          (s1.includes(negative) && s2.includes(positive))) {
+        // Check if they're about the same topic (share significant words)
+        const words1 = new Set(s1.split(/\s+/).filter(w => w.length > 4));
+        const words2 = new Set(s2.split(/\s+/).filter(w => w.length > 4));
+        const overlap = Array.from(words1).filter(w => words2.has(w)).length;
+        if (overlap >= 2) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  // ============================================
+  // CONFIDENCE CALIBRATION
+  // ============================================
+
+  /**
+   * Calibrate confidence based on historical outcomes
+   */
+  private confidenceCalibrationData = new Map<string, {
+    predictions: number[];
+    outcomes: number[];
+  }>();
+
+  /**
+   * Record outcome for confidence calibration
+   */
+  recordOutcomeForCalibration(
+    queryType: string,
+    predictedConfidence: number,
+    actualOutcome: 'helpful' | 'not_helpful' | 'partial'
+  ): void {
+    const outcomeScore = actualOutcome === 'helpful' ? 1 : actualOutcome === 'partial' ? 0.5 : 0;
+    
+    let data = this.confidenceCalibrationData.get(queryType);
+    if (!data) {
+      data = { predictions: [], outcomes: [] };
+      this.confidenceCalibrationData.set(queryType, data);
+    }
+    
+    data.predictions.push(predictedConfidence);
+    data.outcomes.push(outcomeScore);
+    
+    // Keep last 100 records per query type
+    if (data.predictions.length > 100) {
+      data.predictions.shift();
+      data.outcomes.shift();
+    }
+  }
+
+  /**
+   * Get calibrated confidence adjustment
+   */
+  getCalibratedConfidence(queryType: string, rawConfidence: number): number {
+    const data = this.confidenceCalibrationData.get(queryType);
+    if (!data || data.predictions.length < 10) {
+      return rawConfidence; // Not enough data to calibrate
+    }
+    
+    // Calculate average overconfidence/underconfidence
+    const avgPrediction = data.predictions.reduce((a, b) => a + b, 0) / data.predictions.length;
+    const avgOutcome = data.outcomes.reduce((a, b) => a + b, 0) / data.outcomes.length * 100;
+    
+    const calibrationFactor = avgOutcome / avgPrediction;
+    
+    // Apply calibration (limited adjustment)
+    const adjustment = Math.max(0.7, Math.min(1.3, calibrationFactor));
+    return Math.max(0, Math.min(100, rawConfidence * adjustment));
+  }
+
+  // ============================================
+  // TIERED RETRIEVAL
+  // ============================================
+
+  /**
+   * Tiered retrieval - fast keyword first, semantic only when needed
+   */
+  async searchTiered(
+    query: string,
+    knowledgeBaseIds: string[],
+    options: RetrievalOptions & { context?: RagTraceContext } = {}
+  ): Promise<EnhancedSearchResponse & { tier: 'keyword' | 'semantic' | 'hybrid' }> {
+    const { minScore = 0.3 } = options;
+    
+    // Get chunks
+    const chunks = await this.getChunks(knowledgeBaseIds);
+    if (chunks.length === 0) {
+      return {
+        results: [],
+        confidence: 0,
+        hasHighQualityMatch: false,
+        uncertaintyReason: 'No knowledge base content available',
+        tier: 'keyword',
+      };
+    }
+    
+    // Tier 1: Fast keyword search
+    const expandedTerms = this.expandQueryWithSynonyms(query);
+    const keywordResults = this.keywordSearch(chunks, expandedTerms)
+      .filter(r => r.score >= minScore);
+    
+    // If keyword results are strong, skip semantic
+    const topKeywordScore = keywordResults[0]?.score || 0;
+    if (topKeywordScore > 0.7 && keywordResults.length >= 3) {
+      const { confidence, hasHighQualityMatch, uncertaintyReason } = this.calculateConfidence(keywordResults);
+      return {
+        results: keywordResults.slice(0, options.maxResults || 10),
+        confidence,
+        hasHighQualityMatch,
+        uncertaintyReason,
+        tier: 'keyword',
+      };
+    }
+    
+    // Tier 2: Add semantic search
+    const queryEmbedding = await this.getOrCreateEmbedding(query);
+    const semanticResults = this.semanticSearchWithEmbedding(chunks, queryEmbedding);
+    
+    // Combine results
+    const combinedResults = this.combineSearchResults(keywordResults, semanticResults)
+      .filter(r => r.score >= minScore)
+      .slice(0, options.maxResults || 10);
+    
+    const { confidence, hasHighQualityMatch, uncertaintyReason } = this.calculateConfidence(combinedResults);
+    
+    return {
+      results: combinedResults,
+      confidence,
+      hasHighQualityMatch,
+      uncertaintyReason,
+      tier: keywordResults.length > 0 ? 'hybrid' : 'semantic',
+    };
   }
 }
 
