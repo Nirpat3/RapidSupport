@@ -1,6 +1,8 @@
 import OpenAI from 'openai';
-import { KnowledgeBase } from '@shared/schema';
+import { KnowledgeBase, InsertRagQueryTrace } from '@shared/schema';
 import { storage } from './storage';
+import { db } from './db';
+import { ragQueryTraces } from '@shared/schema';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -31,6 +33,7 @@ export interface SearchResult {
   score: number;
   matchType: 'keyword' | 'semantic' | 'hybrid';
   matchedTerms?: string[];
+  rerankScore?: number; // Score after reranking
 }
 
 export interface RetrievalOptions {
@@ -39,6 +42,25 @@ export interface RetrievalOptions {
   useSemanticSearch?: boolean;
   expandScope?: boolean; // Search beyond agent's assigned KB IDs
   requireSteps?: boolean; // Prefer step-by-step content
+  enableReranking?: boolean; // Apply reranking for better results
+  diversityFactor?: number; // MMR diversity factor (0-1, higher = more diverse)
+}
+
+// RAG trace context for logging
+export interface RagTraceContext {
+  organizationId?: string;
+  workspaceId?: string;
+  conversationId?: string;
+  customerId?: string;
+}
+
+// Enhanced search response with confidence signals
+export interface EnhancedSearchResponse {
+  results: SearchResult[];
+  confidence: number; // 0-100
+  hasHighQualityMatch: boolean;
+  uncertaintyReason?: string;
+  traceId?: string; // For debugging and evaluation
 }
 
 export class KnowledgeRetrievalService {
@@ -521,6 +543,156 @@ export class KnowledgeRetrievalService {
   }
 
   /**
+   * Maximal Marginal Relevance (MMR) reranking for diversity
+   * Balances relevance with diversity to avoid redundant results
+   */
+  private mmrRerank(
+    results: SearchResult[], 
+    queryEmbedding: number[], 
+    lambda: number = 0.7, // Higher = more relevance, lower = more diversity
+    topK: number = 10
+  ): SearchResult[] {
+    if (results.length <= 1) return results;
+    
+    const selected: SearchResult[] = [];
+    const remaining = [...results];
+    
+    // Select the most relevant result first
+    if (remaining.length > 0) {
+      const best = remaining.reduce((a, b) => a.score > b.score ? a : b);
+      selected.push({ ...best, rerankScore: best.score });
+      remaining.splice(remaining.indexOf(best), 1);
+    }
+    
+    // Iteratively select results that maximize MMR
+    while (selected.length < topK && remaining.length > 0) {
+      let bestMMR = -Infinity;
+      let bestIdx = 0;
+      
+      for (let i = 0; i < remaining.length; i++) {
+        const candidate = remaining[i];
+        const candidateEmbedding = candidate.chunk.embedding;
+        
+        if (!candidateEmbedding || candidateEmbedding.length === 0) {
+          continue;
+        }
+        
+        // Calculate max similarity to already selected documents
+        let maxSimToSelected = 0;
+        for (const s of selected) {
+          if (s.chunk.embedding && s.chunk.embedding.length > 0) {
+            const sim = this.cosineSimilarity(candidateEmbedding, s.chunk.embedding);
+            maxSimToSelected = Math.max(maxSimToSelected, sim);
+          }
+        }
+        
+        // Calculate query similarity (normalized score)
+        const queryRelevance = candidate.score;
+        
+        // MMR formula: lambda * relevance - (1-lambda) * max_similarity_to_selected
+        const mmrScore = lambda * queryRelevance - (1 - lambda) * maxSimToSelected;
+        
+        if (mmrScore > bestMMR) {
+          bestMMR = mmrScore;
+          bestIdx = i;
+        }
+      }
+      
+      const selectedResult = remaining[bestIdx];
+      selected.push({ ...selectedResult, rerankScore: bestMMR });
+      remaining.splice(bestIdx, 1);
+    }
+    
+    return selected;
+  }
+
+  /**
+   * Calculate confidence score based on search results quality
+   */
+  private calculateConfidence(results: SearchResult[]): { confidence: number; hasHighQualityMatch: boolean; uncertaintyReason?: string } {
+    if (results.length === 0) {
+      return { 
+        confidence: 0, 
+        hasHighQualityMatch: false, 
+        uncertaintyReason: 'No relevant knowledge base content found for this query' 
+      };
+    }
+    
+    const topScore = results[0]?.score || 0;
+    const topMatchType = results[0]?.matchType;
+    const avgScore = results.reduce((sum, r) => sum + r.score, 0) / results.length;
+    
+    // High quality: top result has high score AND is a hybrid match
+    const hasHighQualityMatch = topScore > 0.6 && topMatchType === 'hybrid';
+    
+    // Calculate base confidence from scores
+    let confidence = Math.min(100, Math.round(topScore * 100));
+    
+    // Boost confidence if multiple good results agree
+    const goodResults = results.filter(r => r.score > 0.4);
+    if (goodResults.length >= 3) {
+      confidence = Math.min(100, confidence + 10);
+    }
+    
+    // Reduce confidence for low-quality matches
+    let uncertaintyReason: string | undefined;
+    
+    if (topScore < 0.3) {
+      confidence = Math.min(40, confidence);
+      uncertaintyReason = 'Retrieved content has low relevance to the query';
+    } else if (topMatchType === 'keyword' && topScore < 0.5) {
+      confidence = Math.min(60, confidence);
+      uncertaintyReason = 'Match based on keywords only, semantic relevance uncertain';
+    } else if (results.length === 1 && topScore < 0.5) {
+      confidence = Math.min(50, confidence);
+      uncertaintyReason = 'Only one potentially relevant article found';
+    }
+    
+    return { confidence, hasHighQualityMatch, uncertaintyReason };
+  }
+
+  /**
+   * Log RAG query trace for evaluation and improvement
+   */
+  private async logRagTrace(
+    query: string,
+    results: SearchResult[],
+    options: {
+      context?: RagTraceContext;
+      expandedTerms?: string[];
+      totalChunksSearched?: number;
+      retrievalTimeMs?: number;
+      searchType?: string;
+      confidence?: number;
+      uncertaintyDetected?: boolean;
+    }
+  ): Promise<string | undefined> {
+    try {
+      const traceData: Partial<InsertRagQueryTrace> = {
+        query,
+        organizationId: options.context?.organizationId || null,
+        workspaceId: options.context?.workspaceId || null,
+        conversationId: options.context?.conversationId || null,
+        customerId: options.context?.customerId || null,
+        expandedTerms: options.expandedTerms || [],
+        retrievedChunkIds: results.map(r => r.chunk.id),
+        retrievedScores: results.map(r => r.score.toFixed(4)),
+        searchType: options.searchType || 'hybrid',
+        totalChunksSearched: options.totalChunksSearched || 0,
+        retrievalTimeMs: options.retrievalTimeMs || 0,
+        confidenceScore: options.confidence || 0,
+        uncertaintyDetected: options.uncertaintyDetected || false,
+      };
+      
+      const [inserted] = await db.insert(ragQueryTraces).values(traceData as any).returning({ id: ragQueryTraces.id });
+      return inserted?.id;
+    } catch (error) {
+      console.error('Error logging RAG trace:', error);
+      return undefined;
+    }
+  }
+
+  /**
    * Transform database chunk to KnowledgeChunk interface
    */
   private transformDbChunkToKnowledgeChunk(dbChunk: any): KnowledgeChunk {
@@ -695,6 +867,140 @@ export class KnowledgeRetrievalService {
   }
 
   /**
+   * Enhanced search with reranking, confidence scoring, and RAG trace logging
+   * ✅ RAG BEST PRACTICES: Hybrid search + MMR reranking + confidence + logging
+   */
+  async searchEnhanced(
+    query: string,
+    knowledgeBaseIds: string[],
+    options: RetrievalOptions & { context?: RagTraceContext; enableLogging?: boolean } = {}
+  ): Promise<EnhancedSearchResponse> {
+    const startTime = Date.now();
+    
+    try {
+      const {
+        maxResults = 10,
+        minScore = 0.2,
+        useSemanticSearch = true,
+        expandScope = false,
+        requireSteps = false,
+        enableReranking = true,
+        diversityFactor = 0.3,
+        context,
+        enableLogging = true,
+      } = options;
+      
+      // Get chunks for the specified knowledge base IDs
+      let chunks = await this.getChunks(knowledgeBaseIds);
+      
+      // If no results and expandScope is true, try with all available articles
+      if (chunks.length === 0 && expandScope) {
+        const allArticles = await storage.getKnowledgeBaseArticles?.([]) || [];
+        const allKbIds = allArticles.map(article => article.id);
+        chunks = await this.getChunks(allKbIds);
+      }
+      
+      const totalChunksSearched = chunks.length;
+      
+      if (chunks.length === 0) {
+        const emptyResult: EnhancedSearchResponse = {
+          results: [],
+          confidence: 0,
+          hasHighQualityMatch: false,
+          uncertaintyReason: 'No knowledge base content available to search',
+        };
+        return emptyResult;
+      }
+      
+      // Expand query with synonyms
+      const expandedTerms = this.expandQueryWithSynonyms(query);
+      
+      // Perform keyword search
+      const keywordResults = this.keywordSearch(chunks, expandedTerms);
+      
+      let finalResults: SearchResult[] = keywordResults;
+      let queryEmbedding: number[] = [];
+      
+      // Perform semantic search if enabled (only generate embeddings when needed)
+      if (useSemanticSearch) {
+        queryEmbedding = await this.generateEmbedding(query);
+        const semanticResults = await this.semanticSearch(chunks, query);
+        finalResults = this.combineSearchResults(keywordResults, semanticResults);
+      }
+      
+      // Filter by minimum score
+      finalResults = finalResults.filter(result => result.score >= minScore);
+      
+      // Check if any candidates have embeddings for MMR reranking
+      const candidatesWithEmbeddings = finalResults.filter(
+        r => r.chunk.embedding && r.chunk.embedding.length > 0
+      ).length;
+      
+      // Apply MMR reranking for diversity (only when semantic search is enabled AND embeddings exist)
+      if (enableReranking && finalResults.length > 1 && useSemanticSearch && 
+          queryEmbedding.length > 0 && candidatesWithEmbeddings >= 2) {
+        const lambda = 1 - diversityFactor; // Convert diversity to relevance weight
+        finalResults = this.mmrRerank(finalResults, queryEmbedding, lambda, maxResults * 2);
+      }
+      
+      // Boost results that contain step-by-step content if requested
+      if (requireSteps) {
+        finalResults.forEach(result => {
+          const content = result.chunk.content.toLowerCase();
+          const hasSteps = /\b(step|steps|instructions|tutorial|guide|how\s+to)\b/.test(content) ||
+                           /\d+[.)]\s/.test(result.chunk.content) ||
+                           /\n\d+\.\s/.test(result.chunk.content);
+          
+          if (hasSteps) {
+            result.score *= 1.5;
+          }
+        });
+        
+        finalResults.sort((a, b) => b.score - a.score);
+      }
+      
+      // Limit to max results
+      finalResults = finalResults.slice(0, maxResults);
+      
+      // Calculate confidence and uncertainty
+      const { confidence, hasHighQualityMatch, uncertaintyReason } = this.calculateConfidence(finalResults);
+      
+      const retrievalTimeMs = Date.now() - startTime;
+      
+      // Log RAG trace for evaluation
+      let traceId: string | undefined;
+      if (enableLogging) {
+        traceId = await this.logRagTrace(query, finalResults, {
+          context,
+          expandedTerms: Array.from(expandedTerms),
+          totalChunksSearched,
+          retrievalTimeMs,
+          searchType: useSemanticSearch ? 'hybrid' : 'keyword',
+          confidence,
+          uncertaintyDetected: !hasHighQualityMatch || confidence < 50,
+        });
+      }
+      
+      return {
+        results: finalResults,
+        confidence,
+        hasHighQualityMatch,
+        uncertaintyReason,
+        traceId,
+      };
+      
+    } catch (error) {
+      console.error('Error in enhanced knowledge retrieval search:', error);
+      return {
+        results: [],
+        confidence: 0,
+        hasHighQualityMatch: false,
+        uncertaintyReason: 'Search failed due to an internal error',
+      };
+    }
+  }
+
+  /**
    * Clear chunks from database for specific knowledge base ID (call when article is updated)
    */
   async clearCache(knowledgeBaseId?: string): Promise<void> {
@@ -803,6 +1109,137 @@ export class KnowledgeRetrievalService {
     } catch (error) {
       console.error('Error during knowledge base reindexing:', error);
     }
+  }
+
+  /**
+   * Analyze document quality for RAG optimization
+   * Returns quality metrics and improvement suggestions
+   */
+  analyzeDocumentQuality(article: KnowledgeBase): {
+    hasHeadings: boolean;
+    hasFAQs: boolean;
+    hasStepByStep: boolean;
+    hasImages: boolean;
+    structureScore: number;
+    wordCount: number;
+    readabilityScore: number;
+    contentScore: number;
+    overallScore: number;
+    issues: string[];
+    suggestions: string[];
+  } {
+    const content = article.content || '';
+    const issues: string[] = [];
+    const suggestions: string[] = [];
+    
+    // Check for structural elements
+    const hasHeadings = /^#{1,6}\s+.+|<h[1-6]>.+?<\/h[1-6]>|\*\*[^*]+\*\*\s*$/gm.test(content);
+    const hasFAQs = /\b(faq|frequently asked|question|q:)/i.test(content);
+    const hasStepByStep = /\d+[.)]\s+|step\s*\d+/i.test(content);
+    const hasImages = /\!\[.*\]\(.*\)|<img\s/i.test(content);
+    
+    // Calculate structure score
+    let structureScore = 0;
+    if (hasHeadings) structureScore += 30;
+    if (hasFAQs) structureScore += 25;
+    if (hasStepByStep) structureScore += 25;
+    if (hasImages) structureScore += 20;
+    
+    // Word count analysis
+    const words = content.trim().split(/\s+/);
+    const wordCount = words.length;
+    
+    // Readability (simple heuristic based on sentence length)
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    const avgSentenceLength = sentences.length > 0 ? wordCount / sentences.length : 0;
+    
+    // Optimal sentence length is 15-20 words
+    let readabilityScore = 100;
+    if (avgSentenceLength > 30) {
+      readabilityScore -= 30;
+      issues.push('Sentences are too long (average >30 words)');
+      suggestions.push('Break up long sentences for better readability');
+    } else if (avgSentenceLength < 8) {
+      readabilityScore -= 20;
+      issues.push('Sentences are too short (average <8 words)');
+      suggestions.push('Combine short sentences for better flow');
+    }
+    
+    // Content score
+    let contentScore = 0;
+    if (wordCount >= 100) contentScore += 30;
+    else {
+      issues.push('Article is too short (<100 words)');
+      suggestions.push('Add more detailed content for better retrieval');
+    }
+    
+    if (wordCount <= 2000) contentScore += 20;
+    else {
+      issues.push('Article is very long (>2000 words)');
+      suggestions.push('Consider splitting into multiple focused articles');
+    }
+    
+    if (article.tags && article.tags.length >= 2) contentScore += 25;
+    else {
+      issues.push('Article lacks tags');
+      suggestions.push('Add 2-4 relevant tags for better searchability');
+    }
+    
+    if (article.category && article.category.trim()) contentScore += 25;
+    
+    // Structure issues
+    if (!hasHeadings) {
+      issues.push('No headings found');
+      suggestions.push('Add markdown headings (## Section Title) to structure content');
+    }
+    
+    if (!hasStepByStep && /\b(how to|guide|tutorial|setup|install)\b/i.test(article.title || '')) {
+      issues.push('Tutorial/guide title but no step-by-step format');
+      suggestions.push('Use numbered steps (1. 2. 3.) for procedural content');
+    }
+    
+    // Calculate overall score
+    const overallScore = Math.round(
+      (structureScore * 0.4) + (contentScore * 0.4) + (readabilityScore * 0.2)
+    );
+    
+    return {
+      hasHeadings,
+      hasFAQs,
+      hasStepByStep,
+      hasImages,
+      structureScore,
+      wordCount,
+      readabilityScore,
+      contentScore,
+      overallScore,
+      issues,
+      suggestions,
+    };
+  }
+
+  /**
+   * Get document quality scores for knowledge base articles
+   */
+  async getDocumentQualityReport(knowledgeBaseIds?: string[]): Promise<Array<{
+    articleId: string;
+    title: string;
+    overallScore: number;
+    issues: string[];
+    suggestions: string[];
+  }>> {
+    const articles = await storage.getKnowledgeBaseArticles?.(knowledgeBaseIds || []) || [];
+    
+    return articles.map(article => {
+      const quality = this.analyzeDocumentQuality(article);
+      return {
+        articleId: article.id,
+        title: article.title,
+        overallScore: quality.overallScore,
+        issues: quality.issues,
+        suggestions: quality.suggestions,
+      };
+    });
   }
 }
 

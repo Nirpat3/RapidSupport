@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning, BrandConfig, KnowledgeBaseImage, InsertAiTokenUsage, InsertAiKnowledgeFeedback } from '@shared/schema';
 import { storage } from './storage';
-import { knowledgeRetrieval, type SearchResult, type RetrievalOptions } from './knowledge-retrieval';
+import { knowledgeRetrieval, type SearchResult, type RetrievalOptions, type EnhancedSearchResponse, type RagTraceContext } from './knowledge-retrieval';
 import { conversationLogger } from './conversation-logger';
 import { convIntel } from './conversational-intelligence';
 
@@ -1078,6 +1078,14 @@ CRITICAL GUIDELINES:
 - Always respond as if you're a human agent who sometimes needs to check with colleagues
 - When in doubt, ALWAYS escalate to a human agent rather than guessing
 
+🔴 "I DON'T KNOW" GUARDRAILS - UNCERTAINTY ADMISSION IS MANDATORY:
+1. If the Knowledge Base does NOT explicitly answer the customer's question, you MUST admit uncertainty
+2. Use phrases like: "I don't have specific information about that in our documentation", "Let me connect you with a specialist who can help with this"
+3. NEVER guess, invent, or extrapolate beyond what's explicitly stated in the Knowledge Base
+4. If you're less than 70% confident, set requiresHumanTakeover to true
+5. It's ALWAYS better to admit you don't know than to provide incorrect information
+6. If the question is partially answered, state what you DO know and escalate for the rest
+
 FORMATTING BEST PRACTICES (Important for clarity and readability):
 - For instructional content, ALWAYS use numbered lists: "1. First step\n2. Second step\n3. Third step"
 - For feature lists or options, use bullet points: "• First option\n• Second option\n• Third option" 
@@ -1566,9 +1574,24 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         responseFormat = 'conversational';
       }
 
-      // Get relevant knowledge base articles using enhanced retrieval
-      // ✅ PHASE 2: Pass conversation history for query rewriting
-      const searchResults = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || [], conversationHistory);
+      // Get relevant knowledge base articles using enhanced retrieval with confidence scoring
+      // ✅ RAG BEST PRACTICES: Uses searchEnhanced with MMR reranking, confidence, and trace logging
+      const retrievalContext: RagTraceContext = {
+        organizationId: conversation?.organizationId,
+        workspaceId: undefined,
+        conversationId,
+        customerId: conversation?.customerId,
+      };
+      const retrievalPayload = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || [], conversationHistory, retrievalContext);
+      const searchResults = retrievalPayload.results;
+      const retrievalConfidence = retrievalPayload.confidence;
+      const hasHighQualityMatch = retrievalPayload.hasHighQualityMatch;
+      const uncertaintyReason = retrievalPayload.uncertaintyReason;
+      const ragTraceId = retrievalPayload.traceId;
+      
+      // ✅ 70% CONFIDENCE THRESHOLD: Programmatically enforce human takeover
+      const CONFIDENCE_THRESHOLD = 70;
+      const shouldTakeoverDueToLowConfidence = retrievalConfidence < CONFIDENCE_THRESHOLD;
       
       // ✅ PHASE 1 IMPROVEMENT: Enhanced Retrieval Logging
       // Log detailed retrieval information for debugging "AI not using docs" issues
@@ -1577,9 +1600,20 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       console.log('╚═══════════════════════════════════════════════════════════════════╝');
       console.log(`\n🔍 Query: "${customerMessage}"\n`);
       console.log(`📊 Results Retrieved: ${searchResults.length} chunks\n`);
+      console.log(`🎯 Retrieval Confidence: ${retrievalConfidence}% (threshold: ${CONFIDENCE_THRESHOLD}%)`);
+      console.log(`✨ High Quality Match: ${hasHighQualityMatch}`);
+      if (uncertaintyReason) {
+        console.log(`⚠️  Uncertainty Reason: ${uncertaintyReason}`);
+      }
+      if (ragTraceId) {
+        console.log(`📝 RAG Trace ID: ${ragTraceId}`);
+      }
+      if (shouldTakeoverDueToLowConfidence) {
+        console.log(`🚨 LOW CONFIDENCE: AI will suggest human takeover`);
+      }
       
       if (searchResults.length > 0) {
-        console.log('📋 Top Retrieved Chunks:\n');
+        console.log('\n📋 Top Retrieved Chunks:\n');
         searchResults.slice(0, 5).forEach((result, idx) => {
           console.log(`  ${idx + 1}. [Score: ${result.score.toFixed(3)}] [${result.matchType.toUpperCase()}]`);
           console.log(`     📄 Article: "${result.chunk.metadata.sourceTitle}"`);
@@ -1592,18 +1626,8 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
           }
           console.log('');
         });
-        
-        // ✅ Check if best score meets confidence threshold
-        const bestScore = searchResults[0].score;
-        console.log(`\n🎯 Best Retrieval Score: ${bestScore.toFixed(3)}`);
-        if (bestScore < 0.3) {
-          console.log(`⚠️  WARNING: Best score (${bestScore.toFixed(3)}) below confidence threshold (0.3)`);
-          console.log('   → AI should abstain and suggest human agent\n');
-        } else {
-          console.log(`✅ Score above threshold - AI can provide grounded answer\n`);
-        }
       } else {
-        console.log('❌ No chunks retrieved - AI will escalate to human agent\n');
+        console.log('\n❌ No chunks retrieved - AI will escalate to human agent\n');
       }
       console.log('═══════════════════════════════════════════════════════════════════\n');
       
@@ -1672,12 +1696,17 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         }
       }
       
-      // Inject memory context and resolution history into contextData for the response generator
+      // Inject memory context, resolution history, and retrieval confidence into contextData
+      // ✅ Pass retrieval confidence so inner function can set requiresHumanTakeover correctly
       const enrichedContextData = {
         ...contextData,
         customerMemoryContext,
         resolutionHistoryContext,
-        conversationId
+        conversationId,
+        shouldTakeoverDueToLowConfidence,
+        retrievalConfidence,
+        uncertaintyReason,
+        ragTraceId,
       };
 
       // Generate response using agent's configuration with format guidance
@@ -1702,12 +1731,22 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       });
 
       // Determine if human takeover is needed
-      const shouldTakeOver = response.confidence < agent.autoTakeoverThreshold || response.requiresHumanTakeover;
+      // ✅ RAG BEST PRACTICE: Use retrieval confidence (70% threshold) for uncertainty-based takeover
+      const shouldTakeOver = response.confidence < agent.autoTakeoverThreshold || 
+                              response.requiresHumanTakeover ||
+                              shouldTakeoverDueToLowConfidence;
 
       if (shouldTakeOver) {
+        let handoverReason = `Low confidence (${response.confidence}%)`;
+        if (shouldTakeoverDueToLowConfidence) {
+          handoverReason = `Low retrieval confidence (${retrievalConfidence}% < 70%)`;
+          if (uncertaintyReason) {
+            handoverReason += `: ${uncertaintyReason}`;
+          }
+        }
         await storage.updateAiAgentSession(session.id, {
           status: 'handed_over',
-          handoverReason: `Low confidence (${response.confidence}%) or complex query requiring human assistance`,
+          handoverReason,
         });
       }
 
@@ -1812,13 +1851,20 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         })();
       }
 
+      // ✅ RAG BEST PRACTICE: Ensure requiresHumanTakeover is set when retrieval confidence is low
+      const finalRequiresHumanTakeover = response.requiresHumanTakeover || shouldTakeoverDueToLowConfidence;
+      
       return {
         ...response,
+        requiresHumanTakeover: finalRequiresHumanTakeover,
         sessionId: session.id,
         messageCount: newMessageCount,
         avgConfidence: newAvgConfidence,
         shouldLearn,
         agentId: agent.id,
+        retrievalConfidence,
+        ragTraceId,
+        uncertaintyReason: shouldTakeoverDueToLowConfidence ? uncertaintyReason : undefined,
       };
 
     } catch (error) {
@@ -2175,6 +2221,10 @@ The more details you can share, the better I can help you resolve this quickly!"
         responseWithReferences = `${contextData.greeting}\n\n${responseWithReferences}`;
       }
       
+      // ✅ RAG BEST PRACTICE: Include retrieval confidence threshold in takeover decision
+      const shouldTakeoverDueToLowRetrievalConfidence = contextData?.shouldTakeoverDueToLowConfidence || false;
+      const finalRequiresHumanTakeover = shouldForceHumanTakeover || result.requiresHumanTakeover || shouldTakeoverDueToLowRetrievalConfidence;
+      
       // Track which KB articles were used (for AI learning)
       await trackKnowledgeFeedback(
         searchResults,
@@ -2182,16 +2232,16 @@ The more details you can share, the better I can help you resolve this quickly!"
         {
           conversationId: contextData?.conversationId,
           agentId: agent.id,
-          wasUsedInResponse: searchResults.length > 0 && !shouldForceHumanTakeover,
+          wasUsedInResponse: searchResults.length > 0 && !finalRequiresHumanTakeover,
           wasLinkProvided: shouldIncludeLinks && uniqueArticles.size > 0,
-          requiredHumanTakeover: shouldForceHumanTakeover || result.requiresHumanTakeover || false
+          requiredHumanTakeover: finalRequiresHumanTakeover
         }
       );
       
       return {
         response: responseWithReferences,
         confidence: Math.max(0, Math.min(100, adjustedConfidence)),
-        requiresHumanTakeover: shouldForceHumanTakeover || result.requiresHumanTakeover || false,
+        requiresHumanTakeover: finalRequiresHumanTakeover,
         suggestedActions: result.suggestedActions || ['Connect with human agent'],
         knowledgeUsed: searchResults.map(result => result.chunk.knowledgeBaseId),
         agentId: agent.id,
@@ -2396,7 +2446,16 @@ The more details you can share, the better I can help you resolve this quickly!"
    * Get relevant knowledge base articles using enhanced retrieval system
    * ✅ PHASE 2 IMPROVEMENT: Added query rewriting for better context understanding
    */
-  private static async getRelevantKnowledge(query: string, knowledgeBaseIds: string[], conversationHistory?: string[]): Promise<SearchResult[]> {
+  /**
+   * Enhanced knowledge retrieval with confidence scoring for human takeover decisions
+   * ✅ RAG BEST PRACTICES: Uses searchEnhanced with reranking, confidence, and trace logging
+   */
+  private static async getRelevantKnowledge(
+    query: string, 
+    knowledgeBaseIds: string[], 
+    conversationHistory?: string[],
+    context?: RagTraceContext
+  ): Promise<EnhancedSearchResponse & { results: (SearchResult & { contextRelevance?: number })[] }> {
     try {
       // If no KB IDs assigned to agent, search ALL available KB articles instead of returning empty
       const shouldExpandScope = knowledgeBaseIds.length === 0;
@@ -2423,50 +2482,69 @@ The more details you can share, the better I can help you resolve this quickly!"
       const searchOptions = this.getOptimalSearchOptions(queryAnalysis);
       
       // CRITICAL FIX: Enable expandScope if agent has no assigned KB IDs
-      // This ensures we search ALL knowledge base articles instead of returning empty results
       if (shouldExpandScope) {
         searchOptions.expandScope = true;
-        searchOptions.maxResults = 6; // ⚡ Reduced from 10 to 6 for faster performance
+        searchOptions.maxResults = 6;
         console.log('✅ expandScope ENABLED - will search all KB articles');
       }
       
       console.log(`Query analysis - Type: ${queryAnalysis.type}, Intent: ${queryAnalysis.intent}, Complexity: ${queryAnalysis.complexity}`);
       console.log(`Search options - expandScope: ${searchOptions.expandScope}, maxResults: ${searchOptions.maxResults}, minScore: ${searchOptions.minScore}`);
       
-      // Multi-tiered search strategy
-      let searchResults = await knowledgeRetrieval.search(searchQuery, knowledgeBaseIds, searchOptions);
+      // ✅ Use searchEnhanced for hybrid search + MMR reranking + confidence scoring + trace logging
+      const enhancedOptions = {
+        ...searchOptions,
+        enableReranking: true,
+        diversityFactor: 0.3,
+        context,
+        enableLogging: true,
+      };
       
-      console.log(`📊 Initial search returned ${searchResults.length} results`);
+      let enhancedResponse = await knowledgeRetrieval.searchEnhanced(searchQuery, knowledgeBaseIds, enhancedOptions);
+      
+      console.log(`📊 Enhanced search returned ${enhancedResponse.results.length} results`);
+      console.log(`🎯 Confidence: ${enhancedResponse.confidence}%, High Quality Match: ${enhancedResponse.hasHighQualityMatch}`);
+      if (enhancedResponse.uncertaintyReason) {
+        console.log(`⚠️  Uncertainty: ${enhancedResponse.uncertaintyReason}`);
+      }
+      if (enhancedResponse.traceId) {
+        console.log(`📝 RAG Trace ID: ${enhancedResponse.traceId}`);
+      }
       
       // If insufficient results for complex queries, try broader search
-      if (searchResults.length < 2 && queryAnalysis.complexity === 'high') {
+      if (enhancedResponse.results.length < 2 && queryAnalysis.complexity === 'high') {
         console.log('Insufficient results for complex query, expanding search...');
         const broadSearchOptions = {
-          ...searchOptions,
+          ...enhancedOptions,
           minScore: Math.max(0.1, searchOptions.minScore! - 0.05),
           maxResults: 8,
           expandScope: true,
         };
-        searchResults = await knowledgeRetrieval.search(searchQuery, knowledgeBaseIds, broadSearchOptions);
-        console.log(`📊 Expanded search returned ${searchResults.length} results`);
+        enhancedResponse = await knowledgeRetrieval.searchEnhanced(searchQuery, knowledgeBaseIds, broadSearchOptions);
+        console.log(`📊 Expanded search returned ${enhancedResponse.results.length} results`);
       }
       
-      // ✅ PHASE 2: Apply MMR (Maximal Marginal Relevance) for diversity
-      const diverseResults = this.applyMMR(searchResults, 0.7); // Lambda = 0.7 balances relevance vs diversity
-      console.log(`🎯 MMR applied: ${searchResults.length} → ${diverseResults.length} diverse results`);
-      
       // Enhanced context filtering and ranking
-      const filteredResults = this.filterAndRankResults(diverseResults, queryAnalysis);
+      const filteredResults = this.filterAndRankResults(enhancedResponse.results, queryAnalysis);
       
       console.log(`Knowledge retrieval for "${query}": found ${filteredResults.length} relevant chunks`);
       filteredResults.forEach((result, i) => {
         console.log(`  ${i + 1}. ${result.chunk.title} (${result.matchType}, score: ${result.score.toFixed(2)}, relevance: ${result.contextRelevance || 'N/A'})`);
       });
 
-      return filteredResults;
+      // Return enhanced response with filtered results
+      return {
+        ...enhancedResponse,
+        results: filteredResults,
+      };
     } catch (error) {
       console.error('Error getting relevant knowledge:', error);
-      return [];
+      return {
+        results: [],
+        confidence: 0,
+        hasHighQualityMatch: false,
+        uncertaintyReason: 'Search failed due to an internal error',
+      };
     }
   }
 
@@ -3070,15 +3148,45 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
         responseFormat = 'bullet_points';
       }
 
-      // Get relevant knowledge base articles
-      const searchResults = await this.getRelevantKnowledge(
+      // Get relevant knowledge base articles with enhanced retrieval and confidence scoring
+      // ✅ RAG BEST PRACTICES: Uses searchEnhanced with MMR reranking, confidence, and trace logging
+      const retrievalContext: RagTraceContext = {
+        organizationId: conversation?.organizationId,
+        workspaceId: undefined,
+        conversationId,
+        customerId: conversation?.customerId,
+      };
+      const retrievalPayload = await this.getRelevantKnowledge(
         customerMessage, 
         agent.knowledgeBaseIds || [], 
-        conversationHistory
+        conversationHistory,
+        retrievalContext
       );
+      const searchResults = retrievalPayload.results;
+      const retrievalConfidence = retrievalPayload.confidence;
+      const hasHighQualityMatch = retrievalPayload.hasHighQualityMatch;
+      const uncertaintyReason = retrievalPayload.uncertaintyReason;
+      const ragTraceId = retrievalPayload.traceId;
+      
+      // ✅ 70% CONFIDENCE THRESHOLD: Programmatically enforce human takeover
+      const CONFIDENCE_THRESHOLD = 70;
+      const shouldTakeoverDueToLowConfidence = retrievalConfidence < CONFIDENCE_THRESHOLD;
       
       console.log(`[Stream] Retrieved ${searchResults.length} knowledge chunks`);
+      console.log(`[Stream] Retrieval confidence: ${retrievalConfidence}%${shouldTakeoverDueToLowConfidence ? ' (below threshold)' : ''}`);
+      if (ragTraceId) {
+        console.log(`[Stream] RAG Trace ID: ${ragTraceId}`);
+      }
 
+      // ✅ Pass retrieval confidence so streaming generator can set requiresHumanTakeover correctly
+      const enrichedContextData = {
+        ...contextData,
+        shouldTakeoverDueToLowConfidence,
+        retrievalConfidence,
+        uncertaintyReason,
+        ragTraceId,
+      };
+      
       // Stream the response
       let fullResponse = '';
       let metadata: any = null;
@@ -3089,7 +3197,7 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
         searchResults,
         agent,
         responseFormat,
-        contextData
+        enrichedContextData
       )) {
         if (chunk.type === 'token') {
           fullResponse += chunk.data;
@@ -3112,12 +3220,22 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
       });
 
       // Check for human takeover
-      const shouldTakeOver = confidence < agent.autoTakeoverThreshold || metadata?.requiresHumanTakeover;
+      // ✅ RAG BEST PRACTICE: Use retrieval confidence (70% threshold) for uncertainty-based takeover
+      const shouldTakeOver = confidence < agent.autoTakeoverThreshold || 
+                              metadata?.requiresHumanTakeover ||
+                              shouldTakeoverDueToLowConfidence;
 
       if (shouldTakeOver) {
+        let handoverReason = `Low confidence (${confidence}%)`;
+        if (shouldTakeoverDueToLowConfidence) {
+          handoverReason = `Low retrieval confidence (${retrievalConfidence}% < 70%)`;
+          if (uncertaintyReason) {
+            handoverReason += `: ${uncertaintyReason}`;
+          }
+        }
         await storage.updateAiAgentSession(session.id, {
           status: 'handed_over',
-          handoverReason: `Low confidence (${confidence}%) or complex query`,
+          handoverReason,
         });
       }
 
@@ -3135,7 +3253,10 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
         }
       }
 
-      // Yield final metadata
+      // ✅ RAG BEST PRACTICE: Ensure requiresHumanTakeover is set when retrieval confidence is low
+      const finalRequiresHumanTakeover = metadata?.requiresHumanTakeover || shouldTakeoverDueToLowConfidence;
+      
+      // Yield final metadata with retrieval confidence and uncertainty info
       yield {
         type: 'metadata',
         data: {
@@ -3144,6 +3265,10 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
           avgConfidence: newAvgConfidence,
           shouldLearn: newMessageCount >= 5 && newAvgConfidence < 60,
           ...metadata,
+          requiresHumanTakeover: finalRequiresHumanTakeover,
+          retrievalConfidence,
+          ragTraceId,
+          uncertaintyReason: shouldTakeoverDueToLowConfidence ? uncertaintyReason : undefined,
           agentId: agent.id
         }
       };
@@ -3303,6 +3428,9 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
       // Calculate confidence and metadata after streaming completes
       const shouldForceHumanTakeover = searchResults.length === 0;
       
+      // ✅ RAG BEST PRACTICE: Include retrieval confidence threshold in takeover decision
+      const shouldTakeoverDueToLowRetrievalConfidence = contextData?.shouldTakeoverDueToLowConfidence || false;
+      
       // Estimate confidence based on knowledge quality
       let confidence = 50;
       if (!shouldForceHumanTakeover && searchResults.length > 0) {
@@ -3350,13 +3478,16 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
         };
       }
 
+      // ✅ Combine all takeover signals for final decision
+      const finalRequiresHumanTakeover = shouldForceHumanTakeover || shouldTakeoverDueToLowRetrievalConfidence;
+      
       // Yield metadata at the end
       yield {
         type: 'metadata',
         data: {
           confidence: Math.max(0, Math.min(100, confidence)),
-          requiresHumanTakeover: shouldForceHumanTakeover,
-          suggestedActions: shouldForceHumanTakeover ? ['Connect with human agent'] : [],
+          requiresHumanTakeover: finalRequiresHumanTakeover,
+          suggestedActions: finalRequiresHumanTakeover ? ['Connect with human agent'] : [],
           knowledgeUsed: searchResults.map(r => r.chunk.knowledgeBaseId),
           agentId: agent.id,
           format: finalFormat
