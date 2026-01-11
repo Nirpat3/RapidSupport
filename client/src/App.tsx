@@ -80,6 +80,7 @@ const ActivityHubPage = lazy(() => import("@/pages/ActivityHubPage"));
 const ApiIntegrationPage = lazy(() => import("@/pages/ApiIntegrationPage"));
 const LegalPoliciesPage = lazy(() => import("@/pages/LegalPoliciesPage"));
 const PublicLegalPage = lazy(() => import("@/pages/PublicLegalPage"));
+const QuantumOptimizationPage = lazy(() => import("@/pages/QuantumOptimizationPage"));
 
 function Router() {
   return (
@@ -126,6 +127,11 @@ function Router() {
         <Route path="/ai-hub">
           <PermissionGuard feature="ai-agents">
             <AIHubPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/quantum-optimization">
+          <PermissionGuard feature="settings">
+            <QuantumOptimizationPage />
           </PermissionGuard>
         </Route>
         <Route path="/analytics-hub">

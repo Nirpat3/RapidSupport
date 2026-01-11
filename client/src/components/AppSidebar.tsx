@@ -43,7 +43,8 @@ import {
   Palette,
   Crown,
   Building2,
-  GitBranch
+  GitBranch,
+  Atom
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -118,6 +119,12 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     title: "AI Hub",
     url: "/ai-hub", 
     icon: Brain,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Quantum Optimization",
+    url: "/quantum-optimization", 
+    icon: Atom,
     allowedRoles: ['admin']
   },
   {
