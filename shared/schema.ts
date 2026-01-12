@@ -667,12 +667,14 @@ export const aiAgents = pgTable("ai_agents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(), // e.g., "Technical Support Bot", "Billing Assistant"
   description: text("description"), // What this agent specializes in
+  agentType: text("agent_type").notNull().default("general"), // 'sales' | 'support' | 'billing' | 'general'
   systemPrompt: text("system_prompt").notNull(), // AI personality and behavior instructions
   greeting: text("greeting"), // Custom greeting message when starting conversations
   isActive: boolean("is_active").notNull().default(true),
   autoTakeoverThreshold: integer("auto_takeover_threshold").notNull().default(70), // Confidence threshold for automatic handoff to humans
   specializations: text("specializations").array(), // Categories this agent handles well
   knowledgeBaseIds: text("knowledge_base_ids").array(), // Which knowledge base articles this agent can access
+  knowledgeCollectionIds: text("knowledge_collection_ids").array(), // Which knowledge collections this agent can access
   maxTokens: integer("max_tokens").notNull().default(1000),
   temperature: integer("temperature").notNull().default(30), // Stored as integer (0-100), divided by 100 for API
   responseFormat: text("response_format").notNull().default('conversational'), // 'conversational' | 'step_by_step' | 'faq' | 'technical' | 'bullet_points'
@@ -680,6 +682,9 @@ export const aiAgents = pgTable("ai_agents", {
   diagnosticFlowEnabled: boolean("diagnostic_flow_enabled").notNull().default(false), // Enable multi-step troubleshooting
   diagnosticQuestions: jsonb("diagnostic_questions"), // Array of {id, question, type, options?, followUpQuestionId?}
   includeResourceLinks: boolean("include_resource_links").notNull().default(true), // Include links to knowledge base articles in responses
+  // External Research (Perplexity) settings
+  externalResearchEnabled: boolean("external_research_enabled").notNull().default(false), // Enable Perplexity for real-time web research
+  externalResearchSettings: jsonb("external_research_settings"), // { allowedDomains?: string[], maxQueriesPerHour?: number, searchRecency?: string }
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   workspaceId: varchar("workspace_id").references(() => workspaces.id), // Workspace scoping for AI agents
   departmentId: varchar("department_id").references(() => departments.id), // Department-specific AI agent
