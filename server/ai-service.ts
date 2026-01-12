@@ -1576,13 +1576,35 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
 
       // Get relevant knowledge base articles using enhanced retrieval with confidence scoring
       // ✅ RAG BEST PRACTICES: Uses searchEnhanced with MMR reranking, confidence, and trace logging
+      // ✅ EXTERNAL RESEARCH: Falls back to Perplexity when confidence is low and agent enables it
       const retrievalContext: RagTraceContext = {
         organizationId: conversation?.organizationId,
         workspaceId: undefined,
         conversationId,
         customerId: conversation?.customerId,
       };
-      const retrievalPayload = await this.getRelevantKnowledge(customerMessage, agent.knowledgeBaseIds || [], conversationHistory, retrievalContext);
+      
+      // Cast agent to include new fields (agentType, externalResearchEnabled, etc.)
+      const agentWithResearch = agent as typeof agent & {
+        agentType?: string;
+        externalResearchEnabled?: boolean;
+        externalResearchSettings?: any;
+        knowledgeCollectionIds?: string[];
+      };
+      
+      const retrievalPayload = await this.getRelevantKnowledge(
+        customerMessage, 
+        agent.knowledgeBaseIds || [], 
+        conversationHistory, 
+        retrievalContext,
+        {
+          externalResearchEnabled: agentWithResearch.externalResearchEnabled || false,
+          externalResearchSettings: agentWithResearch.externalResearchSettings,
+          agentType: agentWithResearch.agentType || 'general',
+          agentName: agent.name,
+          organizationId: conversation?.organizationId || undefined,
+        }
+      );
       const searchResults = retrievalPayload.results;
       const retrievalConfidence = retrievalPayload.confidence;
       const hasHighQualityMatch = retrievalPayload.hasHighQualityMatch;
@@ -1696,8 +1718,9 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         }
       }
       
-      // Inject memory context, resolution history, and retrieval confidence into contextData
+      // Inject memory context, resolution history, retrieval confidence, and external research into contextData
       // ✅ Pass retrieval confidence so inner function can set requiresHumanTakeover correctly
+      // ✅ Pass external research data for response generation when Perplexity fallback was used
       const enrichedContextData = {
         ...contextData,
         customerMemoryContext,
@@ -1707,6 +1730,9 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         retrievalConfidence,
         uncertaintyReason,
         ragTraceId,
+        externalResearchUsed: retrievalPayload.externalResearchUsed,
+        externalAnswer: retrievalPayload.externalAnswer,
+        externalCitations: retrievalPayload.externalCitations,
       };
 
       // Generate response using agent's configuration with format guidance
@@ -2443,19 +2469,28 @@ The more details you can share, the better I can help you resolve this quickly!"
   }
 
   /**
-   * Get relevant knowledge base articles using enhanced retrieval system
-   * ✅ PHASE 2 IMPROVEMENT: Added query rewriting for better context understanding
-   */
-  /**
    * Enhanced knowledge retrieval with confidence scoring for human takeover decisions
    * ✅ RAG BEST PRACTICES: Uses searchEnhanced with reranking, confidence, and trace logging
+   * ✅ EXTERNAL RESEARCH: Falls back to Perplexity when confidence is low and agent enables it
    */
   private static async getRelevantKnowledge(
     query: string, 
     knowledgeBaseIds: string[], 
     conversationHistory?: string[],
-    context?: RagTraceContext
-  ): Promise<EnhancedSearchResponse & { results: (SearchResult & { contextRelevance?: number })[] }> {
+    context?: RagTraceContext,
+    agentConfig?: {
+      externalResearchEnabled?: boolean;
+      externalResearchSettings?: any;
+      agentType?: string;
+      agentName?: string;
+      organizationId?: string;
+    }
+  ): Promise<EnhancedSearchResponse & { 
+    results: (SearchResult & { contextRelevance?: number })[];
+    externalResearchUsed?: boolean;
+    externalAnswer?: string;
+    externalCitations?: string[];
+  }> {
     try {
       // If no KB IDs assigned to agent, search ALL available KB articles instead of returning empty
       const shouldExpandScope = knowledgeBaseIds.length === 0;
@@ -2491,19 +2526,33 @@ The more details you can share, the better I can help you resolve this quickly!"
       console.log(`Query analysis - Type: ${queryAnalysis.type}, Intent: ${queryAnalysis.intent}, Complexity: ${queryAnalysis.complexity}`);
       console.log(`Search options - expandScope: ${searchOptions.expandScope}, maxResults: ${searchOptions.maxResults}, minScore: ${searchOptions.minScore}`);
       
-      // ✅ Use searchEnhanced for hybrid search + MMR reranking + confidence scoring + trace logging
+      // ✅ Use searchWithExternalFallback for hybrid search + Perplexity fallback when enabled
       const enhancedOptions = {
         ...searchOptions,
         enableReranking: true,
         diversityFactor: 0.3,
         context,
         enableLogging: true,
+        externalResearchEnabled: agentConfig?.externalResearchEnabled || false,
+        externalResearchSettings: agentConfig?.externalResearchSettings,
+        organizationId: agentConfig?.organizationId,
+        confidenceThreshold: 50,
+        agentContext: agentConfig?.agentType ? {
+          agentType: agentConfig.agentType,
+          agentName: agentConfig.agentName || 'AI Assistant',
+        } : undefined,
       };
       
-      let enhancedResponse = await knowledgeRetrieval.searchEnhanced(searchQuery, knowledgeBaseIds, enhancedOptions);
+      let enhancedResponse = await knowledgeRetrieval.searchWithExternalFallback(searchQuery, knowledgeBaseIds, enhancedOptions);
       
       console.log(`📊 Enhanced search returned ${enhancedResponse.results.length} results`);
       console.log(`🎯 Confidence: ${enhancedResponse.confidence}%, High Quality Match: ${enhancedResponse.hasHighQualityMatch}`);
+      if (enhancedResponse.externalResearchUsed) {
+        console.log(`🌐 External research was used (Perplexity fallback)`);
+        if (enhancedResponse.externalCitations?.length) {
+          console.log(`📚 External citations: ${enhancedResponse.externalCitations.length}`);
+        }
+      }
       if (enhancedResponse.uncertaintyReason) {
         console.log(`⚠️  Uncertainty: ${enhancedResponse.uncertaintyReason}`);
       }
@@ -2512,7 +2561,7 @@ The more details you can share, the better I can help you resolve this quickly!"
       }
       
       // If insufficient results for complex queries, try broader search
-      if (enhancedResponse.results.length < 2 && queryAnalysis.complexity === 'high') {
+      if (enhancedResponse.results.length < 2 && queryAnalysis.complexity === 'high' && !enhancedResponse.externalResearchUsed) {
         console.log('Insufficient results for complex query, expanding search...');
         const broadSearchOptions = {
           ...enhancedOptions,
@@ -2520,7 +2569,7 @@ The more details you can share, the better I can help you resolve this quickly!"
           maxResults: 8,
           expandScope: true,
         };
-        enhancedResponse = await knowledgeRetrieval.searchEnhanced(searchQuery, knowledgeBaseIds, broadSearchOptions);
+        enhancedResponse = await knowledgeRetrieval.searchWithExternalFallback(searchQuery, knowledgeBaseIds, broadSearchOptions);
         console.log(`📊 Expanded search returned ${enhancedResponse.results.length} results`);
       }
       
@@ -2532,10 +2581,13 @@ The more details you can share, the better I can help you resolve this quickly!"
         console.log(`  ${i + 1}. ${result.chunk.title} (${result.matchType}, score: ${result.score.toFixed(2)}, relevance: ${result.contextRelevance || 'N/A'})`);
       });
 
-      // Return enhanced response with filtered results
+      // Return enhanced response with filtered results and external research data
       return {
         ...enhancedResponse,
         results: filteredResults,
+        externalResearchUsed: enhancedResponse.externalResearchUsed,
+        externalAnswer: enhancedResponse.externalAnswer,
+        externalCitations: enhancedResponse.externalCitations,
       };
     } catch (error) {
       console.error('Error getting relevant knowledge:', error);
@@ -2544,6 +2596,7 @@ The more details you can share, the better I can help you resolve this quickly!"
         confidence: 0,
         hasHighQualityMatch: false,
         uncertaintyReason: 'Search failed due to an internal error',
+        externalResearchUsed: false,
       };
     }
   }

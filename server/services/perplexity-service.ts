@@ -206,18 +206,13 @@ Keep your response concise and actionable.
   ): Promise<void> {
     try {
       await storage.createAiTokenUsage?.({
-        organizationId,
         operation: 'external_research',
         model: DEFAULT_MODEL,
         promptTokens: Math.floor(result.tokensUsed * 0.3),
         completionTokens: Math.floor(result.tokensUsed * 0.7),
-        totalTokens: result.tokensUsed,
-        metadata: {
-          query: query.substring(0, 200),
-          citationCount: result.citations.length,
-          cached: result.cached
-        }
+        totalTokens: result.tokensUsed
       });
+      console.log(`[PerplexityService] Usage logged for org ${organizationId}: ${result.tokensUsed} tokens`);
     } catch (error) {
       console.error('[PerplexityService] Failed to log token usage:', error);
     }

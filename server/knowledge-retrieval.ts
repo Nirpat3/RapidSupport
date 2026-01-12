@@ -2485,6 +2485,103 @@ Return only the JSON array.`,
       tier: keywordResults.length > 0 ? 'hybrid' : 'semantic',
     };
   }
+
+  async searchWithExternalFallback(
+    query: string,
+    knowledgeBaseIds: string[],
+    options: RetrievalOptions & { 
+      context?: RagTraceContext;
+      externalResearchEnabled?: boolean;
+      externalResearchSettings?: {
+        allowedDomains?: string[];
+        maxQueriesPerHour?: number;
+        searchRecency?: 'hour' | 'day' | 'week' | 'month' | 'year';
+      };
+      agentContext?: {
+        agentType: string;
+        agentName: string;
+        industryContext?: string;
+      };
+      organizationId?: string;
+      confidenceThreshold?: number;
+    } = {}
+  ): Promise<EnhancedSearchResponse & { 
+    externalResearchUsed: boolean;
+    externalCitations?: string[];
+    externalAnswer?: string;
+  }> {
+    const {
+      externalResearchEnabled = false,
+      externalResearchSettings,
+      agentContext,
+      organizationId,
+      confidenceThreshold = 50,
+      ...searchOptions
+    } = options;
+
+    const localResult = await this.searchEnhanced(query, knowledgeBaseIds, searchOptions);
+
+    if (!externalResearchEnabled || localResult.confidence >= confidenceThreshold) {
+      return {
+        ...localResult,
+        externalResearchUsed: false,
+      };
+    }
+
+    try {
+      const { perplexityService } = await import('./services/perplexity-service');
+      
+      if (!perplexityService.isAvailable()) {
+        console.log('[RAG] External research requested but Perplexity API not configured');
+        return {
+          ...localResult,
+          externalResearchUsed: false,
+        };
+      }
+
+      console.log(`[RAG] Local confidence ${localResult.confidence}% below threshold ${confidenceThreshold}%, triggering external research`);
+
+      let externalResult;
+      if (agentContext) {
+        externalResult = await perplexityService.searchForCustomer(
+          query,
+          agentContext,
+          organizationId,
+          externalResearchSettings
+        );
+      } else {
+        externalResult = await perplexityService.search(
+          query,
+          undefined,
+          organizationId,
+          externalResearchSettings
+        );
+      }
+
+      const combinedConfidence = Math.max(
+        localResult.confidence,
+        externalResult.confidence * 100
+      );
+
+      return {
+        results: localResult.results,
+        confidence: combinedConfidence,
+        hasHighQualityMatch: localResult.hasHighQualityMatch || externalResult.answer.length > 100,
+        uncertaintyReason: localResult.uncertaintyReason,
+        traceId: localResult.traceId,
+        externalResearchUsed: true,
+        externalCitations: externalResult.citations,
+        externalAnswer: externalResult.answer,
+      };
+
+    } catch (error) {
+      console.error('[RAG] External research failed:', error);
+      return {
+        ...localResult,
+        externalResearchUsed: false,
+      };
+    }
+  }
 }
 
 // Export singleton instance
