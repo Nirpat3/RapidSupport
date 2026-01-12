@@ -39,16 +39,31 @@ interface DiagnosticQuestion {
   followUpQuestionId?: string;
 }
 
+// Agent types for specialized routing
+const AGENT_TYPES = [
+  { value: 'general', label: 'General', description: 'Handles all types of inquiries' },
+  { value: 'sales', label: 'Sales', description: 'Pre-sales questions and product info' },
+  { value: 'support', label: 'Support', description: 'Technical support and troubleshooting' },
+  { value: 'billing', label: 'Billing', description: 'Billing, payments, and account issues' },
+];
+
 // Extend the shared schema for UI-specific validation
 const aiAgentFormSchema = insertAiAgentSchema.omit({
   createdBy: true,
   specializations: true,
   knowledgeBaseIds: true,
+  knowledgeCollectionIds: true,
   diagnosticQuestions: true,
+  externalResearchSettings: true,
 }).extend({
   specializations: z.string().optional(),
   knowledgeBaseIds: z.array(z.string()).optional(),
+  knowledgeCollectionIds: z.array(z.string()).optional(),
   greeting: z.string().optional(),
+  agentType: z.enum(['general', 'sales', 'support', 'billing']).optional().default('general'),
+  externalResearchEnabled: z.boolean().optional().default(false),
+  externalResearchMaxQueriesPerHour: z.number().optional().default(50),
+  externalResearchRecency: z.enum(['hour', 'day', 'week', 'month', 'year']).optional().default('month'),
   diagnosticFlowEnabled: z.boolean().optional(),
   diagnosticQuestions: z.array(z.object({
     id: z.string(),
@@ -244,6 +259,13 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
   const isEdit = !!agent;
   const [articleSearchQuery, setArticleSearchQuery] = useState("");
 
+  const agentWithExtras = agent as (typeof agent) & {
+    agentType?: string;
+    externalResearchEnabled?: boolean;
+    externalResearchSettings?: { maxQueriesPerHour?: number; searchRecency?: string };
+    knowledgeCollectionIds?: string[];
+  };
+
   const form = useForm<AIAgentFormData>({
     resolver: zodResolver(aiAgentFormSchema),
     defaultValues: {
@@ -257,7 +279,12 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
       responseFormat: agent?.responseFormat || "conversational",
       specializations: agent?.specializations?.join(", ") || "",
       knowledgeBaseIds: agent?.knowledgeBaseIds || [],
+      knowledgeCollectionIds: agentWithExtras?.knowledgeCollectionIds || [],
       greeting: agent?.greeting || "",
+      agentType: (agentWithExtras?.agentType as any) || "general",
+      externalResearchEnabled: agentWithExtras?.externalResearchEnabled ?? false,
+      externalResearchMaxQueriesPerHour: agentWithExtras?.externalResearchSettings?.maxQueriesPerHour ?? 50,
+      externalResearchRecency: (agentWithExtras?.externalResearchSettings?.searchRecency as any) ?? "month",
       diagnosticFlowEnabled: agent?.diagnosticFlowEnabled ?? false,
       diagnosticQuestions: (agent?.diagnosticQuestions as DiagnosticQuestion[]) || [],
       includeResourceLinks: agent?.includeResourceLinks ?? true,
@@ -278,7 +305,12 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
         responseFormat: agent?.responseFormat || "conversational",
         specializations: agent?.specializations?.join(", ") || "",
         knowledgeBaseIds: agent?.knowledgeBaseIds || [],
+        knowledgeCollectionIds: agentWithExtras?.knowledgeCollectionIds || [],
         greeting: agent?.greeting || "",
+        agentType: (agentWithExtras?.agentType as any) || "general",
+        externalResearchEnabled: agentWithExtras?.externalResearchEnabled ?? false,
+        externalResearchMaxQueriesPerHour: agentWithExtras?.externalResearchSettings?.maxQueriesPerHour ?? 50,
+        externalResearchRecency: (agentWithExtras?.externalResearchSettings?.searchRecency as any) ?? "month",
         diagnosticFlowEnabled: agent?.diagnosticFlowEnabled ?? false,
         diagnosticQuestions: (agent?.diagnosticQuestions as DiagnosticQuestion[]) || [],
         includeResourceLinks: agent?.includeResourceLinks ?? true,
@@ -337,7 +369,14 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
         ? data.specializations.split(",").map((s) => s.trim()).filter((s) => s)
         : [],
       knowledgeBaseIds: data.knowledgeBaseIds || [],
+      knowledgeCollectionIds: data.knowledgeCollectionIds || [],
       greeting: data.greeting || null,
+      agentType: data.agentType || "general",
+      externalResearchEnabled: data.externalResearchEnabled ?? false,
+      externalResearchSettings: data.externalResearchEnabled ? {
+        maxQueriesPerHour: data.externalResearchMaxQueriesPerHour || 50,
+        searchRecency: data.externalResearchRecency || "month",
+      } : null,
       diagnosticFlowEnabled: data.diagnosticFlowEnabled ?? false,
       diagnosticQuestions: data.diagnosticQuestions && data.diagnosticQuestions.length > 0
         ? data.diagnosticQuestions
@@ -400,6 +439,36 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
                           data-testid="input-agent-description"
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="agentType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Agent Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-agent-type">
+                            <SelectValue placeholder="Select agent type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {AGENT_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              <div className="flex flex-col">
+                                <span>{type.label}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Specialized agent type for routing and context
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -646,6 +715,95 @@ function AIAgentDialog({ agent, open, onOpenChange, knowledgeArticles }: AIAgent
                     </FormItem>
                   )}
                 />
+
+                <Separator className="my-4" />
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium">External Research (Perplexity)</h4>
+                    <p className="text-xs text-muted-foreground">
+                      When the knowledge base lacks answers, search the web for real-time information
+                    </p>
+                  </div>
+                  
+                  <FormField
+                    control={form.control}
+                    name="externalResearchEnabled"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Enable External Research</FormLabel>
+                          <FormDescription>
+                            Allow AI to search the web when local knowledge is insufficient
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="switch-external-research"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  
+                  {form.watch("externalResearchEnabled") && (
+                    <div className="space-y-4 pl-4 border-l-2 border-primary/20">
+                      <FormField
+                        control={form.control}
+                        name="externalResearchMaxQueriesPerHour"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Rate Limit: {field.value} queries/hour</FormLabel>
+                            <FormControl>
+                              <Slider
+                                min={10}
+                                max={200}
+                                step={10}
+                                value={[field.value || 50]}
+                                onValueChange={([value]) => field.onChange(value)}
+                                data-testid="slider-research-rate-limit"
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Maximum external searches per hour to control costs
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="externalResearchRecency"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Search Recency</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger data-testid="select-research-recency">
+                                  <SelectValue placeholder="Select recency filter" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="hour">Last Hour</SelectItem>
+                                <SelectItem value="day">Last 24 Hours</SelectItem>
+                                <SelectItem value="week">Last Week</SelectItem>
+                                <SelectItem value="month">Last Month</SelectItem>
+                                <SelectItem value="year">Last Year</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              Prefer results from this time period
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
+                </div>
+                <Separator className="my-4" />
 
                 <FormField
                   control={form.control}

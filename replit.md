@@ -20,6 +20,12 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 ### Feature Specifications
 - **Real-time Communication**: Custom WebSocket server for chat, presence, routing, and typing indicators.
 - **AI Capabilities**: A multi-agent AI system (OpenAI GPT-5) for intent classification, smart routing, and agent handoff, with a Centralized Brand Voice System and enhanced RAG optimization. Conversational Intelligence provides customer memory, sentiment analysis, and conversation tracking.
+- **Specialized AI Agents**: Categorized agents by type (Sales, Support, Billing, General) with custom greetings, knowledge collection linking, and Perplexity API integration for external real-time research when the knowledge base lacks answers. Features include:
+  - **Agent Types**: Sales, Support, Billing, and General agents with specialized behavior
+  - **Knowledge Collection Linking**: Agents can be linked to specific knowledge collections for focused expertise
+  - **External Research Fallback**: When local KB confidence drops below 50%, agents can query Perplexity API for real-time web research (industry examples: wine info, drink recipes)
+  - **Rate Limiting**: Configurable per-organization limits (default 50 queries/hour) with 30-minute caching to control costs
+  - **Citation Tracking**: External research results include source citations for transparency
 - **Enhanced RAG System**: Industry-standard RAG with hybrid search (keyword + semantic), MMR reranking, confidence scoring with 70% human takeover threshold, and optimized chunking (300-500 words with 60-word overlap). Advanced capabilities include:
   - **Multi-Turn Memory**: Conversation context tracking with coreference resolution (resolves "it", "they", "that" to referenced entities)
   - **Voice Optimization**: Concise formatting for TTS, prosody hints, clarification prompts for ambiguous input
@@ -60,5 +66,5 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Icons**: Lucide React
 - **Date Handling**: date-fns
 - **Validation**: Zod
-- **AI Services**: OpenAI GPT-5, OpenAI TTS-1
+- **AI Services**: OpenAI GPT-5, OpenAI TTS-1, Perplexity API (external research fallback)
 - **Emoji Picker**: emoji-picker-react
