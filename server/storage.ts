@@ -242,6 +242,27 @@ import {
   type InsertCloudStorageSyncRun,
   type CloudStorageFile,
   type InsertCloudStorageFile,
+  aiRoles,
+  aiPermissions,
+  aiRolePermissions,
+  aiUserRoles,
+  aiResourceScopes,
+  aiPolicyRules,
+  aiAccessAudit,
+  type AiRole,
+  type InsertAiRole,
+  type AiPermission,
+  type InsertAiPermission,
+  type AiRolePermission,
+  type InsertAiRolePermission,
+  type AiUserRole,
+  type InsertAiUserRole,
+  type AiResourceScope,
+  type InsertAiResourceScope,
+  type AiPolicyRule,
+  type InsertAiPolicyRule,
+  type AiAccessAudit,
+  type InsertAiAccessAudit,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -852,6 +873,56 @@ export interface IStorage {
   getCloudStorageFilesByFolder(folderId: string): Promise<CloudStorageFile[]>;
   updateCloudStorageFile(id: string, updates: Partial<InsertCloudStorageFile>): Promise<CloudStorageFile>;
   deleteCloudStorageFile(id: string): Promise<void>;
+
+  // ============================================================================
+  // AI RBAC (Role-Based Access Control) OPERATIONS
+  // ============================================================================
+  
+  // AI Roles
+  createAiRole(role: InsertAiRole): Promise<AiRole>;
+  getAiRole(id: string): Promise<AiRole | undefined>;
+  getAiRolesByOrganization(organizationId: string): Promise<AiRole[]>;
+  getDefaultAiRole(organizationId: string): Promise<AiRole | undefined>;
+  updateAiRole(id: string, updates: Partial<InsertAiRole>): Promise<AiRole>;
+  deleteAiRole(id: string): Promise<void>;
+  
+  // AI Permissions
+  createAiPermission(permission: InsertAiPermission): Promise<AiPermission>;
+  getAiPermission(id: string): Promise<AiPermission | undefined>;
+  getAiPermissionsByOrganization(organizationId: string): Promise<AiPermission[]>;
+  updateAiPermission(id: string, updates: Partial<InsertAiPermission>): Promise<AiPermission>;
+  deleteAiPermission(id: string): Promise<void>;
+  
+  // AI Role Permissions
+  createAiRolePermission(rolePermission: InsertAiRolePermission): Promise<AiRolePermission>;
+  getAiRolePermissions(roleId: string): Promise<AiRolePermission[]>;
+  deleteAiRolePermission(roleId: string, permissionId: string): Promise<void>;
+  
+  // AI User Roles
+  createAiUserRole(userRole: InsertAiUserRole): Promise<AiUserRole>;
+  getAiUserRoles(userId: string, organizationId: string): Promise<AiUserRole[]>;
+  deleteAiUserRole(id: string): Promise<void>;
+  
+  // AI Resource Scopes
+  createAiResourceScope(scope: InsertAiResourceScope): Promise<AiResourceScope>;
+  getAiResourceScope(id: string): Promise<AiResourceScope | undefined>;
+  getAiResourceScopesByOrganization(organizationId: string): Promise<AiResourceScope[]>;
+  getAiResourceScopeByResource(organizationId: string, resource: string): Promise<AiResourceScope | undefined>;
+  updateAiResourceScope(id: string, updates: Partial<InsertAiResourceScope>): Promise<AiResourceScope>;
+  deleteAiResourceScope(id: string): Promise<void>;
+  
+  // AI Policy Rules
+  createAiPolicyRule(rule: InsertAiPolicyRule): Promise<AiPolicyRule>;
+  getAiPolicyRule(id: string): Promise<AiPolicyRule | undefined>;
+  getAiPolicyRulesByOrganization(organizationId: string): Promise<AiPolicyRule[]>;
+  getActiveAiPolicyRules(organizationId: string, agentId?: string): Promise<AiPolicyRule[]>;
+  updateAiPolicyRule(id: string, updates: Partial<InsertAiPolicyRule>): Promise<AiPolicyRule>;
+  deleteAiPolicyRule(id: string): Promise<void>;
+  
+  // AI Access Audit
+  createAiAccessAudit(audit: InsertAiAccessAudit): Promise<AiAccessAudit>;
+  getAiAccessAuditsByOrganization(organizationId: string, limit?: number): Promise<AiAccessAudit[]>;
+  getAiAccessAuditsByUser(userId: string, limit?: number): Promise<AiAccessAudit[]>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -7614,6 +7685,223 @@ export class DatabaseStorage implements IStorage {
     await db.delete(cloudStorageFiles).where(eq(cloudStorageFiles.id, id));
   }
 
+  // ============================================================================
+  // AI RBAC (Role-Based Access Control) OPERATIONS
+  // ============================================================================
+
+  async createAiRole(role: InsertAiRole): Promise<AiRole> {
+    const [created] = await db.insert(aiRoles).values(role).returning();
+    return created;
+  }
+
+  async getAiRole(id: string): Promise<AiRole | undefined> {
+    const [role] = await db.select().from(aiRoles).where(eq(aiRoles.id, id));
+    return role || undefined;
+  }
+
+  async getAiRolesByOrganization(organizationId: string): Promise<AiRole[]> {
+    return await db.select().from(aiRoles)
+      .where(eq(aiRoles.organizationId, organizationId))
+      .orderBy(asc(aiRoles.name));
+  }
+
+  async getDefaultAiRole(organizationId: string): Promise<AiRole | undefined> {
+    const [role] = await db.select().from(aiRoles)
+      .where(and(
+        eq(aiRoles.organizationId, organizationId),
+        eq(aiRoles.isDefault, true)
+      ));
+    return role || undefined;
+  }
+
+  async updateAiRole(id: string, updates: Partial<InsertAiRole>): Promise<AiRole> {
+    const [updated] = await db.update(aiRoles)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiRoles.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAiRole(id: string): Promise<void> {
+    await db.delete(aiRoles).where(eq(aiRoles.id, id));
+  }
+
+  async createAiPermission(permission: InsertAiPermission): Promise<AiPermission> {
+    const [created] = await db.insert(aiPermissions).values(permission).returning();
+    return created;
+  }
+
+  async getAiPermission(id: string): Promise<AiPermission | undefined> {
+    const [permission] = await db.select().from(aiPermissions).where(eq(aiPermissions.id, id));
+    return permission || undefined;
+  }
+
+  async getAiPermissionsByOrganization(organizationId: string): Promise<AiPermission[]> {
+    return await db.select().from(aiPermissions)
+      .where(eq(aiPermissions.organizationId, organizationId))
+      .orderBy(asc(aiPermissions.namespace), asc(aiPermissions.resource));
+  }
+
+  async updateAiPermission(id: string, updates: Partial<InsertAiPermission>): Promise<AiPermission> {
+    const [updated] = await db.update(aiPermissions)
+      .set(updates)
+      .where(eq(aiPermissions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAiPermission(id: string): Promise<void> {
+    await db.delete(aiPermissions).where(eq(aiPermissions.id, id));
+  }
+
+  async createAiRolePermission(rolePermission: InsertAiRolePermission): Promise<AiRolePermission> {
+    const [created] = await db.insert(aiRolePermissions).values(rolePermission).returning();
+    return created;
+  }
+
+  async getAiRolePermissions(roleId: string): Promise<AiRolePermission[]> {
+    return await db.select().from(aiRolePermissions)
+      .where(eq(aiRolePermissions.roleId, roleId));
+  }
+
+  async deleteAiRolePermission(roleId: string, permissionId: string): Promise<void> {
+    await db.delete(aiRolePermissions)
+      .where(and(
+        eq(aiRolePermissions.roleId, roleId),
+        eq(aiRolePermissions.permissionId, permissionId)
+      ));
+  }
+
+  async createAiUserRole(userRole: InsertAiUserRole): Promise<AiUserRole> {
+    const [created] = await db.insert(aiUserRoles).values(userRole).returning();
+    return created;
+  }
+
+  async getAiUserRoles(userId: string, organizationId: string): Promise<AiUserRole[]> {
+    const userRoleRecords = await db.select().from(aiUserRoles)
+      .where(eq(aiUserRoles.userId, userId));
+    
+    const validRoles: AiUserRole[] = [];
+    for (const ur of userRoleRecords) {
+      const role = await this.getAiRole(ur.roleId);
+      if (role && role.organizationId === organizationId) {
+        if (!ur.expiresAt || ur.expiresAt > new Date()) {
+          validRoles.push(ur);
+        }
+      }
+    }
+    return validRoles;
+  }
+
+  async deleteAiUserRole(id: string): Promise<void> {
+    await db.delete(aiUserRoles).where(eq(aiUserRoles.id, id));
+  }
+
+  async createAiResourceScope(scope: InsertAiResourceScope): Promise<AiResourceScope> {
+    const [created] = await db.insert(aiResourceScopes).values(scope).returning();
+    return created;
+  }
+
+  async getAiResourceScope(id: string): Promise<AiResourceScope | undefined> {
+    const [scope] = await db.select().from(aiResourceScopes).where(eq(aiResourceScopes.id, id));
+    return scope || undefined;
+  }
+
+  async getAiResourceScopesByOrganization(organizationId: string): Promise<AiResourceScope[]> {
+    return await db.select().from(aiResourceScopes)
+      .where(eq(aiResourceScopes.organizationId, organizationId))
+      .orderBy(asc(aiResourceScopes.resource));
+  }
+
+  async getAiResourceScopeByResource(organizationId: string, resource: string): Promise<AiResourceScope | undefined> {
+    const [scope] = await db.select().from(aiResourceScopes)
+      .where(and(
+        eq(aiResourceScopes.organizationId, organizationId),
+        eq(aiResourceScopes.resource, resource),
+        eq(aiResourceScopes.isActive, true)
+      ));
+    return scope || undefined;
+  }
+
+  async updateAiResourceScope(id: string, updates: Partial<InsertAiResourceScope>): Promise<AiResourceScope> {
+    const [updated] = await db.update(aiResourceScopes)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiResourceScopes.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAiResourceScope(id: string): Promise<void> {
+    await db.delete(aiResourceScopes).where(eq(aiResourceScopes.id, id));
+  }
+
+  async createAiPolicyRule(rule: InsertAiPolicyRule): Promise<AiPolicyRule> {
+    const [created] = await db.insert(aiPolicyRules).values(rule).returning();
+    return created;
+  }
+
+  async getAiPolicyRule(id: string): Promise<AiPolicyRule | undefined> {
+    const [rule] = await db.select().from(aiPolicyRules).where(eq(aiPolicyRules.id, id));
+    return rule || undefined;
+  }
+
+  async getAiPolicyRulesByOrganization(organizationId: string): Promise<AiPolicyRule[]> {
+    return await db.select().from(aiPolicyRules)
+      .where(eq(aiPolicyRules.organizationId, organizationId))
+      .orderBy(desc(aiPolicyRules.priority));
+  }
+
+  async getActiveAiPolicyRules(organizationId: string, agentId?: string): Promise<AiPolicyRule[]> {
+    if (agentId) {
+      return await db.select().from(aiPolicyRules)
+        .where(and(
+          eq(aiPolicyRules.organizationId, organizationId),
+          eq(aiPolicyRules.isActive, true),
+          or(
+            eq(aiPolicyRules.agentId, agentId),
+            isNull(aiPolicyRules.agentId)
+          )
+        ))
+        .orderBy(desc(aiPolicyRules.priority));
+    }
+    return await db.select().from(aiPolicyRules)
+      .where(and(
+        eq(aiPolicyRules.organizationId, organizationId),
+        eq(aiPolicyRules.isActive, true)
+      ))
+      .orderBy(desc(aiPolicyRules.priority));
+  }
+
+  async updateAiPolicyRule(id: string, updates: Partial<InsertAiPolicyRule>): Promise<AiPolicyRule> {
+    const [updated] = await db.update(aiPolicyRules)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiPolicyRules.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteAiPolicyRule(id: string): Promise<void> {
+    await db.delete(aiPolicyRules).where(eq(aiPolicyRules.id, id));
+  }
+
+  async createAiAccessAudit(audit: InsertAiAccessAudit): Promise<AiAccessAudit> {
+    const [created] = await db.insert(aiAccessAudit).values(audit).returning();
+    return created;
+  }
+
+  async getAiAccessAuditsByOrganization(organizationId: string, limit = 100): Promise<AiAccessAudit[]> {
+    return await db.select().from(aiAccessAudit)
+      .where(eq(aiAccessAudit.organizationId, organizationId))
+      .orderBy(desc(aiAccessAudit.createdAt))
+      .limit(limit);
+  }
+
+  async getAiAccessAuditsByUser(userId: string, limit = 100): Promise<AiAccessAudit[]> {
+    return await db.select().from(aiAccessAudit)
+      .where(eq(aiAccessAudit.userId, userId))
+      .orderBy(desc(aiAccessAudit.createdAt))
+      .limit(limit);
+  }
 }
 
 export const storage = new DatabaseStorage();

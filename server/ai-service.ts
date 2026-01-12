@@ -4,6 +4,8 @@ import { storage } from './storage';
 import { knowledgeRetrieval, type SearchResult, type RetrievalOptions, type EnhancedSearchResponse, type RagTraceContext } from './knowledge-retrieval';
 import { conversationLogger } from './conversation-logger';
 import { convIntel } from './conversational-intelligence';
+import { rbacService, type AccessCheckContext, type ResourceRequest, type AccessDecision } from './services/rbac-service';
+import { dataBroker } from './services/data-connector';
 
 // Model pricing (per 1M tokens) - updated for GPT-5
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -207,6 +209,8 @@ export interface SmartAgentResponse extends AIAgentResponse {
   messageCount: number;
   avgConfidence: number;
   shouldLearn: boolean;
+  rbacDenied?: boolean;
+  deniedResource?: string;
 }
 
 export interface QueryAnalysis {
@@ -389,6 +393,134 @@ Provide a JSON response with:
         confidence: 30,
         reasoning: 'Error occurred during classification, defaulting to general',
       };
+    }
+  }
+
+  /**
+   * Check if user has permission to access the data resource they're requesting
+   * Returns access decision with optional data if allowed
+   */
+  static async checkDataAccessPermission(
+    message: string,
+    context: {
+      userId?: string;
+      customerId?: string;
+      organizationId: string;
+      workspaceId?: string;
+      departmentId?: string;
+      agentId?: string;
+      conversationId?: string;
+      isCustomerRequest?: boolean;
+    }
+  ): Promise<{
+    requiresDataAccess: boolean;
+    accessDecision?: AccessDecision;
+    resourceData?: unknown[];
+    resourceInfo?: { namespace: string; resource: string; action: string };
+  }> {
+    try {
+      const resourceIntent = await rbacService.classifyResourceIntent(message, context.organizationId);
+      
+      if (!resourceIntent || resourceIntent.confidence < 0.5) {
+        return { requiresDataAccess: false };
+      }
+
+      console.log(`[RBAC] Detected data resource request: ${resourceIntent.namespace}.${resourceIntent.resource} (${resourceIntent.action})`);
+
+      // SECURITY: Deny-by-default for customer requests
+      // Customers should NEVER have access to internal data resources unless explicitly granted
+      if (context.isCustomerRequest && !context.userId) {
+        console.log(`[RBAC] Customer request denied by default - no explicit permissions granted`);
+        
+        const denialDecision: AccessDecision = {
+          allowed: false,
+          decision: 'deny',
+          reason: "I can help you with general questions, but I'm not able to access internal business data. If you need specific information like sales reports or inventory data, please contact your assigned support representative.",
+          ruleId: 'customer-deny-by-default',
+          escalationPolicy: undefined,
+          fallbackResponse: "I'm sorry, but this information is only available to authorized staff members. Is there anything else I can help you with?",
+        };
+
+        await rbacService.logAccessAudit({
+          organizationId: context.organizationId,
+          requesterId: context.customerId || 'anonymous',
+          requesterType: 'customer',
+          resource: `${resourceIntent.namespace}.${resourceIntent.resource}`,
+          action: resourceIntent.action,
+          decision: 'deny',
+          reason: 'Customer requests denied by default policy',
+          correlationId: context.conversationId,
+        });
+
+        return {
+          requiresDataAccess: true,
+          accessDecision: denialDecision,
+          resourceInfo: {
+            namespace: resourceIntent.namespace,
+            resource: resourceIntent.resource,
+            action: resourceIntent.action,
+          },
+        };
+      }
+
+      const accessContext: AccessCheckContext = {
+        userId: context.userId,
+        customerId: context.customerId,
+        organizationId: context.organizationId,
+        workspaceId: context.workspaceId,
+        departmentId: context.departmentId,
+        agentId: context.agentId,
+        conversationId: context.conversationId,
+      };
+
+      const resourceRequest: ResourceRequest = {
+        resource: resourceIntent.resource,
+        action: resourceIntent.action,
+        namespace: resourceIntent.namespace,
+        intent: message,
+      };
+
+      const accessDecision = await rbacService.checkResourceAccess(accessContext, resourceRequest);
+
+      console.log(`[RBAC] Access decision: ${accessDecision.decision} - ${accessDecision.reason}`);
+
+      if (!accessDecision.allowed) {
+        return {
+          requiresDataAccess: true,
+          accessDecision,
+          resourceInfo: {
+            namespace: resourceIntent.namespace,
+            resource: resourceIntent.resource,
+            action: resourceIntent.action,
+          },
+        };
+      }
+
+      const queryResult = await dataBroker.queryResource(
+        context.organizationId,
+        `${resourceIntent.namespace}.${resourceIntent.resource}`,
+        {
+          organizationId: context.organizationId,
+          workspaceId: context.workspaceId,
+          departmentId: context.departmentId,
+          userId: context.userId,
+          customerId: context.customerId,
+        }
+      );
+
+      return {
+        requiresDataAccess: true,
+        accessDecision,
+        resourceData: queryResult.success ? (queryResult.data || []) : [],
+        resourceInfo: {
+          namespace: resourceIntent.namespace,
+          resource: resourceIntent.resource,
+          action: resourceIntent.action,
+        },
+      };
+    } catch (error) {
+      console.error('[RBAC] Error checking data access permission:', error);
+      return { requiresDataAccess: false };
     }
   }
 
@@ -1409,6 +1541,70 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
           contextData = JSON.parse(conversation.contextData);
         } catch (e) {
           console.error('Failed to parse context data:', e);
+        }
+      }
+
+      // ✅ RBAC CHECK: Verify user has permission to access requested data resources
+      // IMPORTANT: Use the actual message author for RBAC context, NOT the assigned agent
+      // Customer messages should be evaluated with customer permissions (deny by default)
+      // Agent messages would have their own permissions (but this flow is for customer chat)
+      const organizationId = agent.organizationId || conversation?.organizationId;
+      if (organizationId) {
+        // In customer chat flow, the requester is always the customer (not the assigned agent)
+        // Customers should NOT inherit agent permissions for data access
+        const rbacContext = {
+          userId: undefined, // Customer messages should not have staff userId
+          customerId: conversation?.customerId, // Use customer identity for RBAC evaluation
+          organizationId: organizationId,
+          workspaceId: agent.workspaceId || undefined,
+          departmentId: agent.departmentId || undefined,
+          agentId: agent.id,
+          conversationId: conversationId,
+          isCustomerRequest: true, // Flag to indicate this is a customer-originated request
+        };
+
+        const dataAccessCheck = await this.checkDataAccessPermission(customerMessage, rbacContext);
+
+        if (dataAccessCheck.requiresDataAccess && dataAccessCheck.accessDecision && !dataAccessCheck.accessDecision.allowed) {
+          console.log(`[RBAC] Access denied for ${dataAccessCheck.resourceInfo?.namespace}.${dataAccessCheck.resourceInfo?.resource}`);
+          
+          const denialMessage = dataAccessCheck.accessDecision.fallbackResponse || 
+            dataAccessCheck.accessDecision.reason ||
+            "I'm sorry, but you don't have permission to access that information. Please contact your administrator if you need access.";
+
+          await storage.updateAiAgentSession(session.id, {
+            messageCount: (session.messageCount || 0) + 1,
+          });
+
+          return {
+            response: denialMessage,
+            confidence: 100,
+            requiresHumanTakeover: dataAccessCheck.accessDecision.escalationPolicy === 'notify_admin',
+            suggestedActions: dataAccessCheck.accessDecision.escalationPolicy === 'notify_admin' 
+              ? ['Escalate to manager for access approval'] 
+              : [],
+            knowledgeUsed: [],
+            agentId: agent.id,
+            format: 'regular',
+            sessionId: session.id,
+            messageCount: (session.messageCount || 0) + 1,
+            avgConfidence: session.avgConfidence || 0,
+            shouldLearn: false,
+            rbacDenied: true,
+            deniedResource: `${dataAccessCheck.resourceInfo?.namespace}.${dataAccessCheck.resourceInfo?.resource}`,
+          };
+        }
+
+        if (dataAccessCheck.requiresDataAccess && dataAccessCheck.accessDecision?.allowed && dataAccessCheck.resourceData) {
+          console.log(`[RBAC] Access granted for ${dataAccessCheck.resourceInfo?.namespace}.${dataAccessCheck.resourceInfo?.resource}`);
+          contextData = {
+            ...contextData,
+            externalData: {
+              resource: `${dataAccessCheck.resourceInfo?.namespace}.${dataAccessCheck.resourceInfo?.resource}`,
+              data: dataAccessCheck.resourceData,
+              retrievedAt: new Date().toISOString(),
+            },
+          };
         }
       }
 

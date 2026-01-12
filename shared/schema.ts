@@ -4007,3 +4007,188 @@ export const insertDocumentQualityScoreSchema = createInsertSchema(documentQuali
 });
 export type InsertDocumentQualityScore = z.infer<typeof insertDocumentQualityScoreSchema>;
 export type DocumentQualityScore = typeof documentQualityScores.$inferSelect;
+
+// ============================================================================
+// RBAC (Role-Based Access Control) for AI Assistance
+// ============================================================================
+
+// AI Roles - Define roles that can be assigned to users for AI access control
+export const aiRoles = pgTable("ai_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(), // e.g., "Cashier", "Manager", "Admin", "Sales Rep"
+  description: text("description"),
+  isDefault: boolean("is_default").notNull().default(false), // Default role for new users
+  isSystemRole: boolean("is_system_role").notNull().default(false), // Built-in system roles
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("ai_roles_org_idx").on(table.organizationId),
+  nameIdx: index("ai_roles_name_idx").on(table.organizationId, table.name),
+}));
+
+// AI Permissions - Define granular permissions for data/resource access
+export const aiPermissions = pgTable("ai_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  namespace: text("namespace").notNull(), // e.g., "pos", "inventory", "hr", "finance", "crm"
+  action: text("action").notNull(), // e.g., "read", "write", "delete", "export"
+  resource: text("resource").notNull(), // e.g., "sales_daily", "sales_monthly", "employee_schedule"
+  description: text("description"),
+  sensitivityLevel: integer("sensitivity_level").notNull().default(1), // 1=low, 2=medium, 3=high, 4=critical
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("ai_perms_org_idx").on(table.organizationId),
+  resourceIdx: index("ai_perms_resource_idx").on(table.namespace, table.resource),
+}));
+
+// AI Role Permissions - Map roles to permissions (many-to-many)
+export const aiRolePermissions = pgTable("ai_role_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roleId: varchar("role_id").notNull().references(() => aiRoles.id, { onDelete: 'cascade' }),
+  permissionId: varchar("permission_id").notNull().references(() => aiPermissions.id, { onDelete: 'cascade' }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  rolePermIdx: uniqueIndex("ai_role_perms_idx").on(table.roleId, table.permissionId),
+}));
+
+// AI User Roles - Assign roles to users with scope (org/workspace/department level)
+export const aiUserRoles = pgTable("ai_user_roles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  roleId: varchar("role_id").notNull().references(() => aiRoles.id, { onDelete: 'cascade' }),
+  scopeType: text("scope_type").notNull().default("organization"), // 'organization' | 'workspace' | 'department'
+  scopeId: varchar("scope_id").notNull(), // ID of the scope entity
+  grantedBy: varchar("granted_by").references(() => users.id),
+  expiresAt: timestamp("expires_at"), // Optional: role assignment expiration
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userRoleIdx: index("ai_user_roles_user_idx").on(table.userId),
+  roleIdx: index("ai_user_roles_role_idx").on(table.roleId),
+  scopeIdx: index("ai_user_roles_scope_idx").on(table.scopeType, table.scopeId),
+}));
+
+// AI Resource Scopes - Define data sources and their connection details
+export const aiResourceScopes = pgTable("ai_resource_scopes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(), // e.g., "POS Database", "HR System", "CRM"
+  resource: text("resource").notNull(), // Resource identifier matching aiPermissions
+  dataSourceType: text("data_source_type").notNull(), // 'azure_sql' | 'azure_cosmos' | 'aws_rds' | 'aws_dynamodb' | 'postgresql' | 'internal'
+  connectionSecretKey: text("connection_secret_key"), // Reference to secret containing connection string
+  tableOrCollection: text("table_or_collection"), // Target table/collection name
+  queryTemplate: text("query_template"), // Parameterized query template for this resource
+  rowLevelFilters: jsonb("row_level_filters"), // { "organizationId": "{{org_id}}", "workspaceId": "{{workspace_id}}" }
+  metadata: jsonb("metadata"), // Additional connector-specific configuration
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("ai_resource_scopes_org_idx").on(table.organizationId),
+  resourceIdx: index("ai_resource_scopes_resource_idx").on(table.resource),
+}));
+
+// AI Policy Rules - Define access policies for AI agents
+export const aiPolicyRules = pgTable("ai_policy_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  agentId: varchar("agent_id").references(() => aiAgents.id, { onDelete: 'cascade' }), // Null means applies to all agents
+  name: text("name").notNull(),
+  description: text("description"),
+  intentPatterns: text("intent_patterns").array(), // Intent patterns this rule matches (regex)
+  resourcePatterns: text("resource_patterns").array(), // Resource patterns (e.g., "pos.*", "sales.*")
+  requiredPermissions: text("required_permissions").array(), // Required permission IDs
+  fallbackResponseTemplate: text("fallback_response_template"), // Template for denied access
+  escalationPolicy: text("escalation_policy"), // 'notify_admin' | 'request_approval' | 'deny_silently'
+  priority: integer("priority").notNull().default(0), // Higher = checked first
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("ai_policy_rules_org_idx").on(table.organizationId),
+  agentIdx: index("ai_policy_rules_agent_idx").on(table.agentId),
+  priorityIdx: index("ai_policy_rules_priority_idx").on(table.priority),
+}));
+
+// AI Access Audit - Log all AI access decisions for compliance and debugging
+export const aiAccessAudit = pgTable("ai_access_audit", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  messageId: varchar("message_id"),
+  userId: varchar("user_id").references(() => users.id),
+  customerId: varchar("customer_id").references(() => customers.id),
+  agentId: varchar("agent_id").references(() => aiAgents.id),
+  requestedResource: text("requested_resource").notNull(),
+  requestedAction: text("requested_action").notNull(),
+  decision: text("decision").notNull(), // 'allowed' | 'denied' | 'escalated'
+  decisionReason: text("decision_reason"),
+  policyRuleId: varchar("policy_rule_id").references(() => aiPolicyRules.id),
+  userRoles: text("user_roles").array(), // Snapshot of user's roles at decision time
+  matchedPermissions: text("matched_permissions").array(), // Permissions that were checked
+  dataQuery: text("data_query"), // Sanitized version of query executed (if allowed)
+  responseLatencyMs: integer("response_latency_ms"),
+  metadata: jsonb("metadata"), // Additional context
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("ai_access_audit_org_idx").on(table.organizationId),
+  convIdx: index("ai_access_audit_conv_idx").on(table.conversationId),
+  userIdx: index("ai_access_audit_user_idx").on(table.userId),
+  decisionIdx: index("ai_access_audit_decision_idx").on(table.decision),
+  createdIdx: index("ai_access_audit_created_idx").on(table.createdAt),
+}));
+
+// RBAC Schema insert schemas and types
+export const insertAiRoleSchema = createInsertSchema(aiRoles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertAiRole = z.infer<typeof insertAiRoleSchema>;
+export type AiRole = typeof aiRoles.$inferSelect;
+
+export const insertAiPermissionSchema = createInsertSchema(aiPermissions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAiPermission = z.infer<typeof insertAiPermissionSchema>;
+export type AiPermission = typeof aiPermissions.$inferSelect;
+
+export const insertAiRolePermissionSchema = createInsertSchema(aiRolePermissions).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAiRolePermission = z.infer<typeof insertAiRolePermissionSchema>;
+export type AiRolePermission = typeof aiRolePermissions.$inferSelect;
+
+export const insertAiUserRoleSchema = createInsertSchema(aiUserRoles).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAiUserRole = z.infer<typeof insertAiUserRoleSchema>;
+export type AiUserRole = typeof aiUserRoles.$inferSelect;
+
+export const insertAiResourceScopeSchema = createInsertSchema(aiResourceScopes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertAiResourceScope = z.infer<typeof insertAiResourceScopeSchema>;
+export type AiResourceScope = typeof aiResourceScopes.$inferSelect;
+
+export const insertAiPolicyRuleSchema = createInsertSchema(aiPolicyRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertAiPolicyRule = z.infer<typeof insertAiPolicyRuleSchema>;
+export type AiPolicyRule = typeof aiPolicyRules.$inferSelect;
+
+export const insertAiAccessAuditSchema = createInsertSchema(aiAccessAudit).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertAiAccessAudit = z.infer<typeof insertAiAccessAuditSchema>;
+export type AiAccessAudit = typeof aiAccessAudit.$inferSelect;

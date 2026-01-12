@@ -57,6 +57,14 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Cloud Storage Marketplace**: Admin page allowing workspace users to connect Google Drive, OneDrive, and Dropbox for automatic knowledge base file syncing, with OAuth 2.0 authentication and multi-tenant isolation.
 - **Embed Widget Security**: Ensures multi-tenant isolation through organization-scoped customers, token-based authentication using organization-specific embed secrets, and strict cross-tenant protection for customer assignment.
 - **API Integration Admin Page**: Self-service console (`/api-integration`) for managing embed secrets, generating embed code snippets (web, server-side, mobile), and accessing comprehensive documentation for integrating the support chat.
+- **AI Data Access RBAC**: Role-based access control for AI assistance with external database integration:
+  - **RBAC Schema**: 7 tables (aiRoles, aiPermissions, aiRolePermissions, aiUserRoles, aiResourceScopes, aiPolicyRules, aiAccessAudit)
+  - **Intent Classification**: Pattern matching detects data resource requests (e.g., "What are today's sales?" → pos.sales_daily.read)
+  - **Access Enforcement**: AI checks permissions before data retrieval; returns denial message if access not permitted
+  - **External Database Connectors**: Supports Azure SQL, Azure Cosmos DB, AWS RDS, AWS DynamoDB with row-level security filters
+  - **Audit Logging**: All access decisions logged with correlation tracking
+  - **Policy Rules**: Configurable allow/deny rules with time-based conditions and escalation policies
+  - **Documentation**: Complete API guide at `docs/api/ai-data-integration.md`
 
 ## External Dependencies
 
