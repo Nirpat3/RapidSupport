@@ -1,0 +1,235 @@
+/* Print styles for knowledge base documents */
+/* Works with AirPrint on iOS/iPadOS and all other print systems */
+
+@media print {
+  /* Hide navigation and non-essential elements */
+  nav,
+  .sidebar,
+  .no-print,
+  button:not(.print-include),
+  [data-testid="button-print"],
+  .mobile-nav,
+  header:not(.print-header),
+  footer:not(.print-footer) {
+    display: none !important;
+  }
+
+  /* Reset page margins */
+  @page {
+    margin: 0.75in;
+    size: auto;
+  }
+
+  /* Body styling for print */
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    font-size: 12pt;
+    line-height: 1.5;
+    color: #000 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Ensure good contrast */
+  * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Links */
+  a,
+  a:visited {
+    color: #000 !important;
+    text-decoration: underline;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666 !important;
+  }
+
+  a[href^="#"]::after,
+  a[href^="javascript:"]::after {
+    content: "";
+  }
+
+  /* Headings */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+  }
+
+  h1 {
+    font-size: 24pt;
+    margin-bottom: 12pt;
+  }
+
+  h2 {
+    font-size: 18pt;
+    margin-top: 18pt;
+    margin-bottom: 8pt;
+  }
+
+  h3 {
+    font-size: 14pt;
+    margin-top: 14pt;
+    margin-bottom: 6pt;
+  }
+
+  /* Paragraphs and text */
+  p {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Lists */
+  ul, ol {
+    page-break-inside: avoid;
+  }
+
+  li {
+    page-break-inside: avoid;
+  }
+
+  /* Tables */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th, td {
+    border: 1px solid #000 !important;
+    padding: 8pt;
+    text-align: left;
+  }
+
+  th {
+    font-weight: bold;
+    background: #f0f0f0 !important;
+  }
+
+  /* Images */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  /* Code blocks */
+  pre, code {
+    font-family: "SF Mono", Menlo, Monaco, monospace;
+    font-size: 10pt;
+    background: #f5f5f5 !important;
+    border: 1px solid #ddd !important;
+    page-break-inside: avoid;
+  }
+
+  pre {
+    padding: 8pt;
+    overflow-x: visible;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  code {
+    padding: 2pt 4pt;
+  }
+
+  /* Blockquotes */
+  blockquote {
+    border-left: 3pt solid #000 !important;
+    padding-left: 12pt;
+    margin-left: 0;
+    font-style: italic;
+  }
+
+  /* Cards and containers */
+  .card,
+  [class*="Card"] {
+    border: 1px solid #ddd !important;
+    page-break-inside: avoid;
+    margin-bottom: 12pt;
+  }
+
+  /* Steps */
+  .step,
+  [data-testid^="step-"] {
+    page-break-inside: avoid;
+    border-left: 3pt solid #6366f1 !important;
+    padding-left: 12pt;
+    margin-bottom: 12pt;
+  }
+
+  /* Badges */
+  .badge,
+  [class*="Badge"] {
+    border: 1px solid #000 !important;
+    padding: 2pt 6pt;
+  }
+
+  /* Page breaks */
+  .page-break-before {
+    page-break-before: always;
+  }
+
+  .page-break-after {
+    page-break-after: always;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+
+  /* Print header */
+  .print-header {
+    display: block !important;
+    text-align: center;
+    padding-bottom: 12pt;
+    border-bottom: 1pt solid #000;
+    margin-bottom: 24pt;
+  }
+
+  /* Print footer */
+  .print-footer {
+    display: block !important;
+    text-align: center;
+    padding-top: 12pt;
+    border-top: 1pt solid #ddd;
+    margin-top: 24pt;
+    font-size: 10pt;
+    color: #666 !important;
+  }
+
+  /* Article metadata */
+  .article-meta {
+    font-size: 10pt;
+    color: #666 !important;
+    margin-bottom: 18pt;
+    padding-bottom: 12pt;
+    border-bottom: 1pt solid #ddd;
+  }
+
+  /* Content area */
+  .article-content,
+  .print-content {
+    max-width: none !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+}
+
+/* AirPrint specific optimizations */
+@media print and (-webkit-min-device-pixel-ratio: 0) {
+  /* iOS/Safari specific print styles */
+  body {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Ensure proper rendering on iOS */
+  * {
+    -webkit-print-color-adjust: exact;
+  }
+}

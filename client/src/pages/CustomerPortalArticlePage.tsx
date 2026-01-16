@@ -415,25 +415,136 @@ export default function CustomerPortalArticlePage() {
     if (article) {
       const printWindow = window.open('', '_blank');
       if (printWindow) {
+        const formattedDate = new Date(article.updatedAt).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        
+        const cleanContent = article.content ? cleanDocumentMetadata(article.content) : '';
+        const formattedContent = formatPlainTextContent(cleanContent);
+        
         printWindow.document.write(`
           <!DOCTYPE html>
           <html>
             <head>
-              <title>${article.title}</title>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>${article.title} - Nova AI Knowledge Base</title>
               <style>
-                body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; }
-                h1 { color: #111; font-size: 2rem; margin-bottom: 1.5rem; }
-                .meta { color: #666; font-size: 0.875rem; margin-bottom: 2rem; }
-                .step { margin: 1.5rem 0; padding: 1rem; border-left: 4px solid #6366f1; background: #f8fafc; }
-                .step-number { font-weight: bold; color: #6366f1; margin-bottom: 0.5rem; }
-                .content { color: #333; }
-                @media print { body { margin: 0; padding: 1rem; } .step { break-inside: avoid; } }
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body {
+                  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+                  max-width: 800px;
+                  margin: 0 auto;
+                  padding: 40px;
+                  line-height: 1.6;
+                  color: #1a1a1a;
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .header {
+                  border-bottom: 2px solid #e5e5e5;
+                  padding-bottom: 20px;
+                  margin-bottom: 30px;
+                }
+                h1 { font-size: 28px; font-weight: 600; color: #111; margin-bottom: 16px; }
+                .meta {
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 16px;
+                  font-size: 14px;
+                  color: #666;
+                }
+                .meta-item { display: flex; align-items: center; gap: 6px; }
+                .category {
+                  background: #f0f0f0;
+                  padding: 4px 12px;
+                  border-radius: 4px;
+                  font-weight: 500;
+                  font-size: 13px;
+                }
+                .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+                .tag {
+                  background: #e5e5e5;
+                  padding: 2px 8px;
+                  border-radius: 3px;
+                  font-size: 12px;
+                }
+                .content { font-size: 16px; }
+                .content h1, .content h2, .content h3 {
+                  margin-top: 24px;
+                  margin-bottom: 12px;
+                  color: #111;
+                }
+                .content h1 { font-size: 24px; }
+                .content h2 { font-size: 20px; }
+                .content h3 { font-size: 18px; }
+                .content p { margin-bottom: 16px; }
+                .content ul, .content ol {
+                  margin-bottom: 16px;
+                  padding-left: 24px;
+                }
+                .content li { margin-bottom: 8px; }
+                .content code {
+                  background: #f5f5f5;
+                  padding: 2px 6px;
+                  border-radius: 4px;
+                  font-family: "SF Mono", Menlo, monospace;
+                  font-size: 14px;
+                }
+                .content pre {
+                  background: #f5f5f5;
+                  padding: 16px;
+                  border-radius: 8px;
+                  overflow-x: auto;
+                  margin-bottom: 16px;
+                }
+                .content blockquote {
+                  border-left: 4px solid #e5e5e5;
+                  padding-left: 16px;
+                  color: #666;
+                  margin-bottom: 16px;
+                }
+                .footer {
+                  margin-top: 40px;
+                  padding-top: 20px;
+                  border-top: 1px solid #e5e5e5;
+                  font-size: 12px;
+                  color: #999;
+                  text-align: center;
+                }
+                @media print {
+                  body { padding: 20px; }
+                  .header { page-break-after: avoid; }
+                  h1, h2, h3 { page-break-after: avoid; }
+                  ul, ol, pre { page-break-inside: avoid; }
+                }
+                @page {
+                  margin: 0.75in;
+                  size: auto;
+                }
               </style>
             </head>
             <body>
-              <h1>${article.title}</h1>
-              <div class="meta">Category: ${article.category} | Views: ${article.usageCount || 0}</div>
-              <div class="content">${article.content || ''}</div>
+              <div class="header">
+                <h1>${article.title}</h1>
+                <div class="meta">
+                  <span class="meta-item"><span class="category">${article.category}</span></span>
+                  <span class="meta-item">Updated: ${formattedDate}</span>
+                  <span class="meta-item">Views: ${article.usageCount || 0}</span>
+                </div>
+                ${article.tags && article.tags.length > 0 ? `
+                  <div class="tags">
+                    ${article.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                  </div>
+                ` : ''}
+              </div>
+              <div class="content">${formattedContent}</div>
+              <div class="footer">
+                Printed from Nova AI Knowledge Base<br>
+                ${window.location.origin}
+              </div>
             </body>
           </html>
         `);
