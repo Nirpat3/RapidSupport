@@ -12,6 +12,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import LoginForm from "@/components/LoginForm";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import NotFound from "@/pages/not-found";
 import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
@@ -647,6 +648,7 @@ function App() {
           <AppContent />
         </AuthProvider>
         <Toaster />
+        <PWAInstallPrompt />
       </TooltipProvider>
     </QueryClientProvider>
   );
