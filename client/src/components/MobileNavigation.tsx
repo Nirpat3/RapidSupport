@@ -61,18 +61,14 @@ export function MobileNavigation({ variant = 'customer', conversationCount }: Mo
               onClick={() => setLocation(item.path)}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 h-full gap-0.5 relative",
-                "transition-colors duration-200 touch-manipulation",
-                "active:scale-95",
+                "transition-colors duration-200 touch-manipulation tap-highlight-none",
                 isActive 
                   ? "text-primary" 
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground"
               )}
             >
               <div className="relative">
-                <Icon className={cn(
-                  "h-5 w-5 transition-transform",
-                  isActive && "scale-110"
-                )} />
+                <Icon className="h-5 w-5" />
                 {item.badge && item.badge > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-destructive text-destructive-foreground text-[10px] font-medium rounded-full flex items-center justify-center px-1">
                     {item.badge > 99 ? '99+' : item.badge}

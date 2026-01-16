@@ -65,6 +65,15 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
   - **Audit Logging**: All access decisions logged with correlation tracking
   - **Policy Rules**: Configurable allow/deny rules with time-based conditions and escalation policies
   - **Documentation**: Complete API guide at `docs/api/ai-data-integration.md`
+- **Progressive Web App (PWA)**: Full mobile app experience with:
+  - **Service Worker**: Offline caching with cache-first strategy for static assets and network-first for API calls
+  - **PWA Install Prompt**: Smart install banner for mobile users with localStorage-based dismissal tracking
+  - **Mobile Navigation**: Touch-friendly bottom navigation bar for customer, staff, and portal variants
+  - **Pull-to-Refresh**: Native-feeling pull-to-refresh gesture for content refresh
+  - **Safe Area Insets**: Proper handling of notched devices (iPhone X+) with CSS env() variables
+  - **Touch Optimization**: 44px minimum touch targets, momentum scrolling, tap highlight control
+  - **iOS Safari Fixes**: -webkit-fill-available for viewport height, 16px font size to prevent zoom
+  - **PWA Standalone Mode**: Optimized experience when installed as standalone app
 
 ## External Dependencies
 
