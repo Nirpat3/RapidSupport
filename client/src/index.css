@@ -606,3 +606,87 @@
     display: none;
   }
 }
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+  /* Fix 100vh on iOS Safari */
+  .h-screen-ios {
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
+  
+  .min-h-screen-ios {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+  
+  /* Fix rubber band scrolling */
+  .no-bounce {
+    overscroll-behavior: none;
+  }
+  
+  /* Disable iOS text adjustments */
+  body {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+/* iPad specific styles */
+@media only screen and (min-device-width: 768px) and (max-device-width: 1024px) {
+  .ipad-sidebar {
+    width: 320px;
+  }
+  
+  .ipad-main {
+    flex: 1;
+  }
+}
+
+/* iPad Pro larger screens */
+@media only screen and (min-device-width: 1024px) and (max-device-width: 1366px) {
+  .ipad-pro-layout {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+}
+
+/* iPhone notch handling (safe area for Face ID devices) */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .notch-safe {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+  }
+  
+  .notch-safe-top {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+  
+  .notch-safe-bottom {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* iOS input styling to match native feel */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  textarea {
+    -webkit-appearance: none;
+    border-radius: 8px;
+  }
+  
+  /* Better touch feedback */
+  button, [role="button"] {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+  
+  /* Smooth scrolling containers */
+  .ios-scroll {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+}
