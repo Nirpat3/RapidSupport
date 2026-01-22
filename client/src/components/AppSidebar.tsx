@@ -50,7 +50,8 @@ import {
   GitBranch,
   Atom,
   ChevronRight,
-  Cloud
+  Cloud,
+  Mail
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -171,6 +172,12 @@ const settingsSubItems: NavigationItem[] = [
     title: "Cloud Storage",
     url: "/cloud-storage",
     icon: Cloud,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Email Integration",
+    url: "/email-integration",
+    icon: Mail,
     allowedRoles: ['admin']
   }
 ];

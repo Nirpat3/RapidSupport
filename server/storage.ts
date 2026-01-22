@@ -263,6 +263,24 @@ import {
   type InsertAiPolicyRule,
   type AiAccessAudit,
   type InsertAiAccessAudit,
+  emailIntegrations,
+  emailMessages,
+  emailAttachments,
+  emailAutoReplyRules,
+  emailProcessingLog,
+  emailTemplates,
+  type EmailIntegration,
+  type InsertEmailIntegration,
+  type EmailMessage,
+  type InsertEmailMessage,
+  type EmailAttachment,
+  type InsertEmailAttachment,
+  type EmailAutoReplyRule,
+  type InsertEmailAutoReplyRule,
+  type EmailProcessingLog,
+  type InsertEmailProcessingLog,
+  type EmailTemplate,
+  type InsertEmailTemplate,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -923,6 +941,52 @@ export interface IStorage {
   createAiAccessAudit(audit: InsertAiAccessAudit): Promise<AiAccessAudit>;
   getAiAccessAuditsByOrganization(organizationId: string, limit?: number): Promise<AiAccessAudit[]>;
   getAiAccessAuditsByUser(userId: string, limit?: number): Promise<AiAccessAudit[]>;
+  
+  // Email Integration Operations
+  getEmailIntegration(id: string): Promise<EmailIntegration | undefined>;
+  getEmailIntegrationByEmail(email: string): Promise<EmailIntegration | undefined>;
+  getEmailIntegrationsByOrganization(organizationId: string): Promise<EmailIntegration[]>;
+  createEmailIntegration(integration: InsertEmailIntegration): Promise<EmailIntegration>;
+  updateEmailIntegration(id: string, updates: Partial<InsertEmailIntegration>): Promise<EmailIntegration>;
+  deleteEmailIntegration(id: string): Promise<void>;
+  updateEmailIntegrationPollingStatus(id: string, status: string, error?: string): Promise<void>;
+  
+  // Email Message Operations
+  getEmailMessage(id: string): Promise<EmailMessage | undefined>;
+  getEmailMessageByMessageId(messageId: string, integrationId: string): Promise<EmailMessage | undefined>;
+  getEmailMessagesByOrganization(organizationId: string, options?: { limit?: number; offset?: number; status?: string }): Promise<EmailMessage[]>;
+  getEmailMessagesByIntegration(integrationId: string, options?: { limit?: number; offset?: number; status?: string }): Promise<EmailMessage[]>;
+  getEmailMessagesByCustomer(customerId: string): Promise<EmailMessage[]>;
+  getEmailMessagesByThread(threadId: string): Promise<EmailMessage[]>;
+  createEmailMessage(message: InsertEmailMessage): Promise<EmailMessage>;
+  updateEmailMessage(id: string, updates: Partial<InsertEmailMessage>): Promise<EmailMessage>;
+  updateEmailMessageStatus(id: string, status: string): Promise<void>;
+  
+  // Email Attachment Operations
+  getEmailAttachmentsByMessage(messageId: string): Promise<EmailAttachment[]>;
+  createEmailAttachment(attachment: InsertEmailAttachment): Promise<EmailAttachment>;
+  
+  // Email Auto-Reply Rules
+  getEmailAutoReplyRule(id: string): Promise<EmailAutoReplyRule | undefined>;
+  getEmailAutoReplyRulesByOrganization(organizationId: string): Promise<EmailAutoReplyRule[]>;
+  getEmailAutoReplyRulesByIntegration(integrationId: string): Promise<EmailAutoReplyRule[]>;
+  getActiveEmailAutoReplyRules(organizationId: string): Promise<EmailAutoReplyRule[]>;
+  createEmailAutoReplyRule(rule: InsertEmailAutoReplyRule): Promise<EmailAutoReplyRule>;
+  updateEmailAutoReplyRule(id: string, updates: Partial<InsertEmailAutoReplyRule>): Promise<EmailAutoReplyRule>;
+  deleteEmailAutoReplyRule(id: string): Promise<void>;
+  incrementRuleReplyCount(ruleId: string): Promise<void>;
+  
+  // Email Processing Log
+  createEmailProcessingLog(log: InsertEmailProcessingLog): Promise<EmailProcessingLog>;
+  getEmailProcessingLogsByMessage(messageId: string): Promise<EmailProcessingLog[]>;
+  
+  // Email Templates
+  getEmailTemplate(id: string): Promise<EmailTemplate | undefined>;
+  getEmailTemplatesByOrganization(organizationId: string): Promise<EmailTemplate[]>;
+  createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate>;
+  updateEmailTemplate(id: string, updates: Partial<InsertEmailTemplate>): Promise<EmailTemplate>;
+  deleteEmailTemplate(id: string): Promise<void>;
+  incrementTemplateUsage(templateId: string): Promise<void>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -7901,6 +7965,253 @@ export class DatabaseStorage implements IStorage {
       .where(eq(aiAccessAudit.userId, userId))
       .orderBy(desc(aiAccessAudit.createdAt))
       .limit(limit);
+  }
+
+  // Email Integration Operations
+  async getEmailIntegration(id: string): Promise<EmailIntegration | undefined> {
+    const [integration] = await db.select().from(emailIntegrations).where(eq(emailIntegrations.id, id));
+    return integration;
+  }
+
+  async getEmailIntegrationByEmail(email: string): Promise<EmailIntegration | undefined> {
+    const [integration] = await db.select().from(emailIntegrations)
+      .where(eq(emailIntegrations.inboundEmail, email));
+    return integration;
+  }
+
+  async getEmailIntegrationsByOrganization(organizationId: string): Promise<EmailIntegration[]> {
+    return await db.select().from(emailIntegrations)
+      .where(eq(emailIntegrations.organizationId, organizationId))
+      .orderBy(desc(emailIntegrations.createdAt));
+  }
+
+  async createEmailIntegration(integration: InsertEmailIntegration): Promise<EmailIntegration> {
+    const [result] = await db.insert(emailIntegrations).values(integration).returning();
+    return result;
+  }
+
+  async updateEmailIntegration(id: string, updates: Partial<InsertEmailIntegration>): Promise<EmailIntegration> {
+    const [result] = await db.update(emailIntegrations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(emailIntegrations.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteEmailIntegration(id: string): Promise<void> {
+    await db.delete(emailIntegrations).where(eq(emailIntegrations.id, id));
+  }
+
+  async updateEmailIntegrationPollingStatus(id: string, status: string, error?: string): Promise<void> {
+    await db.update(emailIntegrations)
+      .set({
+        lastPolledAt: new Date(),
+        lastSyncStatus: status,
+        lastSyncError: error || null,
+        updatedAt: new Date(),
+      })
+      .where(eq(emailIntegrations.id, id));
+  }
+
+  // Email Message Operations
+  async getEmailMessage(id: string): Promise<EmailMessage | undefined> {
+    const [message] = await db.select().from(emailMessages).where(eq(emailMessages.id, id));
+    return message;
+  }
+
+  async getEmailMessageByMessageId(messageId: string, integrationId: string): Promise<EmailMessage | undefined> {
+    const [message] = await db.select().from(emailMessages)
+      .where(and(
+        eq(emailMessages.messageId, messageId),
+        eq(emailMessages.integrationId, integrationId)
+      ));
+    return message;
+  }
+
+  async getEmailMessagesByOrganization(organizationId: string, options?: { limit?: number; offset?: number; status?: string }): Promise<EmailMessage[]> {
+    const limit = options?.limit ?? 50;
+    const offset = options?.offset ?? 0;
+    
+    let query = db.select().from(emailMessages)
+      .where(eq(emailMessages.organizationId, organizationId));
+    
+    if (options?.status) {
+      query = db.select().from(emailMessages)
+        .where(and(
+          eq(emailMessages.organizationId, organizationId),
+          eq(emailMessages.status, options.status)
+        ));
+    }
+    
+    return await query
+      .orderBy(desc(emailMessages.receivedAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getEmailMessagesByIntegration(integrationId: string, options?: { limit?: number; offset?: number; status?: string }): Promise<EmailMessage[]> {
+    const limit = options?.limit ?? 50;
+    const offset = options?.offset ?? 0;
+    
+    let query = db.select().from(emailMessages)
+      .where(eq(emailMessages.integrationId, integrationId));
+    
+    if (options?.status) {
+      query = db.select().from(emailMessages)
+        .where(and(
+          eq(emailMessages.integrationId, integrationId),
+          eq(emailMessages.status, options.status)
+        ));
+    }
+    
+    return await query
+      .orderBy(desc(emailMessages.receivedAt))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  async getEmailMessagesByCustomer(customerId: string): Promise<EmailMessage[]> {
+    return await db.select().from(emailMessages)
+      .where(eq(emailMessages.customerId, customerId))
+      .orderBy(desc(emailMessages.receivedAt));
+  }
+
+  async getEmailMessagesByThread(threadId: string): Promise<EmailMessage[]> {
+    return await db.select().from(emailMessages)
+      .where(eq(emailMessages.threadId, threadId))
+      .orderBy(asc(emailMessages.receivedAt));
+  }
+
+  async createEmailMessage(message: InsertEmailMessage): Promise<EmailMessage> {
+    const [result] = await db.insert(emailMessages).values(message).returning();
+    return result;
+  }
+
+  async updateEmailMessage(id: string, updates: Partial<InsertEmailMessage>): Promise<EmailMessage> {
+    const [result] = await db.update(emailMessages)
+      .set(updates)
+      .where(eq(emailMessages.id, id))
+      .returning();
+    return result;
+  }
+
+  async updateEmailMessageStatus(id: string, status: string): Promise<void> {
+    await db.update(emailMessages)
+      .set({ status, processedAt: new Date() })
+      .where(eq(emailMessages.id, id));
+  }
+
+  // Email Attachment Operations
+  async getEmailAttachmentsByMessage(messageId: string): Promise<EmailAttachment[]> {
+    return await db.select().from(emailAttachments)
+      .where(eq(emailAttachments.emailMessageId, messageId));
+  }
+
+  async createEmailAttachment(attachment: InsertEmailAttachment): Promise<EmailAttachment> {
+    const [result] = await db.insert(emailAttachments).values(attachment).returning();
+    return result;
+  }
+
+  // Email Auto-Reply Rules
+  async getEmailAutoReplyRule(id: string): Promise<EmailAutoReplyRule | undefined> {
+    const [rule] = await db.select().from(emailAutoReplyRules).where(eq(emailAutoReplyRules.id, id));
+    return rule;
+  }
+
+  async getEmailAutoReplyRulesByOrganization(organizationId: string): Promise<EmailAutoReplyRule[]> {
+    return await db.select().from(emailAutoReplyRules)
+      .where(eq(emailAutoReplyRules.organizationId, organizationId))
+      .orderBy(desc(emailAutoReplyRules.rulePriority));
+  }
+
+  async getEmailAutoReplyRulesByIntegration(integrationId: string): Promise<EmailAutoReplyRule[]> {
+    return await db.select().from(emailAutoReplyRules)
+      .where(eq(emailAutoReplyRules.integrationId, integrationId))
+      .orderBy(desc(emailAutoReplyRules.rulePriority));
+  }
+
+  async getActiveEmailAutoReplyRules(organizationId: string): Promise<EmailAutoReplyRule[]> {
+    return await db.select().from(emailAutoReplyRules)
+      .where(and(
+        eq(emailAutoReplyRules.organizationId, organizationId),
+        eq(emailAutoReplyRules.isActive, true)
+      ))
+      .orderBy(desc(emailAutoReplyRules.rulePriority));
+  }
+
+  async createEmailAutoReplyRule(rule: InsertEmailAutoReplyRule): Promise<EmailAutoReplyRule> {
+    const [result] = await db.insert(emailAutoReplyRules).values(rule).returning();
+    return result;
+  }
+
+  async updateEmailAutoReplyRule(id: string, updates: Partial<InsertEmailAutoReplyRule>): Promise<EmailAutoReplyRule> {
+    const [result] = await db.update(emailAutoReplyRules)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(emailAutoReplyRules.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteEmailAutoReplyRule(id: string): Promise<void> {
+    await db.delete(emailAutoReplyRules).where(eq(emailAutoReplyRules.id, id));
+  }
+
+  async incrementRuleReplyCount(ruleId: string): Promise<void> {
+    await db.update(emailAutoReplyRules)
+      .set({
+        repliesSentThisHour: sql`${emailAutoReplyRules.repliesSentThisHour} + 1`,
+      })
+      .where(eq(emailAutoReplyRules.id, ruleId));
+  }
+
+  // Email Processing Log
+  async createEmailProcessingLog(log: InsertEmailProcessingLog): Promise<EmailProcessingLog> {
+    const [result] = await db.insert(emailProcessingLog).values(log).returning();
+    return result;
+  }
+
+  async getEmailProcessingLogsByMessage(messageId: string): Promise<EmailProcessingLog[]> {
+    return await db.select().from(emailProcessingLog)
+      .where(eq(emailProcessingLog.emailMessageId, messageId))
+      .orderBy(asc(emailProcessingLog.createdAt));
+  }
+
+  // Email Templates
+  async getEmailTemplate(id: string): Promise<EmailTemplate | undefined> {
+    const [template] = await db.select().from(emailTemplates).where(eq(emailTemplates.id, id));
+    return template;
+  }
+
+  async getEmailTemplatesByOrganization(organizationId: string): Promise<EmailTemplate[]> {
+    return await db.select().from(emailTemplates)
+      .where(eq(emailTemplates.organizationId, organizationId))
+      .orderBy(desc(emailTemplates.createdAt));
+  }
+
+  async createEmailTemplate(template: InsertEmailTemplate): Promise<EmailTemplate> {
+    const [result] = await db.insert(emailTemplates).values(template).returning();
+    return result;
+  }
+
+  async updateEmailTemplate(id: string, updates: Partial<InsertEmailTemplate>): Promise<EmailTemplate> {
+    const [result] = await db.update(emailTemplates)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(emailTemplates.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteEmailTemplate(id: string): Promise<void> {
+    await db.delete(emailTemplates).where(eq(emailTemplates.id, id));
+  }
+
+  async incrementTemplateUsage(templateId: string): Promise<void> {
+    await db.update(emailTemplates)
+      .set({
+        usageCount: sql`${emailTemplates.usageCount} + 1`,
+        lastUsedAt: new Date(),
+      })
+      .where(eq(emailTemplates.id, templateId));
   }
 }
 

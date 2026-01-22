@@ -4192,3 +4192,305 @@ export const insertAiAccessAuditSchema = createInsertSchema(aiAccessAudit).omit(
 });
 export type InsertAiAccessAudit = z.infer<typeof insertAiAccessAuditSchema>;
 export type AiAccessAudit = typeof aiAccessAudit.$inferSelect;
+
+// ============================================
+// EMAIL INTEGRATION - Organization email support
+// ============================================
+
+// Email Integrations - Configuration for organization support emails
+export const emailIntegrations = pgTable("email_integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  
+  // Email address configuration
+  inboundEmail: text("inbound_email").notNull(), // support@company.com
+  displayName: text("display_name"), // "Company Support"
+  replyToEmail: text("reply_to_email"), // Optional different reply-to address
+  
+  // Provider configuration
+  provider: text("provider").notNull().default("imap"), // 'imap' | 'gmail' | 'outlook' | 'microsoft_graph'
+  
+  // IMAP/SMTP settings (encrypted in practice)
+  imapHost: text("imap_host"),
+  imapPort: integer("imap_port").default(993),
+  imapSecure: boolean("imap_secure").default(true),
+  smtpHost: text("smtp_host"),
+  smtpPort: integer("smtp_port").default(587),
+  smtpSecure: boolean("smtp_secure").default(true),
+  username: text("username"),
+  password: text("password"), // Should be encrypted
+  
+  // OAuth tokens (for Gmail/Outlook)
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  tokenExpiresAt: timestamp("token_expires_at"),
+  
+  // Polling configuration
+  pollingEnabled: boolean("polling_enabled").notNull().default(true),
+  pollingIntervalMinutes: integer("polling_interval_minutes").notNull().default(5),
+  lastPolledAt: timestamp("last_polled_at"),
+  lastSyncStatus: text("last_sync_status"), // 'success' | 'error' | 'partial'
+  lastSyncError: text("last_sync_error"),
+  
+  // Auto-response configuration
+  autoResponseEnabled: boolean("auto_response_enabled").notNull().default(false),
+  autoResponseConfidenceThreshold: integer("auto_response_confidence_threshold").default(80), // Min confidence % to auto-send
+  autoResponseMode: text("auto_response_mode").default("draft"), // 'draft' | 'auto_send' | 'suggest'
+  autoResponseKnowledgeCollectionId: varchar("auto_response_knowledge_collection_id").references(() => knowledgeCollections.id),
+  
+  // Ticket creation settings
+  autoCreateTicket: boolean("auto_create_ticket").notNull().default(true),
+  defaultPriority: text("default_priority").default("medium"), // 'low' | 'medium' | 'high' | 'urgent'
+  defaultCategoryId: varchar("default_category_id").references(() => supportCategories.id),
+  
+  // AI agent assignment
+  aiAgentId: varchar("ai_agent_id").references(() => aiAgents.id),
+  
+  // Status
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("email_integrations_org_idx").on(table.organizationId),
+  workspaceIdx: index("email_integrations_workspace_idx").on(table.workspaceId),
+  inboundEmailIdx: uniqueIndex("email_integrations_inbound_email_idx").on(table.inboundEmail),
+}));
+
+// Email Messages - Incoming support emails
+export const emailMessages = pgTable("email_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  integrationId: varchar("integration_id").notNull().references(() => emailIntegrations.id, { onDelete: 'cascade' }),
+  
+  // Email identifiers
+  messageId: text("message_id").notNull(), // RFC 2822 Message-ID
+  threadId: text("thread_id"), // For grouping related emails
+  inReplyTo: text("in_reply_to"), // Parent message ID
+  references: text("references").array(), // Email References header
+  
+  // Email content
+  fromEmail: text("from_email").notNull(),
+  fromName: text("from_name"),
+  toEmails: text("to_emails").array().notNull(),
+  ccEmails: text("cc_emails").array(),
+  bccEmails: text("bcc_emails").array(),
+  subject: text("subject"),
+  bodyText: text("body_text"),
+  bodyHtml: text("body_html"),
+  
+  // Attachments info (stored separately)
+  hasAttachments: boolean("has_attachments").default(false),
+  attachmentCount: integer("attachment_count").default(0),
+  
+  // Customer/Conversation mapping
+  customerId: varchar("customer_id").references(() => customers.id),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  ticketId: varchar("ticket_id").references(() => tickets.id),
+  
+  // AI analysis
+  classification: text("classification"), // Intent classification result
+  classificationConfidence: integer("classification_confidence"), // 0-100
+  sentiment: text("sentiment"), // 'positive' | 'neutral' | 'negative'
+  priority: text("priority"), // AI-suggested priority
+  suggestedCategory: text("suggested_category"),
+  aiSummary: text("ai_summary"), // AI-generated summary
+  
+  // Auto-response
+  autoResponseSent: boolean("auto_response_sent").default(false),
+  autoResponseId: varchar("auto_response_id"),
+  autoResponseContent: text("auto_response_content"),
+  
+  // Processing status
+  status: text("status").notNull().default("pending"), // 'pending' | 'processed' | 'replied' | 'escalated' | 'archived'
+  isRead: boolean("is_read").default(false),
+  assignedToUserId: varchar("assigned_to_user_id").references(() => users.id),
+  
+  // Direction
+  direction: text("direction").notNull().default("inbound"), // 'inbound' | 'outbound'
+  
+  // Timestamps
+  receivedAt: timestamp("received_at").notNull(),
+  processedAt: timestamp("processed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("email_messages_org_idx").on(table.organizationId),
+  integrationIdx: index("email_messages_integration_idx").on(table.integrationId),
+  messageIdIdx: uniqueIndex("email_messages_message_id_idx").on(table.messageId, table.integrationId),
+  threadIdx: index("email_messages_thread_idx").on(table.threadId),
+  customerIdx: index("email_messages_customer_idx").on(table.customerId),
+  conversationIdx: index("email_messages_conversation_idx").on(table.conversationId),
+  statusIdx: index("email_messages_status_idx").on(table.status),
+  receivedIdx: index("email_messages_received_idx").on(table.receivedAt),
+}));
+
+// Email Attachments - Files attached to emails
+export const emailAttachments = pgTable("email_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  emailMessageId: varchar("email_message_id").notNull().references(() => emailMessages.id, { onDelete: 'cascade' }),
+  
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type"), // MIME type
+  fileSize: integer("file_size"), // bytes
+  contentId: text("content_id"), // For inline attachments
+  isInline: boolean("is_inline").default(false),
+  
+  // Storage
+  storagePath: text("storage_path"), // Local or cloud storage path
+  storageUrl: text("storage_url"), // Public URL if available
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  messageIdx: index("email_attachments_message_idx").on(table.emailMessageId),
+}));
+
+// Email Auto-Reply Rules - Organization-specific rules for auto-responses
+export const emailAutoReplyRules = pgTable("email_auto_reply_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  integrationId: varchar("integration_id").references(() => emailIntegrations.id, { onDelete: 'cascade' }),
+  
+  name: text("name").notNull(),
+  description: text("description"),
+  
+  // Matching conditions
+  matchType: text("match_type").notNull().default("all"), // 'all' | 'any'
+  conditions: jsonb("conditions").notNull().default(sql`'[]'::jsonb`), // Array of condition objects
+  // Condition format: [{ field: 'subject' | 'from' | 'body', operator: 'contains' | 'equals' | 'regex', value: string }]
+  
+  // Response configuration
+  responseType: text("response_type").notNull().default("template"), // 'template' | 'ai_generated' | 'kb_search'
+  templateContent: text("template_content"), // For template type
+  useKnowledgeBase: boolean("use_knowledge_base").default(true),
+  knowledgeCollectionId: varchar("knowledge_collection_id").references(() => knowledgeCollections.id),
+  
+  // AI settings
+  aiAgentId: varchar("ai_agent_id").references(() => aiAgents.id),
+  confidenceThreshold: integer("confidence_threshold").default(75),
+  
+  // Actions
+  createTicket: boolean("create_ticket").default(true),
+  assignToCategory: varchar("assign_to_category").references(() => supportCategories.id),
+  ticketPriority: text("ticket_priority").default("medium"), // Priority for created tickets
+  
+  // Scheduling
+  isActive: boolean("is_active").notNull().default(true),
+  activeHoursStart: text("active_hours_start"), // "09:00"
+  activeHoursEnd: text("active_hours_end"), // "17:00"
+  activeTimezone: text("active_timezone").default("UTC"),
+  activeDays: text("active_days").array().default(sql`ARRAY['mon','tue','wed','thu','fri']::text[]`),
+  
+  // Rate limiting
+  maxRepliesPerHour: integer("max_replies_per_hour").default(50),
+  repliesSentThisHour: integer("replies_sent_this_hour").default(0),
+  hourlyCountResetAt: timestamp("hourly_count_reset_at"),
+  
+  rulePriority: integer("rule_priority").notNull().default(0), // Higher = checked first
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("email_auto_reply_rules_org_idx").on(table.organizationId),
+  integrationIdx: index("email_auto_reply_rules_integration_idx").on(table.integrationId),
+  priorityIdx: index("email_auto_reply_rules_priority_idx").on(table.rulePriority),
+}));
+
+// Email Processing Log - Audit trail for email processing
+export const emailProcessingLog = pgTable("email_processing_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  emailMessageId: varchar("email_message_id").notNull().references(() => emailMessages.id, { onDelete: 'cascade' }),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  
+  action: text("action").notNull(), // 'received' | 'classified' | 'auto_responded' | 'ticket_created' | 'assigned' | 'escalated'
+  status: text("status").notNull(), // 'success' | 'error' | 'skipped'
+  details: jsonb("details"), // Additional action-specific data
+  errorMessage: text("error_message"),
+  
+  // AI-related
+  aiTokensUsed: integer("ai_tokens_used"),
+  aiModel: text("ai_model"),
+  aiLatencyMs: integer("ai_latency_ms"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  messageIdx: index("email_processing_log_message_idx").on(table.emailMessageId),
+  orgIdx: index("email_processing_log_org_idx").on(table.organizationId),
+  actionIdx: index("email_processing_log_action_idx").on(table.action),
+}));
+
+// Email Templates - Reusable response templates
+export const emailTemplates = pgTable("email_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  
+  name: text("name").notNull(),
+  description: text("description"),
+  subject: text("subject"),
+  bodyHtml: text("body_html").notNull(),
+  bodyText: text("body_text"), // Plain text fallback
+  
+  // Template variables (for personalization)
+  variables: text("variables").array().default(sql`ARRAY[]::text[]`), // ['customer_name', 'ticket_id', etc.]
+  
+  // Categorization
+  category: text("category"), // 'acknowledgment' | 'resolution' | 'followup' | 'escalation'
+  isDefault: boolean("is_default").default(false),
+  
+  // Usage tracking
+  usageCount: integer("usage_count").default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("email_templates_org_idx").on(table.organizationId),
+  categoryIdx: index("email_templates_category_idx").on(table.category),
+}));
+
+// Insert schemas and types for email integration
+export const insertEmailIntegrationSchema = createInsertSchema(emailIntegrations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertEmailIntegration = z.infer<typeof insertEmailIntegrationSchema>;
+export type EmailIntegration = typeof emailIntegrations.$inferSelect;
+
+export const insertEmailMessageSchema = createInsertSchema(emailMessages).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertEmailMessage = z.infer<typeof insertEmailMessageSchema>;
+export type EmailMessage = typeof emailMessages.$inferSelect;
+
+export const insertEmailAttachmentSchema = createInsertSchema(emailAttachments).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertEmailAttachment = z.infer<typeof insertEmailAttachmentSchema>;
+export type EmailAttachment = typeof emailAttachments.$inferSelect;
+
+export const insertEmailAutoReplyRuleSchema = createInsertSchema(emailAutoReplyRules).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertEmailAutoReplyRule = z.infer<typeof insertEmailAutoReplyRuleSchema>;
+export type EmailAutoReplyRule = typeof emailAutoReplyRules.$inferSelect;
+
+export const insertEmailProcessingLogSchema = createInsertSchema(emailProcessingLog).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertEmailProcessingLog = z.infer<typeof insertEmailProcessingLogSchema>;
+export type EmailProcessingLog = typeof emailProcessingLog.$inferSelect;
+
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+export type EmailTemplate = typeof emailTemplates.$inferSelect;

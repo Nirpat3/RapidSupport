@@ -13516,6 +13516,402 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================
+  // EMAIL INTEGRATION ROUTES
+  // ============================================
+
+  // Helper to sanitize email integration credentials from API responses
+  const sanitizeEmailIntegration = (integration: any) => {
+    const { password, accessToken, refreshToken, ...safe } = integration;
+    return safe;
+  };
+
+  // Helper to verify org ownership of email integration
+  const verifyEmailIntegrationOwnership = async (integrationId: string, organizationId: string) => {
+    const integration = await storage.getEmailIntegration(integrationId);
+    if (!integration) return null;
+    if (integration.organizationId !== organizationId) return null;
+    return integration;
+  };
+
+  // Helper to verify org ownership of email message
+  const verifyEmailMessageOwnership = async (messageId: string, organizationId: string) => {
+    const message = await storage.getEmailMessage(messageId);
+    if (!message) return null;
+    // Verify via integration ownership
+    const integration = await storage.getEmailIntegration(message.integrationId);
+    if (!integration || integration.organizationId !== organizationId) return null;
+    return message;
+  };
+
+  // Helper to verify org ownership of email template
+  const verifyEmailTemplateOwnership = async (templateId: string, organizationId: string) => {
+    const template = await storage.getEmailTemplate(templateId);
+    if (!template) return null;
+    if (template.organizationId !== organizationId) return null;
+    return template;
+  };
+
+  // Helper to verify org ownership of auto-reply rule
+  const verifyEmailAutoReplyRuleOwnership = async (ruleId: string, organizationId: string) => {
+    const rule = await storage.getEmailAutoReplyRule(ruleId);
+    if (!rule) return null;
+    if (rule.organizationId !== organizationId) return null;
+    return rule;
+  };
+
+  // Valid status values for email messages
+  const validEmailStatuses = ['pending', 'processing', 'processed', 'replied', 'escalated', 'failed', 'spam'];
+
+  // Get all email integrations for organization
+  app.get('/api/email-integrations', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const integrations = await storage.getEmailIntegrationsByOrganization(user.organizationId);
+      res.json(integrations.map(sanitizeEmailIntegration));
+    } catch (error) {
+      console.error('Failed to fetch email integrations:', error);
+      res.status(500).json({ error: 'Failed to fetch email integrations' });
+    }
+  });
+
+  // Get single email integration
+  app.get('/api/email-integrations/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const integration = await verifyEmailIntegrationOwnership(req.params.id, user.organizationId);
+      if (!integration) {
+        return res.status(404).json({ error: 'Integration not found' });
+      }
+      res.json(sanitizeEmailIntegration(integration));
+    } catch (error) {
+      console.error('Failed to fetch email integration:', error);
+      res.status(500).json({ error: 'Failed to fetch email integration' });
+    }
+  });
+
+  // Create email integration
+  app.post('/api/email-integrations', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const { inboundEmail, provider } = req.body;
+      if (!inboundEmail || !provider) {
+        return res.status(400).json({ error: 'inboundEmail and provider are required' });
+      }
+      const integration = await storage.createEmailIntegration({
+        ...req.body,
+        organizationId: user.organizationId,
+      });
+      res.status(201).json(sanitizeEmailIntegration(integration));
+    } catch (error) {
+      console.error('Failed to create email integration:', error);
+      res.status(500).json({ error: 'Failed to create email integration' });
+    }
+  });
+
+  // Update email integration
+  app.put('/api/email-integrations/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const existing = await verifyEmailIntegrationOwnership(req.params.id, user.organizationId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Integration not found' });
+      }
+      const integration = await storage.updateEmailIntegration(req.params.id, req.body);
+      res.json(sanitizeEmailIntegration(integration));
+    } catch (error) {
+      console.error('Failed to update email integration:', error);
+      res.status(500).json({ error: 'Failed to update email integration' });
+    }
+  });
+
+  // Delete email integration
+  app.delete('/api/email-integrations/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const existing = await verifyEmailIntegrationOwnership(req.params.id, user.organizationId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Integration not found' });
+      }
+      await storage.deleteEmailIntegration(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete email integration:', error);
+      res.status(500).json({ error: 'Failed to delete email integration' });
+    }
+  });
+
+  // Test email integration connection
+  app.post('/api/email-integrations/:id/test', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const integration = await verifyEmailIntegrationOwnership(req.params.id, user.organizationId);
+      if (!integration) {
+        return res.status(404).json({ error: 'Integration not found' });
+      }
+      const { emailService } = await import('./services/email-service');
+      const result = await emailService.testConnection(integration);
+      res.json(result);
+    } catch (error) {
+      console.error('Failed to test email integration:', error);
+      res.status(500).json({ error: 'Failed to test connection' });
+    }
+  });
+
+  // Get email messages for organization
+  app.get('/api/email-messages', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const { limit, offset, status } = req.query;
+      if (status && !validEmailStatuses.includes(status as string)) {
+        return res.status(400).json({ error: 'Invalid status value' });
+      }
+      const messages = await storage.getEmailMessagesByOrganization(user.organizationId, {
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+        status: status as string | undefined,
+      });
+      res.json(messages);
+    } catch (error) {
+      console.error('Failed to fetch email messages:', error);
+      res.status(500).json({ error: 'Failed to fetch email messages' });
+    }
+  });
+
+  // Get single email message
+  app.get('/api/email-messages/:id', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const message = await verifyEmailMessageOwnership(req.params.id, user.organizationId);
+      if (!message) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+      const attachments = await storage.getEmailAttachmentsByMessage(req.params.id);
+      const logs = await storage.getEmailProcessingLogsByMessage(req.params.id);
+      res.json({ ...message, attachments, processingLogs: logs });
+    } catch (error) {
+      console.error('Failed to fetch email message:', error);
+      res.status(500).json({ error: 'Failed to fetch email message' });
+    }
+  });
+
+  // Update email message status
+  app.patch('/api/email-messages/:id/status', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const message = await verifyEmailMessageOwnership(req.params.id, user.organizationId);
+      if (!message) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+      const { status } = req.body;
+      if (!status || !validEmailStatuses.includes(status)) {
+        return res.status(400).json({ error: 'Invalid status value' });
+      }
+      await storage.updateEmailMessageStatus(req.params.id, status);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to update email message status:', error);
+      res.status(500).json({ error: 'Failed to update status' });
+    }
+  });
+
+  // Assign email message to user
+  app.patch('/api/email-messages/:id/assign', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const message = await verifyEmailMessageOwnership(req.params.id, user.organizationId);
+      if (!message) {
+        return res.status(404).json({ error: 'Message not found' });
+      }
+      const { userId } = req.body;
+      await storage.updateEmailMessage(req.params.id, { assignedToUserId: userId, isRead: true });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to assign email message:', error);
+      res.status(500).json({ error: 'Failed to assign message' });
+    }
+  });
+
+  // Get email templates
+  app.get('/api/email-templates', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const templates = await storage.getEmailTemplatesByOrganization(user.organizationId);
+      res.json(templates);
+    } catch (error) {
+      console.error('Failed to fetch email templates:', error);
+      res.status(500).json({ error: 'Failed to fetch email templates' });
+    }
+  });
+
+  // Create email template
+  app.post('/api/email-templates', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const { name, subject, bodyHtml } = req.body;
+      if (!name || !subject || !bodyHtml) {
+        return res.status(400).json({ error: 'name, subject, and bodyHtml are required' });
+      }
+      const template = await storage.createEmailTemplate({
+        ...req.body,
+        organizationId: user.organizationId,
+      });
+      res.status(201).json(template);
+    } catch (error) {
+      console.error('Failed to create email template:', error);
+      res.status(500).json({ error: 'Failed to create email template' });
+    }
+  });
+
+  // Update email template
+  app.put('/api/email-templates/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const existing = await verifyEmailTemplateOwnership(req.params.id, user.organizationId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Template not found' });
+      }
+      const template = await storage.updateEmailTemplate(req.params.id, req.body);
+      res.json(template);
+    } catch (error) {
+      console.error('Failed to update email template:', error);
+      res.status(500).json({ error: 'Failed to update email template' });
+    }
+  });
+
+  // Delete email template
+  app.delete('/api/email-templates/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const existing = await verifyEmailTemplateOwnership(req.params.id, user.organizationId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Template not found' });
+      }
+      await storage.deleteEmailTemplate(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete email template:', error);
+      res.status(500).json({ error: 'Failed to delete email template' });
+    }
+  });
+
+  // Get auto-reply rules
+  app.get('/api/email-auto-reply-rules', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const rules = await storage.getEmailAutoReplyRulesByOrganization(user.organizationId);
+      res.json(rules);
+    } catch (error) {
+      console.error('Failed to fetch auto-reply rules:', error);
+      res.status(500).json({ error: 'Failed to fetch auto-reply rules' });
+    }
+  });
+
+  // Create auto-reply rule
+  app.post('/api/email-auto-reply-rules', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const { name, triggerType, responseTemplateId } = req.body;
+      if (!name || !triggerType) {
+        return res.status(400).json({ error: 'name and triggerType are required' });
+      }
+      const rule = await storage.createEmailAutoReplyRule({
+        ...req.body,
+        organizationId: user.organizationId,
+      });
+      res.status(201).json(rule);
+    } catch (error) {
+      console.error('Failed to create auto-reply rule:', error);
+      res.status(500).json({ error: 'Failed to create auto-reply rule' });
+    }
+  });
+
+  // Update auto-reply rule
+  app.put('/api/email-auto-reply-rules/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const existing = await verifyEmailAutoReplyRuleOwnership(req.params.id, user.organizationId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Rule not found' });
+      }
+      const rule = await storage.updateEmailAutoReplyRule(req.params.id, req.body);
+      res.json(rule);
+    } catch (error) {
+      console.error('Failed to update auto-reply rule:', error);
+      res.status(500).json({ error: 'Failed to update auto-reply rule' });
+    }
+  });
+
+  // Delete auto-reply rule
+  app.delete('/api/email-auto-reply-rules/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      const existing = await verifyEmailAutoReplyRuleOwnership(req.params.id, user.organizationId);
+      if (!existing) {
+        return res.status(404).json({ error: 'Rule not found' });
+      }
+      await storage.deleteEmailAutoReplyRule(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete auto-reply rule:', error);
+      res.status(500).json({ error: 'Failed to delete auto-reply rule' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat

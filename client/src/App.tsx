@@ -85,6 +85,7 @@ const QuantumOptimizationPage = lazy(() => import("@/pages/QuantumOptimizationPa
 const OrganizationManagementPage = lazy(() => import("@/pages/OrganizationManagementPage"));
 const OrganizationSetupPage = lazy(() => import("@/pages/OrganizationSetupPage"));
 const CloudStorageMarketplacePage = lazy(() => import("@/pages/CloudStorageMarketplacePage"));
+const EmailIntegrationPage = lazy(() => import("@/pages/EmailIntegrationPage"));
 
 function Router() {
   return (
@@ -162,6 +163,11 @@ function Router() {
         <Route path="/cloud-storage">
           <PermissionGuard feature="settings">
             <CloudStorageMarketplacePage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/email-integration">
+          <PermissionGuard feature="settings">
+            <EmailIntegrationPage />
           </PermissionGuard>
         </Route>
         <Route path="/administration">
