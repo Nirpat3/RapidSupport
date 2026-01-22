@@ -39,6 +39,16 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 - **Knowledge Base Integration**: AI analyzes documents (TXT, PDF, DOCX) for metadata, FAQ generation, and vector embedding. Includes automatic hourly reindexing.
 - **Rich Media Input**: Supports file attachments, camera capture, emoji picker, and voice-to-text.
 - **AI Learning System**: Active learning pipeline for continuous AI improvement from human feedback.
+- **Email Support Integration**: Comprehensive email integration for customer support with:
+  - **Email Account Configuration**: Connect IMAP/SMTP, Gmail, or Outlook accounts for automated email polling
+  - **AI-Powered Email Analysis**: Intent classification, sentiment analysis, and priority detection for incoming emails
+  - **Auto-Response Generation**: AI generates responses based on knowledge base content with configurable confidence thresholds
+  - **Automatic Ticket Creation**: Emails automatically create support tickets linked to customer profiles
+  - **Email Templates**: Reusable email templates for consistent responses
+  - **Auto-Reply Rules**: Configurable rules for automated responses based on email classification
+  - **Inbox Management**: Admin UI for viewing, assigning, and managing incoming emails
+  - **Multi-Tenant Isolation**: Full organization-scoped security with credential sanitization
+  - **Polling Scheduler**: Configurable polling intervals (default 5 minutes) with sync status tracking
 - **External Channel Integration**: Supports WhatsApp Business API, Telegram Bot, and Facebook Messenger.
 - **White-Label Branding**: Customizable chat widget branding and dynamic PWA manifest generation.
 - **Category-Based Customer Routing**: Customizable support categories for specialized AI agent routing.
