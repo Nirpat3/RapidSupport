@@ -822,6 +822,13 @@ export interface IStorage {
   updateOrCreateUsageSummary(workspaceId: string | null, date: string, model: string, tokens: { prompt: number; completion: number; total: number; cost: string }): Promise<void>;
   getDailyTokenUsage(workspaceId: string | null, days: number): Promise<Array<{ date: string; model: string; totalTokens: number; totalCost: string; requestCount: number }>>;
   getMonthlyTokenUsage(workspaceId: string | null, months: number): Promise<Array<{ month: string; totalTokens: number; totalCost: string; requestCount: number }>>;
+  
+  // Billing & Usage Analytics
+  getAiTokenUsageByUser(userId: string, startDate?: Date, endDate?: Date): Promise<AiTokenUsage[]>;
+  getAiTokenUsageByOrganization(organizationId: string, startDate?: Date, endDate?: Date): Promise<AiTokenUsage[]>;
+  getUsageStatsByUser(userId: string, startDate?: Date, endDate?: Date): Promise<{ totalTokens: number; totalCost: string; requestCount: number; byModel: Record<string, { tokens: number; cost: string; count: number }> }>;
+  getUsageStatsByOrganization(organizationId: string, startDate?: Date, endDate?: Date): Promise<{ totalTokens: number; totalCost: string; requestCount: number; byModel: Record<string, { tokens: number; cost: string; count: number }>; byUser: Record<string, { userId: string; name: string; tokens: number; cost: string; count: number }> }>;
+  getPlatformUsageStats(startDate?: Date, endDate?: Date): Promise<{ totalTokens: number; totalCost: string; requestCount: number; byOrganization: Record<string, { orgId: string; name: string; tokens: number; cost: string; count: number }> }>;
 
   // ============================================================================
   // AI KNOWLEDGE LEARNING OPERATIONS
@@ -6685,6 +6692,202 @@ export class DatabaseStorage implements IStorage {
         requestCount: data.requestCount
       }))
       .sort((a, b) => b.month.localeCompare(a.month));
+  }
+
+  // Billing & Usage Analytics implementations
+  async getAiTokenUsageByUser(userId: string, startDate?: Date, endDate?: Date): Promise<AiTokenUsage[]> {
+    const conditions: any[] = [eq(aiTokenUsage.userId, userId)];
+    
+    if (startDate) {
+      conditions.push(gte(aiTokenUsage.occurredAt, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(aiTokenUsage.occurredAt, endDate));
+    }
+    
+    return await db
+      .select()
+      .from(aiTokenUsage)
+      .where(and(...conditions))
+      .orderBy(desc(aiTokenUsage.occurredAt));
+  }
+
+  async getAiTokenUsageByOrganization(organizationId: string, startDate?: Date, endDate?: Date): Promise<AiTokenUsage[]> {
+    const conditions: any[] = [eq(aiTokenUsage.organizationId, organizationId)];
+    
+    if (startDate) {
+      conditions.push(gte(aiTokenUsage.occurredAt, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(aiTokenUsage.occurredAt, endDate));
+    }
+    
+    return await db
+      .select()
+      .from(aiTokenUsage)
+      .where(and(...conditions))
+      .orderBy(desc(aiTokenUsage.occurredAt));
+  }
+
+  async getUsageStatsByUser(userId: string, startDate?: Date, endDate?: Date): Promise<{ totalTokens: number; totalCost: string; requestCount: number; byModel: Record<string, { tokens: number; cost: string; count: number }> }> {
+    const usage = await this.getAiTokenUsageByUser(userId, startDate, endDate);
+    
+    let totalTokens = 0;
+    let totalCost = 0;
+    const byModel: Record<string, { tokens: number; cost: number; count: number }> = {};
+    
+    for (const record of usage) {
+      totalTokens += record.totalTokens;
+      totalCost += parseFloat(record.costUsd);
+      
+      if (!byModel[record.model]) {
+        byModel[record.model] = { tokens: 0, cost: 0, count: 0 };
+      }
+      byModel[record.model].tokens += record.totalTokens;
+      byModel[record.model].cost += parseFloat(record.costUsd);
+      byModel[record.model].count += 1;
+    }
+    
+    const byModelFormatted: Record<string, { tokens: number; cost: string; count: number }> = {};
+    for (const [model, data] of Object.entries(byModel)) {
+      byModelFormatted[model] = {
+        tokens: data.tokens,
+        cost: data.cost.toFixed(6),
+        count: data.count
+      };
+    }
+    
+    return {
+      totalTokens,
+      totalCost: totalCost.toFixed(6),
+      requestCount: usage.length,
+      byModel: byModelFormatted
+    };
+  }
+
+  async getUsageStatsByOrganization(organizationId: string, startDate?: Date, endDate?: Date): Promise<{ totalTokens: number; totalCost: string; requestCount: number; byModel: Record<string, { tokens: number; cost: string; count: number }>; byUser: Record<string, { userId: string; name: string; tokens: number; cost: string; count: number }> }> {
+    const usage = await this.getAiTokenUsageByOrganization(organizationId, startDate, endDate);
+    
+    let totalTokens = 0;
+    let totalCost = 0;
+    const byModel: Record<string, { tokens: number; cost: number; count: number }> = {};
+    const byUserMap: Record<string, { userId: string; tokens: number; cost: number; count: number }> = {};
+    
+    for (const record of usage) {
+      totalTokens += record.totalTokens;
+      totalCost += parseFloat(record.costUsd);
+      
+      if (!byModel[record.model]) {
+        byModel[record.model] = { tokens: 0, cost: 0, count: 0 };
+      }
+      byModel[record.model].tokens += record.totalTokens;
+      byModel[record.model].cost += parseFloat(record.costUsd);
+      byModel[record.model].count += 1;
+      
+      if (record.userId) {
+        if (!byUserMap[record.userId]) {
+          byUserMap[record.userId] = { userId: record.userId, tokens: 0, cost: 0, count: 0 };
+        }
+        byUserMap[record.userId].tokens += record.totalTokens;
+        byUserMap[record.userId].cost += parseFloat(record.costUsd);
+        byUserMap[record.userId].count += 1;
+      }
+    }
+    
+    // Fetch user names
+    const userIds = Object.keys(byUserMap);
+    const userNames: Record<string, string> = {};
+    for (const uid of userIds) {
+      const user = await this.getUser(uid);
+      userNames[uid] = user?.name || 'Unknown User';
+    }
+    
+    const byModelFormatted: Record<string, { tokens: number; cost: string; count: number }> = {};
+    for (const [model, data] of Object.entries(byModel)) {
+      byModelFormatted[model] = {
+        tokens: data.tokens,
+        cost: data.cost.toFixed(6),
+        count: data.count
+      };
+    }
+    
+    const byUserFormatted: Record<string, { userId: string; name: string; tokens: number; cost: string; count: number }> = {};
+    for (const [uid, data] of Object.entries(byUserMap)) {
+      byUserFormatted[uid] = {
+        userId: data.userId,
+        name: userNames[uid] || 'Unknown User',
+        tokens: data.tokens,
+        cost: data.cost.toFixed(6),
+        count: data.count
+      };
+    }
+    
+    return {
+      totalTokens,
+      totalCost: totalCost.toFixed(6),
+      requestCount: usage.length,
+      byModel: byModelFormatted,
+      byUser: byUserFormatted
+    };
+  }
+
+  async getPlatformUsageStats(startDate?: Date, endDate?: Date): Promise<{ totalTokens: number; totalCost: string; requestCount: number; byOrganization: Record<string, { orgId: string; name: string; tokens: number; cost: string; count: number }> }> {
+    const conditions: any[] = [];
+    
+    if (startDate) {
+      conditions.push(gte(aiTokenUsage.occurredAt, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(aiTokenUsage.occurredAt, endDate));
+    }
+    
+    const usage = conditions.length > 0 
+      ? await db.select().from(aiTokenUsage).where(and(...conditions)).orderBy(desc(aiTokenUsage.occurredAt))
+      : await db.select().from(aiTokenUsage).orderBy(desc(aiTokenUsage.occurredAt));
+    
+    let totalTokens = 0;
+    let totalCost = 0;
+    const byOrgMap: Record<string, { orgId: string; tokens: number; cost: number; count: number }> = {};
+    
+    for (const record of usage) {
+      totalTokens += record.totalTokens;
+      totalCost += parseFloat(record.costUsd);
+      
+      const orgId = record.organizationId || 'platform';
+      if (!byOrgMap[orgId]) {
+        byOrgMap[orgId] = { orgId, tokens: 0, cost: 0, count: 0 };
+      }
+      byOrgMap[orgId].tokens += record.totalTokens;
+      byOrgMap[orgId].cost += parseFloat(record.costUsd);
+      byOrgMap[orgId].count += 1;
+    }
+    
+    // Fetch organization names
+    const orgNames: Record<string, string> = { platform: 'Platform (No Org)' };
+    for (const orgId of Object.keys(byOrgMap)) {
+      if (orgId !== 'platform') {
+        const org = await this.getOrganization(orgId);
+        orgNames[orgId] = org?.name || 'Unknown Organization';
+      }
+    }
+    
+    const byOrgFormatted: Record<string, { orgId: string; name: string; tokens: number; cost: string; count: number }> = {};
+    for (const [orgId, data] of Object.entries(byOrgMap)) {
+      byOrgFormatted[orgId] = {
+        orgId: data.orgId,
+        name: orgNames[orgId] || 'Unknown Organization',
+        tokens: data.tokens,
+        cost: data.cost.toFixed(6),
+        count: data.count
+      };
+    }
+    
+    return {
+      totalTokens,
+      totalCost: totalCost.toFixed(6),
+      requestCount: usage.length,
+      byOrganization: byOrgFormatted
+    };
   }
 
   // ============================================================================

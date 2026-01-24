@@ -13912,6 +13912,140 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // ============================================================================
+  // BILLING & USAGE TRACKING API
+  // ============================================================================
+
+  // Get personal usage stats (available to all authenticated users)
+  app.get('/api/billing/my-usage', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { startDate, endDate } = req.query;
+      
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+      
+      const stats = await storage.getUsageStatsByUser(user.id, start, end);
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch personal usage:', error);
+      res.status(500).json({ error: 'Failed to fetch usage data' });
+    }
+  });
+
+  // Get personal usage history (available to all authenticated users)
+  app.get('/api/billing/my-usage/history', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { startDate, endDate, limit } = req.query;
+      
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+      
+      let usage = await storage.getAiTokenUsageByUser(user.id, start, end);
+      if (limit) {
+        usage = usage.slice(0, parseInt(limit as string));
+      }
+      res.json(usage);
+    } catch (error) {
+      console.error('Failed to fetch personal usage history:', error);
+      res.status(500).json({ error: 'Failed to fetch usage history' });
+    }
+  });
+
+  // Get organization usage stats (available to org admins and members)
+  app.get('/api/billing/organization-usage', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization membership required' });
+      }
+      
+      const { startDate, endDate } = req.query;
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+      
+      const stats = await storage.getUsageStatsByOrganization(user.organizationId, start, end);
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch organization usage:', error);
+      res.status(500).json({ error: 'Failed to fetch organization usage' });
+    }
+  });
+
+  // Get organization usage history (available to org admins)
+  app.get('/api/billing/organization-usage/history', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user?.organizationId) {
+        return res.status(400).json({ error: 'Organization membership required' });
+      }
+      
+      const { startDate, endDate, limit } = req.query;
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+      
+      let usage = await storage.getAiTokenUsageByOrganization(user.organizationId, start, end);
+      if (limit) {
+        usage = usage.slice(0, parseInt(limit as string));
+      }
+      res.json(usage);
+    } catch (error) {
+      console.error('Failed to fetch organization usage history:', error);
+      res.status(500).json({ error: 'Failed to fetch organization usage history' });
+    }
+  });
+
+  // Get platform-wide usage stats (super admin only)
+  app.get('/api/billing/platform-usage', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as any;
+      // Only super admins (users without organization or with platform admin flag) can see platform stats
+      // For now, we allow any admin to see platform stats
+      
+      const { startDate, endDate } = req.query;
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+      
+      const stats = await storage.getPlatformUsageStats(start, end);
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to fetch platform usage:', error);
+      res.status(500).json({ error: 'Failed to fetch platform usage' });
+    }
+  });
+
+  // Get daily usage trend
+  app.get('/api/billing/daily-trend', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { days = 30 } = req.query;
+      
+      // Use workspace-level aggregation for daily trends
+      const workspaceId = user.workspaceId || null;
+      const trend = await storage.getDailyTokenUsage(workspaceId, parseInt(days as string));
+      res.json(trend);
+    } catch (error) {
+      console.error('Failed to fetch daily trend:', error);
+      res.status(500).json({ error: 'Failed to fetch daily trend' });
+    }
+  });
+
+  // Get monthly usage trend
+  app.get('/api/billing/monthly-trend', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { months = 12 } = req.query;
+      
+      const workspaceId = user.workspaceId || null;
+      const trend = await storage.getMonthlyTokenUsage(workspaceId, parseInt(months as string));
+      res.json(trend);
+    } catch (error) {
+      console.error('Failed to fetch monthly trend:', error);
+      res.status(500).json({ error: 'Failed to fetch monthly trend' });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Initialize WebSocket server for real-time chat

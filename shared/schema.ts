@@ -3047,6 +3047,8 @@ export const aiTokenUsage = pgTable("ai_token_usage", {
   messageId: varchar("message_id").references(() => messages.id),
   agentId: varchar("agent_id").references(() => aiAgents.id),
   workspaceId: varchar("workspace_id").references(() => workspaces.id),
+  organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
+  userId: varchar("user_id").references(() => users.id), // Track which user triggered the AI call
   
   // Model info
   model: text("model").notNull(), // e.g., "gpt-4o-mini", "gpt-4o"
