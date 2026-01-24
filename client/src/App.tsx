@@ -86,6 +86,7 @@ const OrganizationManagementPage = lazy(() => import("@/pages/OrganizationManage
 const OrganizationSetupPage = lazy(() => import("@/pages/OrganizationSetupPage"));
 const CloudStorageMarketplacePage = lazy(() => import("@/pages/CloudStorageMarketplacePage"));
 const EmailIntegrationPage = lazy(() => import("@/pages/EmailIntegrationPage"));
+const BillingUsagePage = lazy(() => import("@/pages/BillingUsagePage"));
 
 function Router() {
   return (
@@ -169,6 +170,9 @@ function Router() {
           <PermissionGuard feature="settings">
             <EmailIntegrationPage />
           </PermissionGuard>
+        </Route>
+        <Route path="/billing">
+          <BillingUsagePage />
         </Route>
         <Route path="/administration">
           <PermissionGuard feature="platform-admin">

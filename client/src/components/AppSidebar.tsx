@@ -51,7 +51,8 @@ import {
   Atom,
   ChevronRight,
   Cloud,
-  Mail
+  Mail,
+  CreditCard
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -179,6 +180,12 @@ const settingsSubItems: NavigationItem[] = [
     url: "/email-integration",
     icon: Mail,
     allowedRoles: ['admin']
+  },
+  {
+    title: "Billing & Usage",
+    url: "/billing",
+    icon: CreditCard,
+    allowedRoles: 'all'
   }
 ];
 
