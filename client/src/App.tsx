@@ -172,7 +172,9 @@ function Router() {
           </PermissionGuard>
         </Route>
         <Route path="/billing">
-          <BillingUsagePage />
+          <PermissionGuard feature="dashboard">
+            <BillingUsagePage />
+          </PermissionGuard>
         </Route>
         <Route path="/administration">
           <PermissionGuard feature="platform-admin">
