@@ -75,6 +75,13 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
   - **Audit Logging**: All access decisions logged with correlation tracking
   - **Policy Rules**: Configurable allow/deny rules with time-based conditions and escalation policies
   - **Documentation**: Complete API guide at `docs/api/ai-data-integration.md`
+- **Billing & Usage Analytics**: Multi-level AI token usage tracking with role-based visibility:
+  - **Personal Usage**: All authenticated users can view their own AI token consumption and costs
+  - **Organization Usage**: Organization members can view aggregated usage across their organization
+  - **Platform Usage**: Admins can view platform-wide statistics across all organizations
+  - **Usage Metrics**: Token counts (prompt/completion), cost estimates, request counts, model breakdown
+  - **Date Range Filtering**: Filter usage by 7 days, 30 days, 90 days, or all time
+  - **API Endpoints**: Role-protected endpoints for my-usage, organization-usage, and platform-usage
 - **Progressive Web App (PWA)**: Full mobile app experience with:
   - **Service Worker**: Offline caching with cache-first strategy for static assets and network-first for API calls
   - **PWA Install Prompt**: Smart install banner for mobile users with localStorage-based dismissal tracking
