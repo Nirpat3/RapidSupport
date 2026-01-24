@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   CreditCard, 
   TrendingUp, 
@@ -238,6 +238,7 @@ function UserBreakdownTable({
 
 export default function BillingUsagePage() {
   const [dateRange, setDateRange] = useState<keyof typeof DATE_RANGES>('30d');
+  const { user } = useAuth();
   
   const getDateParams = () => {
     const range = DATE_RANGES[dateRange];
@@ -247,10 +248,6 @@ export default function BillingUsagePage() {
       endDate: new Date().toISOString()
     };
   };
-
-  const { data: user } = useQuery<{ id: string; role: string; organizationId?: string }>({
-    queryKey: ['/api/user']
-  });
 
   const { data: personalUsage, isLoading: loadingPersonal } = useQuery<UsageStats>({
     queryKey: ['/api/billing/my-usage', dateRange],
