@@ -142,7 +142,7 @@ export default function CloudStorageMarketplacePage() {
 
   const connectMutation = useMutation({
     mutationFn: async (provider: string) => {
-      const response = await fetch(`/api/cloud-storage/oauth/${provider}/initiate`, {
+      const response = await fetch(`/api/cloud-storage/oauth/${provider}/initiate?workspaceId=${selectedWorkspace}`, {
         credentials: 'include'
       });
       if (!response.ok) {
