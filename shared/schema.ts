@@ -3756,6 +3756,34 @@ export type WorkflowSession = typeof workflowSessions.$inferSelect;
 // CLOUD STORAGE INTEGRATION - Marketplace Connections
 // ============================================
 
+// Cloud Storage OAuth Configurations - Workspace-level OAuth app credentials
+export const cloudStorageOAuthConfigs = pgTable("cloud_storage_oauth_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Multi-tenant scoping
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  workspaceId: varchar("workspace_id").notNull().references(() => workspaces.id),
+  
+  // Provider info
+  provider: text("provider").notNull(), // 'google_drive' | 'onedrive' | 'dropbox'
+  
+  // OAuth App Credentials (encrypted at rest in production)
+  clientId: text("client_id").notNull(),
+  clientSecret: text("client_secret").notNull(),
+  
+  // Configuration status
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  
+  // Metadata
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("cloud_storage_oauth_org_idx").on(table.organizationId),
+  workspaceIdx: index("cloud_storage_oauth_workspace_idx").on(table.workspaceId),
+  uniqueConfig: uniqueIndex("cloud_storage_oauth_unique_idx").on(table.workspaceId, table.provider),
+}));
+
 // Cloud Storage Connections - OAuth connections to Google Drive, OneDrive, Dropbox
 export const cloudStorageConnections = pgTable("cloud_storage_connections", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -3889,6 +3917,15 @@ export const cloudStorageFiles = pgTable("cloud_storage_files", {
   kbIdx: index("cloud_storage_file_kb_idx").on(table.knowledgeBaseId),
   uniqueFile: uniqueIndex("cloud_storage_file_unique_idx").on(table.connectionId, table.providerFileId),
 }));
+
+// Cloud Storage OAuth Configs insert schema and types
+export const insertCloudStorageOAuthConfigSchema = createInsertSchema(cloudStorageOAuthConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCloudStorageOAuthConfig = z.infer<typeof insertCloudStorageOAuthConfigSchema>;
+export type CloudStorageOAuthConfig = typeof cloudStorageOAuthConfigs.$inferSelect;
 
 // Cloud Storage Connections insert schema and types
 export const insertCloudStorageConnectionSchema = createInsertSchema(cloudStorageConnections).omit({
