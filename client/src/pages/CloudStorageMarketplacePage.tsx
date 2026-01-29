@@ -109,6 +109,13 @@ export default function CloudStorageMarketplacePage() {
     queryKey: ['/api/workspaces'],
   });
 
+  // Auto-select first workspace when loaded
+  useEffect(() => {
+    if (workspaces.length > 0 && !selectedWorkspace) {
+      setSelectedWorkspace(workspaces[0].id);
+    }
+  }, [workspaces, selectedWorkspace]);
+
   const { data: connections = [], isLoading: connectionsLoading } = useQuery<CloudStorageConnection[]>({
     queryKey: ['/api/cloud-storage/connections', selectedWorkspace],
     enabled: !!selectedWorkspace,
