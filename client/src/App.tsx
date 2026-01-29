@@ -87,6 +87,7 @@ const OrganizationSetupPage = lazy(() => import("@/pages/OrganizationSetupPage")
 const CloudStorageMarketplacePage = lazy(() => import("@/pages/CloudStorageMarketplacePage"));
 const EmailIntegrationPage = lazy(() => import("@/pages/EmailIntegrationPage"));
 const BillingUsagePage = lazy(() => import("@/pages/BillingUsagePage"));
+const LoginPage = lazy(() => import("@/pages/LoginPage"));
 
 function Router() {
   return (
@@ -393,6 +394,7 @@ function AppContent() {
   const isOrganizationSetupPage = pathname === '/setup-organization';
   const isPortalLoginPage = pathname === '/portal/login';
   const isPortalPage = pathname.startsWith('/portal') && pathname !== '/portal/login';
+  const isLoginPage = pathname === '/login';
   
   if (isLandingPage) {
     return (
@@ -439,6 +441,19 @@ function AppContent() {
         <TooltipProvider>
           <Suspense fallback={<PageLoader />}>
             <ContactPage />
+          </Suspense>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+  
+  if (isLoginPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Suspense fallback={<PageLoader />}>
+            <LoginPage />
           </Suspense>
           <Toaster />
         </TooltipProvider>
