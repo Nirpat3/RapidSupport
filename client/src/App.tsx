@@ -88,6 +88,8 @@ const CloudStorageMarketplacePage = lazy(() => import("@/pages/CloudStorageMarke
 const EmailIntegrationPage = lazy(() => import("@/pages/EmailIntegrationPage"));
 const BillingUsagePage = lazy(() => import("@/pages/BillingUsagePage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const TeamManagementPage = lazy(() => import("@/pages/TeamManagementPage"));
+const JoinPage = lazy(() => import("@/pages/JoinPage"));
 
 function Router() {
   return (
@@ -107,6 +109,13 @@ function Router() {
           </PermissionGuard>
         </Route>
         <Route path="/setup-organization" component={OrganizationSetupPage} />
+        <Route path="/login" component={LoginPage} />
+        <Route path="/join" component={JoinPage} />
+        <Route path="/team-management">
+          <PermissionGuard feature="team-management">
+            <TeamManagementPage />
+          </PermissionGuard>
+        </Route>
         <Route path="/workspace-admin">
           <PermissionGuard feature="workspace-admin">
             <WorkspaceAdminPage />

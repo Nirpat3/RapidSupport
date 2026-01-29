@@ -288,12 +288,35 @@ export const users = pgTable("users", {
   organizationId: varchar("organization_id").references(() => organizations.id), // Staff belong to organizations
   status: text("status").notNull().default("offline"), // 'online' | 'away' | 'busy' | 'offline'
   hasCompletedOnboarding: boolean("has_completed_onboarding").notNull().default(false), // Whether user has seen/completed welcome onboarding
+  mustChangePassword: boolean("must_change_password").notNull().default(false), // Require password change on next login
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   // Soft delete
   deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
   deletedBy: varchar("deleted_by"), // User ID who deleted this record
 });
+
+// Staff invite tokens for self-registration
+export const staffInvites = pgTable("staff_invites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  token: text("token").notNull().unique(), // Unique invite token
+  email: text("email").notNull(), // Pre-filled email for the invite
+  name: text("name"), // Optional pre-filled name
+  role: text("role").notNull().default("agent"), // 'agent' | 'admin'
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  invitedBy: varchar("invited_by").notNull(), // User ID who created the invite
+  expiresAt: timestamp("expires_at").notNull(), // When the invite expires
+  usedAt: timestamp("used_at"), // When the invite was used (null if unused)
+  usedBy: varchar("used_by"), // User ID who used the invite
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertStaffInviteSchema = createInsertSchema(staffInvites).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertStaffInvite = z.infer<typeof insertStaffInviteSchema>;
+export type StaffInvite = typeof staffInvites.$inferSelect;
 
 // Workspaces table - sub-divisions within organizations
 export const workspaces = pgTable("workspaces", {

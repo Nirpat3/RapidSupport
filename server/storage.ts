@@ -44,6 +44,7 @@ import {
   departmentMembers,
   organizations,
   auditLog,
+  staffInvites,
   type User,
   type Organization,
   type InsertOrganization,
@@ -228,6 +229,8 @@ import {
   organizationSetupTokens,
   type OrganizationSetupToken,
   type InsertOrganizationSetupToken,
+  type StaffInvite,
+  type InsertStaffInvite,
   type AuditLog,
   type InsertAuditLog,
   cloudStorageConnections,
@@ -487,6 +490,13 @@ export interface IStorage {
   createOrganizationSetupToken(token: InsertOrganizationSetupToken): Promise<OrganizationSetupToken>;
   updateOrganizationSetupToken(id: string, updates: Partial<OrganizationSetupToken>): Promise<OrganizationSetupToken>;
   completeOrganizationSetup(tokenId: string, organizationId: string): Promise<void>;
+  
+  // Staff Invite operations
+  createStaffInvite(invite: InsertStaffInvite): Promise<StaffInvite>;
+  getStaffInviteByToken(token: string): Promise<StaffInvite | undefined>;
+  getStaffInvitesByOrganization(organizationId: string): Promise<StaffInvite[]>;
+  markStaffInviteUsed(id: string, userId: string): Promise<void>;
+  deleteStaffInvite(id: string): Promise<void>;
   
   // Soft Delete operations - marks records as deleted without removing them
   softDeleteOrganization(id: string, deletedBy: string, reason?: string): Promise<void>;
@@ -3359,6 +3369,33 @@ export class DatabaseStorage implements IStorage {
       console.error('Error completing organization setup:', error);
       throw error;
     }
+  }
+
+  // Staff Invite operations
+  async createStaffInvite(invite: InsertStaffInvite): Promise<StaffInvite> {
+    const [created] = await db.insert(staffInvites).values(invite).returning();
+    return created;
+  }
+
+  async getStaffInviteByToken(token: string): Promise<StaffInvite | undefined> {
+    const [invite] = await db.select().from(staffInvites).where(eq(staffInvites.token, token));
+    return invite;
+  }
+
+  async getStaffInvitesByOrganization(organizationId: string): Promise<StaffInvite[]> {
+    return await db.select().from(staffInvites)
+      .where(eq(staffInvites.organizationId, organizationId))
+      .orderBy(desc(staffInvites.createdAt));
+  }
+
+  async markStaffInviteUsed(id: string, userId: string): Promise<void> {
+    await db.update(staffInvites)
+      .set({ usedAt: new Date(), usedBy: userId })
+      .where(eq(staffInvites.id, id));
+  }
+
+  async deleteStaffInvite(id: string): Promise<void> {
+    await db.delete(staffInvites).where(eq(staffInvites.id, id));
   }
 
   // ============================================

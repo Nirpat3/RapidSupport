@@ -19,6 +19,7 @@ import fs from 'fs';
 import { AIService } from './ai-service';
 import { db } from './db';
 import { eq, desc } from 'drizzle-orm';
+import { users } from '@shared/schema';
 import { registerAuthRoutes } from './routes/auth.routes';
 import { registerCustomerChatRoutes } from './routes/customer-chat.routes';
 import { registerEmbedRoutes } from './routes/embed.routes';
@@ -1910,7 +1911,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // User management routes (admin only)
   app.get('/api/users', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
-      const users = await storage.getAllUsers();
+      const currentUser = req.user as any;
+      let users = await storage.getAllUsers();
+      
+      // Filter by organization for non-platform admins
+      if (!currentUser.isPlatformAdmin && currentUser.organizationId) {
+        users = users.filter(user => user.organizationId === currentUser.organizationId);
+      }
+      
       // Remove passwords from response
       const safeUsers = users.map(user => {
         const { password, ...userWithoutPassword } = user;
@@ -1925,7 +1933,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Get staff members (agents and admins) for assignment
   app.get('/api/users/staff', requireAuth, requireRole(['agent', 'admin']), async (req, res) => {
     try {
-      const users = await storage.getAllUsers();
+      const currentUser = req.user as any;
+      let users = await storage.getAllUsers();
+      
+      // Filter by organization for non-platform admins
+      if (!currentUser.isPlatformAdmin && currentUser.organizationId) {
+        users = users.filter(user => user.organizationId === currentUser.organizationId);
+      }
+      
       // Filter to only agents and admins, remove passwords
       const staffUsers = users
         .filter(user => user.role === 'agent' || user.role === 'admin')
@@ -1936,6 +1951,264 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.json(staffUsers);
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch staff' });
+    }
+  });
+
+  // Create a new staff user (organization admins can create users in their org)
+  app.post('/api/users', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      
+      const createUserSchema = z.object({
+        name: z.string().min(1, "Name is required"),
+        email: z.string().email("Valid email required"),
+        password: z.string().min(8, "Password must be at least 8 characters"),
+        role: z.enum(['agent', 'admin']).default('agent'),
+        mustChangePassword: z.boolean().default(false),
+      });
+      
+      const data = createUserSchema.parse(req.body);
+      
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail(data.email);
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email already in use' });
+      }
+      
+      // Hash password
+      const bcrypt = await import('bcrypt');
+      const hashedPassword = await bcrypt.hash(data.password, 10);
+      
+      // Determine organization - org admins can only create in their org
+      // Platform admins must specify organizationId if they don't have one
+      const organizationId = currentUser.isPlatformAdmin ? req.body.organizationId : currentUser.organizationId;
+      
+      if (!organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      
+      const newUser = await storage.createUser({
+        name: data.name,
+        email: data.email,
+        password: hashedPassword,
+        role: data.role,
+        organizationId: organizationId,
+        status: 'offline',
+        hasCompletedOnboarding: false,
+      });
+      
+      // Update mustChangePassword if needed (separate update since it's a new field)
+      if (data.mustChangePassword) {
+        await db.update(users).set({ mustChangePassword: true }).where(eq(users.id, newUser.id));
+      }
+      
+      // Remove password from response
+      const { password, ...safeUser } = newUser;
+      res.json(safeUser);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      console.error('Error creating user:', error);
+      res.status(500).json({ error: 'Failed to create user' });
+    }
+  });
+
+  // Generate staff invite link
+  app.post('/api/staff-invites', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      
+      const inviteSchema = z.object({
+        email: z.string().email("Valid email required"),
+        name: z.string().optional(),
+        role: z.enum(['agent', 'admin']).default('agent'),
+        expiresInDays: z.number().min(1).max(30).default(7),
+      });
+      
+      const data = inviteSchema.parse(req.body);
+      
+      // Determine organization
+      const organizationId = currentUser.isPlatformAdmin ? req.body.organizationId : currentUser.organizationId;
+      
+      if (!organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      
+      // Generate unique token
+      const crypto = await import('crypto');
+      const token = crypto.randomBytes(32).toString('hex');
+      
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + data.expiresInDays);
+      
+      const invite = await storage.createStaffInvite({
+        token,
+        email: data.email,
+        name: data.name || null,
+        role: data.role,
+        organizationId,
+        invitedBy: currentUser.id,
+        expiresAt,
+      });
+      
+      // Generate invite URL
+      const baseUrl = process.env.PUBLIC_URL || `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+      const inviteUrl = `${baseUrl}/join?token=${token}`;
+      
+      res.json({ invite, inviteUrl });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      console.error('Error creating staff invite:', error);
+      res.status(500).json({ error: 'Failed to create invite' });
+    }
+  });
+
+  // Get staff invites for current organization
+  app.get('/api/staff-invites', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      
+      if (!currentUser.organizationId && !currentUser.isPlatformAdmin) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      
+      const organizationId = currentUser.organizationId;
+      if (!organizationId) {
+        return res.json([]);
+      }
+      
+      const invites = await storage.getStaffInvitesByOrganization(organizationId);
+      res.json(invites);
+    } catch (error) {
+      console.error('Error fetching staff invites:', error);
+      res.status(500).json({ error: 'Failed to fetch invites' });
+    }
+  });
+
+  // Delete/revoke a staff invite
+  app.delete('/api/staff-invites/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      const inviteId = req.params.id;
+      
+      // Platform admins can delete any invite
+      if (currentUser.isPlatformAdmin) {
+        await storage.deleteStaffInvite(inviteId);
+        return res.json({ success: true });
+      }
+      
+      // Org admins can only delete invites from their organization
+      if (!currentUser.organizationId) {
+        return res.status(400).json({ error: 'Organization required' });
+      }
+      
+      const invites = await storage.getStaffInvitesByOrganization(currentUser.organizationId);
+      const invite = invites.find(i => i.id === inviteId);
+      
+      if (!invite) {
+        return res.status(404).json({ error: 'Invite not found' });
+      }
+      
+      await storage.deleteStaffInvite(inviteId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting staff invite:', error);
+      res.status(500).json({ error: 'Failed to delete invite' });
+    }
+  });
+
+  // Public endpoint to validate and use a staff invite
+  app.get('/api/public/staff-invite/:token', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const invite = await storage.getStaffInviteByToken(token);
+      
+      if (!invite) {
+        return res.status(404).json({ error: 'Invalid invite link' });
+      }
+      
+      if (invite.usedAt) {
+        return res.status(400).json({ error: 'This invite has already been used' });
+      }
+      
+      if (new Date() > new Date(invite.expiresAt)) {
+        return res.status(400).json({ error: 'This invite has expired' });
+      }
+      
+      // Get organization name
+      const org = await storage.getOrganization(invite.organizationId);
+      
+      res.json({
+        valid: true,
+        email: invite.email,
+        name: invite.name,
+        role: invite.role,
+        organizationName: org?.name || 'Unknown Organization',
+      });
+    } catch (error) {
+      console.error('Error validating staff invite:', error);
+      res.status(500).json({ error: 'Failed to validate invite' });
+    }
+  });
+
+  // Public endpoint to complete staff registration via invite
+  app.post('/api/public/staff-invite/:token/complete', async (req, res) => {
+    try {
+      const { token } = req.params;
+      const invite = await storage.getStaffInviteByToken(token);
+      
+      if (!invite) {
+        return res.status(404).json({ error: 'Invalid invite link' });
+      }
+      
+      if (invite.usedAt) {
+        return res.status(400).json({ error: 'This invite has already been used' });
+      }
+      
+      if (new Date() > new Date(invite.expiresAt)) {
+        return res.status(400).json({ error: 'This invite has expired' });
+      }
+      
+      const registerSchema = z.object({
+        name: z.string().min(1, "Name is required"),
+        password: z.string().min(8, "Password must be at least 8 characters"),
+      });
+      
+      const data = registerSchema.parse(req.body);
+      
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail(invite.email);
+      if (existingUser) {
+        return res.status(400).json({ error: 'Email already registered' });
+      }
+      
+      // Hash password
+      const bcrypt = await import('bcrypt');
+      const hashedPassword = await bcrypt.hash(data.password, 10);
+      
+      const newUser = await storage.createUser({
+        name: data.name,
+        email: invite.email,
+        password: hashedPassword,
+        role: invite.role,
+        organizationId: invite.organizationId,
+        status: 'offline',
+        hasCompletedOnboarding: false,
+      });
+      
+      // Mark invite as used
+      await storage.markStaffInviteUsed(invite.id, newUser.id);
+      
+      res.json({ success: true, message: 'Account created successfully' });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      console.error('Error completing staff registration:', error);
+      res.status(500).json({ error: 'Failed to complete registration' });
     }
   });
 
