@@ -13591,7 +13591,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         workspaceId: z.string().min(1, 'Workspace ID required'),
         provider: z.enum(['google_drive', 'onedrive', 'dropbox']),
         clientId: z.string().min(1, 'Client ID required'),
-        clientSecret: z.string().min(1, 'Client Secret required'),
+        clientSecret: z.string(), // Allow empty for updates
       });
       
       const validatedData = configSchema.parse(req.body);
@@ -13605,17 +13605,28 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         .limit(1);
       
       if (existing.length > 0) {
-        // Update existing config
+        // Update existing config - keep existing secret if not provided
+        const updateData: Record<string, any> = {
+          clientId: validatedData.clientId,
+          updatedAt: new Date()
+        };
+        
+        // Only update secret if a new one was provided
+        if (validatedData.clientSecret) {
+          updateData.clientSecret = validatedData.clientSecret;
+        }
+        
         const [updated] = await db.update(cloudStorageOAuthConfigs)
-          .set({
-            clientId: validatedData.clientId,
-            clientSecret: validatedData.clientSecret,
-            updatedAt: new Date()
-          })
+          .set(updateData)
           .where(eq(cloudStorageOAuthConfigs.id, existing[0].id))
           .returning();
         
         return res.json({ ...updated, clientSecret: '••••••••' });
+      }
+      
+      // For new configs, require client secret
+      if (!validatedData.clientSecret) {
+        return res.status(400).json({ error: 'Client Secret required for new configurations' });
       }
       
       // Create new config

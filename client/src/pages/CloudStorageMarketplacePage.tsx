@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -119,6 +119,27 @@ export default function CloudStorageMarketplacePage() {
     enabled: !!selectedWorkspace,
   });
 
+  // Populate form with existing OAuth configs when loaded or reset when empty
+  useEffect(() => {
+    const newForm: OAuthConfigForm = {
+      google_drive: { clientId: '', clientSecret: '' },
+      onedrive: { clientId: '', clientSecret: '' },
+      dropbox: { clientId: '', clientSecret: '' }
+    };
+    
+    // Populate from existing configs
+    oauthConfigs.forEach(config => {
+      if (config.provider in newForm) {
+        newForm[config.provider as keyof OAuthConfigForm] = {
+          clientId: config.clientId || '',
+          clientSecret: '' // Secret is masked, don't prefill
+        };
+      }
+    });
+    
+    setOauthForm(newForm);
+  }, [oauthConfigs, selectedWorkspace]);
+
   const connectMutation = useMutation({
     mutationFn: async (provider: string) => {
       const response = await fetch(`/api/cloud-storage/oauth/${provider}/initiate`, {
@@ -215,7 +236,10 @@ export default function CloudStorageMarketplacePage() {
 
   const handleSaveOAuthConfig = (provider: string) => {
     const config = oauthForm[provider as keyof OAuthConfigForm];
-    if (!config.clientId || !config.clientSecret) {
+    const existingConfig = getOAuthConfigForProvider(provider);
+    
+    // For new configs, require both fields
+    if (!existingConfig && (!config.clientId || !config.clientSecret)) {
       toast({
         title: "Missing Credentials",
         description: "Please enter both Client ID and Client Secret",
@@ -223,11 +247,23 @@ export default function CloudStorageMarketplacePage() {
       });
       return;
     }
+    
+    // For existing configs, require at least Client ID (secret is optional for updates)
+    if (existingConfig && !config.clientId) {
+      toast({
+        title: "Missing Client ID",
+        description: "Client ID is required",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setSavingProvider(provider);
     saveOAuthConfigMutation.mutate({
       provider,
       clientId: config.clientId,
-      clientSecret: config.clientSecret
+      // If no secret provided for existing config, keep the existing one by sending empty string
+      clientSecret: config.clientSecret || ''
     });
   };
 
@@ -528,7 +564,10 @@ export default function CloudStorageMarketplacePage() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor={`${provider.id}-client-secret`}>Client Secret</Label>
+                          <Label htmlFor={`${provider.id}-client-secret`}>
+                            Client Secret
+                            {existingConfig && <span className="text-xs text-muted-foreground ml-2">(leave empty to keep existing)</span>}
+                          </Label>
                           <Input
                             id={`${provider.id}-client-secret`}
                             type="password"
@@ -550,7 +589,7 @@ export default function CloudStorageMarketplacePage() {
                         </p>
                         <Button
                           onClick={() => handleSaveOAuthConfig(provider.id)}
-                          disabled={isSaving || (!formData.clientId && !formData.clientSecret)}
+                          disabled={isSaving || !formData.clientId || (!existingConfig && !formData.clientSecret)}
                           size="sm"
                         >
                           {isSaving ? (
