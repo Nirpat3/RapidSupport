@@ -48,6 +48,10 @@ import {
   Globe,
   ExternalLink,
   RefreshCw,
+  Settings,
+  Edit,
+  Key,
+  Users,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -61,7 +65,23 @@ interface Organization {
   slug: string;
   status: string;
   website?: string;
+  supportEmail?: string;
+  supportPhone?: string;
+  welcomeMessage?: string;
+  aiEnabled?: boolean;
+  knowledgeBaseEnabled?: boolean;
+  primaryColor?: string;
+  secondaryColor?: string;
   createdAt: string;
+}
+
+interface OrganizationUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  organizationId: string;
 }
 
 interface OrganizationApplication {
@@ -103,7 +123,17 @@ const inviteSchema = z.object({
   contactRole: z.string().optional(),
 });
 
+const editOrgSchema = z.object({
+  name: z.string().min(1, "Organization name is required"),
+  website: z.string().optional(),
+  supportEmail: z.string().email("Valid email required").optional().or(z.literal("")),
+  supportPhone: z.string().optional(),
+  welcomeMessage: z.string().optional(),
+  status: z.enum(["active", "suspended", "trial"]),
+});
+
 type InviteForm = z.infer<typeof inviteSchema>;
+type EditOrgForm = z.infer<typeof editOrgSchema>;
 
 export default function OrganizationManagementPage() {
   const { toast } = useToast();
@@ -115,6 +145,12 @@ export default function OrganizationManagementPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [setupUrl, setSetupUrl] = useState<string | null>(null);
   const [showSetupUrlDialog, setShowSetupUrlDialog] = useState(false);
+  const [editOrgDialogOpen, setEditOrgDialogOpen] = useState(false);
+  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+  const [usersDialogOpen, setUsersDialogOpen] = useState(false);
+  const [resetPasswordDialogOpen, setResetPasswordDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<OrganizationUser | null>(null);
+  const [newPassword, setNewPassword] = useState("");
 
   const { data: organizations, isLoading: orgsLoading } = useQuery<Organization[]>({
     queryKey: ['/api/admin/organizations'],
@@ -202,6 +238,77 @@ export default function OrganizationManagementPage() {
       toast({ variant: "destructive", title: "Error", description: error?.message || "Failed to revoke token." });
     },
   });
+
+  const editOrgForm = useForm<EditOrgForm>({
+    resolver: zodResolver(editOrgSchema),
+    defaultValues: {
+      name: "",
+      website: "",
+      supportEmail: "",
+      supportPhone: "",
+      welcomeMessage: "",
+      status: "active",
+    },
+  });
+
+  const { data: orgUsers = [], isLoading: usersLoading, refetch: refetchUsers } = useQuery<OrganizationUser[]>({
+    queryKey: ['/api/admin/organizations', selectedOrg?.id, 'users'],
+    queryFn: async () => {
+      if (!selectedOrg?.id) return [];
+      const response = await fetch(`/api/admin/organizations/${selectedOrg.id}/users`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to fetch users');
+      return response.json();
+    },
+    enabled: !!selectedOrg?.id && usersDialogOpen,
+  });
+
+  const updateOrgMutation = useMutation({
+    mutationFn: async (data: EditOrgForm) => {
+      return apiRequest(`/api/admin/organizations/${selectedOrg?.id}`, 'PATCH', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/organizations'] });
+      setEditOrgDialogOpen(false);
+      setSelectedOrg(null);
+      toast({ title: "Success", description: "Organization updated successfully." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error?.message || "Failed to update organization." });
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      return apiRequest(`/api/admin/users/${userId}/reset-password`, 'POST', { password });
+    },
+    onSuccess: () => {
+      setResetPasswordDialogOpen(false);
+      setSelectedUser(null);
+      setNewPassword("");
+      toast({ title: "Success", description: "Password reset successfully." });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Error", description: error?.message || "Failed to reset password." });
+    },
+  });
+
+  const openEditDialog = (org: Organization) => {
+    setSelectedOrg(org);
+    editOrgForm.reset({
+      name: org.name,
+      website: org.website || "",
+      supportEmail: org.supportEmail || "",
+      supportPhone: org.supportPhone || "",
+      welcomeMessage: org.welcomeMessage || "",
+      status: (org.status as "active" | "suspended" | "trial") || "active",
+    });
+    setEditOrgDialogOpen(true);
+  };
+
+  const openUsersDialog = (org: Organization) => {
+    setSelectedOrg(org);
+    setUsersDialogOpen(true);
+  };
 
   const pendingApplications = useMemo(() => 
     applications?.filter(a => a.status === 'pending') || [], 
@@ -521,9 +628,43 @@ export default function OrganizationManagementPage() {
                         </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent>
-                      <div className="text-sm text-muted-foreground">
-                        Created {formatDate(org.createdAt)}
+                    <CardContent className="space-y-3">
+                      <div className="text-sm text-muted-foreground space-y-1">
+                        <div>Created {formatDate(org.createdAt)}</div>
+                        {org.supportEmail && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-3 h-3" />
+                            {org.supportEmail}
+                          </div>
+                        )}
+                        {org.website && (
+                          <div className="flex items-center gap-2">
+                            <Globe className="w-3 h-3" />
+                            <a href={org.website} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                              {org.website.replace(/^https?:\/\//, '')}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 pt-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openEditDialog(org)}
+                          className="gap-1"
+                        >
+                          <Settings className="w-3 h-3" />
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openUsersDialog(org)}
+                          className="gap-1"
+                        >
+                          <User className="w-3 h-3" />
+                          Users
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -713,6 +854,217 @@ export default function OrganizationManagementPage() {
           </div>
           <DialogFooter>
             <Button onClick={() => setShowSetupUrlDialog(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOrgDialogOpen} onOpenChange={setEditOrgDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Organization</DialogTitle>
+            <DialogDescription>
+              Update organization details and contact information.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...editOrgForm}>
+            <form onSubmit={editOrgForm.handleSubmit((data) => updateOrgMutation.mutate(data))} className="space-y-4">
+              <FormField
+                control={editOrgForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Organization Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editOrgForm.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <FormControl>
+                      <select 
+                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                        {...field}
+                      >
+                        <option value="active">Active</option>
+                        <option value="suspended">Suspended</option>
+                        <option value="trial">Trial</option>
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editOrgForm.control}
+                name="website"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Website</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="https://example.com" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editOrgForm.control}
+                name="supportEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Support Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" placeholder="support@example.com" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editOrgForm.control}
+                name="supportPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Support Phone</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="+1 (555) 123-4567" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={editOrgForm.control}
+                name="welcomeMessage"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Welcome Message</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="Welcome to our support..." rows={3} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setEditOrgDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={updateOrgMutation.isPending}>
+                  {updateOrgMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Save Changes
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={usersDialogOpen} onOpenChange={setUsersDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              {selectedOrg?.name} - Users
+            </DialogTitle>
+            <DialogDescription>
+              Manage users and reset passwords for this organization.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {usersLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin" />
+              </div>
+            ) : orgUsers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No users found for this organization.
+              </div>
+            ) : (
+              orgUsers.map((user) => (
+                <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                      <User className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-medium">{user.name}</div>
+                      <div className="text-sm text-muted-foreground">{user.email}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                      {user.role}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedUser(user);
+                        setResetPasswordDialogOpen(true);
+                      }}
+                      className="gap-1"
+                    >
+                      <Key className="w-3 h-3" />
+                      Reset Password
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setUsersDialogOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resetPasswordDialogOpen} onOpenChange={setResetPasswordDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Set a new password for {selectedUser?.name} ({selectedUser?.email}).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">New Password</label>
+              <Input 
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => {
+              setResetPasswordDialogOpen(false);
+              setNewPassword("");
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => selectedUser && resetPasswordMutation.mutate({ userId: selectedUser.id, password: newPassword })}
+              disabled={resetPasswordMutation.isPending || newPassword.length < 8}
+            >
+              {resetPasswordMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Reset Password
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

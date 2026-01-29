@@ -4407,6 +4407,103 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Admin endpoint: Update organization details (PATCH)
+  app.patch('/api/admin/organizations/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser.isPlatformAdmin) {
+        return res.status(403).json({ error: 'Platform admin access required' });
+      }
+      
+      const { id } = req.params;
+      const updateSchema = z.object({
+        name: z.string().min(1).optional(),
+        status: z.enum(['active', 'suspended', 'trial']).optional(),
+        website: z.string().url().optional().or(z.literal("")),
+        supportEmail: z.string().email().optional().or(z.literal("")),
+        supportPhone: z.string().optional(),
+        welcomeMessage: z.string().optional(),
+      });
+      
+      const validatedData = updateSchema.parse(req.body);
+      
+      // Normalize empty strings to null for proper database storage
+      const normalizedData = {
+        ...validatedData,
+        website: validatedData.website === "" ? null : validatedData.website,
+        supportEmail: validatedData.supportEmail === "" ? null : validatedData.supportEmail,
+        supportPhone: validatedData.supportPhone === "" ? null : validatedData.supportPhone,
+        welcomeMessage: validatedData.welcomeMessage === "" ? null : validatedData.welcomeMessage,
+      };
+      
+      const org = await storage.updateOrganization(id, normalizedData);
+      res.json(org);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid update data', details: fromZodError(error).toString() });
+      }
+      console.error('Error updating organization:', error);
+      res.status(500).json({ error: 'Failed to update organization' });
+    }
+  });
+
+  // Admin endpoint: Get users for an organization
+  app.get('/api/admin/organizations/:id/users', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser.isPlatformAdmin) {
+        return res.status(403).json({ error: 'Platform admin access required' });
+      }
+      
+      const { id } = req.params;
+      const allUsers = await storage.getAllUsers();
+      const orgUsers = allUsers.filter(u => u.organizationId === id).map(({ password, ...user }) => user);
+      res.json(orgUsers);
+    } catch (error) {
+      console.error('Error fetching organization users:', error);
+      res.status(500).json({ error: 'Failed to fetch users' });
+    }
+  });
+
+  // Admin endpoint: Reset user password
+  app.post('/api/admin/users/:id/reset-password', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const currentUser = req.user as any;
+      if (!currentUser.isPlatformAdmin) {
+        return res.status(403).json({ error: 'Platform admin access required' });
+      }
+      
+      const { id } = req.params;
+      
+      // Validate password with Zod
+      const resetPasswordSchema = z.object({
+        password: z.string().min(8, 'Password must be at least 8 characters'),
+      });
+      
+      const { password } = resetPasswordSchema.parse(req.body);
+      
+      // Verify user exists before resetting password
+      const targetUser = await storage.getUser(id);
+      if (!targetUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      // Hash and update password using storage interface
+      const bcrypt = await import('bcrypt');
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      await storage.updateUser(id, { password: hashedPassword });
+      
+      res.json({ success: true, message: 'Password reset successfully' });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0].message });
+      }
+      console.error('Error resetting password:', error);
+      res.status(500).json({ error: 'Failed to reset password' });
+    }
+  });
+
   // ============================================
   // ORGANIZATION APPLICATIONS & SETUP TOKENS
   // ============================================
