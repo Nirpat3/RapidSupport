@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
@@ -26,9 +28,11 @@ import {
   Settings,
   Plus,
   Link2,
-  Unlink
+  Unlink,
+  Key,
+  Save
 } from "lucide-react";
-import type { CloudStorageConnection, Workspace } from "@shared/schema";
+import type { CloudStorageConnection, Workspace, CloudStorageOAuthConfig } from "@shared/schema";
 
 const GoogleDriveIcon = () => (
   <svg viewBox="0 0 87.3 78" className="w-full h-full">
@@ -80,6 +84,12 @@ const PROVIDERS = [
   }
 ];
 
+interface OAuthConfigForm {
+  google_drive: { clientId: string; clientSecret: string };
+  onedrive: { clientId: string; clientSecret: string };
+  dropbox: { clientId: string; clientSecret: string };
+}
+
 export default function CloudStorageMarketplacePage() {
   const { toast } = useToast();
   const [selectedWorkspace, setSelectedWorkspace] = useState<string>("");
@@ -88,6 +98,12 @@ export default function CloudStorageMarketplacePage() {
     open: false,
     connection: null
   });
+  const [oauthForm, setOauthForm] = useState<OAuthConfigForm>({
+    google_drive: { clientId: '', clientSecret: '' },
+    onedrive: { clientId: '', clientSecret: '' },
+    dropbox: { clientId: '', clientSecret: '' }
+  });
+  const [savingProvider, setSavingProvider] = useState<string | null>(null);
 
   const { data: workspaces = [] } = useQuery<Workspace[]>({
     queryKey: ['/api/workspaces'],
@@ -95,6 +111,11 @@ export default function CloudStorageMarketplacePage() {
 
   const { data: connections = [], isLoading: connectionsLoading } = useQuery<CloudStorageConnection[]>({
     queryKey: ['/api/cloud-storage/connections', selectedWorkspace],
+    enabled: !!selectedWorkspace,
+  });
+
+  const { data: oauthConfigs = [] } = useQuery<CloudStorageOAuthConfig[]>({
+    queryKey: ['/api/cloud-storage/oauth-configs', selectedWorkspace],
     enabled: !!selectedWorkspace,
   });
 
@@ -164,6 +185,55 @@ export default function CloudStorageMarketplacePage() {
       });
     }
   });
+
+  const saveOAuthConfigMutation = useMutation({
+    mutationFn: async ({ provider, clientId, clientSecret }: { provider: string; clientId: string; clientSecret: string }) => {
+      return apiRequest('/api/cloud-storage/oauth-configs', 'POST', {
+        workspaceId: selectedWorkspace,
+        provider,
+        clientId,
+        clientSecret
+      });
+    },
+    onSuccess: (_, variables) => {
+      toast({
+        title: "Configuration Saved",
+        description: `${PROVIDERS.find(p => p.id === variables.provider)?.name || variables.provider} credentials saved successfully`
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/cloud-storage/oauth-configs'] });
+      setSavingProvider(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save configuration",
+        variant: "destructive"
+      });
+      setSavingProvider(null);
+    }
+  });
+
+  const handleSaveOAuthConfig = (provider: string) => {
+    const config = oauthForm[provider as keyof OAuthConfigForm];
+    if (!config.clientId || !config.clientSecret) {
+      toast({
+        title: "Missing Credentials",
+        description: "Please enter both Client ID and Client Secret",
+        variant: "destructive"
+      });
+      return;
+    }
+    setSavingProvider(provider);
+    saveOAuthConfigMutation.mutate({
+      provider,
+      clientId: config.clientId,
+      clientSecret: config.clientSecret
+    });
+  };
+
+  const getOAuthConfigForProvider = (providerId: string) => {
+    return oauthConfigs.find(c => c.provider === providerId);
+  };
 
   const handleConnect = (providerId: string) => {
     if (!selectedWorkspace) {
@@ -243,6 +313,10 @@ export default function CloudStorageMarketplacePage() {
               {connections.length > 0 && (
                 <Badge variant="secondary" className="ml-1">{connections.length}</Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="gap-2">
+              <Key className="w-4 h-4" />
+              OAuth Settings
             </TabsTrigger>
           </TabsList>
 
@@ -404,6 +478,94 @@ export default function CloudStorageMarketplacePage() {
                 })}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="settings" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="w-5 h-5" />
+                  OAuth App Credentials
+                </CardTitle>
+                <CardDescription>
+                  Configure OAuth credentials for each cloud storage provider. Users in this workspace will use these credentials to connect their accounts.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {PROVIDERS.map((provider) => {
+                  const Icon = provider.icon;
+                  const existingConfig = getOAuthConfigForProvider(provider.id);
+                  const isSaving = savingProvider === provider.id;
+                  const formData = oauthForm[provider.id as keyof OAuthConfigForm];
+
+                  return (
+                    <div key={provider.id} className={`p-4 rounded-lg border ${provider.bgColor}`}>
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8"><Icon /></div>
+                        <div className="flex-1">
+                          <h4 className="font-medium">{provider.name}</h4>
+                          {existingConfig ? (
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+                              <CheckCircle className="w-3 h-3 mr-1" /> Configured
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Not Configured</Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor={`${provider.id}-client-id`}>Client ID</Label>
+                          <Input
+                            id={`${provider.id}-client-id`}
+                            placeholder={existingConfig ? existingConfig.clientId : "Enter Client ID"}
+                            value={formData.clientId}
+                            onChange={(e) => setOauthForm(prev => ({
+                              ...prev,
+                              [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientId: e.target.value }
+                            }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`${provider.id}-client-secret`}>Client Secret</Label>
+                          <Input
+                            id={`${provider.id}-client-secret`}
+                            type="password"
+                            placeholder={existingConfig ? "••••••••" : "Enter Client Secret"}
+                            value={formData.clientSecret}
+                            onChange={(e) => setOauthForm(prev => ({
+                              ...prev,
+                              [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientSecret: e.target.value }
+                            }))}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">
+                          {provider.id === 'google_drive' && 'Get credentials from Google Cloud Console > APIs & Services > Credentials'}
+                          {provider.id === 'onedrive' && 'Get credentials from Azure Portal > App Registrations'}
+                          {provider.id === 'dropbox' && 'Get credentials from Dropbox Developer Console > App Console'}
+                        </p>
+                        <Button
+                          onClick={() => handleSaveOAuthConfig(provider.id)}
+                          disabled={isSaving || (!formData.clientId && !formData.clientSecret)}
+                          size="sm"
+                        >
+                          {isSaving ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4 mr-2" />
+                          )}
+                          Save Credentials
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       )}

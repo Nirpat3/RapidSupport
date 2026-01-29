@@ -18,8 +18,8 @@ import path from 'path';
 import fs from 'fs';
 import { AIService } from './ai-service';
 import { db } from './db';
-import { eq, desc } from 'drizzle-orm';
-import { users } from '@shared/schema';
+import { eq, desc, and } from 'drizzle-orm';
+import { users, cloudStorageOAuthConfigs } from '@shared/schema';
 import { registerAuthRoutes } from './routes/auth.routes';
 import { registerCustomerChatRoutes } from './routes/customer-chat.routes';
 import { registerEmbedRoutes } from './routes/embed.routes';
@@ -56,7 +56,7 @@ import {
 import { WebScraper } from './web-scraper';
 
 // Module-level OAuth state nonce store (production should use Redis/DB)
-const oauthStateStore = new Map<string, { userId: string; organizationId: string; workspaceId: string; expiresAt: Date }>();
+const oauthStateStore = new Map<string, { userId: string; organizationId: string; workspaceId: string; oauthConfigId: string | null; expiresAt: Date }>();
 import { KnowledgeRetrievalService } from './knowledge-retrieval';
 import { channelService } from './channel-service';
 import { channelProviderFactory } from './channel-providers';
@@ -13543,6 +13543,131 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     return user.role === 'admin' || user.isPlatformAdmin;
   };
 
+  // ============================================
+  // CLOUD STORAGE OAUTH CONFIGURATION ENDPOINTS
+  // ============================================
+
+  // Get OAuth configs for a workspace (admin only)
+  app.get('/api/cloud-storage/oauth-configs', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as User;
+      if (!user.organizationId) {
+        return res.status(400).json({ error: 'Organization ID required' });
+      }
+      
+      const workspaceId = req.query.workspaceId as string;
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'Workspace ID required' });
+      }
+      
+      const configs = await db.select().from(cloudStorageOAuthConfigs)
+        .where(and(
+          eq(cloudStorageOAuthConfigs.organizationId, user.organizationId),
+          eq(cloudStorageOAuthConfigs.workspaceId, workspaceId)
+        ));
+      
+      // Mask the client secrets for security
+      const maskedConfigs = configs.map(c => ({
+        ...c,
+        clientSecret: c.clientSecret ? '••••••••' : null
+      }));
+      
+      res.json(maskedConfigs);
+    } catch (error) {
+      console.error('Error fetching OAuth configs:', error);
+      res.status(500).json({ error: 'Failed to fetch OAuth configurations' });
+    }
+  });
+
+  // Create or update OAuth config for a provider
+  app.post('/api/cloud-storage/oauth-configs', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as User;
+      if (!user.organizationId) {
+        return res.status(400).json({ error: 'Organization ID required' });
+      }
+      
+      const configSchema = z.object({
+        workspaceId: z.string().min(1, 'Workspace ID required'),
+        provider: z.enum(['google_drive', 'onedrive', 'dropbox']),
+        clientId: z.string().min(1, 'Client ID required'),
+        clientSecret: z.string().min(1, 'Client Secret required'),
+      });
+      
+      const validatedData = configSchema.parse(req.body);
+      
+      // Check if config already exists for this workspace+provider
+      const existing = await db.select().from(cloudStorageOAuthConfigs)
+        .where(and(
+          eq(cloudStorageOAuthConfigs.workspaceId, validatedData.workspaceId),
+          eq(cloudStorageOAuthConfigs.provider, validatedData.provider)
+        ))
+        .limit(1);
+      
+      if (existing.length > 0) {
+        // Update existing config
+        const [updated] = await db.update(cloudStorageOAuthConfigs)
+          .set({
+            clientId: validatedData.clientId,
+            clientSecret: validatedData.clientSecret,
+            updatedAt: new Date()
+          })
+          .where(eq(cloudStorageOAuthConfigs.id, existing[0].id))
+          .returning();
+        
+        return res.json({ ...updated, clientSecret: '••••••••' });
+      }
+      
+      // Create new config
+      const [newConfig] = await db.insert(cloudStorageOAuthConfigs)
+        .values({
+          organizationId: user.organizationId,
+          workspaceId: validatedData.workspaceId,
+          provider: validatedData.provider,
+          clientId: validatedData.clientId,
+          clientSecret: validatedData.clientSecret,
+          createdBy: user.id,
+        })
+        .returning();
+      
+      res.status(201).json({ ...newConfig, clientSecret: '••••••••' });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid configuration data', details: fromZodError(error).toString() });
+      }
+      console.error('Error creating OAuth config:', error);
+      res.status(500).json({ error: 'Failed to save OAuth configuration' });
+    }
+  });
+
+  // Delete OAuth config
+  app.delete('/api/cloud-storage/oauth-configs/:id', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const user = req.user as User;
+      const { id } = req.params;
+      
+      // Verify ownership
+      const config = await db.select().from(cloudStorageOAuthConfigs)
+        .where(and(
+          eq(cloudStorageOAuthConfigs.id, id),
+          eq(cloudStorageOAuthConfigs.organizationId, user.organizationId!)
+        ))
+        .limit(1);
+      
+      if (config.length === 0) {
+        return res.status(404).json({ error: 'Configuration not found' });
+      }
+      
+      await db.delete(cloudStorageOAuthConfigs)
+        .where(eq(cloudStorageOAuthConfigs.id, id));
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting OAuth config:', error);
+      res.status(500).json({ error: 'Failed to delete OAuth configuration' });
+    }
+  });
+
   // Helper to validate connection ownership (organization + workspace for non-admins)
   const validateConnectionOwnership = async (connectionId: string, user: User) => {
     const connection = await storage.getCloudStorageConnection(connectionId);
@@ -13697,11 +13822,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // OAuth initiation endpoints for each provider
-  // Note: These require provider-specific Client ID and Client Secret to be configured
+  // Uses workspace-specific OAuth credentials from database
   app.get('/api/cloud-storage/oauth/:provider/initiate', requireAuth, async (req, res) => {
     try {
       const { provider } = req.params;
       const user = req.user as User;
+      const workspaceId = req.query.workspaceId as string || user.workspaceId;
       
       if (!['google_drive', 'onedrive', 'dropbox'].includes(provider)) {
         return res.status(400).json({ error: 'Invalid provider' });
@@ -13709,6 +13835,10 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       if (!user.organizationId) {
         return res.status(400).json({ error: 'Organization ID required' });
+      }
+      
+      if (!workspaceId) {
+        return res.status(400).json({ error: 'Workspace ID required' });
       }
 
       // Build OAuth URLs based on provider
@@ -13728,12 +13858,23 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       };
 
       const config = baseUrls[provider];
-      const clientId = process.env[`${provider.toUpperCase()}_CLIENT_ID`];
+      
+      // Try to get workspace-specific OAuth config first
+      const [oauthConfig] = await db.select().from(cloudStorageOAuthConfigs)
+        .where(and(
+          eq(cloudStorageOAuthConfigs.workspaceId, workspaceId),
+          eq(cloudStorageOAuthConfigs.provider, provider),
+          eq(cloudStorageOAuthConfigs.isEnabled, true)
+        ))
+        .limit(1);
+      
+      // Fall back to environment variables if no workspace config
+      const clientId = oauthConfig?.clientId || process.env[`${provider.toUpperCase()}_CLIENT_ID`];
       
       if (!clientId) {
         return res.status(503).json({ 
           error: 'Provider not configured',
-          message: `${provider} integration requires OAuth credentials. Please add ${provider.toUpperCase()}_CLIENT_ID and ${provider.toUpperCase()}_CLIENT_SECRET to your environment.`
+          message: `${provider} integration requires OAuth credentials. Please configure credentials in Cloud Storage Settings.`
         });
       }
 
@@ -13742,7 +13883,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const stateData = {
         userId: user.id,
         organizationId: user.organizationId,
-        workspaceId: user.workspaceId || 'default',
+        workspaceId: workspaceId,
+        oauthConfigId: oauthConfig?.id || null,
         expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minute expiry
       };
       oauthStateStore.set(nonce, stateData);
@@ -13792,7 +13934,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.redirect('/cloud-storage?error=state_expired');
       }
 
-      const { userId, organizationId, workspaceId } = stateData;
+      const { userId, organizationId, workspaceId, oauthConfigId } = stateData;
 
       // Token exchange configuration
       const tokenUrls: Record<string, string> = {
@@ -13801,8 +13943,25 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         dropbox: 'https://api.dropboxapi.com/oauth2/token'
       };
 
-      const clientId = process.env[`${provider.toUpperCase()}_CLIENT_ID`];
-      const clientSecret = process.env[`${provider.toUpperCase()}_CLIENT_SECRET`];
+      // Get credentials from workspace config or fall back to env vars
+      let clientId: string | undefined;
+      let clientSecret: string | undefined;
+      
+      if (oauthConfigId) {
+        const [oauthConfig] = await db.select().from(cloudStorageOAuthConfigs)
+          .where(eq(cloudStorageOAuthConfigs.id, oauthConfigId))
+          .limit(1);
+        if (oauthConfig) {
+          clientId = oauthConfig.clientId;
+          clientSecret = oauthConfig.clientSecret;
+        }
+      }
+      
+      // Fall back to environment variables
+      if (!clientId || !clientSecret) {
+        clientId = process.env[`${provider.toUpperCase()}_CLIENT_ID`];
+        clientSecret = process.env[`${provider.toUpperCase()}_CLIENT_SECRET`];
+      }
 
       if (!clientId || !clientSecret) {
         return res.redirect('/cloud-storage?error=provider_not_configured');
