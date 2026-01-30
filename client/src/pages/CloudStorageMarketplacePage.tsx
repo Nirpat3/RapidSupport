@@ -225,10 +225,11 @@ export default function CloudStorageMarketplacePage() {
     onSuccess: (_, variables) => {
       toast({
         title: "Configuration Saved",
-        description: `${PROVIDERS.find(p => p.id === variables.provider)?.name || variables.provider} credentials saved successfully`
+        description: `${PROVIDERS.find(p => p.id === variables.provider)?.name || variables.provider} credentials saved successfully. Click Connect to authorize.`
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/cloud-storage/oauth-configs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/cloud-storage/oauth-configs', selectedWorkspace] });
       setSavingProvider(null);
+      setConfiguringProvider(null); // Close the config dialog to show Connect button
     },
     onError: (error: any) => {
       toast({
