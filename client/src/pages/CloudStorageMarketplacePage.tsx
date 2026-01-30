@@ -420,8 +420,9 @@ export default function CloudStorageMarketplacePage() {
                               <Label htmlFor={`${provider.id}-client-id`} className="text-xs">Client ID</Label>
                               <Input
                                 id={`${provider.id}-client-id`}
-                                placeholder={oauthConfig ? oauthConfig.clientId : "Enter Client ID"}
+                                placeholder="Paste your Client ID here"
                                 value={formData.clientId}
+                                autoComplete="off"
                                 onChange={(e) => setOauthForm(prev => ({
                                   ...prev,
                                   [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientId: e.target.value }
@@ -435,9 +436,10 @@ export default function CloudStorageMarketplacePage() {
                               </Label>
                               <Input
                                 id={`${provider.id}-client-secret`}
-                                type="password"
-                                placeholder={oauthConfig ? "••••••••" : "Enter Client Secret"}
+                                type="text"
+                                placeholder="Paste your Client Secret here"
                                 value={formData.clientSecret}
+                                autoComplete="off"
                                 onChange={(e) => setOauthForm(prev => ({
                                   ...prev,
                                   [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientSecret: e.target.value }
