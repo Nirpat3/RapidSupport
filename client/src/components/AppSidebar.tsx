@@ -52,7 +52,8 @@ import {
   ChevronRight,
   Cloud,
   Mail,
-  CreditCard
+  CreditCard,
+  ExternalLink
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -79,6 +80,7 @@ interface NavigationItem {
   icon: any;
   badge?: number;
   allowedRoles?: AllowedRoles;
+  external?: boolean; // Opens in new tab
 }
 
 const getNavigationItems = (unreadCount: number, activityCount: number, feedCount: number): NavigationItem[] => [
@@ -162,6 +164,13 @@ const settingsSubItems: NavigationItem[] = [
     url: "/api-integration",
     icon: Code2,
     allowedRoles: ['admin']
+  },
+  {
+    title: "Customer Chat Preview",
+    url: "/chat",
+    icon: ExternalLink,
+    allowedRoles: ['admin'],
+    external: true
   },
   {
     title: "Organizations",
@@ -355,10 +364,17 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
                               isActive={location === item.url}
                               data-testid={`nav-${item.title.toLowerCase().replace(/ /g, '-')}`}
                             >
-                              <Link href={item.url}>
-                                <item.icon className="w-4 h-4" />
-                                <span>{item.title}</span>
-                              </Link>
+                              {item.external ? (
+                                <a href={item.url} target="_blank" rel="noopener noreferrer">
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.title}</span>
+                                </a>
+                              ) : (
+                                <Link href={item.url}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.title}</span>
+                                </Link>
+                              )}
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         ))}
