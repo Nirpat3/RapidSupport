@@ -30,7 +30,9 @@ import {
   Link2,
   Unlink,
   Key,
-  Save
+  Save,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import type { CloudStorageConnection, Workspace, CloudStorageOAuthConfig } from "@shared/schema";
 
@@ -105,6 +107,8 @@ export default function CloudStorageMarketplacePage() {
     dropbox: { clientId: '', clientSecret: '' }
   });
   const [savingProvider, setSavingProvider] = useState<string | null>(null);
+  const [showClientId, setShowClientId] = useState<Record<string, boolean>>({});
+  const [showClientSecret, setShowClientSecret] = useState<Record<string, boolean>>({});
 
   const { data: workspaces = [] } = useQuery<Workspace[]>({
     queryKey: ['/api/workspaces'],
@@ -435,41 +439,60 @@ export default function CloudStorageMarketplacePage() {
                           <div className="space-y-3">
                             <div className="space-y-1">
                               <Label htmlFor={`${provider.id}-client-id`} className="text-xs">Client ID</Label>
-                              <input
-                                id={`${provider.id}-client-id`}
-                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm"
-                                placeholder="Paste your Client ID here"
-                                value={oauthForm[provider.id as keyof OAuthConfigForm].clientId}
-                                autoComplete="off"
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  setOauthForm(prev => ({
-                                    ...prev,
-                                    [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientId: value }
-                                  }));
-                                }}
-                              />
+                              <div className="relative">
+                                <input
+                                  id={`${provider.id}-client-id`}
+                                  type={showClientId[provider.id] ? "text" : "password"}
+                                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm"
+                                  placeholder="Paste your Client ID here"
+                                  value={oauthForm[provider.id as keyof OAuthConfigForm].clientId}
+                                  autoComplete="off"
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setOauthForm(prev => ({
+                                      ...prev,
+                                      [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientId: value }
+                                    }));
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                  onClick={() => setShowClientId(prev => ({ ...prev, [provider.id]: !prev[provider.id] }))}
+                                >
+                                  {showClientId[provider.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
                             </div>
                             <div className="space-y-1">
                               <Label htmlFor={`${provider.id}-client-secret`} className="text-xs">
                                 Client Secret
                                 {oauthConfig && <span className="text-muted-foreground ml-1">(leave empty to keep existing)</span>}
                               </Label>
-                              <input
-                                id={`${provider.id}-client-secret`}
-                                type="text"
-                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm"
-                                placeholder="Paste your Client Secret here"
-                                value={oauthForm[provider.id as keyof OAuthConfigForm].clientSecret}
-                                autoComplete="off"
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  setOauthForm(prev => ({
-                                    ...prev,
-                                    [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientSecret: value }
-                                  }));
-                                }}
-                              />
+                              <div className="relative">
+                                <input
+                                  id={`${provider.id}-client-secret`}
+                                  type={showClientSecret[provider.id] ? "text" : "password"}
+                                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm"
+                                  placeholder="Paste your Client Secret here"
+                                  value={oauthForm[provider.id as keyof OAuthConfigForm].clientSecret}
+                                  autoComplete="off"
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setOauthForm(prev => ({
+                                      ...prev,
+                                      [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientSecret: value }
+                                    }));
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                  onClick={() => setShowClientSecret(prev => ({ ...prev, [provider.id]: !prev[provider.id] }))}
+                                >
+                                  {showClientSecret[provider.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
                             </div>
                           </div>
                           
