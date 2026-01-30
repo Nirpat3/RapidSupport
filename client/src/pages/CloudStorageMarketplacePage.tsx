@@ -119,11 +119,21 @@ export default function CloudStorageMarketplacePage() {
 
   const { data: connections = [], isLoading: connectionsLoading } = useQuery<CloudStorageConnection[]>({
     queryKey: ['/api/cloud-storage/connections', selectedWorkspace],
+    queryFn: async () => {
+      const res = await fetch(`/api/cloud-storage/connections?workspaceId=${selectedWorkspace}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch connections');
+      return res.json();
+    },
     enabled: !!selectedWorkspace,
   });
 
   const { data: oauthConfigs = [] } = useQuery<CloudStorageOAuthConfig[]>({
     queryKey: ['/api/cloud-storage/oauth-configs', selectedWorkspace],
+    queryFn: async () => {
+      const res = await fetch(`/api/cloud-storage/oauth-configs?workspaceId=${selectedWorkspace}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch OAuth configs');
+      return res.json();
+    },
     enabled: !!selectedWorkspace,
   });
 
