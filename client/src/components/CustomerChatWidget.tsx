@@ -161,24 +161,25 @@ interface ChatState {
 
 interface CustomerChatWidgetProps {
   contextData?: Record<string, any>;
+  embedded?: boolean; // If true, shows full chat directly without popup button
 }
 
-export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}) {
-  console.log('[CustomerChatWidget] Initialized with contextData:', contextData);
+export function CustomerChatWidget({ contextData, embedded = false }: CustomerChatWidgetProps = {}) {
+  console.log('[CustomerChatWidget] Initialized with contextData:', contextData, 'embedded:', embedded);
   
   // Initialize chat state with localStorage persistence
   // Note: When contextData is provided, we skip localStorage to ensure a fresh conversation with context
   const [chatState, setChatState] = useState<ChatState>(() => {
-    console.log('[CustomerChatWidget] Initializing chat state. Has contextData:', !!contextData);
+    console.log('[CustomerChatWidget] Initializing chat state. Has contextData:', !!contextData, 'embedded:', embedded);
     
-    // If contextData is provided, clear localStorage and start fresh
-    if (contextData) {
-      console.log('[CustomerChatWidget] Clearing localStorage due to contextData');
-      localStorage.removeItem('customer-chat-state');
+    // If embedded mode or contextData is provided, start fresh and open
+    if (embedded || contextData) {
+      console.log('[CustomerChatWidget] Starting fresh due to embedded/contextData');
+      if (!embedded) localStorage.removeItem('customer-chat-state');
       const freshState = {
-        isOpen: false,
+        isOpen: embedded, // Auto-open in embedded mode
         isMinimized: false,
-        showCategorySelection: false,
+        showCategorySelection: embedded, // Show category selection in embedded mode
         showInfoForm: false,
         selectedCategory: null,
         conversationId: null,
@@ -749,8 +750,8 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
     setMessageInput(prev => prev + emoji);
   };
 
-  // Chat widget button when closed
-  if (!chatState.isOpen) {
+  // Chat widget button when closed (not shown in embedded mode)
+  if (!chatState.isOpen && !embedded) {
     return (
       <div className="fixed bottom-4 right-4 z-50">
         <Button
@@ -766,12 +767,13 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
     );
   }
 
-  // Chat widget content
+  // Chat widget content - full screen in embedded mode, floating widget otherwise
   return (
     <div className={cn(
-      "fixed bottom-4 right-4 z-50 w-96 max-h-[32rem] bg-background border rounded-lg shadow-xl",
-      "flex flex-col transition-all duration-200",
-      chatState.isMinimized && "h-14"
+      embedded 
+        ? "h-full w-full bg-background flex flex-col" 
+        : "fixed bottom-4 right-4 z-50 w-96 max-h-[32rem] bg-background border rounded-lg shadow-xl flex flex-col transition-all duration-200",
+      !embedded && chatState.isMinimized && "h-14"
     )} data-testid="widget-chat">
       
       {/* Header */}
@@ -794,26 +796,28 @@ export function CustomerChatWidget({ contextData }: CustomerChatWidgetProps = {}
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleMinimize}
-            className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
-            data-testid="button-minimize"
-          >
-            {chatState.isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleCloseChat}
-            className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
-            data-testid="button-close-chat"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+        {!embedded && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleMinimize}
+              className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
+              data-testid="button-minimize"
+            >
+              {chatState.isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleCloseChat}
+              className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
+              data-testid="button-close-chat"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </CardHeader>
 
       {!chatState.isMinimized && (

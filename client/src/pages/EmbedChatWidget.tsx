@@ -39,7 +39,7 @@ export default function EmbedChatWidget() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <div className="h-screen w-screen">
-          <CustomerChatWidget contextData={contextData} />
+          <CustomerChatWidget contextData={contextData} embedded={true} />
         </div>
         <Toaster />
       </TooltipProvider>
