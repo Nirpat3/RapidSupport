@@ -127,26 +127,14 @@ export default function CloudStorageMarketplacePage() {
     enabled: !!selectedWorkspace,
   });
 
-  // Populate form with existing OAuth configs when loaded or reset when empty
+  // Reset form when workspace changes - only on workspace change, not oauthConfigs
   useEffect(() => {
-    const newForm: OAuthConfigForm = {
+    setOauthForm({
       google_drive: { clientId: '', clientSecret: '' },
       onedrive: { clientId: '', clientSecret: '' },
       dropbox: { clientId: '', clientSecret: '' }
-    };
-    
-    // Populate from existing configs
-    oauthConfigs.forEach(config => {
-      if (config.provider in newForm) {
-        newForm[config.provider as keyof OAuthConfigForm] = {
-          clientId: config.clientId || '',
-          clientSecret: '' // Secret is masked, don't prefill
-        };
-      }
     });
-    
-    setOauthForm(newForm);
-  }, [oauthConfigs, selectedWorkspace]);
+  }, [selectedWorkspace]);
 
   const connectMutation = useMutation({
     mutationFn: async (provider: string) => {
@@ -418,15 +406,19 @@ export default function CloudStorageMarketplacePage() {
                           <div className="space-y-3">
                             <div className="space-y-1">
                               <Label htmlFor={`${provider.id}-client-id`} className="text-xs">Client ID</Label>
-                              <Input
+                              <input
                                 id={`${provider.id}-client-id`}
+                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm"
                                 placeholder="Paste your Client ID here"
-                                value={formData.clientId}
+                                value={oauthForm[provider.id as keyof OAuthConfigForm].clientId}
                                 autoComplete="off"
-                                onChange={(e) => setOauthForm(prev => ({
-                                  ...prev,
-                                  [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientId: e.target.value }
-                                }))}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setOauthForm(prev => ({
+                                    ...prev,
+                                    [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientId: value }
+                                  }));
+                                }}
                               />
                             </div>
                             <div className="space-y-1">
@@ -434,16 +426,20 @@ export default function CloudStorageMarketplacePage() {
                                 Client Secret
                                 {oauthConfig && <span className="text-muted-foreground ml-1">(leave empty to keep existing)</span>}
                               </Label>
-                              <Input
+                              <input
                                 id={`${provider.id}-client-secret`}
                                 type="text"
+                                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:text-sm"
                                 placeholder="Paste your Client Secret here"
-                                value={formData.clientSecret}
+                                value={oauthForm[provider.id as keyof OAuthConfigForm].clientSecret}
                                 autoComplete="off"
-                                onChange={(e) => setOauthForm(prev => ({
-                                  ...prev,
-                                  [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientSecret: e.target.value }
-                                }))}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setOauthForm(prev => ({
+                                    ...prev,
+                                    [provider.id]: { ...prev[provider.id as keyof OAuthConfigForm], clientSecret: value }
+                                  }));
+                                }}
                               />
                             </div>
                           </div>
@@ -456,7 +452,7 @@ export default function CloudStorageMarketplacePage() {
                           
                           <Button
                             onClick={() => handleSaveOAuthConfig(provider.id)}
-                            disabled={isSaving || !formData.clientId || (!oauthConfig && !formData.clientSecret)}
+                            disabled={isSaving || !oauthForm[provider.id as keyof OAuthConfigForm].clientId || (!oauthConfig && !oauthForm[provider.id as keyof OAuthConfigForm].clientSecret)}
                             className="w-full"
                             size="sm"
                           >
