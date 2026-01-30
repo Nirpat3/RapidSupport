@@ -91,6 +91,12 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
   - **Touch Optimization**: 44px minimum touch targets, momentum scrolling, tap highlight control
   - **iOS Safari Fixes**: -webkit-fill-available for viewport height, 16px font size to prevent zoom
   - **PWA Standalone Mode**: Optimized experience when installed as standalone app
+- **Enterprise Deployment Features**: Production-ready monitoring, webhooks, and data management:
+  - **System Monitoring Dashboard**: Real-time system health tracking, error logs with filtering, database/API/WebSocket status, memory usage metrics
+  - **Rate Limiting Dashboard**: API usage visualization, endpoint monitoring, request analytics, limit tracking per endpoint
+  - **Webhook Integration System**: External system notifications, configurable event triggers, signing secrets, delivery logs, test functionality
+  - **Custom Domain Support**: White-label domain configuration, DNS verification workflow, SSL status tracking, primary domain selection
+  - **Data Export System**: Selective backup functionality, date range filtering, progress tracking, downloadable JSON exports with expiration
 
 ## External Dependencies
 
