@@ -137,14 +137,32 @@ export default function CloudStorageMarketplacePage() {
     enabled: !!selectedWorkspace,
   });
 
-  // Reset form when workspace changes - only on workspace change, not oauthConfigs
+  // Populate form with existing OAuth configs when they load
   useEffect(() => {
-    setOauthForm({
-      google_drive: { clientId: '', clientSecret: '' },
-      onedrive: { clientId: '', clientSecret: '' },
-      dropbox: { clientId: '', clientSecret: '' }
-    });
-  }, [selectedWorkspace]);
+    if (oauthConfigs.length > 0) {
+      const newForm: OAuthConfigForm = {
+        google_drive: { clientId: '', clientSecret: '' },
+        onedrive: { clientId: '', clientSecret: '' },
+        dropbox: { clientId: '', clientSecret: '' }
+      };
+      oauthConfigs.forEach(config => {
+        if (config.provider in newForm) {
+          newForm[config.provider as keyof OAuthConfigForm] = {
+            clientId: config.clientId || '',
+            clientSecret: '' // Never show the secret, user can leave empty to keep existing
+          };
+        }
+      });
+      setOauthForm(newForm);
+    } else {
+      // Reset form when no configs exist
+      setOauthForm({
+        google_drive: { clientId: '', clientSecret: '' },
+        onedrive: { clientId: '', clientSecret: '' },
+        dropbox: { clientId: '', clientSecret: '' }
+      });
+    }
+  }, [oauthConfigs]);
 
   const connectMutation = useMutation({
     mutationFn: async (provider: string) => {
