@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,22 +42,28 @@ const POLICY_TYPES = {
 
 export default function PublicLegalPage() {
   const { type } = useParams<{ type: string }>();
+  const [location] = useLocation();
   const [selectedRegion, setSelectedRegion] = useState("us");
   
-  const policyType = type as keyof typeof POLICY_TYPES;
+  // Infer type from direct paths like /privacypolicy or /termsofservice
+  const inferredType = type || 
+    (location === '/privacypolicy' ? 'privacy-policy' : 
+     location === '/termsofservice' ? 'terms-of-service' : 'privacy-policy');
+  
+  const policyType = inferredType as keyof typeof POLICY_TYPES;
   const policyInfo = POLICY_TYPES[policyType] || POLICY_TYPES["privacy-policy"];
   const PolicyIcon = policyInfo.icon;
 
   const { data: policy, isLoading } = useQuery<{ content?: string }>({
-    queryKey: ['/api/public/legal', type, selectedRegion],
-    enabled: !!type
+    queryKey: ['/api/public/legal', inferredType, selectedRegion],
+    enabled: !!inferredType
   });
 
   const selectedRegionInfo = REGIONS.find(r => r.code === selectedRegion);
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
   const breadcrumbSchema = generateBreadcrumbSchema([
     { name: "Home", url: baseUrl },
-    { name: policyInfo.title, url: `${baseUrl}/legal/${type}` }
+    { name: policyInfo.title, url: `${baseUrl}/legal/${inferredType}` }
   ]);
 
   return (

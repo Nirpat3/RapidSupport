@@ -389,7 +389,7 @@ function AppContent() {
   const isAboutPage = pathname === '/about';
   const isPricingPage = pathname === '/pricing';
   const isContactPage = pathname === '/contact';
-  const isLegalPage = pathname.startsWith('/legal/');
+  const isLegalPage = pathname.startsWith('/legal/') || pathname === '/privacypolicy' || pathname === '/termsofservice';
   const isOrgChatPage = pathname.startsWith('/chat/') && pathname !== '/chat';
   const isKnowledgeBasePage = pathname === '/knowledge-base';
   const isKnowledgeCategoryPage = pathname.startsWith('/knowledge-base/category/');
@@ -477,6 +477,12 @@ function AppContent() {
           <Suspense fallback={<PageLoader />}>
             <Switch>
               <Route path="/legal/:type">
+                <PublicLegalPage />
+              </Route>
+              <Route path="/privacypolicy">
+                <PublicLegalPage />
+              </Route>
+              <Route path="/termsofservice">
                 <PublicLegalPage />
               </Route>
             </Switch>
