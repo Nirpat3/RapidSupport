@@ -24,6 +24,7 @@ import { registerAuthRoutes } from './routes/auth.routes';
 import { registerCustomerChatRoutes } from './routes/customer-chat.routes';
 import { registerEmbedRoutes } from './routes/embed.routes';
 import { registerQuantumRoutes } from './routes/quantum.routes';
+import adminMonitoringRoutes from './routes/admin-monitoring.routes';
 import type { RouteContext } from './routes/types';
 import { 
   insertCustomerSchema, 
@@ -902,6 +903,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
   // Register modular auth routes (staff login/logout, customer portal auth)
   registerAuthRoutes({ app, httpServer: null as any, wsServer: null as any });
+  
+  // Register admin monitoring routes
+  app.use('/api/admin', adminMonitoringRoutes);
 
   // Notification API routes
   app.get('/api/notifications', requireAuth, async (req, res) => {

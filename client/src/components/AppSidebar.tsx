@@ -53,7 +53,12 @@ import {
   Cloud,
   Mail,
   CreditCard,
-  ExternalLink
+  ExternalLink,
+  Monitor,
+  Gauge,
+  Webhook,
+  Globe,
+  Download
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -195,6 +200,36 @@ const settingsSubItems: NavigationItem[] = [
     url: "/billing",
     icon: CreditCard,
     allowedRoles: 'all'
+  },
+  {
+    title: "Webhooks",
+    url: "/webhooks",
+    icon: Webhook,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Custom Domains",
+    url: "/custom-domains",
+    icon: Globe,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Data Export",
+    url: "/data-export",
+    icon: Download,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Monitoring",
+    url: "/monitoring",
+    icon: Monitor,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Rate Limiting",
+    url: "/rate-limiting",
+    icon: Gauge,
+    allowedRoles: ['admin']
   }
 ];
 

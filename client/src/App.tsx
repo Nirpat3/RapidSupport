@@ -90,6 +90,11 @@ const BillingUsagePage = lazy(() => import("@/pages/BillingUsagePage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const TeamManagementPage = lazy(() => import("@/pages/TeamManagementPage"));
 const JoinPage = lazy(() => import("@/pages/JoinPage"));
+const MonitoringPage = lazy(() => import("@/pages/MonitoringPage"));
+const RateLimitingPage = lazy(() => import("@/pages/RateLimitingPage"));
+const WebhooksPage = lazy(() => import("@/pages/WebhooksPage"));
+const CustomDomainsPage = lazy(() => import("@/pages/CustomDomainsPage"));
+const DataExportPage = lazy(() => import("@/pages/DataExportPage"));
 
 function Router() {
   return (
@@ -307,6 +312,31 @@ function Router() {
         <Route path="/legal-policies">
           <PermissionGuard feature="settings">
             <LegalPoliciesPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/monitoring">
+          <PermissionGuard feature="platform-admin">
+            <MonitoringPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/rate-limiting">
+          <PermissionGuard feature="platform-admin">
+            <RateLimitingPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/webhooks">
+          <PermissionGuard feature="settings">
+            <WebhooksPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/custom-domains">
+          <PermissionGuard feature="settings">
+            <CustomDomainsPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/data-export">
+          <PermissionGuard feature="settings">
+            <DataExportPage />
           </PermissionGuard>
         </Route>
         <Route path="/policies/:type" component={PublicPolicyPage} />

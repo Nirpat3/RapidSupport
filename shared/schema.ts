@@ -4556,3 +4556,205 @@ export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit
 });
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
+
+// ============================================
+// WEBHOOKS - External system notifications
+// ============================================
+
+export const webhooks = pgTable("webhooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  
+  name: text("name").notNull(),
+  description: text("description"),
+  url: text("url").notNull(),
+  secret: text("secret"), // HMAC signing secret
+  
+  events: text("events").array().notNull().default(sql`ARRAY['conversation.created']::text[]`),
+  
+  headers: jsonb("headers").default(sql`'{}'::jsonb`),
+  
+  isActive: boolean("is_active").notNull().default(true),
+  
+  lastTriggeredAt: timestamp("last_triggered_at"),
+  lastStatus: text("last_status"),
+  failureCount: integer("failure_count").default(0),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("webhooks_org_idx").on(table.organizationId),
+  workspaceIdx: index("webhooks_workspace_idx").on(table.workspaceId),
+}));
+
+export const webhookLogs = pgTable("webhook_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  webhookId: varchar("webhook_id").notNull().references(() => webhooks.id, { onDelete: 'cascade' }),
+  
+  event: text("event").notNull(),
+  payload: jsonb("payload"),
+  
+  responseStatus: integer("response_status"),
+  responseBody: text("response_body"),
+  responseTimeMs: integer("response_time_ms"),
+  
+  status: text("status").notNull().default("pending"),
+  errorMessage: text("error_message"),
+  retryCount: integer("retry_count").default(0),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  webhookIdx: index("webhook_logs_webhook_idx").on(table.webhookId),
+  createdAtIdx: index("webhook_logs_created_at_idx").on(table.createdAt),
+}));
+
+// ============================================
+// CUSTOM DOMAINS - White-label domain support
+// ============================================
+
+export const customDomains = pgTable("custom_domains", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  
+  domain: text("domain").notNull().unique(),
+  subdomain: text("subdomain"),
+  
+  domainType: text("domain_type").notNull().default("chat"),
+  
+  sslStatus: text("ssl_status").notNull().default("pending"),
+  sslExpiresAt: timestamp("ssl_expires_at"),
+  
+  dnsVerified: boolean("dns_verified").notNull().default(false),
+  dnsVerifiedAt: timestamp("dns_verified_at"),
+  dnsRecords: jsonb("dns_records").default(sql`'[]'::jsonb`),
+  
+  isActive: boolean("is_active").notNull().default(false),
+  isPrimary: boolean("is_primary").notNull().default(false),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("custom_domains_org_idx").on(table.organizationId),
+  domainIdx: index("custom_domains_domain_idx").on(table.domain),
+}));
+
+// ============================================
+// ERROR LOGS - System monitoring and errors
+// ============================================
+
+export const systemErrorLogs = pgTable("system_error_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'set null' }),
+  
+  level: text("level").notNull().default("error"),
+  category: text("category").notNull(),
+  message: text("message").notNull(),
+  
+  stackTrace: text("stack_trace"),
+  metadata: jsonb("metadata").default(sql`'{}'::jsonb`),
+  
+  requestPath: text("request_path"),
+  requestMethod: text("request_method"),
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  
+  isResolved: boolean("is_resolved").notNull().default(false),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  resolutionNotes: text("resolution_notes"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("system_error_logs_org_idx").on(table.organizationId),
+  levelIdx: index("system_error_logs_level_idx").on(table.level),
+  createdAtIdx: index("system_error_logs_created_at_idx").on(table.createdAt),
+  categoryIdx: index("system_error_logs_category_idx").on(table.category),
+}));
+
+// ============================================
+// RATE LIMIT TRACKING - API usage monitoring
+// ============================================
+
+export const rateLimitTracking = pgTable("rate_limit_tracking", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  
+  endpoint: text("endpoint").notNull(),
+  method: text("method").notNull().default("GET"),
+  
+  requestCount: integer("request_count").notNull().default(1),
+  windowStart: timestamp("window_start").notNull().defaultNow(),
+  windowEnd: timestamp("window_end").notNull(),
+  
+  limitReached: boolean("limit_reached").notNull().default(false),
+  limitReachedAt: timestamp("limit_reached_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("rate_limit_tracking_org_idx").on(table.organizationId),
+  endpointIdx: index("rate_limit_tracking_endpoint_idx").on(table.endpoint),
+  windowIdx: index("rate_limit_tracking_window_idx").on(table.windowStart, table.windowEnd),
+}));
+
+// ============================================
+// DATA EXPORTS - Backup and export tracking
+// ============================================
+
+export const dataExports = pgTable("data_exports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  requestedBy: varchar("requested_by").notNull().references(() => users.id),
+  
+  exportType: text("export_type").notNull(),
+  
+  status: text("status").notNull().default("pending"),
+  progress: integer("progress").default(0),
+  
+  filePath: text("file_path"),
+  fileSize: integer("file_size"),
+  downloadUrl: text("download_url"),
+  expiresAt: timestamp("expires_at"),
+  
+  includedData: text("included_data").array().default(sql`ARRAY[]::text[]`),
+  dateRangeStart: timestamp("date_range_start"),
+  dateRangeEnd: timestamp("date_range_end"),
+  
+  errorMessage: text("error_message"),
+  
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("data_exports_org_idx").on(table.organizationId),
+  statusIdx: index("data_exports_status_idx").on(table.status),
+}));
+
+// Insert schemas and types
+export const insertWebhookSchema = createInsertSchema(webhooks).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertWebhook = z.infer<typeof insertWebhookSchema>;
+export type Webhook = typeof webhooks.$inferSelect;
+
+export const insertWebhookLogSchema = createInsertSchema(webhookLogs).omit({ id: true, createdAt: true });
+export type InsertWebhookLog = z.infer<typeof insertWebhookLogSchema>;
+export type WebhookLog = typeof webhookLogs.$inferSelect;
+
+export const insertCustomDomainSchema = createInsertSchema(customDomains).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCustomDomain = z.infer<typeof insertCustomDomainSchema>;
+export type CustomDomain = typeof customDomains.$inferSelect;
+
+export const insertSystemErrorLogSchema = createInsertSchema(systemErrorLogs).omit({ id: true, createdAt: true });
+export type InsertSystemErrorLog = z.infer<typeof insertSystemErrorLogSchema>;
+export type SystemErrorLog = typeof systemErrorLogs.$inferSelect;
+
+export const insertRateLimitTrackingSchema = createInsertSchema(rateLimitTracking).omit({ id: true, createdAt: true });
+export type InsertRateLimitTracking = z.infer<typeof insertRateLimitTrackingSchema>;
+export type RateLimitTracking = typeof rateLimitTracking.$inferSelect;
+
+export const insertDataExportSchema = createInsertSchema(dataExports).omit({ id: true, createdAt: true });
+export type InsertDataExport = z.infer<typeof insertDataExportSchema>;
+export type DataExport = typeof dataExports.$inferSelect;
