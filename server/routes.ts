@@ -13900,7 +13900,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       };
       oauthStateStore.set(nonce, stateData);
 
-      const redirectUri = `${req.protocol}://${req.get('host')}/api/cloud-storage/oauth/${provider}/callback`;
+      // Always use HTTPS for OAuth redirects (required by Google, etc.)
+      const protocol = process.env.NODE_ENV === 'production' || req.get('host')?.includes('replit') ? 'https' : req.protocol;
+      const redirectUri = `${protocol}://${req.get('host')}/api/cloud-storage/oauth/${provider}/callback`;
       console.log('[OAuth] Redirect URI:', redirectUri);
 
       let authUrl = `${config.auth}?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${nonce}`;
