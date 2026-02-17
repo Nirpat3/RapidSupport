@@ -4884,3 +4884,269 @@ export type RateLimitTracking = typeof rateLimitTracking.$inferSelect;
 export const insertDataExportSchema = createInsertSchema(dataExports).omit({ id: true, createdAt: true });
 export type InsertDataExport = z.infer<typeof insertDataExportSchema>;
 export type DataExport = typeof dataExports.$inferSelect;
+
+// ==============================================
+// AGENTIC AI CONFIGURATION SYSTEM
+// ==============================================
+
+// AI Tools Registry - configurable tool definitions (internal + external)
+export const aiTools = pgTable("ai_tools", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  toolType: text("tool_type").notNull().default("internal"), // 'internal' | 'external_api' | 'webhook' | 'integration'
+  category: text("category").notNull().default("general"), // 'knowledge' | 'crm' | 'ticketing' | 'communication' | 'data' | 'general'
+  parametersSchema: jsonb("parameters_schema"), // JSON Schema for function parameters
+  requiresApproval: boolean("requires_approval").notNull().default(false),
+  isDestructive: boolean("is_destructive").notNull().default(false),
+  // External tool configuration
+  endpointUrl: text("endpoint_url"), // For external API / webhook tools
+  httpMethod: text("http_method").default("POST"), // GET | POST | PUT | DELETE
+  headers: jsonb("headers"), // Default headers for external API calls
+  authType: text("auth_type"), // 'none' | 'api_key' | 'bearer' | 'oauth2'
+  authConfig: jsonb("auth_config"), // { keyName, keyValue (ref to secret), tokenUrl, etc. }
+  requestTemplate: jsonb("request_template"), // Template for transforming params → request body
+  responseMapping: jsonb("response_mapping"), // How to extract result from response
+  timeoutMs: integer("timeout_ms").default(30000),
+  retryCount: integer("retry_count").default(0),
+  // Scope
+  isSystemTool: boolean("is_system_tool").notNull().default(false), // Built-in tools that can't be deleted
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("ai_tools_org_idx").on(table.organizationId),
+  typeIdx: index("ai_tools_type_idx").on(table.toolType),
+  nameIdx: index("ai_tools_name_idx").on(table.name),
+}));
+
+// AI Agent Tool Assignments - which tools are available to which agents
+export const aiAgentTools = pgTable("ai_agent_tools", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => aiAgents.id, { onDelete: 'cascade' }),
+  toolId: varchar("tool_id").notNull().references(() => aiTools.id, { onDelete: 'cascade' }),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  overrideParams: jsonb("override_params"), // Agent-specific parameter overrides
+  maxCallsPerConversation: integer("max_calls_per_conversation").default(5),
+  requiresApprovalOverride: boolean("requires_approval_override"), // Override tool-level approval
+  customInstructions: text("custom_instructions"), // Agent-specific usage instructions for this tool
+  priority: integer("priority").notNull().default(0), // Tool priority for this agent
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  agentIdx: index("ai_agent_tools_agent_idx").on(table.agentId),
+  toolIdx: index("ai_agent_tools_tool_idx").on(table.toolId),
+  uniqueAssignment: index("ai_agent_tools_unique_idx").on(table.agentId, table.toolId),
+}));
+
+// AI Guardrails - configurable safety rules per agent
+export const aiGuardrails = pgTable("ai_guardrails", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => aiAgents.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  description: text("description"),
+  guardrailType: text("guardrail_type").notNull(), // 'confidence_threshold' | 'rate_limit' | 'content_filter' | 'action_allowlist' | 'action_blocklist' | 'escalation_rule' | 'token_limit' | 'topic_restriction'
+  config: jsonb("config").notNull(), // Type-specific config:
+  // confidence_threshold: { threshold: number, action: 'block' | 'escalate' | 'warn' }
+  // rate_limit: { maxCalls: number, windowSeconds: number, scope: 'conversation' | 'customer' | 'agent' }
+  // content_filter: { blockedPatterns: string[], blockedTopics: string[], action: 'block' | 'redact' | 'warn' }
+  // action_allowlist: { allowedTools: string[] }
+  // action_blocklist: { blockedTools: string[] }
+  // escalation_rule: { conditions: object[], escalateTo: 'human' | 'agent', targetAgentId?: string }
+  // token_limit: { maxInputTokens: number, maxOutputTokens: number, maxTotalPerConversation: number }
+  // topic_restriction: { allowedTopics: string[], blockedTopics: string[], action: 'redirect' | 'block' }
+  isActive: boolean("is_active").notNull().default(true),
+  priority: integer("priority").notNull().default(0),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  agentIdx: index("ai_guardrails_agent_idx").on(table.agentId),
+  typeIdx: index("ai_guardrails_type_idx").on(table.guardrailType),
+  orgIdx: index("ai_guardrails_org_idx").on(table.organizationId),
+}));
+
+// AI Workflows - decision trees and playbooks per agent
+export const aiWorkflows = pgTable("ai_workflows", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => aiAgents.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggerType: text("trigger_type").notNull().default("manual"), // 'on_conversation_start' | 'on_intent' | 'on_keyword' | 'manual' | 'on_escalation'
+  triggerConditions: jsonb("trigger_conditions"), // { intents?: string[], keywords?: string[], customConditions?: object }
+  steps: jsonb("steps").notNull(), // Array of workflow steps:
+  // [{ id, type: 'message'|'tool_call'|'condition'|'agent_handoff'|'wait'|'collect_input',
+  //    config: { message?, toolId?, condition?, targetAgentId?, inputField?, timeout? },
+  //    nextStepId?, onSuccess?, onFailure? }]
+  variables: jsonb("variables"), // Workflow-level variables { name: string, type: string, defaultValue? }
+  maxExecutionSteps: integer("max_execution_steps").notNull().default(20),
+  timeoutSeconds: integer("timeout_seconds").notNull().default(300),
+  isActive: boolean("is_active").notNull().default(true),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  agentIdx: index("ai_workflows_agent_idx").on(table.agentId),
+  triggerIdx: index("ai_workflows_trigger_idx").on(table.triggerType),
+  orgIdx: index("ai_workflows_org_idx").on(table.organizationId),
+}));
+
+// AI Agent Connections - input sources that trigger agent conversations
+export const aiAgentConnections = pgTable("ai_agent_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull().references(() => aiAgents.id, { onDelete: 'cascade' }),
+  channelType: text("channel_type").notNull(), // 'chat_widget' | 'email' | 'form' | 'whatsapp' | 'telegram' | 'messenger' | 'api' | 'webhook'
+  channelId: varchar("channel_id"), // Reference to specific channel config (e.g., external channel integration ID)
+  name: text("name").notNull(),
+  description: text("description"),
+  config: jsonb("config"), // Channel-specific config:
+  // chat_widget: { widgetId, theme, position }
+  // email: { emailAccountId, autoReply }
+  // form: { formId, fieldMappings }
+  // webhook: { inboundUrl, secret, responseFormat }
+  isActive: boolean("is_active").notNull().default(true),
+  priority: integer("priority").notNull().default(0), // If multiple agents listen on same channel
+  filterRules: jsonb("filter_rules"), // When to route to this agent: { keywords?, customerSegment?, businessHours? }
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  agentIdx: index("ai_agent_connections_agent_idx").on(table.agentId),
+  channelIdx: index("ai_agent_connections_channel_idx").on(table.channelType),
+  orgIdx: index("ai_agent_connections_org_idx").on(table.organizationId),
+}));
+
+// AI Agent Chains - multi-agent routing and delegation rules
+export const aiAgentChains = pgTable("ai_agent_chains", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  sourceAgentId: varchar("source_agent_id").notNull().references(() => aiAgents.id, { onDelete: 'cascade' }),
+  targetAgentId: varchar("target_agent_id").notNull().references(() => aiAgents.id, { onDelete: 'cascade' }),
+  routingType: text("routing_type").notNull().default("intent"), // 'intent' | 'keyword' | 'condition' | 'always' | 'fallback'
+  routingConditions: jsonb("routing_conditions").notNull(), // Type-specific:
+  // intent: { intents: string[], minConfidence: number }
+  // keyword: { keywords: string[], matchMode: 'any' | 'all' }
+  // condition: { field: string, operator: string, value: any }
+  // always: {} (always route to target)
+  // fallback: { afterSteps: number } (route after N failed steps)
+  delegationMode: text("delegation_mode").notNull().default("handoff"), // 'handoff' | 'consult' | 'parallel'
+  // handoff: fully transfer conversation to target agent
+  // consult: ask target agent and return answer to source
+  // parallel: both agents contribute (source synthesizes)
+  returnToSource: boolean("return_to_source").notNull().default(false), // After target finishes, return to source
+  contextPassthrough: jsonb("context_pass_through"), // What context to share: { shareHistory: bool, shareToolResults: bool, customContext: string }
+  priority: integer("priority").notNull().default(0), // Higher = checked first
+  isActive: boolean("is_active").notNull().default(true),
+  organizationId: varchar("organization_id").references(() => organizations.id, { onDelete: 'cascade' }),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  sourceIdx: index("ai_agent_chains_source_idx").on(table.sourceAgentId),
+  targetIdx: index("ai_agent_chains_target_idx").on(table.targetAgentId),
+  orgIdx: index("ai_agent_chains_org_idx").on(table.organizationId),
+  routingIdx: index("ai_agent_chains_routing_idx").on(table.routingType),
+}));
+
+// Drizzle Relations for new agentic tables
+export const aiToolsRelations = relations(aiTools, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [aiTools.organizationId],
+    references: [organizations.id],
+  }),
+  createdByUser: one(users, {
+    fields: [aiTools.createdBy],
+    references: [users.id],
+  }),
+  agentAssignments: many(aiAgentTools),
+}));
+
+export const aiAgentToolsRelations = relations(aiAgentTools, ({ one }) => ({
+  agent: one(aiAgents, {
+    fields: [aiAgentTools.agentId],
+    references: [aiAgents.id],
+  }),
+  tool: one(aiTools, {
+    fields: [aiAgentTools.toolId],
+    references: [aiTools.id],
+  }),
+}));
+
+export const aiGuardrailsRelations = relations(aiGuardrails, ({ one }) => ({
+  agent: one(aiAgents, {
+    fields: [aiGuardrails.agentId],
+    references: [aiAgents.id],
+  }),
+  organization: one(organizations, {
+    fields: [aiGuardrails.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const aiWorkflowsRelations = relations(aiWorkflows, ({ one }) => ({
+  agent: one(aiAgents, {
+    fields: [aiWorkflows.agentId],
+    references: [aiAgents.id],
+  }),
+  organization: one(organizations, {
+    fields: [aiWorkflows.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const aiAgentConnectionsRelations = relations(aiAgentConnections, ({ one }) => ({
+  agent: one(aiAgents, {
+    fields: [aiAgentConnections.agentId],
+    references: [aiAgents.id],
+  }),
+  organization: one(organizations, {
+    fields: [aiAgentConnections.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const aiAgentChainsRelations = relations(aiAgentChains, ({ one }) => ({
+  sourceAgent: one(aiAgents, {
+    fields: [aiAgentChains.sourceAgentId],
+    references: [aiAgents.id],
+  }),
+  targetAgent: one(aiAgents, {
+    fields: [aiAgentChains.targetAgentId],
+    references: [aiAgents.id],
+  }),
+  organization: one(organizations, {
+    fields: [aiAgentChains.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+// Insert schemas and types for agentic system
+export const insertAiToolSchema = createInsertSchema(aiTools).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAiTool = z.infer<typeof insertAiToolSchema>;
+export type AiTool = typeof aiTools.$inferSelect;
+
+export const insertAiAgentToolSchema = createInsertSchema(aiAgentTools).omit({ id: true, createdAt: true });
+export type InsertAiAgentTool = z.infer<typeof insertAiAgentToolSchema>;
+export type AiAgentTool = typeof aiAgentTools.$inferSelect;
+
+export const insertAiGuardrailSchema = createInsertSchema(aiGuardrails).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAiGuardrail = z.infer<typeof insertAiGuardrailSchema>;
+export type AiGuardrail = typeof aiGuardrails.$inferSelect;
+
+export const insertAiWorkflowSchema = createInsertSchema(aiWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAiWorkflow = z.infer<typeof insertAiWorkflowSchema>;
+export type AiWorkflow = typeof aiWorkflows.$inferSelect;
+
+export const insertAiAgentConnectionSchema = createInsertSchema(aiAgentConnections).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAiAgentConnection = z.infer<typeof insertAiAgentConnectionSchema>;
+export type AiAgentConnection = typeof aiAgentConnections.$inferSelect;
+
+export const insertAiAgentChainSchema = createInsertSchema(aiAgentChains).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAiAgentChain = z.infer<typeof insertAiAgentChainSchema>;
+export type AiAgentChain = typeof aiAgentChains.$inferSelect;

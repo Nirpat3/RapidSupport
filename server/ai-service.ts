@@ -6,7 +6,7 @@ import { conversationLogger } from './conversation-logger';
 import { convIntel } from './conversational-intelligence';
 import { rbacService, type AccessCheckContext, type ResourceRequest, type AccessDecision } from './services/rbac-service';
 import { dataBroker } from './services/data-connector';
-import { AGENT_TOOLS, executeTool, getRecentActions, type ToolExecutionContext, type ToolExecutionResult } from './services/ai-tools';
+import { AGENT_TOOLS, executeTool, getRecentActions, getAgentToolsAsOpenAI, executeToolWithAgentConfig, checkGuardrails, evaluateChainRouting, type ToolExecutionContext, type ToolExecutionResult } from './services/ai-tools';
 
 // Model pricing (per 1M tokens) - updated for GPT-5
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -690,15 +690,25 @@ Provide a JSON response with all four scores:
   /**
    * Select best agent for a given intent category
    */
-  static async selectBestAgentForIntent(intent: string, message: string): Promise<AiAgent | null> {
+  static async selectBestAgentForIntent(intent: string, message: string, currentAgentId?: string): Promise<AiAgent | null> {
     try {
+      if (currentAgentId) {
+        const chainResult = await evaluateChainRouting(currentAgentId, intent, message);
+        if (chainResult.shouldRoute && chainResult.targetAgentId) {
+          console.log(`[Chain Routing] Agent ${currentAgentId} → ${chainResult.targetAgentId} (mode: ${chainResult.delegationMode})`);
+          const targetAgent = await storage.getAiAgent?.(chainResult.targetAgentId);
+          if (targetAgent && targetAgent.isActive) {
+            return targetAgent;
+          }
+        }
+      }
+
       const agents = await storage.getActiveAiAgents?.() || [];
       
       if (agents.length === 0) {
         return null;
       }
 
-      // Filter agents by specialization matching the intent
       const matchingAgents = agents.filter(agent => 
         agent.specializations && 
         agent.specializations.some(spec => 
@@ -707,13 +717,9 @@ Provide a JSON response with all four scores:
       );
 
       if (matchingAgents.length === 0) {
-        // No specialized agent found, return first active agent as fallback
         return agents[0];
       }
 
-      // If multiple matches, prefer agents with higher effectiveness (if available)
-      // For now, return the first matching agent
-      // Future: Could add effectiveness scoring or load balancing
       return matchingAgents[0];
     } catch (error) {
       console.error('Error selecting best agent for intent:', error);
@@ -1509,7 +1515,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         );
         
         if (!isSpecializedForIntent && intentClassification.confidence > 70) {
-          const specializedAgent = await this.selectBestAgentForIntent(intentClassification.intent, customerMessage);
+          const specializedAgent = await this.selectBestAgentForIntent(intentClassification.intent, customerMessage, agent?.id);
           
           if (specializedAgent && specializedAgent.id !== agent?.id) {
             console.log(`Handing off from ${agent?.name} to specialized agent: ${specializedAgent.name} for ${intentClassification.intent} intent`);
@@ -1949,7 +1955,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         ? searchResults.slice(0, 3).map(r => `[${r.chunk.title}]: ${r.chunk.content.substring(0, 200)}`).join('\n')
         : '';
       
-      const { toolResults: agenticActions, additionalContext: agenticContext } = await this.executeAgenticLoop(
+      const { toolResults: agenticActions, additionalContext: agenticContext, chainedAgentId } = await this.executeAgenticLoop(
         customerMessage,
         conversationHistory,
         knowledgeContextStr,
@@ -1957,6 +1963,17 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         toolContext,
         enrichedContextData
       );
+      
+      if (chainedAgentId) {
+        const chainedAgent = await storage.getAiAgent(chainedAgentId);
+        if (chainedAgent && chainedAgent.isActive) {
+          console.log(`[Chain Routing] Guardrail/chain redirected to agent: ${chainedAgent.name}`);
+          agent = chainedAgent;
+          if (session) {
+            session = await this.handoffToAgent(session.id, chainedAgent.id, 'Chain routing redirect');
+          }
+        }
+      }
       
       if (agenticActions.length > 0) {
         console.log(`[Agentic] Completed ${agenticActions.length} autonomous actions for conversation ${conversationId}`);
@@ -2156,11 +2173,39 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
     agent: AiAgent,
     toolContext: ToolExecutionContext,
     enrichedContextData?: any
-  ): Promise<{ toolResults: Array<{ tool: string; result: ToolExecutionResult }>; additionalContext: string }> {
-    const MAX_TOOL_STEPS = 5;
+  ): Promise<{ toolResults: Array<{ tool: string; result: ToolExecutionResult }>; additionalContext: string; chainedAgentId?: string }> {
     const toolResults: Array<{ tool: string; result: ToolExecutionResult }> = [];
     
     try {
+      const guardrailCheck = await checkGuardrails(agent.id, null, customerMessage);
+      if (!guardrailCheck.allowed) {
+        console.log(`[Agentic] Guardrail blocked: ${guardrailCheck.reason}`);
+        if (guardrailCheck.action === 'escalate') {
+          return {
+            toolResults: [{ tool: 'guardrail_escalation', result: { success: true, actionTaken: `Guardrail triggered escalation: ${guardrailCheck.reason}` } }],
+            additionalContext: `\n[GUARDRAIL] ${guardrailCheck.reason}\n`,
+            chainedAgentId: guardrailCheck.targetAgentId,
+          };
+        }
+        if (guardrailCheck.action === 'redirect' && guardrailCheck.targetAgentId) {
+          return {
+            toolResults: [{ tool: 'guardrail_redirect', result: { success: true, actionTaken: `Guardrail redirected: ${guardrailCheck.reason}` } }],
+            additionalContext: `\n[GUARDRAIL REDIRECT] ${guardrailCheck.reason}\n`,
+            chainedAgentId: guardrailCheck.targetAgentId,
+          };
+        }
+        return {
+          toolResults: [{ tool: 'guardrail_block', result: { success: false, actionTaken: guardrailCheck.reason || 'Blocked by guardrail' } }],
+          additionalContext: `\n[GUARDRAIL BLOCKED] ${guardrailCheck.reason}\n`,
+        };
+      }
+      if (guardrailCheck.warning) {
+        console.log(`[Agentic] Guardrail warning: ${guardrailCheck.warning}`);
+      }
+
+      const { tools: agentTools, toolMap } = await getAgentToolsAsOpenAI(agent.id);
+      const MAX_TOOL_STEPS = toolMap.size > 0 ? 5 : 5;
+
       const brandVoice = await this.getBrandVoiceConfig(agent.organizationId || undefined);
       const systemPrompt = `You are ${agent.name}, an AI support agent. ${agent.description || ''}
 Specializations: ${agent.specializations?.join(', ') || 'General Support'}
@@ -2187,8 +2232,8 @@ ${brandVoice}`;
         const completion = await openai.chat.completions.create({
           model: 'gpt-5',
           messages: messages as any,
-          tools: AGENT_TOOLS,
-          tool_choice: step === 0 ? 'auto' : 'auto',
+          tools: agentTools.length > 0 ? agentTools : AGENT_TOOLS,
+          tool_choice: 'auto',
           max_completion_tokens: 500,
         });
 
@@ -2213,12 +2258,24 @@ ${brandVoice}`;
             toolArgs = {};
           }
 
+          const toolGuardrail = await checkGuardrails(agent.id, toolName, customerMessage);
+          if (!toolGuardrail.allowed) {
+            console.log(`[Agentic] Tool "${toolName}" blocked by guardrail: ${toolGuardrail.reason}`);
+            const blockedResult: ToolExecutionResult = {
+              success: false,
+              actionTaken: `Tool "${toolName}" blocked: ${toolGuardrail.reason}`,
+            };
+            toolResults.push({ tool: toolName, result: blockedResult });
+            messages.push({ role: 'tool', content: JSON.stringify(blockedResult), tool_call_id: toolCall.id });
+            continue;
+          }
+
           console.log(`[Agentic] Step ${step + 1}: Calling tool "${toolName}" with args:`, JSON.stringify(toolArgs));
 
           const modelConfidence = choice.message.content 
             ? (choice.message.content.toLowerCase().includes('confident') || choice.message.content.toLowerCase().includes('sure') ? 0.9 : 0.7)
             : 0.7;
-          const result = await executeTool(toolName, toolArgs, toolContext, modelConfidence);
+          const result = await executeToolWithAgentConfig(toolName, toolArgs, toolContext, modelConfidence, toolMap.size > 0 ? toolMap : undefined);
           toolResults.push({ tool: toolName, result });
 
           messages.push({
@@ -3395,7 +3452,7 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
         );
         
         if (!isSpecializedForIntent && intentClassification.confidence > 70) {
-          const specializedAgent = await this.selectBestAgentForIntent(intentClassification.intent, customerMessage);
+          const specializedAgent = await this.selectBestAgentForIntent(intentClassification.intent, customerMessage, agent?.id);
           
           if (specializedAgent && specializedAgent.id !== agent?.id) {
             session = await this.handoffToAgent(

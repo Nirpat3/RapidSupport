@@ -275,6 +275,24 @@ import {
   type InsertAiPolicyRule,
   type AiAccessAudit,
   type InsertAiAccessAudit,
+  aiTools,
+  aiAgentTools,
+  aiGuardrails,
+  aiWorkflows,
+  aiAgentConnections,
+  aiAgentChains,
+  type AiTool,
+  type InsertAiTool,
+  type AiAgentTool,
+  type InsertAiAgentTool,
+  type AiGuardrail,
+  type InsertAiGuardrail,
+  type AiWorkflow,
+  type InsertAiWorkflow,
+  type AiAgentConnection,
+  type InsertAiAgentConnection,
+  type AiAgentChain,
+  type InsertAiAgentChain,
   emailIntegrations,
   emailMessages,
   emailAttachments,
@@ -547,6 +565,49 @@ export interface IStorage {
 
   // Sub-organization operations
   getChildOrganizations(parentOrgId: string): Promise<Organization[]>;
+
+  // AI Tools Registry operations
+  getAiTool(id: string): Promise<AiTool | undefined>;
+  getAiToolsByOrganization(organizationId: string | null): Promise<AiTool[]>;
+  getAiToolByName(name: string, organizationId?: string): Promise<AiTool | undefined>;
+  createAiTool(tool: InsertAiTool): Promise<AiTool>;
+  updateAiTool(id: string, updates: Partial<InsertAiTool>): Promise<AiTool>;
+  deleteAiTool(id: string): Promise<void>;
+
+  // AI Agent Tool Assignments operations
+  getAgentTools(agentId: string): Promise<AiAgentTool[]>;
+  getAgentToolsWithDetails(agentId: string): Promise<(AiAgentTool & { tool: AiTool })[]>;
+  assignToolToAgent(assignment: InsertAiAgentTool): Promise<AiAgentTool>;
+  updateAgentToolAssignment(id: string, updates: Partial<InsertAiAgentTool>): Promise<AiAgentTool>;
+  removeToolFromAgent(id: string): Promise<void>;
+
+  // AI Guardrails operations
+  getGuardrailsByAgent(agentId: string): Promise<AiGuardrail[]>;
+  createGuardrail(guardrail: InsertAiGuardrail): Promise<AiGuardrail>;
+  updateGuardrail(id: string, updates: Partial<InsertAiGuardrail>): Promise<AiGuardrail>;
+  deleteGuardrail(id: string): Promise<void>;
+
+  // AI Workflows operations
+  getWorkflowsByAgent(agentId: string): Promise<AiWorkflow[]>;
+  getWorkflow(id: string): Promise<AiWorkflow | undefined>;
+  createWorkflow(workflow: InsertAiWorkflow): Promise<AiWorkflow>;
+  updateWorkflow(id: string, updates: Partial<InsertAiWorkflow>): Promise<AiWorkflow>;
+  deleteWorkflow(id: string): Promise<void>;
+
+  // AI Agent Connections operations
+  getConnectionsByAgent(agentId: string): Promise<AiAgentConnection[]>;
+  getConnectionsByChannel(channelType: string, organizationId?: string): Promise<AiAgentConnection[]>;
+  createConnection(connection: InsertAiAgentConnection): Promise<AiAgentConnection>;
+  updateConnection(id: string, updates: Partial<InsertAiAgentConnection>): Promise<AiAgentConnection>;
+  deleteConnection(id: string): Promise<void>;
+
+  // AI Agent Chains operations
+  getChainsBySourceAgent(agentId: string): Promise<AiAgentChain[]>;
+  getChainsByTargetAgent(agentId: string): Promise<AiAgentChain[]>;
+  getChainsByOrganization(organizationId: string): Promise<AiAgentChain[]>;
+  createChain(chain: InsertAiAgentChain): Promise<AiAgentChain>;
+  updateChain(id: string, updates: Partial<InsertAiAgentChain>): Promise<AiAgentChain>;
+  deleteChain(id: string): Promise<void>;
 
   // Knowledge Base operations
   getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined>;
@@ -3815,6 +3876,202 @@ export class DatabaseStorage implements IStorage {
   async getChildOrganizations(parentOrgId: string): Promise<Organization[]> {
     return await db.select().from(organizations)
       .where(eq(organizations.parentOrganizationId, parentOrgId));
+  }
+
+  // AI Tools Registry operations
+  async getAiTool(id: string): Promise<AiTool | undefined> {
+    const [result] = await db.select().from(aiTools).where(eq(aiTools.id, id));
+    return result || undefined;
+  }
+
+  async getAiToolsByOrganization(organizationId: string | null): Promise<AiTool[]> {
+    if (organizationId) {
+      return await db.select().from(aiTools)
+        .where(or(eq(aiTools.organizationId, organizationId), eq(aiTools.isSystemTool, true)));
+    }
+    return await db.select().from(aiTools).where(eq(aiTools.isSystemTool, true));
+  }
+
+  async getAiToolByName(name: string, organizationId?: string): Promise<AiTool | undefined> {
+    const conditions = [eq(aiTools.name, name)];
+    if (organizationId) {
+      conditions.push(or(eq(aiTools.organizationId, organizationId), eq(aiTools.isSystemTool, true))!);
+    }
+    const [result] = await db.select().from(aiTools).where(and(...conditions));
+    return result || undefined;
+  }
+
+  async createAiTool(tool: InsertAiTool): Promise<AiTool> {
+    const [result] = await db.insert(aiTools).values(tool).returning();
+    return result;
+  }
+
+  async updateAiTool(id: string, updates: Partial<InsertAiTool>): Promise<AiTool> {
+    const [result] = await db.update(aiTools)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiTools.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteAiTool(id: string): Promise<void> {
+    await db.delete(aiAgentTools).where(eq(aiAgentTools.toolId, id));
+    await db.delete(aiTools).where(eq(aiTools.id, id));
+  }
+
+  // AI Agent Tool Assignments operations
+  async getAgentTools(agentId: string): Promise<AiAgentTool[]> {
+    return await db.select().from(aiAgentTools)
+      .where(eq(aiAgentTools.agentId, agentId));
+  }
+
+  async getAgentToolsWithDetails(agentId: string): Promise<(AiAgentTool & { tool: AiTool })[]> {
+    const assignments = await db.select().from(aiAgentTools)
+      .where(and(eq(aiAgentTools.agentId, agentId), eq(aiAgentTools.isEnabled, true)));
+    const results: (AiAgentTool & { tool: AiTool })[] = [];
+    for (const a of assignments) {
+      const [tool] = await db.select().from(aiTools).where(eq(aiTools.id, a.toolId));
+      if (tool && tool.isActive) {
+        results.push({ ...a, tool });
+      }
+    }
+    return results;
+  }
+
+  async assignToolToAgent(assignment: InsertAiAgentTool): Promise<AiAgentTool> {
+    const [result] = await db.insert(aiAgentTools).values(assignment).returning();
+    return result;
+  }
+
+  async updateAgentToolAssignment(id: string, updates: Partial<InsertAiAgentTool>): Promise<AiAgentTool> {
+    const [result] = await db.update(aiAgentTools)
+      .set(updates)
+      .where(eq(aiAgentTools.id, id))
+      .returning();
+    return result;
+  }
+
+  async removeToolFromAgent(id: string): Promise<void> {
+    await db.delete(aiAgentTools).where(eq(aiAgentTools.id, id));
+  }
+
+  // AI Guardrails operations
+  async getGuardrailsByAgent(agentId: string): Promise<AiGuardrail[]> {
+    return await db.select().from(aiGuardrails)
+      .where(and(eq(aiGuardrails.agentId, agentId), eq(aiGuardrails.isActive, true)))
+      .orderBy(desc(aiGuardrails.priority));
+  }
+
+  async createGuardrail(guardrail: InsertAiGuardrail): Promise<AiGuardrail> {
+    const [result] = await db.insert(aiGuardrails).values(guardrail).returning();
+    return result;
+  }
+
+  async updateGuardrail(id: string, updates: Partial<InsertAiGuardrail>): Promise<AiGuardrail> {
+    const [result] = await db.update(aiGuardrails)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiGuardrails.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteGuardrail(id: string): Promise<void> {
+    await db.delete(aiGuardrails).where(eq(aiGuardrails.id, id));
+  }
+
+  // AI Workflows operations
+  async getWorkflowsByAgent(agentId: string): Promise<AiWorkflow[]> {
+    return await db.select().from(aiWorkflows)
+      .where(and(eq(aiWorkflows.agentId, agentId), eq(aiWorkflows.isActive, true)));
+  }
+
+  async getWorkflow(id: string): Promise<AiWorkflow | undefined> {
+    const [result] = await db.select().from(aiWorkflows).where(eq(aiWorkflows.id, id));
+    return result || undefined;
+  }
+
+  async createWorkflow(workflow: InsertAiWorkflow): Promise<AiWorkflow> {
+    const [result] = await db.insert(aiWorkflows).values(workflow).returning();
+    return result;
+  }
+
+  async updateWorkflow(id: string, updates: Partial<InsertAiWorkflow>): Promise<AiWorkflow> {
+    const [result] = await db.update(aiWorkflows)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiWorkflows.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteWorkflow(id: string): Promise<void> {
+    await db.delete(aiWorkflows).where(eq(aiWorkflows.id, id));
+  }
+
+  // AI Agent Connections operations
+  async getConnectionsByAgent(agentId: string): Promise<AiAgentConnection[]> {
+    return await db.select().from(aiAgentConnections)
+      .where(and(eq(aiAgentConnections.agentId, agentId), eq(aiAgentConnections.isActive, true)));
+  }
+
+  async getConnectionsByChannel(channelType: string, organizationId?: string): Promise<AiAgentConnection[]> {
+    const conditions = [eq(aiAgentConnections.channelType, channelType), eq(aiAgentConnections.isActive, true)];
+    if (organizationId) {
+      conditions.push(eq(aiAgentConnections.organizationId, organizationId));
+    }
+    return await db.select().from(aiAgentConnections)
+      .where(and(...conditions))
+      .orderBy(desc(aiAgentConnections.priority));
+  }
+
+  async createConnection(connection: InsertAiAgentConnection): Promise<AiAgentConnection> {
+    const [result] = await db.insert(aiAgentConnections).values(connection).returning();
+    return result;
+  }
+
+  async updateConnection(id: string, updates: Partial<InsertAiAgentConnection>): Promise<AiAgentConnection> {
+    const [result] = await db.update(aiAgentConnections)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiAgentConnections.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteConnection(id: string): Promise<void> {
+    await db.delete(aiAgentConnections).where(eq(aiAgentConnections.id, id));
+  }
+
+  // AI Agent Chains operations
+  async getChainsBySourceAgent(agentId: string): Promise<AiAgentChain[]> {
+    return await db.select().from(aiAgentChains)
+      .where(and(eq(aiAgentChains.sourceAgentId, agentId), eq(aiAgentChains.isActive, true)))
+      .orderBy(desc(aiAgentChains.priority));
+  }
+
+  async getChainsByTargetAgent(agentId: string): Promise<AiAgentChain[]> {
+    return await db.select().from(aiAgentChains)
+      .where(and(eq(aiAgentChains.targetAgentId, agentId), eq(aiAgentChains.isActive, true)));
+  }
+
+  async getChainsByOrganization(organizationId: string): Promise<AiAgentChain[]> {
+    return await db.select().from(aiAgentChains)
+      .where(eq(aiAgentChains.organizationId, organizationId));
+  }
+
+  async createChain(chain: InsertAiAgentChain): Promise<AiAgentChain> {
+    const [result] = await db.insert(aiAgentChains).values(chain).returning();
+    return result;
+  }
+
+  async updateChain(id: string, updates: Partial<InsertAiAgentChain>): Promise<AiAgentChain> {
+    const [result] = await db.update(aiAgentChains)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiAgentChains.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteChain(id: string): Promise<void> {
+    await db.delete(aiAgentChains).where(eq(aiAgentChains.id, id));
   }
 
   // Knowledge Base operations
