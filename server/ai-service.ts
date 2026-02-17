@@ -7,6 +7,9 @@ import { convIntel } from './conversational-intelligence';
 import { rbacService, type AccessCheckContext, type ResourceRequest, type AccessDecision } from './services/rbac-service';
 import { dataBroker } from './services/data-connector';
 import { AGENT_TOOLS, executeTool, getRecentActions, getAgentToolsAsOpenAI, executeToolWithAgentConfig, checkGuardrails, evaluateChainRouting, type ToolExecutionContext, type ToolExecutionResult } from './services/ai-tools';
+import { ResolutionMemoryService } from './services/resolution-memory';
+import { ImageErrorDetectionService } from './services/image-error-detection';
+import { AIDataProtectionService } from './services/ai-data-protection';
 
 // Model pricing (per 1M tokens) - updated for GPT-5
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -1471,6 +1474,20 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       console.log(`Intent classification: ${intentClassification.intent} (confidence: ${intentClassification.confidence}%)`);
       console.log(`Intent reasoning: ${intentClassification.reasoning}`);
 
+      // SECURITY: Check if customer is requesting sensitive data (passwords, keys, PII)
+      const sensitiveCheck = await AIDataProtectionService.checkSensitiveDataRequest(customerMessage);
+      if (sensitiveCheck.isSensitiveRequest && sensitiveCheck.blockResponse) {
+        console.log(`[Security] Blocked sensitive data request: ${sensitiveCheck.requestType}`);
+        return {
+          response: sensitiveCheck.blockResponse,
+          confidence: 100,
+          requiresHumanTakeover: false,
+          suggestedActions: [],
+          knowledgeUsed: [],
+          format: 'regular',
+        };
+      }
+
       // Get or create AI agent session
       let session = await storage.getAiAgentSessionByConversation(conversationId);
       let agent: AiAgent | null = null;
@@ -1916,6 +1933,26 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
           );
           if (resolutionHistoryContext) {
             console.log(`[ResolutionHistory] Loaded resolution history for customer ${customerId} (org: ${customerOrgId})`);
+          }
+
+          // Load enhanced resolution memory (what worked/failed/avoid + station memory)
+          if (customerOrgId) {
+            try {
+              const stationId = (contextData as any)?.stationId;
+              const resolutionMemory = await ResolutionMemoryService.getResolutionContext(
+                customerOrgId,
+                intentClassification.intent,
+                customerMessage,
+                stationId
+              );
+              const memoryContextStr = ResolutionMemoryService.formatContextForAI(resolutionMemory);
+              if (memoryContextStr) {
+                resolutionHistoryContext += memoryContextStr;
+                console.log(`[ResolutionMemory] Loaded resolution memory for org ${customerOrgId}${stationId ? `, station ${stationId}` : ''}`);
+              }
+            } catch (memError) {
+              console.error('[ResolutionMemory] Error loading resolution memory:', memError);
+            }
           }
         } catch (error) {
           console.error('[ConvIntel] Error loading customer context:', error);
@@ -2489,8 +2526,8 @@ Example clarifying response for vague queries:
 
 The more details you can share, the better I can help you resolve this quickly!"`;
 
-      // Build system prompt with optional language instruction
-      let systemPrompt = agent.systemPrompt;
+      // Build system prompt with security rules + optional language instruction
+      let systemPrompt = agent.systemPrompt + AIDataProtectionService.buildSecuritySystemPrompt();
       if (language && language !== 'en') {
         const languageNames: Record<string, string> = {
           'es': 'Spanish',
@@ -2660,8 +2697,19 @@ The more details you can share, the better I can help you resolve this quickly!"
         }
       );
       
+      // SECURITY: Sanitize AI response to remove any accidentally included sensitive data
+      const sanitized = await AIDataProtectionService.sanitizeAIResponse(
+        responseWithReferences,
+        contextData?.organizationId || agent.organizationId,
+        agent.id,
+        contextData?.conversationId
+      );
+      if (sanitized.wasModified) {
+        console.log(`[Security] Sanitized ${sanitized.violations.length} sensitive data violation(s) from AI response`);
+      }
+
       return {
-        response: responseWithReferences,
+        response: sanitized.sanitizedText,
         confidence: Math.max(0, Math.min(100, adjustedConfidence)),
         requiresHumanTakeover: finalRequiresHumanTakeover,
         suggestedActions: result.suggestedActions || ['Connect with human agent'],
@@ -3331,6 +3379,44 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
     }
   }
 
+  static async analyzeImageForErrors(
+    imageUrl: string,
+    organizationId: string,
+    conversationId?: string,
+    customerId?: string,
+    stationId?: string
+  ) {
+    return ImageErrorDetectionService.analyzeErrorImage(
+      imageUrl, organizationId, conversationId, customerId, stationId
+    );
+  }
+
+  static async saveResolutionLearnings(
+    resolutionId: string,
+    organizationId: string,
+    issueCategory: string,
+    issueDescription: string,
+    steps: Array<{ action: string; result: string; details?: string; errorMessage?: string; toolUsed?: string }>,
+    stationId?: string
+  ) {
+    return ResolutionMemoryService.saveResolutionWithLearnings(
+      resolutionId, organizationId, issueCategory, issueDescription, steps, stationId
+    );
+  }
+
+  static async extractLearningsFromConversation(
+    conversationId: string,
+    organizationId: string,
+    issueCategory: string,
+    messages: Array<{ role: string; content: string }>,
+    outcome: string,
+    stationId?: string
+  ) {
+    return ResolutionMemoryService.analyzeConversationForLearnings(
+      conversationId, organizationId, issueCategory, messages, outcome, stationId
+    );
+  }
+
   /**
    * Detect if a customer query is too vague to provide specific assistance
    */
@@ -3415,6 +3501,15 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
       // Classify intent to determine appropriate response format and agent routing
       const intentClassification = await this.classifyIntent(customerMessage);
       console.log(`[Stream] Intent: ${intentClassification.intent} (${intentClassification.confidence}%)`);
+
+      // SECURITY: Check if customer is requesting sensitive data
+      const sensitiveCheck = await AIDataProtectionService.checkSensitiveDataRequest(customerMessage);
+      if (sensitiveCheck.isSensitiveRequest && sensitiveCheck.blockResponse) {
+        console.log(`[Stream][Security] Blocked sensitive data request: ${sensitiveCheck.requestType}`);
+        yield { type: 'token', data: sensitiveCheck.blockResponse };
+        yield { type: 'metadata', data: { confidence: 100, requiresHumanTakeover: false, suggestedActions: [], format: 'regular' } };
+        return;
+      }
 
       // Get or create AI agent session
       let session = await storage.getAiAgentSessionByConversation(conversationId);

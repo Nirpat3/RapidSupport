@@ -299,6 +299,24 @@ import {
   type InsertPartnerIntegration,
   type OrganizationPartnerConnection,
   type InsertOrganizationPartnerConnection,
+  resolutionSteps,
+  resolutionLearnings,
+  stationResolutionMemory,
+  imageErrorSignatures,
+  aiSensitiveDataRules,
+  aiDataAccessLog,
+  type ResolutionStep,
+  type InsertResolutionStep,
+  type ResolutionLearning,
+  type InsertResolutionLearning,
+  type StationResolutionMemory,
+  type InsertStationResolutionMemory,
+  type ImageErrorSignature,
+  type InsertImageErrorSignature,
+  type AiSensitiveDataRule,
+  type InsertAiSensitiveDataRule,
+  type AiDataAccessLog,
+  type InsertAiDataAccessLog,
   emailIntegrations,
   emailMessages,
   emailAttachments,
@@ -8946,6 +8964,222 @@ export class DatabaseStorage implements IStorage {
         lastUsedAt: new Date(),
       })
       .where(eq(emailTemplates.id, templateId));
+  }
+
+  // ============================================
+  // RESOLUTION STEPS
+  // ============================================
+
+  async createResolutionStep(step: InsertResolutionStep): Promise<ResolutionStep> {
+    const [created] = await db.insert(resolutionSteps).values(step).returning();
+    return created;
+  }
+
+  async getResolutionSteps(resolutionId: string): Promise<ResolutionStep[]> {
+    return await db.select().from(resolutionSteps)
+      .where(eq(resolutionSteps.resolutionId, resolutionId))
+      .orderBy(asc(resolutionSteps.stepNumber));
+  }
+
+  // ============================================
+  // RESOLUTION LEARNINGS
+  // ============================================
+
+  async createResolutionLearning(learning: InsertResolutionLearning): Promise<ResolutionLearning> {
+    const [created] = await db.insert(resolutionLearnings).values(learning).returning();
+    return created;
+  }
+
+  async getResolutionLearnings(organizationId: string, issueCategory?: string, stationId?: string): Promise<ResolutionLearning[]> {
+    const conditions = [
+      eq(resolutionLearnings.organizationId, organizationId),
+      eq(resolutionLearnings.isActive, true),
+    ];
+    if (issueCategory) conditions.push(eq(resolutionLearnings.issueCategory, issueCategory));
+    if (stationId) conditions.push(eq(resolutionLearnings.stationId, stationId));
+    return await db.select().from(resolutionLearnings)
+      .where(and(...conditions))
+      .orderBy(desc(resolutionLearnings.timesSuccessful));
+  }
+
+  async getLearningsBySignature(organizationId: string, signature: string): Promise<ResolutionLearning[]> {
+    return await db.select().from(resolutionLearnings)
+      .where(and(
+        eq(resolutionLearnings.organizationId, organizationId),
+        eq(resolutionLearnings.issueSignature, signature),
+        eq(resolutionLearnings.isActive, true)
+      ))
+      .orderBy(desc(resolutionLearnings.confidence));
+  }
+
+  async incrementLearningUsage(learningId: string, wasSuccessful: boolean): Promise<void> {
+    const updates: any = {
+      timesApplied: sql`${resolutionLearnings.timesApplied} + 1`,
+      updatedAt: new Date(),
+    };
+    if (wasSuccessful) {
+      updates.timesSuccessful = sql`${resolutionLearnings.timesSuccessful} + 1`;
+    }
+    await db.update(resolutionLearnings).set(updates).where(eq(resolutionLearnings.id, learningId));
+  }
+
+  // ============================================
+  // STATION RESOLUTION MEMORY
+  // ============================================
+
+  async createStationResolutionMemory(memory: InsertStationResolutionMemory): Promise<StationResolutionMemory> {
+    const [created] = await db.insert(stationResolutionMemory).values(memory).returning();
+    return created;
+  }
+
+  async getStationResolutionMemory(stationId: string, issueCategory?: string): Promise<StationResolutionMemory[]> {
+    const conditions = [
+      eq(stationResolutionMemory.stationId, stationId),
+      eq(stationResolutionMemory.isActive, true),
+    ];
+    if (issueCategory) conditions.push(eq(stationResolutionMemory.issueCategory, issueCategory));
+    return await db.select().from(stationResolutionMemory)
+      .where(and(...conditions))
+      .orderBy(desc(stationResolutionMemory.successRate));
+  }
+
+  async getStationMemoryByPattern(stationId: string, pattern: string): Promise<StationResolutionMemory[]> {
+    return await db.select().from(stationResolutionMemory)
+      .where(and(
+        eq(stationResolutionMemory.stationId, stationId),
+        eq(stationResolutionMemory.issuePattern, pattern),
+        eq(stationResolutionMemory.isActive, true)
+      ));
+  }
+
+  async getOrgResolutionMemory(organizationId: string, issueCategory?: string): Promise<StationResolutionMemory[]> {
+    const conditions = [
+      eq(stationResolutionMemory.organizationId, organizationId),
+      eq(stationResolutionMemory.isActive, true),
+    ];
+    if (issueCategory) conditions.push(eq(stationResolutionMemory.issueCategory, issueCategory));
+    return await db.select().from(stationResolutionMemory)
+      .where(and(...conditions))
+      .orderBy(desc(stationResolutionMemory.successRate))
+      .limit(10);
+  }
+
+  async updateStationResolutionMemory(id: string, updates: Partial<InsertStationResolutionMemory>): Promise<StationResolutionMemory> {
+    const [updated] = await db.update(stationResolutionMemory)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(stationResolutionMemory.id, id))
+      .returning();
+    return updated;
+  }
+
+  async incrementStationMemoryUsage(memoryId: string): Promise<void> {
+    await db.update(stationResolutionMemory)
+      .set({
+        timesUsed: sql`${stationResolutionMemory.timesUsed} + 1`,
+        lastUsedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(stationResolutionMemory.id, memoryId));
+  }
+
+  // ============================================
+  // IMAGE ERROR SIGNATURES
+  // ============================================
+
+  async createImageErrorSignature(sig: InsertImageErrorSignature): Promise<ImageErrorSignature> {
+    const [created] = await db.insert(imageErrorSignatures).values(sig).returning();
+    return created;
+  }
+
+  async getImageErrorSignaturesByOrg(organizationId: string): Promise<ImageErrorSignature[]> {
+    return await db.select().from(imageErrorSignatures)
+      .where(and(
+        eq(imageErrorSignatures.organizationId, organizationId),
+        eq(imageErrorSignatures.isActive, true)
+      ))
+      .orderBy(desc(imageErrorSignatures.createdAt));
+  }
+
+  async findMatchingErrorSignatures(organizationId: string, normalizedPattern: string): Promise<ImageErrorSignature[]> {
+    return await db.select().from(imageErrorSignatures)
+      .where(and(
+        eq(imageErrorSignatures.organizationId, organizationId),
+        eq(imageErrorSignatures.normalizedPattern, normalizedPattern),
+        eq(imageErrorSignatures.isActive, true)
+      ))
+      .orderBy(desc(imageErrorSignatures.matchConfidence));
+  }
+
+  async findSimilarErrorSignatures(organizationId: string, errorSignature: string): Promise<ImageErrorSignature[]> {
+    return await db.select().from(imageErrorSignatures)
+      .where(and(
+        eq(imageErrorSignatures.organizationId, organizationId),
+        eq(imageErrorSignatures.errorSignature, errorSignature),
+        eq(imageErrorSignatures.isActive, true)
+      ))
+      .orderBy(desc(imageErrorSignatures.matchConfidence));
+  }
+
+  async updateImageErrorSignature(id: string, updates: Partial<InsertImageErrorSignature>): Promise<ImageErrorSignature> {
+    const [updated] = await db.update(imageErrorSignatures)
+      .set(updates)
+      .where(eq(imageErrorSignatures.id, id))
+      .returning();
+    return updated;
+  }
+
+  // ============================================
+  // AI SENSITIVE DATA RULES
+  // ============================================
+
+  async getActiveSensitiveDataRules(organizationId?: string): Promise<AiSensitiveDataRule[]> {
+    if (organizationId) {
+      return await db.select().from(aiSensitiveDataRules)
+        .where(and(
+          eq(aiSensitiveDataRules.isActive, true),
+          sql`(${aiSensitiveDataRules.organizationId} = ${organizationId} OR ${aiSensitiveDataRules.isSystemRule} = true)`
+        ))
+        .orderBy(desc(aiSensitiveDataRules.severity));
+    }
+    return await db.select().from(aiSensitiveDataRules)
+      .where(and(
+        eq(aiSensitiveDataRules.isActive, true),
+        eq(aiSensitiveDataRules.isSystemRule, true)
+      ))
+      .orderBy(desc(aiSensitiveDataRules.severity));
+  }
+
+  async createSensitiveDataRule(rule: InsertAiSensitiveDataRule): Promise<AiSensitiveDataRule> {
+    const [created] = await db.insert(aiSensitiveDataRules).values(rule).returning();
+    return created;
+  }
+
+  async updateSensitiveDataRule(id: string, updates: Partial<InsertAiSensitiveDataRule>): Promise<AiSensitiveDataRule> {
+    const [updated] = await db.update(aiSensitiveDataRules)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(aiSensitiveDataRules.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSensitiveDataRule(id: string): Promise<void> {
+    await db.delete(aiSensitiveDataRules).where(eq(aiSensitiveDataRules.id, id));
+  }
+
+  // ============================================
+  // AI DATA ACCESS LOG
+  // ============================================
+
+  async createDataAccessLog(log: InsertAiDataAccessLog): Promise<AiDataAccessLog> {
+    const [created] = await db.insert(aiDataAccessLog).values(log).returning();
+    return created;
+  }
+
+  async getDataAccessLogs(organizationId: string, limit = 50): Promise<AiDataAccessLog[]> {
+    return await db.select().from(aiDataAccessLog)
+      .where(eq(aiDataAccessLog.organizationId, organizationId))
+      .orderBy(desc(aiDataAccessLog.createdAt))
+      .limit(limit);
   }
 }
 

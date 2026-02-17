@@ -5230,3 +5230,167 @@ export type PartnerIntegration = typeof partnerIntegrations.$inferSelect;
 export const insertOrganizationPartnerConnectionSchema = createInsertSchema(organizationPartnerConnections).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertOrganizationPartnerConnection = z.infer<typeof insertOrganizationPartnerConnectionSchema>;
 export type OrganizationPartnerConnection = typeof organizationPartnerConnections.$inferSelect;
+
+// ============================================
+// RESOLUTION MEMORY SYSTEM
+// Enhanced resolution tracking with detailed steps, outcomes, and learnings
+// ============================================
+
+export const resolutionSteps = pgTable("resolution_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  resolutionId: varchar("resolution_id").notNull().references(() => resolutionRecords.id, { onDelete: 'cascade' }),
+  stepNumber: integer("step_number").notNull(),
+  action: text("action").notNull(),
+  result: text("result").notNull(), // 'success' | 'failed' | 'partial' | 'skipped'
+  details: text("details"),
+  errorMessage: text("error_message"),
+  timeSpentSeconds: integer("time_spent_seconds"),
+  toolUsed: text("tool_used"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const resolutionLearnings = pgTable("resolution_learnings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  resolutionId: varchar("resolution_id").references(() => resolutionRecords.id),
+  issueCategory: text("issue_category").notNull(),
+  issueSignature: text("issue_signature").notNull(),
+  learningType: text("learning_type").notNull(), // 'what_worked' | 'what_failed' | 'what_to_avoid' | 'prerequisite' | 'tip'
+  content: text("content").notNull(),
+  confidence: integer("confidence").notNull().default(80),
+  timesApplied: integer("times_applied").notNull().default(0),
+  timesSuccessful: integer("times_successful").notNull().default(0),
+  stationId: varchar("station_id").references(() => stations.id),
+  applicableStations: text("applicable_stations").array(),
+  isGlobal: boolean("is_global").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgCategoryIdx: index("resolution_learnings_org_cat_idx").on(table.organizationId, table.issueCategory),
+  signatureIdx: index("resolution_learnings_sig_idx").on(table.issueSignature),
+  stationIdx: index("resolution_learnings_station_idx").on(table.stationId),
+  typeIdx: index("resolution_learnings_type_idx").on(table.learningType),
+}));
+
+export const stationResolutionMemory = pgTable("station_resolution_memory", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stationId: varchar("station_id").notNull().references(() => stations.id),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  issueCategory: text("issue_category").notNull(),
+  issuePattern: text("issue_pattern").notNull(),
+  commonCauses: text("common_causes").array(),
+  provenSolution: text("proven_solution").notNull(),
+  solutionSteps: jsonb("solution_steps"), // [{step, action, notes}]
+  avoidActions: text("avoid_actions").array(),
+  prerequisites: text("prerequisites").array(),
+  successRate: integer("success_rate").notNull().default(0),
+  timesUsed: integer("times_used").notNull().default(0),
+  lastUsedAt: timestamp("last_used_at"),
+  relatedResolutionIds: text("related_resolution_ids").array(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  stationCategoryIdx: index("station_res_mem_station_cat_idx").on(table.stationId, table.issueCategory),
+  orgIdx: index("station_res_mem_org_idx").on(table.organizationId),
+  patternIdx: index("station_res_mem_pattern_idx").on(table.issuePattern),
+}));
+
+// ============================================
+// IMAGE ERROR DETECTION
+// OCR-extracted error signatures for pattern matching
+// ============================================
+
+export const imageErrorSignatures = pgTable("image_error_signatures", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  imageUrl: text("image_url"),
+  extractedText: text("extracted_text").notNull(),
+  errorSignature: text("error_signature").notNull(),
+  errorType: text("error_type"), // 'error_dialog' | 'stack_trace' | 'warning' | 'status_screen' | 'receipt_error'
+  normalizedPattern: text("normalized_pattern").notNull(),
+  matchedResolutionId: varchar("matched_resolution_id").references(() => resolutionRecords.id),
+  matchedLearningId: varchar("matched_learning_id").references(() => resolutionLearnings.id),
+  matchConfidence: integer("match_confidence").notNull().default(0),
+  solutionProvided: text("solution_provided"),
+  solutionSteps: jsonb("solution_steps"),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  customerId: varchar("customer_id").references(() => customers.id),
+  stationId: varchar("station_id").references(() => stations.id),
+  wasHelpful: boolean("was_helpful"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("image_error_sig_org_idx").on(table.organizationId),
+  signatureIdx: index("image_error_sig_signature_idx").on(table.errorSignature),
+  patternIdx: index("image_error_sig_pattern_idx").on(table.normalizedPattern),
+  stationIdx: index("image_error_sig_station_idx").on(table.stationId),
+}));
+
+// ============================================
+// AI SENSITIVE DATA PROTECTION
+// Rules for detecting and blocking sensitive data in AI responses
+// ============================================
+
+export const aiSensitiveDataRules = pgTable("ai_sensitive_data_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  ruleName: text("rule_name").notNull(),
+  ruleType: text("rule_type").notNull(), // 'pattern' | 'keyword' | 'data_type' | 'field_name'
+  pattern: text("pattern").notNull(),
+  action: text("action").notNull().default("redact"), // 'redact' | 'block' | 'mask' | 'warn'
+  replacement: text("replacement").default("[REDACTED]"),
+  description: text("description"),
+  severity: text("severity").notNull().default("high"), // 'critical' | 'high' | 'medium' | 'low'
+  isSystemRule: boolean("is_system_rule").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("ai_sensitive_rules_org_idx").on(table.organizationId),
+  typeIdx: index("ai_sensitive_rules_type_idx").on(table.ruleType),
+}));
+
+export const aiDataAccessLog = pgTable("ai_data_access_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").references(() => organizations.id),
+  agentId: varchar("agent_id").references(() => aiAgents.id),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  dataType: text("data_type").notNull(), // 'user_info' | 'password' | 'api_key' | 'pii' | 'financial'
+  action: text("action").notNull(), // 'blocked' | 'redacted' | 'allowed' | 'warned'
+  ruleId: varchar("rule_id").references(() => aiSensitiveDataRules.id),
+  originalContent: text("original_content"), // encrypted
+  redactedContent: text("redacted_content"),
+  requestedBy: text("requested_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("ai_data_access_log_org_idx").on(table.organizationId),
+  agentIdx: index("ai_data_access_log_agent_idx").on(table.agentId),
+  actionIdx: index("ai_data_access_log_action_idx").on(table.action),
+}));
+
+// Schema exports for new tables
+export const insertResolutionStepSchema = createInsertSchema(resolutionSteps).omit({ id: true, createdAt: true });
+export type InsertResolutionStep = z.infer<typeof insertResolutionStepSchema>;
+export type ResolutionStep = typeof resolutionSteps.$inferSelect;
+
+export const insertResolutionLearningSchema = createInsertSchema(resolutionLearnings).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertResolutionLearning = z.infer<typeof insertResolutionLearningSchema>;
+export type ResolutionLearning = typeof resolutionLearnings.$inferSelect;
+
+export const insertStationResolutionMemorySchema = createInsertSchema(stationResolutionMemory).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertStationResolutionMemory = z.infer<typeof insertStationResolutionMemorySchema>;
+export type StationResolutionMemory = typeof stationResolutionMemory.$inferSelect;
+
+export const insertImageErrorSignatureSchema = createInsertSchema(imageErrorSignatures).omit({ id: true, createdAt: true });
+export type InsertImageErrorSignature = z.infer<typeof insertImageErrorSignatureSchema>;
+export type ImageErrorSignature = typeof imageErrorSignatures.$inferSelect;
+
+export const insertAiSensitiveDataRuleSchema = createInsertSchema(aiSensitiveDataRules).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertAiSensitiveDataRule = z.infer<typeof insertAiSensitiveDataRuleSchema>;
+export type AiSensitiveDataRule = typeof aiSensitiveDataRules.$inferSelect;
+
+export const insertAiDataAccessLogSchema = createInsertSchema(aiDataAccessLog).omit({ id: true, createdAt: true });
+export type InsertAiDataAccessLog = z.infer<typeof insertAiDataAccessLogSchema>;
+export type AiDataAccessLog = typeof aiDataAccessLog.$inferSelect;

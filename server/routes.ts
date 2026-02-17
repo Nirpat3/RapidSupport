@@ -27,6 +27,7 @@ import { registerQuantumRoutes } from './routes/quantum.routes';
 import { registerStationRoutes } from './routes/station.routes';
 import { registerAgenticRoutes } from './routes/agentic.routes';
 import { registerPartnerRoutes } from './routes/partner.routes';
+import { registerResolutionMemoryRoutes } from './routes/resolution-memory.routes';
 import adminMonitoringRoutes from './routes/admin-monitoring.routes';
 import type { RouteContext } from './routes/types';
 import { 
@@ -14619,6 +14620,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   registerStationRoutes(routeContext);
   registerAgenticRoutes(routeContext);
   registerPartnerRoutes(routeContext);
+  registerResolutionMemoryRoutes(routeContext);
 
   return { server: httpServer, wsServer };
 }
