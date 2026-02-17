@@ -13,7 +13,7 @@ export async function ensureAdminExists() {
     const adminExists = await db
       .select()
       .from(users)
-      .where(eq(users.email, 'Admin@ris.com'))
+      .where(eq(users.email, 'admin@ris.com'))
       .limit(1);
 
     if (adminExists.length === 0) {
@@ -21,7 +21,7 @@ export async function ensureAdminExists() {
       const hashedAdminPassword = await hash('Admin$123', 10);
       
       await db.insert(users).values({
-        email: 'Admin@ris.com',
+        email: 'admin@ris.com',
         password: hashedAdminPassword,
         name: 'Super Admin',
         role: 'admin',
@@ -30,11 +30,11 @@ export async function ensureAdminExists() {
       });
 
       console.log('✅ Super Admin created:');
-      console.log('   Email: Admin@ris.com');
+      console.log('   Email: admin@ris.com');
       console.log('   Password: Admin$123');
       console.log('   Role: admin (Full system access)');
     } else {
-      console.log('✅ Super Admin user exists (Admin@ris.com)');
+      console.log('✅ Super Admin user exists (admin@ris.com)');
     }
 
     // 2. Create or verify Agent user
@@ -94,7 +94,7 @@ export async function ensureAdminExists() {
     }
 
     console.log('\n📋 User Roles & Permissions:');
-    console.log('   Super Admin (Admin@ris.com): Full system access, user management, all settings');
+    console.log('   Super Admin (admin@ris.com): Full system access, user management, all settings');
     console.log('   Agent (Agent@rapidrms.com): Handle conversations, manage assigned cases');
     console.log('   Customer (Customer@rms.com): Portal access, view history, submit feedback');
 
@@ -191,7 +191,7 @@ async function ensureDefaultWorkspace() {
       const adminUser = await db
         .select()
         .from(users)
-        .where(eq(users.email, 'Admin@ris.com'))
+        .where(eq(users.email, 'admin@ris.com'))
         .limit(1);
       
       if (adminUser.length > 0) {
