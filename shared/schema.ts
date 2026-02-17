@@ -489,11 +489,21 @@ export const stations = pgTable("stations", {
   departmentId: varchar("department_id").references(() => departments.id),
   isActive: boolean("is_active").notNull().default(true),
   settings: jsonb("settings"),
+  externalId: text("external_id"),
+  externalSystem: text("external_system"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zipCode: text("zip_code"),
+  country: text("country").default("US"),
+  contactPhone: text("contact_phone"),
+  contactEmail: text("contact_email"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
   uniqueOrgSlug: unique().on(table.organizationId, table.slug),
   orgIdx: index("idx_stations_org").on(table.organizationId),
+  externalIdx: index("idx_stations_external").on(table.organizationId, table.externalId, table.externalSystem),
 }));
 
 // Station Members - junction for customers in stations with roles
@@ -5150,3 +5160,73 @@ export type AiAgentConnection = typeof aiAgentConnections.$inferSelect;
 export const insertAiAgentChainSchema = createInsertSchema(aiAgentChains).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertAiAgentChain = z.infer<typeof insertAiAgentChainSchema>;
 export type AiAgentChain = typeof aiAgentChains.$inferSelect;
+
+// ==============================================
+// PARTNER INTEGRATIONS - Third-party marketplace
+// ==============================================
+
+export const partnerIntegrations = pgTable("partner_integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("pos"),
+  logoUrl: text("logo_url"),
+  websiteUrl: text("website_url"),
+  documentationUrl: text("documentation_url"),
+  supportedFeatures: text("supported_features").array().default(sql`ARRAY['stations','users','chat']::text[]`),
+  setupInstructions: text("setup_instructions"),
+  webhookEvents: text("webhook_events").array(),
+  isActive: boolean("is_active").notNull().default(true),
+  isPublic: boolean("is_public").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const organizationPartnerConnections = pgTable("organization_partner_connections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  partnerId: varchar("partner_id").notNull().references(() => partnerIntegrations.id),
+  apiKeyHash: text("api_key_hash").notNull(),
+  apiKeyPrefix: text("api_key_prefix").notNull(),
+  status: text("status").notNull().default("active"),
+  permissions: text("permissions").array().notNull().default(sql`ARRAY['stations:read','stations:write','users:read','users:write','chat']::text[]`),
+  externalAccountId: text("external_account_id"),
+  settings: jsonb("settings"),
+  webhookUrl: text("webhook_url"),
+  webhookSecret: text("webhook_secret"),
+  lastUsedAt: timestamp("last_used_at"),
+  activatedBy: varchar("activated_by").references(() => users.id),
+  activatedAt: timestamp("activated_at").notNull().defaultNow(),
+  deactivatedAt: timestamp("deactivated_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueOrgPartner: unique().on(table.organizationId, table.partnerId),
+  orgIdx: index("idx_org_partner_conn_org").on(table.organizationId),
+  partnerIdx: index("idx_org_partner_conn_partner").on(table.partnerId),
+}));
+
+export const partnerIntegrationsRelations = relations(partnerIntegrations, ({ many }) => ({
+  connections: many(organizationPartnerConnections),
+}));
+
+export const organizationPartnerConnectionsRelations = relations(organizationPartnerConnections, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationPartnerConnections.organizationId],
+    references: [organizations.id],
+  }),
+  partner: one(partnerIntegrations, {
+    fields: [organizationPartnerConnections.partnerId],
+    references: [partnerIntegrations.id],
+  }),
+}));
+
+export const insertPartnerIntegrationSchema = createInsertSchema(partnerIntegrations).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertPartnerIntegration = z.infer<typeof insertPartnerIntegrationSchema>;
+export type PartnerIntegration = typeof partnerIntegrations.$inferSelect;
+
+export const insertOrganizationPartnerConnectionSchema = createInsertSchema(organizationPartnerConnections).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertOrganizationPartnerConnection = z.infer<typeof insertOrganizationPartnerConnectionSchema>;
+export type OrganizationPartnerConnection = typeof organizationPartnerConnections.$inferSelect;

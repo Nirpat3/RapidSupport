@@ -49,6 +49,7 @@ The platform supports a hierarchical multi-tenant architecture: Platform Admins 
 - **Billing & Usage Analytics**: Multi-level AI token usage tracking with role-based visibility (personal, organization, platform), including token counts, cost estimates, request counts, and model breakdown, with date range filtering.
 - **Progressive Web App (PWA)**: Full mobile app experience with a service worker, install prompt, mobile navigation, pull-to-refresh, safe area insets, touch optimization, and standalone mode.
 - **Enterprise Deployment Features**: Production-ready monitoring, webhooks, and data management, including a system monitoring dashboard, rate limiting dashboard, webhook integration system, custom domain support, and data export system.
+- **Partner Integration Marketplace**: Third-party integration system (like Intercom) with a marketplace catalog (`partner_integrations`), org-level connections with API key auth (`organization_partner_connections`), and a public REST API (`/api/partner/v1/`) for external systems (e.g., RapidRMS POS) to auto-register stations and users. Supports idempotent upserts, bulk registration, activation tokens for portal access, and station/user deactivation. Admin routes for managing partner catalog and org connections with API key rotation.
 
 ## External Dependencies
 

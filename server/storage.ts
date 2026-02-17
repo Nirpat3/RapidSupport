@@ -293,6 +293,12 @@ import {
   type InsertAiAgentConnection,
   type AiAgentChain,
   type InsertAiAgentChain,
+  partnerIntegrations,
+  organizationPartnerConnections,
+  type PartnerIntegration,
+  type InsertPartnerIntegration,
+  type OrganizationPartnerConnection,
+  type InsertOrganizationPartnerConnection,
   emailIntegrations,
   emailMessages,
   emailAttachments,
@@ -608,6 +614,26 @@ export interface IStorage {
   createChain(chain: InsertAiAgentChain): Promise<AiAgentChain>;
   updateChain(id: string, updates: Partial<InsertAiAgentChain>): Promise<AiAgentChain>;
   deleteChain(id: string): Promise<void>;
+
+  // Partner Integration operations
+  getPartnerIntegration(id: string): Promise<PartnerIntegration | undefined>;
+  getPartnerIntegrationBySlug(slug: string): Promise<PartnerIntegration | undefined>;
+  getAllPartnerIntegrations(activeOnly?: boolean): Promise<PartnerIntegration[]>;
+  createPartnerIntegration(data: InsertPartnerIntegration): Promise<PartnerIntegration>;
+  updatePartnerIntegration(id: string, updates: Partial<InsertPartnerIntegration>): Promise<PartnerIntegration>;
+  deletePartnerIntegration(id: string): Promise<void>;
+
+  // Organization Partner Connection operations
+  getPartnerConnection(id: string): Promise<OrganizationPartnerConnection | undefined>;
+  getPartnerConnectionByApiKeyHash(apiKeyHash: string): Promise<OrganizationPartnerConnection | undefined>;
+  getPartnerConnectionsByOrganization(organizationId: string): Promise<OrganizationPartnerConnection[]>;
+  getPartnerConnectionByOrgAndPartner(organizationId: string, partnerId: string): Promise<OrganizationPartnerConnection | undefined>;
+  createPartnerConnection(data: InsertOrganizationPartnerConnection): Promise<OrganizationPartnerConnection>;
+  updatePartnerConnection(id: string, updates: Partial<InsertOrganizationPartnerConnection>): Promise<OrganizationPartnerConnection>;
+  deletePartnerConnection(id: string): Promise<void>;
+
+  // Station operations (extended for partner API)
+  getStationByExternalId(organizationId: string, externalId: string, externalSystem: string): Promise<Station | undefined>;
 
   // Knowledge Base operations
   getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined>;
@@ -4072,6 +4098,82 @@ export class DatabaseStorage implements IStorage {
 
   async deleteChain(id: string): Promise<void> {
     await db.delete(aiAgentChains).where(eq(aiAgentChains.id, id));
+  }
+
+  // Partner Integration operations
+  async getPartnerIntegration(id: string): Promise<PartnerIntegration | undefined> {
+    const [result] = await db.select().from(partnerIntegrations).where(eq(partnerIntegrations.id, id));
+    return result || undefined;
+  }
+
+  async getPartnerIntegrationBySlug(slug: string): Promise<PartnerIntegration | undefined> {
+    const [result] = await db.select().from(partnerIntegrations).where(eq(partnerIntegrations.slug, slug));
+    return result || undefined;
+  }
+
+  async getAllPartnerIntegrations(activeOnly?: boolean): Promise<PartnerIntegration[]> {
+    if (activeOnly) {
+      return db.select().from(partnerIntegrations).where(eq(partnerIntegrations.isActive, true)).orderBy(partnerIntegrations.name);
+    }
+    return db.select().from(partnerIntegrations).orderBy(partnerIntegrations.name);
+  }
+
+  async createPartnerIntegration(data: InsertPartnerIntegration): Promise<PartnerIntegration> {
+    const [result] = await db.insert(partnerIntegrations).values(data).returning();
+    return result;
+  }
+
+  async updatePartnerIntegration(id: string, updates: Partial<InsertPartnerIntegration>): Promise<PartnerIntegration> {
+    const [result] = await db.update(partnerIntegrations).set({ ...updates, updatedAt: new Date() }).where(eq(partnerIntegrations.id, id)).returning();
+    return result;
+  }
+
+  async deletePartnerIntegration(id: string): Promise<void> {
+    await db.delete(partnerIntegrations).where(eq(partnerIntegrations.id, id));
+  }
+
+  // Organization Partner Connection operations
+  async getPartnerConnection(id: string): Promise<OrganizationPartnerConnection | undefined> {
+    const [result] = await db.select().from(organizationPartnerConnections).where(eq(organizationPartnerConnections.id, id));
+    return result || undefined;
+  }
+
+  async getPartnerConnectionByApiKeyHash(apiKeyHash: string): Promise<OrganizationPartnerConnection | undefined> {
+    const [result] = await db.select().from(organizationPartnerConnections).where(eq(organizationPartnerConnections.apiKeyHash, apiKeyHash));
+    return result || undefined;
+  }
+
+  async getPartnerConnectionsByOrganization(organizationId: string): Promise<OrganizationPartnerConnection[]> {
+    return db.select().from(organizationPartnerConnections).where(eq(organizationPartnerConnections.organizationId, organizationId));
+  }
+
+  async getPartnerConnectionByOrgAndPartner(organizationId: string, partnerId: string): Promise<OrganizationPartnerConnection | undefined> {
+    const [result] = await db.select().from(organizationPartnerConnections).where(
+      and(eq(organizationPartnerConnections.organizationId, organizationId), eq(organizationPartnerConnections.partnerId, partnerId))
+    );
+    return result || undefined;
+  }
+
+  async createPartnerConnection(data: InsertOrganizationPartnerConnection): Promise<OrganizationPartnerConnection> {
+    const [result] = await db.insert(organizationPartnerConnections).values(data).returning();
+    return result;
+  }
+
+  async updatePartnerConnection(id: string, updates: Partial<InsertOrganizationPartnerConnection>): Promise<OrganizationPartnerConnection> {
+    const [result] = await db.update(organizationPartnerConnections).set({ ...updates, updatedAt: new Date() }).where(eq(organizationPartnerConnections.id, id)).returning();
+    return result;
+  }
+
+  async deletePartnerConnection(id: string): Promise<void> {
+    await db.delete(organizationPartnerConnections).where(eq(organizationPartnerConnections.id, id));
+  }
+
+  // Station operations (extended for partner API)
+  async getStationByExternalId(organizationId: string, externalId: string, externalSystem: string): Promise<Station | undefined> {
+    const [result] = await db.select().from(stations).where(
+      and(eq(stations.organizationId, organizationId), eq(stations.externalId, externalId), eq(stations.externalSystem, externalSystem))
+    );
+    return result || undefined;
   }
 
   // Knowledge Base operations
