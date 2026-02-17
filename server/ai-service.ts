@@ -1512,14 +1512,18 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         }
         
         if (agent) {
-          session = await storage.createAiAgentSession({
-            conversationId,
-            agentId: agent.id,
-            status: 'active',
-            messageCount: 0,
-            avgConfidence: 0,
-          });
-          console.log(`Created new AI agent session with ${agent.name}`);
+          try {
+            session = await storage.createAiAgentSession({
+              conversationId,
+              agentId: agent.id,
+              status: 'active',
+              messageCount: 0,
+              avgConfidence: 0,
+            });
+            console.log(`Created new AI agent session with ${agent.name}`);
+          } catch (sessionError: any) {
+            console.error(`Error creating AI agent session: ${sessionError.message}`);
+          }
         }
       } else {
         // Session exists - check if we should handoff to a specialized agent
@@ -1546,8 +1550,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         }
       }
 
-      if (!agent || !session) {
-        // Fallback to basic response
+      if (!agent) {
         const fallbackResponse = await this.generateAgentResponse(customerMessage, []);
         return {
           ...fallbackResponse,
@@ -1557,6 +1560,10 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
           shouldLearn: false,
         };
       }
+
+      const sessionId = session?.id || 'no-session';
+      const sessionMessageCount = session?.messageCount || 0;
+      const sessionAvgConfidence = session?.avgConfidence || 0;
 
       // Get conversation details including context data
       const conversation = await storage.getConversation(conversationId);
@@ -1597,9 +1604,11 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
             dataAccessCheck.accessDecision.reason ||
             "I'm sorry, but you don't have permission to access that information. Please contact your administrator if you need access.";
 
-          await storage.updateAiAgentSession(session.id, {
-            messageCount: (session.messageCount || 0) + 1,
-          });
+          if (session) {
+            await storage.updateAiAgentSession(session.id, {
+              messageCount: (session.messageCount || 0) + 1,
+            });
+          }
 
           return {
             response: denialMessage,
@@ -1611,9 +1620,9 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
             knowledgeUsed: [],
             agentId: agent.id,
             format: 'regular',
-            sessionId: session.id,
-            messageCount: (session.messageCount || 0) + 1,
-            avgConfidence: session.avgConfidence || 0,
+            sessionId: sessionId,
+            messageCount: sessionMessageCount + 1,
+            avgConfidence: sessionAvgConfidence,
             shouldLearn: false,
             rbacDenied: true,
             deniedResource: `${dataAccessCheck.resourceInfo?.namespace}.${dataAccessCheck.resourceInfo?.resource}`,
@@ -1647,7 +1656,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       }> | null;
       
       // Check if this is the first AI response (greeting scenario)
-      const isFirstResponse = session.messageCount === 0;
+      const isFirstResponse = sessionMessageCount === 0;
       
       // Handle diagnostic flow if enabled
       if (agent.diagnosticFlowEnabled && diagnosticQuestions && diagnosticQuestions.length > 0) {
@@ -1678,10 +1687,12 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
             });
             
             // Update session
-            await storage.updateAiAgentSession(session.id, {
-              messageCount: 1,
-              avgConfidence: 85,
-            });
+            if (session) {
+              await storage.updateAiAgentSession(session.id, {
+                messageCount: 1,
+                avgConfidence: 85,
+              });
+            }
             
             console.log(`[Diagnostic Flow] Started with question: ${firstQuestion.id}`);
             
@@ -1693,7 +1704,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
               knowledgeUsed: [],
               agentId: agent.id,
               format: 'regular',
-              sessionId: session.id,
+              sessionId: sessionId,
               messageCount: 1,
               avgConfidence: 85,
               shouldLearn: false,
@@ -1748,8 +1759,8 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
                   knowledgeUsed: [],
                   agentId: agent.id,
                   format: 'regular',
-                  sessionId: session.id,
-                  messageCount: session.messageCount + 1,
+                  sessionId: sessionId,
+                  messageCount: sessionMessageCount + 1,
                   avgConfidence: 85,
                   shouldLearn: false,
                 };
@@ -1985,7 +1996,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         agentId: agent.id,
         organizationId: conversation?.organizationId || agent.organizationId || undefined,
         workspaceId: agent.workspaceId || undefined,
-        sessionId: session.id,
+        sessionId: sessionId,
       };
       
       const knowledgeContextStr = searchResults.length > 0
@@ -2033,15 +2044,17 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       );
 
       // Update session statistics
-      const newMessageCount = session.messageCount + 1;
+      const newMessageCount = sessionMessageCount + 1;
       const newAvgConfidence = Math.round(
-        (session.avgConfidence * session.messageCount + response.confidence) / newMessageCount
+        (sessionAvgConfidence * sessionMessageCount + response.confidence) / newMessageCount
       );
 
-      await storage.updateAiAgentSession(session.id, {
-        messageCount: newMessageCount,
-        avgConfidence: newAvgConfidence,
-      });
+      if (session) {
+        await storage.updateAiAgentSession(session.id, {
+          messageCount: newMessageCount,
+          avgConfidence: newAvgConfidence,
+        });
+      }
 
       // Determine if human takeover is needed
       // ✅ RAG BEST PRACTICE: Use retrieval confidence (70% threshold) for uncertainty-based takeover
@@ -2057,10 +2070,12 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
             handoverReason += `: ${uncertaintyReason}`;
           }
         }
-        await storage.updateAiAgentSession(session.id, {
-          status: 'handed_over',
-          handoverReason,
-        });
+        if (session) {
+          await storage.updateAiAgentSession(session.id, {
+            status: 'handed_over',
+            handoverReason,
+          });
+        }
       }
 
       // Track file usage when knowledge base articles are used
@@ -2170,7 +2185,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       return {
         ...response,
         requiresHumanTakeover: finalRequiresHumanTakeover,
-        sessionId: session.id,
+        sessionId: sessionId,
         messageCount: newMessageCount,
         avgConfidence: newAvgConfidence,
         shouldLearn,
@@ -2203,6 +2218,22 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
    * what actions to take before generating its final response.
    * Uses OpenAI function calling with up to 5 tool invocations per turn.
    */
+  private static async getBrandVoiceConfig(organizationId?: string): Promise<string> {
+    if (!organizationId) return '';
+    try {
+      const org = await storage.getOrganization(organizationId) as any;
+      if (org?.settings) {
+        const settings = typeof org.settings === 'string' ? JSON.parse(org.settings) : org.settings;
+        if (settings?.brandVoice) {
+          return `\nBrand Voice Guidelines:\n- Tone: ${settings.brandVoice.tone || 'professional'}\n- Style: ${settings.brandVoice.style || 'helpful'}\n`;
+        }
+      }
+    } catch (e) {
+      // Brand voice is optional
+    }
+    return '';
+  }
+
   private static async executeAgenticLoop(
     customerMessage: string,
     conversationHistory: string[],
