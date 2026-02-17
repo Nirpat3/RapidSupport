@@ -85,10 +85,14 @@ export const organizations = pgTable("organizations", {
   embedSecretCreatedAt: timestamp("embed_secret_created_at"), // When the embed secret was last generated
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Sub-organization hierarchy
+  parentOrganizationId: varchar("parent_organization_id"), // Self-referential FK for org hierarchy (parent org → child orgs)
   // Soft delete
   deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
   deletedBy: varchar("deleted_by"), // User ID who deleted this record
-});
+}, (table) => ({
+  parentOrgIdx: index("idx_org_parent").on(table.parentOrganizationId),
+}));
 
 // Organization Applications - For businesses requesting to join the platform
 export const organizationApplications = pgTable("organization_applications", {
@@ -453,6 +457,62 @@ export const customers = pgTable("customers", {
     .where(sql`${table.customerOrgRole} = 'admin'`),
 ]);
 
+// ============================================
+// CUSTOMER ORGANIZATION MEMBERSHIPS - Multi-org customer access
+// ============================================
+export const customerOrganizationMemberships = pgTable("customer_organization_memberships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  role: text("role").notNull().default("member"), // 'admin' | 'member'
+  status: text("status").notNull().default("active"), // 'active' | 'invited' | 'suspended'
+  invitedBy: varchar("invited_by"),
+  invitedAt: timestamp("invited_at").notNull().defaultNow(),
+  joinedAt: timestamp("joined_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueCustomerOrg: unique().on(table.customerId, table.organizationId),
+  orgIdx: index("idx_customer_org_memberships_org").on(table.organizationId),
+  customerIdx: index("idx_customer_org_memberships_customer").on(table.customerId),
+}));
+
+// ============================================
+// STATIONS - Customer workgroups managed by a customer admin
+// ============================================
+export const stations = pgTable("stations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  description: text("description"),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  workspaceId: varchar("workspace_id").references(() => workspaces.id),
+  departmentId: varchar("department_id").references(() => departments.id),
+  isActive: boolean("is_active").notNull().default(true),
+  settings: jsonb("settings"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueOrgSlug: unique().on(table.organizationId, table.slug),
+  orgIdx: index("idx_stations_org").on(table.organizationId),
+}));
+
+// Station Members - junction for customers in stations with roles
+export const stationMembers = pgTable("station_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stationId: varchar("station_id").notNull().references(() => stations.id),
+  customerId: varchar("customer_id").notNull().references(() => customers.id),
+  role: text("role").notNull().default("member"), // 'admin' | 'member'
+  invitedByCustomerId: varchar("invited_by_customer_id").references(() => customers.id),
+  invitedAt: timestamp("invited_at").notNull().defaultNow(),
+  joinedAt: timestamp("joined_at"),
+  status: text("status").notNull().default("active"), // 'active' | 'invited' | 'suspended'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  uniqueStationCustomer: unique().on(table.stationId, table.customerId),
+  stationIdx: index("idx_station_members_station").on(table.stationId),
+  customerIdx: index("idx_station_members_customer").on(table.customerId),
+}));
+
 // Conversations table
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -469,6 +529,7 @@ export const conversations = pgTable("conversations", {
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
   workspaceId: varchar("workspace_id").references(() => workspaces.id), // Workspace scoping for conversations
   departmentId: varchar("department_id").references(() => departments.id), // Department routing for conversations
+  stationId: varchar("station_id").references(() => stations.id), // Station context for shared customer workgroup conversations
   customerLanguage: text("customer_language").default("en"), // Customer's preferred language for translation (ISO 639-1 code)
   // Customer engagement tracking fields
   lastCustomerReplyAt: timestamp("last_customer_reply_at"), // Last time customer sent a message
@@ -960,6 +1021,7 @@ export const tickets = pgTable("tickets", {
   assignedAgentId: varchar("assigned_agent_id").references(() => users.id),
   conversationId: varchar("conversation_id").references(() => conversations.id), // Link to conversation if escalated
   organizationId: varchar("organization_id").references(() => organizations.id), // Multi-tenant organization scoping
+  stationId: varchar("station_id").references(() => stations.id), // Station context for shared customer workgroup tickets
   // AI-related fields for automated ticket generation
   isAiGenerated: boolean("is_ai_generated").notNull().default(false), // Track if AI generated title/description
   aiConfidenceScore: integer("ai_confidence_score"), // AI confidence in generated content (0-100)
@@ -1287,6 +1349,43 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export const customersRelations = relations(customers, ({ many }) => ({
   conversations: many(conversations),
+  organizationMemberships: many(customerOrganizationMemberships),
+  stationMemberships: many(stationMembers),
+}));
+
+export const customerOrganizationMembershipsRelations = relations(customerOrganizationMemberships, ({ one }) => ({
+  customer: one(customers, {
+    fields: [customerOrganizationMemberships.customerId],
+    references: [customers.id],
+  }),
+  organization: one(organizations, {
+    fields: [customerOrganizationMemberships.organizationId],
+    references: [organizations.id],
+  }),
+}));
+
+export const stationsRelations = relations(stations, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [stations.organizationId],
+    references: [organizations.id],
+  }),
+  workspace: one(workspaces, {
+    fields: [stations.workspaceId],
+    references: [workspaces.id],
+  }),
+  members: many(stationMembers),
+  conversations: many(conversations),
+}));
+
+export const stationMembersRelations = relations(stationMembers, ({ one }) => ({
+  station: one(stations, {
+    fields: [stationMembers.stationId],
+    references: [stations.id],
+  }),
+  customer: one(customers, {
+    fields: [stationMembers.customerId],
+    references: [customers.id],
+  }),
 }));
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
@@ -1297,6 +1396,10 @@ export const conversationsRelations = relations(conversations, ({ one, many }) =
   assignedAgent: one(users, {
     fields: [conversations.assignedAgentId],
     references: [users.id],
+  }),
+  station: one(stations, {
+    fields: [conversations.stationId],
+    references: [stations.id],
   }),
   messages: many(messages),
   tickets: many(tickets),
@@ -1477,6 +1580,7 @@ export const insertOrganizationSchema = createInsertSchema(organizations).pick({
   supportPhone: true,
   website: true,
   status: true,
+  parentOrganizationId: true,
 });
 
 export const updateOrganizationSchema = createInsertSchema(organizations).omit({
@@ -1584,6 +1688,22 @@ export const insertCustomerOrganizationSchema = createInsertSchema(customerOrgan
   organizationId: true,
   settings: true,
   isActive: true,
+});
+
+export const insertCustomerOrganizationMembershipSchema = createInsertSchema(customerOrganizationMemberships).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertStationSchema = createInsertSchema(stations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertStationMemberSchema = createInsertSchema(stationMembers).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertCustomerSchema = createInsertSchema(customers).pick({
@@ -2186,6 +2306,12 @@ export type InsertDepartmentMember = z.infer<typeof insertDepartmentMemberSchema
 export type DepartmentMember = typeof departmentMembers.$inferSelect;
 export type InsertCustomerOrganization = z.infer<typeof insertCustomerOrganizationSchema>;
 export type CustomerOrganization = typeof customerOrganizations.$inferSelect;
+export type InsertCustomerOrganizationMembership = z.infer<typeof insertCustomerOrganizationMembershipSchema>;
+export type CustomerOrganizationMembership = typeof customerOrganizationMemberships.$inferSelect;
+export type InsertStation = z.infer<typeof insertStationSchema>;
+export type Station = typeof stations.$inferSelect;
+export type InsertStationMember = z.infer<typeof insertStationMemberSchema>;
+export type StationMember = typeof stationMembers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Customer = typeof customers.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;

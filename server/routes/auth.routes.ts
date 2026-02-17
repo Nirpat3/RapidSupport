@@ -5,6 +5,9 @@ import passport from '../auth';
 import { requireAuth, requireRole } from '../auth';
 import { storage } from '../storage';
 import { authLimiter, csrfProtection } from './shared';
+import { db } from '../db';
+import { organizationMembers, organizations } from '@shared/schema';
+import { eq, and } from 'drizzle-orm';
 
 export function registerAuthRoutes({ app }: RouteContext) {
   app.post('/api/auth/login', authLimiter, csrfProtection, (req, res, next) => {
@@ -69,10 +72,42 @@ export function registerAuthRoutes({ app }: RouteContext) {
                 console.error('Error fetching organization:', orgErr);
               }
             }
+
+            // Fetch all organization memberships for multi-org users
+            let orgMemberships: Array<{ organizationId: string; organizationName: string; role: string }> = [];
+            try {
+              const members = await db.select().from(organizationMembers)
+                .where(and(
+                  eq(organizationMembers.userId, user.id),
+                  eq(organizationMembers.status, 'active')
+                ));
+              orgMemberships = await Promise.all(
+                members.map(async (m) => {
+                  const org = await storage.getOrganization(m.organizationId);
+                  return org ? { organizationId: org.id, organizationName: org.name, role: m.role } : null;
+                })
+              ).then(results => results.filter(Boolean) as Array<{ organizationId: string; organizationName: string; role: string }>);
+            } catch (orgErr) {
+              console.error('Error fetching org memberships:', orgErr);
+            }
+
+            // If user has primary org but no membership entry, include it
+            if (user.organizationId && !orgMemberships.find((m: any) => m.organizationId === user.organizationId)) {
+              orgMemberships.unshift({ organizationId: user.organizationId, organizationName: organizationName || 'Primary Organization', role: 'admin' });
+            }
+
+            // Store selected org in session (default to primary org)
+            (req.session as any).selectedOrganizationId = user.organizationId || (orgMemberships.length > 0 ? orgMemberships[0].organizationId : null);
+
+            // Update redirect for multi-org selection
+            if (orgMemberships.length > 1 && !user.organizationId) {
+              redirectTo = '/org-select';
+            }
             
             res.json({ 
               user: { ...user, organizationName }, 
               workspaces,
+              organizations: orgMemberships,
               redirectTo,
               message: 'Login successful' 
             });
@@ -150,6 +185,43 @@ export function registerAuthRoutes({ app }: RouteContext) {
 
       await storage.updateCustomerPortalLastLogin(customer.id);
 
+      // Fetch customer's organization memberships for multi-org portal access
+      let customerOrgMemberships: Array<{ organizationId: string; organizationName: string; role: string }> = [];
+      try {
+        const memberships = await storage.getCustomerOrganizationMemberships(customer.id);
+        const activeMemberships = memberships.filter(m => m.status === 'active');
+        customerOrgMemberships = await Promise.all(
+          activeMemberships.map(async (m) => {
+            const org = await storage.getOrganization(m.organizationId);
+            return org ? { organizationId: org.id, organizationName: org.name, role: m.role } : null;
+          })
+        ).then(results => results.filter(Boolean) as Array<{ organizationId: string; organizationName: string; role: string }>);
+      } catch (orgErr) {
+        console.error('Error fetching customer org memberships:', orgErr);
+      }
+
+      // If customer has a legacy organizationId but no membership entry, include it
+      if (customer.organizationId && !customerOrgMemberships.find(m => m.organizationId === customer.organizationId)) {
+        const org = await storage.getOrganization(customer.organizationId);
+        if (org) {
+          customerOrgMemberships.unshift({ organizationId: org.id, organizationName: org.name, role: 'member' });
+        }
+      }
+
+      // Fetch customer's stations
+      let customerStations: Array<{ stationId: string; stationName: string; role: string; organizationId: string }> = [];
+      try {
+        const stationList = await storage.getStationsByCustomer(customer.id);
+        customerStations = stationList.map(s => ({
+          stationId: s.id,
+          stationName: s.name,
+          role: 'member',
+          organizationId: s.organizationId,
+        }));
+      } catch (stErr) {
+        console.error('Error fetching customer stations:', stErr);
+      }
+
       req.session.regenerate((regenerateErr: any) => {
         if (regenerateErr) {
           return res.status(500).json({ error: 'Session regeneration failed' });
@@ -157,9 +229,20 @@ export function registerAuthRoutes({ app }: RouteContext) {
 
         (req.session as any).customerId = customer.id;
         (req.session as any).userType = 'customer';
+        (req.session as any).selectedOrganizationId = customer.organizationId || (customerOrgMemberships.length > 0 ? customerOrgMemberships[0].organizationId : null);
 
         const { portalPassword: _, ...customerData } = customer;
-        res.json({ customer: customerData, message: 'Login successful' });
+        
+        // Determine redirect: if multi-org, go to org selection
+        const redirectTo = customerOrgMemberships.length > 1 ? '/portal/org-select' : '/portal';
+        
+        res.json({ 
+          customer: customerData, 
+          organizations: customerOrgMemberships,
+          stations: customerStations,
+          redirectTo,
+          message: 'Login successful' 
+        });
       });
     } catch (error) {
       console.error('Customer portal login error:', error);
@@ -206,6 +289,85 @@ export function registerAuthRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Get customer session error:', error);
       res.status(500).json({ error: 'Failed to get session' });
+    }
+  });
+
+  // Organization context selection for staff users
+  app.post('/api/auth/select-organization', requireAuth, async (req, res) => {
+    try {
+      const { organizationId } = z.object({
+        organizationId: z.string(),
+      }).parse(req.body);
+
+      const userId = (req.user as any)?.id;
+      const user = await storage.getUser(userId);
+      if (!user) return res.status(401).json({ error: 'User not found' });
+
+      // Verify user has access to this organization (either primary org or via membership)
+      let hasAccess = user.organizationId === organizationId || user.isPlatformAdmin;
+      if (!hasAccess) {
+        const members = await db.select().from(organizationMembers)
+          .where(and(
+            eq(organizationMembers.userId, userId),
+            eq(organizationMembers.organizationId, organizationId),
+            eq(organizationMembers.status, 'active')
+          ));
+        hasAccess = members.length > 0;
+      }
+
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'No access to this organization' });
+      }
+
+      (req.session as any).selectedOrganizationId = organizationId;
+      const org = await storage.getOrganization(organizationId);
+
+      req.session.save(() => {
+        res.json({ 
+          selectedOrganizationId: organizationId, 
+          organizationName: org?.name || null,
+          message: 'Organization context updated' 
+        });
+      });
+    } catch (error) {
+      console.error('Select organization error:', error);
+      res.status(500).json({ error: 'Failed to select organization' });
+    }
+  });
+
+  // Organization context selection for customer portal
+  app.post('/api/portal/auth/select-organization', async (req, res) => {
+    try {
+      const customerId = (req.session as any)?.customerId;
+      if (!customerId) return res.status(401).json({ error: 'Not authenticated' });
+
+      const { organizationId } = z.object({
+        organizationId: z.string(),
+      }).parse(req.body);
+
+      // Verify customer has membership in this organization
+      const membership = await storage.getCustomerOrganizationMembership(customerId, organizationId);
+      const customer = await storage.getCustomer(customerId);
+      
+      const hasAccess = membership?.status === 'active' || customer?.organizationId === organizationId;
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'No access to this organization' });
+      }
+
+      (req.session as any).selectedOrganizationId = organizationId;
+      const org = await storage.getOrganization(organizationId);
+
+      req.session.save(() => {
+        res.json({ 
+          selectedOrganizationId: organizationId,
+          organizationName: org?.name || null,
+          branding: org ? { logo: org.logo, primaryColor: org.primaryColor, secondaryColor: org.secondaryColor, welcomeMessage: org.welcomeMessage } : null,
+          message: 'Organization context updated' 
+        });
+      });
+    } catch (error) {
+      console.error('Customer select organization error:', error);
+      res.status(500).json({ error: 'Failed to select organization' });
     }
   });
 

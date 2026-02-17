@@ -233,6 +233,15 @@ import {
   type InsertStaffInvite,
   type AuditLog,
   type InsertAuditLog,
+  customerOrganizationMemberships,
+  stations,
+  stationMembers,
+  type CustomerOrganizationMembership,
+  type InsertCustomerOrganizationMembership,
+  type Station,
+  type InsertStation,
+  type StationMember,
+  type InsertStationMember,
   cloudStorageConnections,
   cloudStorageFolders,
   cloudStorageSyncRuns,
@@ -513,6 +522,31 @@ export interface IStorage {
   getAuditLogsForEntity(entityType: string, entityId: string): Promise<AuditLog[]>;
   getAuditLogsByOrganization(organizationId: string, options?: { limit?: number; offset?: number }): Promise<AuditLog[]>;
   getRecentAuditLogs(options?: { limit?: number; entityTypes?: string[] }): Promise<AuditLog[]>;
+
+  // Customer Organization Membership operations (multi-org customer access)
+  getCustomerOrganizationMemberships(customerId: string): Promise<CustomerOrganizationMembership[]>;
+  getOrganizationCustomerMemberships(organizationId: string): Promise<CustomerOrganizationMembership[]>;
+  createCustomerOrganizationMembership(membership: InsertCustomerOrganizationMembership): Promise<CustomerOrganizationMembership>;
+  updateCustomerOrganizationMembershipStatus(id: string, status: string): Promise<void>;
+  deleteCustomerOrganizationMembership(id: string): Promise<void>;
+  getCustomerOrganizationMembership(customerId: string, organizationId: string): Promise<CustomerOrganizationMembership | undefined>;
+
+  // Station operations (customer workgroups)
+  getStation(id: string): Promise<Station | undefined>;
+  getStationsByOrganization(organizationId: string): Promise<Station[]>;
+  createStation(station: InsertStation): Promise<Station>;
+  updateStation(id: string, updates: Partial<InsertStation>): Promise<Station>;
+  deleteStation(id: string): Promise<void>;
+
+  // Station Member operations
+  getStationMembers(stationId: string): Promise<StationMember[]>;
+  getStationsByCustomer(customerId: string): Promise<Station[]>;
+  addStationMember(member: InsertStationMember): Promise<StationMember>;
+  updateStationMemberRole(id: string, role: string): Promise<void>;
+  removeStationMember(id: string): Promise<void>;
+
+  // Sub-organization operations
+  getChildOrganizations(parentOrgId: string): Promise<Organization[]>;
 
   // Knowledge Base operations
   getKnowledgeBase(id: string): Promise<KnowledgeBase | undefined>;
@@ -3680,6 +3714,107 @@ export class DatabaseStorage implements IStorage {
       console.error('Error fetching recent audit logs:', error);
       return [];
     }
+  }
+
+  // Customer Organization Membership operations (multi-org customer access)
+  async getCustomerOrganizationMemberships(customerId: string): Promise<CustomerOrganizationMembership[]> {
+    return await db.select().from(customerOrganizationMemberships)
+      .where(eq(customerOrganizationMemberships.customerId, customerId));
+  }
+
+  async getOrganizationCustomerMemberships(organizationId: string): Promise<CustomerOrganizationMembership[]> {
+    return await db.select().from(customerOrganizationMemberships)
+      .where(eq(customerOrganizationMemberships.organizationId, organizationId));
+  }
+
+  async createCustomerOrganizationMembership(membership: InsertCustomerOrganizationMembership): Promise<CustomerOrganizationMembership> {
+    const [result] = await db.insert(customerOrganizationMemberships).values(membership).returning();
+    return result;
+  }
+
+  async updateCustomerOrganizationMembershipStatus(id: string, status: string): Promise<void> {
+    await db.update(customerOrganizationMemberships)
+      .set({ status })
+      .where(eq(customerOrganizationMemberships.id, id));
+  }
+
+  async deleteCustomerOrganizationMembership(id: string): Promise<void> {
+    await db.delete(customerOrganizationMemberships)
+      .where(eq(customerOrganizationMemberships.id, id));
+  }
+
+  async getCustomerOrganizationMembership(customerId: string, organizationId: string): Promise<CustomerOrganizationMembership | undefined> {
+    const [result] = await db.select().from(customerOrganizationMemberships)
+      .where(and(
+        eq(customerOrganizationMemberships.customerId, customerId),
+        eq(customerOrganizationMemberships.organizationId, organizationId)
+      ));
+    return result || undefined;
+  }
+
+  // Station operations (customer workgroups)
+  async getStation(id: string): Promise<Station | undefined> {
+    const [result] = await db.select().from(stations).where(eq(stations.id, id));
+    return result || undefined;
+  }
+
+  async getStationsByOrganization(organizationId: string): Promise<Station[]> {
+    return await db.select().from(stations)
+      .where(eq(stations.organizationId, organizationId));
+  }
+
+  async createStation(station: InsertStation): Promise<Station> {
+    const [result] = await db.insert(stations).values(station).returning();
+    return result;
+  }
+
+  async updateStation(id: string, updates: Partial<InsertStation>): Promise<Station> {
+    const [result] = await db.update(stations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(stations.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteStation(id: string): Promise<void> {
+    await db.delete(stationMembers).where(eq(stationMembers.stationId, id));
+    await db.delete(stations).where(eq(stations.id, id));
+  }
+
+  // Station Member operations
+  async getStationMembers(stationId: string): Promise<StationMember[]> {
+    return await db.select().from(stationMembers)
+      .where(eq(stationMembers.stationId, stationId));
+  }
+
+  async getStationsByCustomer(customerId: string): Promise<Station[]> {
+    const memberships = await db.select().from(stationMembers)
+      .where(eq(stationMembers.customerId, customerId));
+    if (memberships.length === 0) return [];
+    const stationIds = memberships.map(m => m.stationId);
+    return await db.select().from(stations)
+      .where(inArray(stations.id, stationIds));
+  }
+
+  async addStationMember(member: InsertStationMember): Promise<StationMember> {
+    const [result] = await db.insert(stationMembers).values(member).returning();
+    return result;
+  }
+
+  async updateStationMemberRole(id: string, role: string): Promise<void> {
+    await db.update(stationMembers)
+      .set({ role })
+      .where(eq(stationMembers.id, id));
+  }
+
+  async removeStationMember(id: string): Promise<void> {
+    await db.delete(stationMembers).where(eq(stationMembers.id, id));
+  }
+
+  // Sub-organization operations
+  async getChildOrganizations(parentOrgId: string): Promise<Organization[]> {
+    return await db.select().from(organizations)
+      .where(eq(organizations.parentOrganizationId, parentOrgId));
   }
 
   // Knowledge Base operations

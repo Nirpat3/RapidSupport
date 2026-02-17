@@ -24,6 +24,7 @@ import { registerAuthRoutes } from './routes/auth.routes';
 import { registerCustomerChatRoutes } from './routes/customer-chat.routes';
 import { registerEmbedRoutes } from './routes/embed.routes';
 import { registerQuantumRoutes } from './routes/quantum.routes';
+import { registerStationRoutes } from './routes/station.routes';
 import adminMonitoringRoutes from './routes/admin-monitoring.routes';
 import type { RouteContext } from './routes/types';
 import { 
@@ -14613,6 +14614,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   registerCustomerChatRoutes(routeContext);
   registerEmbedRoutes(routeContext);
   registerQuantumRoutes(routeContext);
+  registerStationRoutes(routeContext);
 
   return { server: httpServer, wsServer };
 }
