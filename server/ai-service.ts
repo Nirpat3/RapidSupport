@@ -6,6 +6,7 @@ import { conversationLogger } from './conversation-logger';
 import { convIntel } from './conversational-intelligence';
 import { rbacService, type AccessCheckContext, type ResourceRequest, type AccessDecision } from './services/rbac-service';
 import { dataBroker } from './services/data-connector';
+import { AGENT_TOOLS, executeTool, getRecentActions, type ToolExecutionContext, type ToolExecutionResult } from './services/ai-tools';
 
 // Model pricing (per 1M tokens) - updated for GPT-5
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -211,6 +212,7 @@ export interface SmartAgentResponse extends AIAgentResponse {
   shouldLearn: boolean;
   rbacDenied?: boolean;
   deniedResource?: string;
+  agenticActions?: Array<{ tool: string; action: string; success: boolean }>;
 }
 
 export interface QueryAnalysis {
@@ -1931,6 +1933,41 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         externalCitations: retrievalPayload.externalCitations,
       };
 
+      // ============================================
+      // AGENTIC TOOL EXECUTION LOOP
+      // ============================================
+      const toolContext: ToolExecutionContext = {
+        conversationId,
+        customerId: conversation?.customerId,
+        agentId: agent.id,
+        organizationId: conversation?.organizationId || agent.organizationId || undefined,
+        workspaceId: agent.workspaceId || undefined,
+        sessionId: session.id,
+      };
+      
+      const knowledgeContextStr = searchResults.length > 0
+        ? searchResults.slice(0, 3).map(r => `[${r.chunk.title}]: ${r.chunk.content.substring(0, 200)}`).join('\n')
+        : '';
+      
+      const { toolResults: agenticActions, additionalContext: agenticContext } = await this.executeAgenticLoop(
+        customerMessage,
+        conversationHistory,
+        knowledgeContextStr,
+        agent,
+        toolContext,
+        enrichedContextData
+      );
+      
+      if (agenticActions.length > 0) {
+        console.log(`[Agentic] Completed ${agenticActions.length} autonomous actions for conversation ${conversationId}`);
+      }
+      
+      const agenticEnrichedContextData = {
+        ...enrichedContextData,
+        agenticContext,
+        agenticActions: agenticActions.map(a => ({ tool: a.tool, action: a.result.actionTaken, success: a.result.success })),
+      };
+
       // Generate response using agent's configuration with format guidance
       const response = await this.generateAgentResponseWithConfig(
         customerMessage,
@@ -1938,7 +1975,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         searchResults,
         agent,
         responseFormat,
-        enrichedContextData
+        agenticEnrichedContextData
       );
 
       // Update session statistics
@@ -2087,6 +2124,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         retrievalConfidence,
         ragTraceId,
         uncertaintyReason: shouldTakeoverDueToLowConfidence ? uncertaintyReason : undefined,
+        agenticActions: agenticActions.length > 0 ? agenticActions.map(a => ({ tool: a.tool, action: a.result.actionTaken, success: a.result.success })) : undefined,
       };
 
     } catch (error) {
@@ -2103,6 +2141,111 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
         avgConfidence: 0,
         shouldLearn: false,
       };
+    }
+  }
+
+  /**
+   * Execute an agentic tool-calling loop where the AI autonomously decides
+   * what actions to take before generating its final response.
+   * Uses OpenAI function calling with up to 5 tool invocations per turn.
+   */
+  private static async executeAgenticLoop(
+    customerMessage: string,
+    conversationHistory: string[],
+    knowledgeContext: string,
+    agent: AiAgent,
+    toolContext: ToolExecutionContext,
+    enrichedContextData?: any
+  ): Promise<{ toolResults: Array<{ tool: string; result: ToolExecutionResult }>; additionalContext: string }> {
+    const MAX_TOOL_STEPS = 5;
+    const toolResults: Array<{ tool: string; result: ToolExecutionResult }> = [];
+    
+    try {
+      const brandVoice = await this.getBrandVoiceConfig(agent.organizationId || undefined);
+      const systemPrompt = `You are ${agent.name}, an AI support agent. ${agent.description || ''}
+Specializations: ${agent.specializations?.join(', ') || 'General Support'}
+
+You have access to tools that let you take autonomous actions to help the customer.
+IMPORTANT RULES:
+- Use tools when they would genuinely help answer the question or resolve the issue
+- You can chain multiple tool calls (up to ${MAX_TOOL_STEPS} steps)
+- For destructive actions (creating tickets, escalating, changing status), only proceed if you're confident it's the right action
+- Always search the knowledge base first if the question is about product/service info
+- Create tickets for bug reports, feature requests, or issues needing formal tracking
+- Escalate to human when you truly cannot resolve the issue or the customer is very frustrated
+- Look up customer info when you need account details to help them
+- Do NOT call tools unnecessarily - if you can answer directly, just respond
+
+${brandVoice}`;
+
+      const messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content: string; tool_call_id?: string }> = [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `${conversationHistory.length > 0 ? `Recent conversation:\n${conversationHistory.join('\n')}\n\n` : ''}Customer message: "${customerMessage}"\n\n${knowledgeContext ? `Available knowledge:\n${knowledgeContext}\n` : ''}Decide if you need to use any tools to help this customer, or if you can respond directly. If you don't need any tools, just reply with a brief acknowledgment.` },
+      ];
+
+      for (let step = 0; step < MAX_TOOL_STEPS; step++) {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-5',
+          messages: messages as any,
+          tools: AGENT_TOOLS,
+          tool_choice: step === 0 ? 'auto' : 'auto',
+          max_completion_tokens: 500,
+        });
+
+        const choice = completion.choices[0];
+        
+        if (!choice.message.tool_calls || choice.message.tool_calls.length === 0) {
+          break;
+        }
+
+        messages.push({
+          role: 'assistant',
+          content: choice.message.content || '',
+          ...(choice.message.tool_calls ? { tool_calls: choice.message.tool_calls } : {}),
+        } as any);
+
+        for (const toolCall of choice.message.tool_calls) {
+          const toolName = toolCall.function.name;
+          let toolArgs: Record<string, unknown> = {};
+          try {
+            toolArgs = JSON.parse(toolCall.function.arguments);
+          } catch {
+            toolArgs = {};
+          }
+
+          console.log(`[Agentic] Step ${step + 1}: Calling tool "${toolName}" with args:`, JSON.stringify(toolArgs));
+
+          const modelConfidence = choice.message.content 
+            ? (choice.message.content.toLowerCase().includes('confident') || choice.message.content.toLowerCase().includes('sure') ? 0.9 : 0.7)
+            : 0.7;
+          const result = await executeTool(toolName, toolArgs, toolContext, modelConfidence);
+          toolResults.push({ tool: toolName, result });
+
+          messages.push({
+            role: 'tool',
+            content: JSON.stringify(result),
+            tool_call_id: toolCall.id,
+          });
+
+          console.log(`[Agentic] Tool "${toolName}" result: ${result.actionTaken}`);
+        }
+
+        if (completion.usage) {
+          await trackTokenUsage(completion.usage, 'gpt-5', 'agentic_tool_loop', {
+            conversationId: toolContext.conversationId,
+            agentId: toolContext.agentId,
+          });
+        }
+      }
+
+      const additionalContext = toolResults.length > 0
+        ? `\n=== AUTONOMOUS ACTIONS TAKEN ===\nThe AI agent autonomously performed the following actions:\n${toolResults.map((tr, i) => `${i + 1}. ${tr.result.actionTaken}${tr.result.data ? ` | Data: ${JSON.stringify(tr.result.data).substring(0, 200)}` : ''}`).join('\n')}\n=== END ACTIONS ===\n`
+        : '';
+
+      return { toolResults, additionalContext };
+    } catch (error) {
+      console.error('[Agentic] Tool loop error:', error);
+      return { toolResults, additionalContext: '' };
     }
   }
 

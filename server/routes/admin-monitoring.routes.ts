@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from '../auth';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import { sql, eq, desc, and, gte, lte } from 'drizzle-orm';
+import { auditLog } from '@shared/schema';
 
 const router = Router();
 
@@ -577,6 +578,71 @@ router.get('/data-exports/:id/download', requireAuth, async (req: Request, res: 
     res.json(sampleData);
   } catch (error) {
     res.status(500).json({ error: 'Failed to download export' });
+  }
+});
+
+// ============================================
+// AI AGENTIC ACTION LOGS
+// ============================================
+
+router.get('/agentic-actions', requireAuth, requireRole(['admin']), async (req: Request, res: Response) => {
+  try {
+    const orgId = (req.user as any)?.organizationId;
+    const conditions = [eq(auditLog.entityType, 'ai_action')];
+    if (orgId) {
+      conditions.push(eq(auditLog.organizationId, orgId));
+    }
+    const dbActions = await db.select().from(auditLog)
+      .where(conditions.length > 1 ? and(...conditions) : conditions[0])
+      .orderBy(desc(auditLog.createdAt))
+      .limit(50);
+    
+    const actions = dbActions.map(a => ({
+      toolName: a.action,
+      input: (a.metadata as any)?.input || {},
+      output: (a.metadata as any)?.output || {},
+      conversationId: a.entityId,
+      agentId: a.performedBy,
+      organizationId: a.organizationId,
+      executedAt: a.createdAt,
+      confidenceScore: (a.metadata as any)?.confidenceScore || 0,
+      actionTaken: a.reason,
+    }));
+
+    const toolSummary = actions.reduce((acc: Record<string, number>, a) => {
+      acc[a.toolName] = (acc[a.toolName] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({ actions, total: actions.length, toolSummary });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch agentic action logs' });
+  }
+});
+
+router.get('/agentic-actions/:conversationId', requireAuth, requireRole(['admin']), async (req: Request, res: Response) => {
+  try {
+    const convId = req.params.conversationId;
+    const dbActions = await db.select().from(auditLog)
+      .where(and(eq(auditLog.entityType, 'ai_action'), eq(auditLog.entityId, convId)))
+      .orderBy(desc(auditLog.createdAt))
+      .limit(20);
+    
+    const actions = dbActions.map(a => ({
+      toolName: a.action,
+      input: (a.metadata as any)?.input || {},
+      output: (a.metadata as any)?.output || {},
+      conversationId: a.entityId,
+      agentId: a.performedBy,
+      organizationId: a.organizationId,
+      executedAt: a.createdAt,
+      confidenceScore: (a.metadata as any)?.confidenceScore || 0,
+      actionTaken: a.reason,
+    }));
+
+    res.json({ actions });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch conversation actions' });
   }
 });
 

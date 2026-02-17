@@ -19,7 +19,15 @@ The platform supports a hierarchical architecture: Platform Admins → Organizat
 
 ### Feature Specifications
 - **Real-time Communication**: Custom WebSocket server for chat, presence, routing, and typing indicators.
-- **AI Capabilities**: A multi-agent AI system (OpenAI GPT-5) for intent classification, smart routing, and agent handoff, with a Centralized Brand Voice System and enhanced RAG optimization. Conversational Intelligence provides customer memory, sentiment analysis, and conversation tracking.
+- **AI Capabilities**: A multi-agent AI system (OpenAI GPT-5) for intent classification, smart routing, agent handoff, and **agentic tool use** with a Centralized Brand Voice System and enhanced RAG optimization. Conversational Intelligence provides customer memory, sentiment analysis, and conversation tracking.
+- **Agentic AI System**: Autonomous AI agents with OpenAI function calling for multi-step reasoning and action execution:
+  - **Tool Registry**: 10 tools — search_knowledge_base, lookup_customer, get_conversation_history, create_ticket, escalate_to_human, update_conversation_priority, update_conversation_status, get_customer_tickets, schedule_callback, check_resolution_history
+  - **Multi-Step Reasoning**: Agents chain up to 5 tool calls per turn for complex problem-solving
+  - **Safety Gating**: Destructive actions (ticket creation, escalation, status changes) require 75% confidence threshold; below-threshold actions flagged for human approval
+  - **Audit Logging**: All autonomous actions logged with tool name, input/output, agent ID, conversation ID, organization ID, confidence score, and timestamp
+  - **Admin API**: GET /api/admin/agentic-actions (all actions), GET /api/admin/agentic-actions/:conversationId (per-conversation)
+  - **Multi-Tenant Isolation**: Tool execution respects organization scoping; customer lookups blocked across tenants
+  - **Files**: server/services/ai-tools.ts (tool registry + executor), server/ai-service.ts (agentic loop integration)
 - **Specialized AI Agents**: Categorized agents by type (Sales, Support, Billing, General) with custom greetings, knowledge collection linking, and Perplexity API integration for external real-time research when the knowledge base lacks answers. Features include:
   - **Agent Types**: Sales, Support, Billing, and General agents with specialized behavior
   - **Knowledge Collection Linking**: Agents can be linked to specific knowledge collections for focused expertise
