@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import DOMPurify from "isomorphic-dompurify";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { 
   FileText, 
@@ -295,7 +296,7 @@ export default function LegalPoliciesPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="prose prose-sm dark:prose-invert max-w-none mt-4">
-            <div dangerouslySetInnerHTML={{ __html: markdownToHtml(selectedPolicy?.content || '') }} />
+            <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(markdownToHtml(selectedPolicy?.content || '')) }} />
           </div>
         </DialogContent>
       </Dialog>

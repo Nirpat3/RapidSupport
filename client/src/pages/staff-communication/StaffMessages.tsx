@@ -13,19 +13,37 @@ import { MessageSquare, Send, Search, Loader2, MoreVertical, Plus } from "lucide
 import type { CommDirectThread, CommDirectMessage, User, Customer } from "@shared/schema";
 import { format } from "date-fns";
 
+import { useAuth } from "@/contexts/AuthContext";
+
 export default function StaffMessages() {
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [activeTab, setActiveTab] = useState<"staff" | "customers">("staff");
 
   const { data: threads = [], isLoading: threadsLoading } = useQuery<CommDirectThread[]>({
     queryKey: ["/api/comm/dms"],
+    queryFn: async () => apiRequest("/api/comm/dms", "GET")
   });
 
   const { data: messages = [], isLoading: messagesLoading } = useQuery<CommDirectMessage[]>({
     queryKey: ["/api/comm/dms", selectedThread, "messages"],
+    queryFn: async () => {
+      return apiRequest(`/api/comm/dms/${selectedThread}/messages`, "GET");
+    },
     enabled: !!selectedThread,
+    refetchInterval: 5000,
+  });
+
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+    queryFn: async () => apiRequest("/api/users", "GET")
+  });
+
+  const { data: customers = [] } = useQuery<Customer[]>({
+    queryKey: ["/api/customers"],
+    queryFn: async () => apiRequest("/api/customers", "GET")
   });
 
   const sendMessageMutation = useMutation({
@@ -38,18 +56,32 @@ export default function StaffMessages() {
     },
   });
 
+  const getParticipantInfo = (thread: CommDirectThread) => {
+    const isA = thread.participantAId === currentUser?.id && thread.participantAType === 'staff';
+    const otherId = isA ? thread.participantBId : thread.participantAId;
+    const otherType = isA ? thread.participantBType : thread.participantAType;
+
+    if (otherType === 'staff') {
+      const user = users.find(u => u.id === otherId);
+      return { name: user?.name || 'Staff Member', id: otherId, type: otherType };
+    } else {
+      const customer = customers.find(c => c.id === otherId);
+      return { name: customer?.name || 'Customer', id: otherId, type: otherType };
+    }
+  };
+
   const handleSendMessage = () => {
     if (!newMessage.trim() || !selectedThread) return;
     sendMessageMutation.mutate(newMessage);
   };
 
   const filteredThreads = threads.filter(t => {
-    // This logic depends on participant types which we'd get from the thread object
-    // For now, simplify and just list all
-    return true; 
+    const info = getParticipantInfo(t);
+    return activeTab === 'staff' ? info.type === 'staff' : info.type === 'customer';
   });
 
   const activeThread = threads.find(t => t.id === selectedThread);
+  const info = activeThread ? getParticipantInfo(activeThread) : null;
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -81,28 +113,31 @@ export default function StaffMessages() {
                 <div className="flex justify-center py-12">
                   <Loader2 className="h-4 w-4 animate-spin" />
                 </div>
-              ) : threads.length === 0 ? (
+              ) : filteredThreads.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">No conversations.</div>
               ) : (
-                threads.map(thread => (
-                  <Button
-                    key={thread.id}
-                    variant={selectedThread === thread.id ? "secondary" : "ghost"}
-                    className="w-full justify-start gap-3 h-16 px-3"
-                    onClick={() => setSelectedThread(thread.id)}
-                  >
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback>U</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 text-left overflow-hidden">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-sm truncate">Other Participant</span>
-                        <span className="text-[10px] text-muted-foreground">{thread.lastMessageAt ? format(new Date(thread.lastMessageAt), 'MMM d') : ''}</span>
+                filteredThreads.map(thread => {
+                  const info = getParticipantInfo(thread);
+                  return (
+                    <Button
+                      key={thread.id}
+                      variant={selectedThread === thread.id ? "secondary" : "ghost"}
+                      className="w-full justify-start gap-3 h-16 px-3"
+                      onClick={() => setSelectedThread(thread.id)}
+                    >
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback>{info.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 text-left overflow-hidden">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-sm truncate">{info.name}</span>
+                          <span className="text-[10px] text-muted-foreground">{thread.lastMessageAt ? format(new Date(thread.lastMessageAt), 'MMM d') : ''}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate italic">Last message preview...</p>
                       </div>
-                      <p className="text-xs text-muted-foreground truncate italic">Last message preview...</p>
-                    </div>
-                  </Button>
-                ))
+                    </Button>
+                  );
+                })
               )}
             </div>
           </ScrollArea>
@@ -110,15 +145,15 @@ export default function StaffMessages() {
       </div>
 
       <div className="flex-1 flex flex-col bg-background relative">
-        {selectedThread ? (
+        {selectedThread && info ? (
           <>
             <div className="p-4 border-b flex items-center justify-between bg-background/95 backdrop-blur sticky top-0 z-10">
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
-                  <AvatarFallback>U</AvatarFallback>
+                  <AvatarFallback>{info.name.slice(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="font-semibold text-sm leading-none">Other Participant</h3>
+                  <h3 className="font-semibold text-sm leading-none">{info.name}</h3>
                   <p className="text-xs text-muted-foreground mt-1">Online</p>
                 </div>
               </div>

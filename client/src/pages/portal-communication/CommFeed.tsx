@@ -204,7 +204,7 @@ function PostCard({ post }: { post: Post }) {
 function FeedCommentSection({ postId }: { postId: string }) {
   const [content, setContent] = useState("");
   
-  const { data: comments } = useQuery<any[]>({
+  const { data: comments, isLoading } = useQuery<any[]>({
     queryKey: ["/api/customer-portal/comm/posts", postId, "comments"],
   });
 
@@ -219,10 +219,16 @@ function FeedCommentSection({ postId }: { postId: string }) {
     }
   });
 
+  if (isLoading) {
+    return <div className="space-y-2 py-2"><div className="h-8 w-full bg-accent animate-pulse rounded" /></div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="space-y-3">
-        {comments?.map((c) => (
+        {(!comments || comments.length === 0) ? (
+          <p className="text-xs text-muted-foreground italic">No comments yet.</p>
+        ) : comments.map((c) => (
           <div key={c.id} className="flex gap-2">
             <Avatar className="h-6 w-6 shrink-0">
               <AvatarFallback className="text-[10px]">
@@ -246,7 +252,7 @@ function FeedCommentSection({ postId }: { postId: string }) {
           value={content}
           onChange={(e) => setContent(e.target.value)}
         />
-        <Button size="icon" disabled={!content.trim()} onClick={() => commentMutation.mutate(content)}>
+        <Button size="icon" disabled={!content.trim() || commentMutation.isPending} onClick={() => commentMutation.mutate(content)}>
           <Send className="h-4 w-4" />
         </Button>
       </div>

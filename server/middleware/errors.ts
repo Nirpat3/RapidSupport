@@ -35,7 +35,14 @@ export function globalErrorHandler(
     return res.status(400).json(zodErrorResponse(err));
   }
 
+  const isProduction = process.env.NODE_ENV === 'production';
   const message = err instanceof Error ? err.message : 'An unexpected error occurred';
+  
   console.error('[GlobalErrorHandler]', err);
+  
+  if (isProduction) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+
   return res.status(500).json({ error: message });
 }

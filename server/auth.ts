@@ -22,7 +22,6 @@ passport.use(new LocalStrategy(
       }
       
       console.log('[Auth] User found:', user.email, 'Role:', user.role);
-      console.log('[Auth] Stored hash starts with:', user.password?.substring(0, 20));
 
       // Check password
       const isValidPassword = await compare(password, user.password);

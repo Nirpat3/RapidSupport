@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, FileText, BookOpen, HelpCircle, ExternalLink, Search, FolderOpen, Star, Printer, TrendingUp, Loader2 } from "lucide-react";
+import DOMPurify from "isomorphic-dompurify";
 import { apiRequest } from "@/lib/queryClient";
 import ChatWidget from "@/components/ChatWidget";
 
@@ -407,7 +408,7 @@ export default function KnowledgeCategoryPage() {
               ) : (
                 <div
                   className="prose prose-sm dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: (fullArticle || selectedArticle).content || '' }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize((fullArticle || selectedArticle).content || '') }}
                   data-testid="content-article-view"
                 />
               )}

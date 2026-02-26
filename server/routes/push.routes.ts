@@ -1,6 +1,7 @@
 import type { RouteContext, RouteRegistrar } from './types';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
+import { requireAuth } from '../auth';
 import {
   getVapidPublicKey,
   isPushEnabled,
@@ -48,7 +49,7 @@ export const registerPushRoutes: RouteRegistrar = ({ app }) => {
   });
 
   // Subscribe to push notifications
-  app.post('/api/push/subscribe', async (req: Request, res: Response) => {
+  app.post('/api/push/subscribe', requireAuth, async (req: Request, res: Response) => {
     try {
       const parsed = subscribeSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -76,7 +77,7 @@ export const registerPushRoutes: RouteRegistrar = ({ app }) => {
   });
 
   // Unsubscribe from push notifications
-  app.post('/api/push/unsubscribe', async (req: Request, res: Response) => {
+  app.post('/api/push/unsubscribe', requireAuth, async (req: Request, res: Response) => {
     try {
       const parsed = unsubscribeSchema.safeParse(req.body);
       if (!parsed.success) {

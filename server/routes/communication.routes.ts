@@ -31,6 +31,24 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
     }
   });
 
+  app.get('/api/comm/announcements/stats', requireAuth, async (req, res) => {
+    try {
+      const organizationId = (req.user as any).organizationId;
+      const posts = await storage.getCommPosts({ type: 'announcement', organizationId });
+      const stats: Record<string, { read: number, total: number }> = {};
+      
+      for (const post of posts) {
+        const reads = await storage.getCommPostReads(post.id);
+        const total = await storage.getExpectedReadCount(post.id);
+        stats[post.id] = { read: reads.length, total };
+      }
+      
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch announcement stats' });
+    }
+  });
+
   app.post('/api/comm/posts', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
       const data = insertCommPostSchema.parse({
@@ -49,6 +67,17 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.patch('/api/comm/posts/:id', requireAuth, async (req, res) => {
     try {
+      const posts = await storage.getCommPosts({ type: undefined, authorId: undefined, organizationId: undefined, workspaceId: undefined, status: undefined, limit: undefined });
+      const existingPost = posts.find(p => p.id === req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      const user = req.user as any;
+      if (!user.isPlatformAdmin && existingPost.organizationId !== user.organizationId) {
+        return res.status(403).json({ error: 'Forbidden: Cannot update post from another organization' });
+      }
+
       const post = await storage.updateCommPost(req.params.id, req.body);
       res.json(post);
     } catch (error) {
@@ -58,6 +87,17 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.delete('/api/comm/posts/:id', requireAuth, async (req, res) => {
     try {
+      const posts = await storage.getCommPosts({ type: undefined, authorId: undefined, organizationId: undefined, workspaceId: undefined, status: undefined, limit: undefined });
+      const existingPost = posts.find(p => p.id === req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
+      const user = req.user as any;
+      if (!user.isPlatformAdmin && existingPost.organizationId !== user.organizationId) {
+        return res.status(403).json({ error: 'Forbidden: Cannot delete post from another organization' });
+      }
+
       await storage.deleteCommPost(req.params.id);
       res.json({ message: 'Post archived' });
     } catch (error) {
@@ -67,6 +107,11 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.post('/api/comm/posts/:id/read', requireAuth, async (req, res) => {
     try {
+      const existingPost = await storage.getCommPost(req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       const read = await storage.markCommPostRead(req.params.id, (req.user as any).id, 'staff');
       res.json(read);
     } catch (error) {
@@ -76,6 +121,11 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.post('/api/comm/posts/:id/react', requireAuth, async (req, res) => {
     try {
+      const existingPost = await storage.getCommPost(req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       const { emoji } = req.body;
       await storage.toggleCommPostReaction(req.params.id, (req.user as any).id, 'staff', emoji);
       res.json({ message: 'Reaction toggled' });
@@ -86,6 +136,11 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.get('/api/comm/posts/:id/comments', requireAuth, async (req, res) => {
     try {
+      const existingPost = await storage.getCommPost(req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       const comments = await storage.getCommPostComments(req.params.id);
       res.json(comments);
     } catch (error) {
@@ -95,6 +150,11 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.post('/api/comm/posts/:id/comments', requireAuth, async (req, res) => {
     try {
+      const existingPost = await storage.getCommPost(req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       const data = insertCommPostCommentSchema.parse({
         ...req.body,
         postId: req.params.id,
@@ -249,6 +309,11 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.post('/api/customer-portal/comm/posts/:id/read', async (req, res) => {
     try {
+      const existingPost = await storage.getCommPost(req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       const read = await storage.markCommPostRead(req.params.id, (req.session as any).customerId, 'customer');
       res.json(read);
     } catch (error) {
@@ -258,6 +323,11 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.post('/api/customer-portal/comm/posts/:id/react', async (req, res) => {
     try {
+      const existingPost = await storage.getCommPost(req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       const { emoji } = req.body;
       await storage.toggleCommPostReaction(req.params.id, (req.session as any).customerId, 'customer', emoji);
       res.json({ message: 'Reaction toggled' });
@@ -268,6 +338,11 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.get('/api/customer-portal/comm/posts/:id/comments', async (req, res) => {
     try {
+      const existingPost = await storage.getCommPost(req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       const comments = await storage.getCommPostComments(req.params.id);
       res.json(comments);
     } catch (error) {
@@ -277,6 +352,11 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.post('/api/customer-portal/comm/posts/:id/comments', async (req, res) => {
     try {
+      const existingPost = await storage.getCommPost(req.params.id);
+      if (!existingPost) {
+        return res.status(404).json({ error: 'Post not found' });
+      }
+
       const data = insertCommPostCommentSchema.parse({
         ...req.body,
         postId: req.params.id,

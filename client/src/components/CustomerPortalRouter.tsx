@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import CustomerPortalDashboard from "@/pages/CustomerPortalDashboard";
 import CustomerPortalFeed from "@/pages/CustomerPortalFeed";
 import CustomerPortalProfile from "@/pages/CustomerPortalProfile";
@@ -32,7 +33,10 @@ export function CustomerPortalRouter() {
       <Route path="/portal/communication/messages" component={CommMessages} />
       <Route path="/portal/communication">
         {() => {
-          window.location.href = '/portal/communication/announcements';
+          const [_, setLocation] = useLocation();
+          useEffect(() => {
+            setLocation('/portal/communication/announcements');
+          }, []);
           return null;
         }}
       </Route>

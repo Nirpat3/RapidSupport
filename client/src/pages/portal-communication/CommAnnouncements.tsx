@@ -70,10 +70,10 @@ export default function CommAnnouncements() {
   const getTagBadge = (tag: string) => {
     const normalized = tag.toLowerCase();
     if (normalized === "urgent") return <Badge variant="destructive" className="gap-1"><Tag className="h-3 w-3" />Urgent</Badge>;
-    if (normalized === "important") return <Badge className="bg-amber-500 hover:bg-amber-600 gap-1 text-white no-default-hover-elevate"><Tag className="h-3 w-3" />Important</Badge>;
-    if (normalized === "fyi") return <Badge className="bg-blue-500 hover:bg-blue-600 gap-1 text-white no-default-hover-elevate"><Tag className="h-3 w-3" />FYI</Badge>;
-    if (normalized === "update") return <Badge className="bg-green-500 hover:bg-green-600 gap-1 text-white no-default-hover-elevate"><Tag className="h-3 w-3" />Update</Badge>;
-    if (normalized === "promo" || normalized === "promotion") return <Badge className="bg-purple-500 hover:bg-purple-600 gap-1 text-white no-default-hover-elevate"><Tag className="h-3 w-3" />Promo</Badge>;
+    if (normalized === "important") return <Badge className="bg-amber-500 hover:bg-amber-600 gap-1 text-white no-default-hover-elevate border-amber-600"><Tag className="h-3 w-3" />Important</Badge>;
+    if (normalized === "fyi") return <Badge className="bg-blue-500 hover:bg-blue-600 gap-1 text-white no-default-hover-elevate border-blue-600"><Tag className="h-3 w-3" />FYI</Badge>;
+    if (normalized === "update") return <Badge className="bg-green-500 hover:bg-green-600 gap-1 text-white no-default-hover-elevate border-green-600"><Tag className="h-3 w-3" />Update</Badge>;
+    if (normalized === "promo" || normalized === "promotion") return <Badge className="bg-purple-500 hover:bg-purple-600 gap-1 text-white no-default-hover-elevate border-purple-600"><Tag className="h-3 w-3" />Promo</Badge>;
     return <Badge variant="secondary" className="gap-1"><Tag className="h-3 w-3" />{tag}</Badge>;
   };
 

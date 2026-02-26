@@ -25,12 +25,39 @@ export default function StaffCommunity() {
 
   const { data: channels = [], isLoading: channelsLoading } = useQuery<CommChannel[]>({
     queryKey: ["/api/comm/channels"],
+    queryFn: async () => apiRequest("/api/comm/channels", "GET")
   });
 
   const { data: messages = [], isLoading: messagesLoading } = useQuery<CommChannelMessage[]>({
     queryKey: ["/api/comm/channels", selectedChannel, "messages"],
+    queryFn: async () => {
+      return apiRequest(`/api/comm/channels/${selectedChannel}/messages`, "GET");
+    },
     enabled: !!selectedChannel,
+    refetchInterval: 5000,
   });
+
+  const { data: users = [] } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+    queryFn: async () => apiRequest("/api/users", "GET")
+  });
+
+  const { data: customers = [] } = useQuery<Customer[]>({
+    queryKey: ["/api/customers"],
+    queryFn: async () => apiRequest("/api/customers", "GET")
+  });
+
+  const getUserName = (id: string, type: string) => {
+    if (type === 'staff' || type === 'superadmin') {
+      return users.find(u => u.id === id)?.name || 'Staff';
+    }
+    return customers.find(c => c.id === id)?.name || 'Customer';
+  };
+
+  const getUserAvatar = (id: string, type: string) => {
+    // In a real app we'd have avatar URLs
+    return undefined;
+  };
 
   const createChannelMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -181,11 +208,11 @@ export default function StaffCommunity() {
                   messages.map((msg) => (
                     <div key={msg.id} className="flex gap-4 group">
                       <Avatar className="h-8 w-8 mt-1">
-                        <AvatarFallback>U</AvatarFallback>
+                        <AvatarFallback>{getUserName(msg.authorId, msg.authorType).slice(0, 2).toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold">User</span>
+                          <span className="text-sm font-semibold">{getUserName(msg.authorId, msg.authorType)}</span>
                           <span className="text-xs text-muted-foreground">{msg.createdAt ? format(new Date(msg.createdAt), 'h:mm a') : ''}</span>
                         </div>
                         <p className="text-sm whitespace-pre-wrap">{msg.content}</p>

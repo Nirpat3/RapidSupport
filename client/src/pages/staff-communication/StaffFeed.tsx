@@ -19,10 +19,18 @@ export default function StaffFeed() {
 
   const { data: staffPosts = [], isLoading: staffPostsLoading } = useQuery<CommPost[]>({
     queryKey: ["/api/comm/posts", { type: "workspace_feed" }],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams({ type: "workspace_feed" });
+      return apiRequest(`/api/comm/posts?${searchParams.toString()}`, "GET");
+    }
   });
 
   const { data: retailPosts = [], isLoading: retailPostsLoading } = useQuery<CommPost[]>({
     queryKey: ["/api/comm/posts", { type: "retail_feed" }],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams({ type: "retail_feed" });
+      return apiRequest(`/api/comm/posts?${searchParams.toString()}`, "GET");
+    }
   });
 
   const { data: customerOrgs = [] } = useQuery<CustomerOrganization[]>({

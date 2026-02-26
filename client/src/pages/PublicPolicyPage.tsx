@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import DOMPurify from "isomorphic-dompurify";
 import { 
   FileText, 
   Shield, 
@@ -262,7 +263,7 @@ export default function PublicPolicyPage() {
 
 function PolicyContent({ content }: { content: string }) {
   const html = markdownToHtml(content);
-  return <div dangerouslySetInnerHTML={{ __html: html }} />;
+  return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />;
 }
 
 function markdownToHtml(markdown: string): string {

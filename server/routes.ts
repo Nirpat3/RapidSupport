@@ -31,6 +31,7 @@ import { registerAgenticRoutes } from './routes/agentic.routes';
 import { registerPartnerRoutes } from './routes/partner.routes';
 import { registerResolutionMemoryRoutes } from './routes/resolution-memory.routes';
 import { registerCommunicationRoutes } from './routes/communication.routes';
+import portalManifestRoutes from './routes/portal-manifest.routes';
 import adminMonitoringRoutes from './routes/admin-monitoring.routes';
 import type { RouteContext } from './routes/types';
 import { 
@@ -910,6 +911,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
   // Register modular auth routes (staff login/logout, customer portal auth)
   registerAuthRoutes({ app, httpServer: null as any, wsServer: null as any });
+
+  // Register portal manifest routes
+  app.use(portalManifestRoutes);
   
   // Register admin monitoring routes
   app.use('/api/admin', adminMonitoringRoutes);

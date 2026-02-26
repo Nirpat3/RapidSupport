@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, Shield, Cookie, Globe, Building2 } from "lucide-react";
+import DOMPurify from "isomorphic-dompurify";
 import { useState } from "react";
 import { NovaLogo } from "@/components/NovaLogo";
 import { SEO, generateBreadcrumbSchema } from "@/components/SEO";
@@ -140,7 +141,7 @@ export default function PublicLegalPage() {
                 <div className="h-4 bg-muted rounded w-5/6"></div>
               </div>
             ) : policy?.content ? (
-              <div dangerouslySetInnerHTML={{ __html: policy.content }} />
+              <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(policy.content) }} />
             ) : (
               <div className="space-y-6">
                 <section>

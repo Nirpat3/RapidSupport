@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import DOMPurify from "isomorphic-dompurify";
 import { 
   ArrowLeft, FileText, Printer, Eye, Clock, 
   ThumbsUp, ThumbsDown, Loader2, CheckCircle2, BookOpen,
@@ -335,7 +336,7 @@ function ArticleContent({ content }: { content: string }) {
     return (
       <div
         className="prose prose-sm dark:prose-invert max-w-none leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: formattedContent }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formattedContent) }}
       />
     );
   }
@@ -345,7 +346,7 @@ function ArticleContent({ content }: { content: string }) {
       {intro && (
         <div
           className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground"
-          dangerouslySetInnerHTML={{ __html: intro }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(intro) }}
         />
       )}
       
@@ -368,7 +369,7 @@ function ArticleContent({ content }: { content: string }) {
                 {step.content && (
                   <div
                     className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground"
-                    dangerouslySetInnerHTML={{ __html: step.content }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(step.content) }}
                   />
                 )}
               </CardContent>
@@ -380,7 +381,7 @@ function ArticleContent({ content }: { content: string }) {
       {outro && (
         <div
           className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground mt-6"
-          dangerouslySetInnerHTML={{ __html: outro }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(outro) }}
         />
       )}
     </div>

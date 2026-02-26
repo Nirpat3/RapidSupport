@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -13,7 +14,9 @@ import {
   BookOpen,
   Plus,
   ChevronRight,
-  MessageSquareDot
+  MessageSquareDot,
+  Download,
+  X
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -35,17 +38,129 @@ interface CustomerPortalLayoutProps {
   children: React.ReactNode;
 }
 
+interface CustomerResponse {
+  customer: {
+    id: string;
+    name: string;
+    email: string;
+    organizationId?: string;
+  };
+  organization?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+}
+
 interface UnreadCountsResponse {
   totalUnread: number;
   perConversation: Array<{ conversationId: string; unreadCount: number }>;
 }
 
+function PWAInstallBanner() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    // Check if dismissed in last 7 days
+    const dismissed = localStorage.getItem('portal-pwa-dismissed');
+    if (dismissed) {
+      const dismissedDate = new Date(dismissed);
+      const now = new Date();
+      const diffDays = Math.ceil((now.getTime() - dismissedDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays < 7) return;
+    }
+
+    // Check if already in standalone mode
+    if (window.matchMedia('(display-mode: standalone)').matches) return;
+
+    // Only show on mobile
+    if (window.innerWidth > 768) return;
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsVisible(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsVisible(false);
+    }
+    setDeferredPrompt(null);
+  };
+
+  const handleDismiss = () => {
+    setIsVisible(false);
+    localStorage.setItem('portal-pwa-dismissed', new Date().toISOString());
+  };
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="fixed bottom-4 left-4 right-4 z-[100] bg-card border shadow-lg rounded-lg p-4 animate-in fade-in slide-in-from-bottom-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/10 p-2 rounded-md text-primary">
+            <Download className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Install App</p>
+            <p className="text-xs text-muted-foreground">Install the Support Portal for quick access</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={handleDismiss}>
+            <X className="h-4 w-4" />
+          </Button>
+          <Button size="sm" onClick={handleInstall}>
+            Install
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CustomerPortalSidebar() {
   const [location] = useLocation();
 
-  const { data: customerData } = useQuery<{ customer: { id: string; name: string; email: string } }>({
+  const { data: customerData } = useQuery<CustomerResponse>({
     queryKey: ['/api/portal/auth/me'],
   });
+
+  const orgSlug = customerData?.organization?.slug;
+
+  useEffect(() => {
+    const link = (document.querySelector('link[rel="manifest"]') as HTMLLinkElement) || document.createElement('link');
+    link.setAttribute('rel', 'manifest');
+    const manifestUrl = `/api/portal-manifest\${orgSlug ? '?org=' + orgSlug : ''}`;
+    link.setAttribute('href', manifestUrl);
+    if (!link.parentNode) {
+      document.head.appendChild(link);
+    }
+
+    // Update theme-color meta tag
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) {
+      themeColor.setAttribute('content', '#059669'); // Portal default emerald
+    }
+
+    return () => {
+      // Restore default staff manifest on unmount
+      link.setAttribute('href', '/manifest.json');
+      if (themeColor) {
+        themeColor.setAttribute('content', '#6366f1'); // Staff default indigo
+      }
+    };
+  }, [orgSlug]);
 
   const { data: unreadData } = useQuery<UnreadCountsResponse>({
     queryKey: ['/api/customer-portal/unread-counts'],
@@ -72,7 +187,6 @@ function CustomerPortalSidebar() {
     { path: '/portal/communication', icon: MessageSquareDot, label: 'Communication' },
     { path: '/portal/conversations', icon: MessageSquare, label: 'Conversations', badge: totalUnread > 0 ? totalUnread : undefined },
     { path: '/portal/knowledge-base', icon: BookOpen, label: 'Knowledge Base' },
-    { path: '/portal/feeds', icon: Megaphone, label: 'Announcements' },
   ];
 
   const secondaryNavItems = [
@@ -223,6 +337,7 @@ export function CustomerPortalLayout({ children }: CustomerPortalLayoutProps) {
               {children}
             </div>
           </main>
+          <PWAInstallBanner />
         </div>
       </div>
     </SidebarProvider>

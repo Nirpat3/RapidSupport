@@ -33,6 +33,11 @@ export function registerPolicyRoutes({ app }: RouteContext) {
       const data = generateSchema.parse(req.body);
       const user = req.user as any;
 
+      // Fix: Verify organizationId matches user's organizationId if not platform admin
+      if (data.organizationId && !user.isPlatformAdmin && data.organizationId !== user.organizationId) {
+        return res.status(403).json({ error: 'Forbidden: Cannot generate policy for another organization' });
+      }
+
       // Check if policy already exists for this org/type/region
       const existing = await storage.getLegalPolicyByTypeAndRegion(
         data.organizationId || null, 

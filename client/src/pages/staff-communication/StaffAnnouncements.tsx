@@ -24,15 +24,33 @@ export default function StaffAnnouncements() {
   const [isPinned, setIsPinned] = useState(false);
 
   const tags = [
-    { name: "Urgent", color: "destructive" },
-    { name: "Important", color: "warning" },
-    { name: "FYI", color: "info" },
-    { name: "Update", color: "success" },
-    { name: "Promo", color: "secondary" },
+    { name: "Urgent", variant: "destructive" as const },
+    { name: "Important", variant: "warning" as const },
+    { name: "FYI", variant: "info" as const },
+    { name: "Update", variant: "success" as const },
+    { name: "Promo", variant: "secondary" as const },
   ];
+
+  const getTagVariant = (tagName: string) => {
+    const tag = tags.find(t => t.name === tagName);
+    if (!tag) return "outline" as const;
+    if (tag.variant === "warning") return "warning" as any;
+    if (tag.variant === "info") return "info" as any;
+    if (tag.variant === "success") return "success" as any;
+    return tag.variant;
+  };
 
   const { data: posts = [], isLoading: postsLoading } = useQuery<CommPost[]>({
     queryKey: ["/api/comm/posts", { type: "announcement" }],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams({ type: "announcement" });
+      return apiRequest(`/api/comm/posts?${searchParams.toString()}`, "GET");
+    }
+  });
+
+  const { data: readAnalytics } = useQuery<Record<string, { read: number, total: number }>>({
+    queryKey: ["/api/comm/announcements/stats"],
+    queryFn: async () => apiRequest("/api/comm/announcements/stats", "GET")
   });
 
   const { data: customerOrgs = [] } = useQuery<CustomerOrganization[]>({
@@ -207,7 +225,7 @@ export default function StaffAnnouncements() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {post.tags?.map(tag => (
-                      <Badge key={tag} variant="outline" className="text-[10px] uppercase">
+                      <Badge key={tag} variant={getTagVariant(tag)} className="text-[10px] uppercase">
                         {tag}
                       </Badge>
                     ))}
@@ -227,7 +245,7 @@ export default function StaffAnnouncements() {
                     </span>
                     <span className="flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3" />
-                      Read by: --
+                      Read by: {readAnalytics?.[post.id] ? `${readAnalytics[post.id].read}/${readAnalytics[post.id].total}` : '--'}
                     </span>
                   </div>
                   <Button variant="ghost" size="sm" className="h-8 gap-2">

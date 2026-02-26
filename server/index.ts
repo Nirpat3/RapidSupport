@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import pg from 'pg';
@@ -10,6 +11,12 @@ import { ensureAdminExists } from './init-admin';
 import { setupWebhooks } from './webhooks';
 
 const app = express();
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+}));
 
 // Trust proxy configuration for secure cookies and rate limiting
 if (process.env.NODE_ENV === 'production') {
@@ -35,10 +42,16 @@ const sessionStore = new PgSession({
   createTableIfMissing: true,
 });
 
+const sessionSecret = process.env.SESSION_SECRET;
+if (process.env.NODE_ENV === 'production' && (!sessionSecret || sessionSecret === 'dev-secret-key-change-in-production')) {
+  console.error('\x1b[31m%s\x1b[0m', 'CRITICAL SECURITY WARNING: SESSION_SECRET is missing or using default value in production!');
+  console.error('\x1b[31m%s\x1b[0m', 'Please set a secure SESSION_SECRET environment variable.');
+}
+
 // Session configuration with security hardening
 app.use(session({
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'dev-secret-key-change-in-production',
+  secret: sessionSecret || 'dev-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
   name: 'sessionId', // Don't use default session name

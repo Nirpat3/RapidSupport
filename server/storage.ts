@@ -427,6 +427,8 @@ export interface IStorage {
   getCommPostComments(postId: string): Promise<CommPostComment[]>;
   createCommPostComment(comment: InsertCommPostComment): Promise<CommPostComment>;
   getCommPostReads(postId: string): Promise<CommPostRead[]>;
+  getExpectedReadCount(postId: string): Promise<number>;
+  getCommPost(id: string): Promise<CommPost | undefined>;
 
   // Channels
   getCommChannels(filters: { organizationId?: string; memberId?: string; type?: string; customerOrgId?: string }): Promise<CommChannel[]>;
@@ -9337,6 +9339,46 @@ export class DatabaseStorage implements IStorage {
   async getCommPostReads(postId: string): Promise<CommPostRead[]> {
     return await db.select().from(commPostReads)
       .where(eq(commPostReads.postId, postId));
+  }
+
+  async getExpectedReadCount(postId: string): Promise<number> {
+    const post = await this.getCommPost(postId);
+    if (!post) return 0;
+
+    const targets = await db.select()
+      .from(commPostTargets)
+      .where(eq(commPostTargets.postId, postId));
+
+    if (targets.length === 0) {
+      // Global post - expected to be read by all customers of the organization
+      const result = await db.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(eq(customers.organizationId, post.organizationId));
+      return Number(result[0].count);
+    }
+
+    // Targeted post - sum of customers in targeted orgs
+    const targetedOrgIds = targets
+      .map(t => t.customerOrgId)
+      .filter((id): id is string => id !== null);
+
+    if (targetedOrgIds.length === 0) {
+      // This case should ideally be handled by targets.length === 0 but being safe
+      const result = await db.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(eq(customers.organizationId, post.organizationId));
+      return Number(result[0].count);
+    }
+
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(customers)
+      .where(inArray(customers.customerOrganizationId, targetedOrgIds));
+    return Number(result[0].count);
+  }
+
+  async getCommPost(id: string): Promise<CommPost | undefined> {
+    const [post] = await db.select().from(commPosts).where(eq(commPosts.id, id));
+    return post;
   }
 
   // Channels

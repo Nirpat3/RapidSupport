@@ -1,12 +1,11 @@
 {
-  "name": "Nova AI - Your Intelligent Support Companion",
-  "short_name": "Nova AI",
-  "description": "Transform customer support with AI-powered assistance, smart routing, and personalized experiences. Trusted by businesses worldwide.",
-  "start_url": "/",
+  "name": "Nova Support Portal",
+  "short_name": "Support",
+  "description": "Customer support portal",
+  "start_url": "/portal/dashboard",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#6366f1",
-  "orientation": "portrait-primary",
+  "theme_color": "#059669",
   "icons": [
     {
       "src": "/icons/icon-72.png",
@@ -105,26 +104,22 @@
       "purpose": "maskable"
     }
   ],
-  "categories": ["business", "productivity", "utilities"],
-  "screenshots": [],
   "shortcuts": [
     {
-      "name": "Conversations",
-      "short_name": "Chat",
-      "url": "/conversations",
-      "description": "View and manage customer conversations"
+      "name": "Dashboard",
+      "url": "/portal/dashboard"
     },
     {
-      "name": "Dashboard",
-      "short_name": "Dashboard",
-      "url": "/dashboard",
-      "description": "View analytics and performance metrics"
+      "name": "Conversations",
+      "url": "/portal/conversations"
     },
     {
       "name": "Knowledge Base",
-      "short_name": "Knowledge",
-      "url": "/knowledge",
-      "description": "Manage AI knowledge base articles"
+      "url": "/portal/knowledge-base"
+    },
+    {
+      "name": "Announcements",
+      "url": "/portal/communication/announcements"
     }
   ]
 }
