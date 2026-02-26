@@ -1,5 +1,8 @@
 import ChatWebSocketServer from './websocket';
 import { sendPushToUser, isPushEnabled, type PushPayload } from './push-notification-service';
+import { db } from './db';
+import { activityNotifications } from '../shared/schema';
+import { eq, desc, and } from 'drizzle-orm';
 
 export type NotificationEventType = 
   | 'conversation.new'
@@ -90,7 +93,7 @@ class NotificationService {
     const targetUserIds = this.resolveTargetUsers(target);
     
     for (const userId of targetUserIds) {
-      this.storeNotification(userId, payload);
+      await this.storeNotification(userId, payload);
       
       if (this.wsServer) {
         const sent = this.wsServer.sendToUser(userId, notification);
@@ -183,9 +186,10 @@ class NotificationService {
     return Array.from(userIds);
   }
 
-  private storeNotification(userId: string, payload: NotificationPayload): void {
+  private async storeNotification(userId: string, payload: NotificationPayload): Promise<void> {
+    const id = `notif_${++this.notificationIdCounter}_${Date.now()}`;
     const record: NotificationRecord = {
-      id: `notif_${++this.notificationIdCounter}_${Date.now()}`,
+      id,
       type: payload.type,
       title: payload.title,
       message: payload.message,
@@ -201,55 +205,87 @@ class NotificationService {
     if (!this.inMemoryNotifications.has(userId)) {
       this.inMemoryNotifications.set(userId, []);
     }
-    
     const userNotifications = this.inMemoryNotifications.get(userId)!;
     userNotifications.unshift(record);
-    
-    if (userNotifications.length > 100) {
-      userNotifications.pop();
-    }
+    if (userNotifications.length > 100) userNotifications.pop();
+
+    db.insert(activityNotifications).values({
+      id,
+      userId,
+      type: payload.type,
+      title: payload.title,
+      message: payload.message,
+      link: payload.actionUrl || null,
+      relatedId: (payload.data as any)?.id || (payload.data as any)?.conversationId || null,
+      triggeredBy: (payload.data as any)?.assignedBy || null,
+      isRead: false,
+    }).catch(err => console.error('[NotificationService] DB persist error:', err));
   }
 
-  getNotifications(userId: string, options: { unreadOnly?: boolean; limit?: number } = {}): NotificationRecord[] {
+  async getNotifications(userId: string, options: { unreadOnly?: boolean; limit?: number } = {}): Promise<NotificationRecord[]> {
     const { unreadOnly = false, limit = 50 } = options;
-    const notifications = this.inMemoryNotifications.get(userId) || [];
-    
-    let filtered = notifications;
-    if (unreadOnly) {
-      filtered = notifications.filter(n => !n.read);
+    let notifications = this.inMemoryNotifications.get(userId);
+
+    if (!notifications || notifications.length === 0) {
+      try {
+        const dbRows = await db
+          .select()
+          .from(activityNotifications)
+          .where(eq(activityNotifications.userId, userId))
+          .orderBy(desc(activityNotifications.createdAt))
+          .limit(100);
+
+        notifications = dbRows.map(row => ({
+          id: row.id,
+          type: row.type as NotificationEventType,
+          title: row.title,
+          message: row.message,
+          priority: 'normal' as NotificationPriority,
+          userId: row.userId,
+          actionUrl: row.link || undefined,
+          data: row.relatedId ? { id: row.relatedId } : undefined,
+          read: row.isRead,
+          createdAt: row.createdAt,
+        }));
+        this.inMemoryNotifications.set(userId, notifications);
+      } catch (err) {
+        console.error('[NotificationService] DB load error:', err);
+        notifications = [];
+      }
     }
-    
+
+    const filtered = unreadOnly ? notifications.filter(n => !n.read) : notifications;
     return filtered.slice(0, limit);
   }
 
-  getUnreadCount(userId: string): number {
-    const notifications = this.inMemoryNotifications.get(userId) || [];
+  async getUnreadCount(userId: string): Promise<number> {
+    const notifications = await this.getNotifications(userId);
     return notifications.filter(n => !n.read).length;
   }
 
-  markAsRead(userId: string, notificationId: string): boolean {
+  async markAsRead(userId: string, notificationId: string): Promise<boolean> {
     const notifications = this.inMemoryNotifications.get(userId);
-    if (!notifications) return false;
-    
-    const notification = notifications.find(n => n.id === notificationId);
-    if (notification) {
-      notification.read = true;
-      return true;
+    if (notifications) {
+      const notification = notifications.find(n => n.id === notificationId);
+      if (notification) notification.read = true;
     }
-    return false;
+    db.update(activityNotifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(eq(activityNotifications.id, notificationId), eq(activityNotifications.userId, userId)))
+      .catch(err => console.error('[NotificationService] markAsRead DB error:', err));
+    return true;
   }
 
-  markAllAsRead(userId: string): number {
+  async markAllAsRead(userId: string): Promise<number> {
     const notifications = this.inMemoryNotifications.get(userId);
-    if (!notifications) return 0;
-    
     let count = 0;
-    notifications.forEach(n => {
-      if (!n.read) {
-        n.read = true;
-        count++;
-      }
-    });
+    if (notifications) {
+      notifications.forEach(n => { if (!n.read) { n.read = true; count++; } });
+    }
+    db.update(activityNotifications)
+      .set({ isRead: true, readAt: new Date() })
+      .where(and(eq(activityNotifications.userId, userId), eq(activityNotifications.isRead, false)))
+      .catch(err => console.error('[NotificationService] markAllAsRead DB error:', err));
     return count;
   }
 

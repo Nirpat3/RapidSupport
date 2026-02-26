@@ -182,3 +182,84 @@ in the appropriate hook.
 - Do not import React explicitly — the Vite JSX transformer handles it.
 - Use named exports, not default exports, for utility functions and hooks.
 - Shared TypeScript types (Zod schemas, Drizzle inferred types) live in `shared/schema.ts`.
+
+---
+
+## 7. Notifications
+
+Nova AI has **two separate notification systems** — do not confuse them.
+
+| System | Table | Purpose |
+|---|---|---|
+| Activity notifications | `activity_notifications` | Rich system events (assignment, SLA breach, mentions, etc.) |
+| Conversation unread markers | `notifications` | Simple per-conversation unread dot in the UI |
+
+### NotificationService (`server/notification-service.ts`)
+
+The singleton `notificationService` is the only way to emit activity notifications.
+It maintains an in-memory cache **and** persists every notification to `activity_notifications`.
+
+**Emitting notifications**
+```ts
+import { notificationService } from './notification-service';
+
+await notificationService.emit({
+  type: 'conversation.assigned',
+  title: 'New Conversation Assigned',
+  message: `You have been assigned a conversation with ${customerName}`,
+  priority: 'high',
+  target: { userId: assignedToUserId },
+  data: { conversationId, assignedBy: assignedByUserId },
+  actionUrl: `/conversations?id=${conversationId}`,
+});
+```
+
+**Reading notifications (routes)**
+```ts
+// All methods are async — always await them
+const notifications = await notificationService.getNotifications(userId, { unreadOnly, limit });
+const unreadCount   = await notificationService.getUnreadCount(userId);
+const success       = await notificationService.markAsRead(userId, notificationId);
+const count         = await notificationService.markAllAsRead(userId);
+```
+
+**Resilience**: On server restart, `getNotifications` falls back to the `activity_notifications` table
+and re-hydrates the in-memory cache automatically.
+
+**Do not** write directly to `activity_notifications` in route handlers — always go through `notificationService.emit()`.
+
+---
+
+## 8. Database Performance
+
+### Indexing rules
+
+Every foreign key column **must** have an index.
+Every column used in a `WHERE` clause on a hot query path **must** have an index.
+Every column used in `ORDER BY` on a paginated result set **must** have an index.
+
+Add new indexes via `executeSql` in `code_execution` (direct SQL) — **not** via drizzle-kit, which
+is interactive and cannot be scripted.
+
+Pattern for naming indexes:
+```
+idx_<table>_<column(s)>
+```
+
+For partial indexes (boolean or nullable status filters):
+```sql
+CREATE INDEX IF NOT EXISTS idx_conversations_sla_response_breached
+ON conversations (sla_first_response_breached)
+WHERE sla_first_response_breached = true;
+```
+
+For array columns searched with `@>` or `&&`:
+```sql
+CREATE INDEX IF NOT EXISTS idx_conversations_tags
+ON conversations USING GIN (tags);
+```
+
+### Schema changes
+
+Run `npm run db:push --force` to sync Drizzle schema to the database.
+Never change an ID column's type (serial ↔ varchar) — this is destructive.

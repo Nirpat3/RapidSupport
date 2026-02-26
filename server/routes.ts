@@ -928,8 +928,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const limit = parseInt(req.query.limit as string) || 50;
       
       const { notificationService } = await import('./notification-service');
-      const notifications = notificationService.getNotifications(userId, { unreadOnly, limit });
-      const unreadCount = notificationService.getUnreadCount(userId);
+      const notifications = await notificationService.getNotifications(userId, { unreadOnly, limit });
+      const unreadCount = await notificationService.getUnreadCount(userId);
       
       res.json({ notifications, unreadCount });
     } catch (error) {
@@ -944,7 +944,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const notificationId = req.params.id;
       
       const { notificationService } = await import('./notification-service');
-      const success = notificationService.markAsRead(userId, notificationId);
+      const success = await notificationService.markAsRead(userId, notificationId);
       
       res.json({ success });
     } catch (error) {
@@ -958,7 +958,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const userId = (req.user as any).id;
       
       const { notificationService } = await import('./notification-service');
-      const count = notificationService.markAllAsRead(userId);
+      const count = await notificationService.markAllAsRead(userId);
       
       res.json({ success: true, count });
     } catch (error) {
