@@ -30,6 +30,7 @@ import { registerStationRoutes } from './routes/station.routes';
 import { registerAgenticRoutes } from './routes/agentic.routes';
 import { registerPartnerRoutes } from './routes/partner.routes';
 import { registerResolutionMemoryRoutes } from './routes/resolution-memory.routes';
+import { registerCommunicationRoutes } from './routes/communication.routes';
 import adminMonitoringRoutes from './routes/admin-monitoring.routes';
 import type { RouteContext } from './routes/types';
 import { 
@@ -14626,6 +14627,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   registerAgenticRoutes(routeContext);
   registerPartnerRoutes(routeContext);
   registerResolutionMemoryRoutes(routeContext);
+  registerCommunicationRoutes(routeContext);
 
   // Global error handler — must be last middleware registered
   app.use(globalErrorHandler);

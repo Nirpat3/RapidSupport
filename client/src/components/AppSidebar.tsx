@@ -98,6 +98,12 @@ const getNavigationItems = (unreadCount: number, activityCount: number, feedCoun
     allowedRoles: 'all'
   },
   {
+    title: "Communication",
+    url: "/communication",
+    icon: Share2,
+    allowedRoles: 'all'
+  },
+  {
     title: "Activity", 
     url: "/activity-hub",
     icon: Bell,

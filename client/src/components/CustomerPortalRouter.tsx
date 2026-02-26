@@ -7,6 +7,10 @@ import CustomerPortalFeedback from "@/pages/CustomerPortalFeedback";
 import CustomerPortalKnowledgeBase from "@/pages/CustomerPortalKnowledgeBase";
 import CustomerPortalArticlePage from "@/pages/CustomerPortalArticlePage";
 import CustomerPortalChat from "@/pages/CustomerPortalChat";
+import CommAnnouncements from "@/pages/portal-communication/CommAnnouncements";
+import CommFeed from "@/pages/portal-communication/CommFeed";
+import CommCommunity from "@/pages/portal-communication/CommCommunity";
+import CommMessages from "@/pages/portal-communication/CommMessages";
 
 export function CustomerPortalRouter() {
   return (
@@ -20,6 +24,19 @@ export function CustomerPortalRouter() {
       <Route path="/portal/feeds" component={CustomerPortalFeed} />
       <Route path="/portal/articles/:id" component={CustomerPortalArticlePage} />
       <Route path="/portal/knowledge-base" component={CustomerPortalKnowledgeBase} />
+      
+      {/* Communication Routes */}
+      <Route path="/portal/communication/announcements" component={CommAnnouncements} />
+      <Route path="/portal/communication/feed" component={CommFeed} />
+      <Route path="/portal/communication/community" component={CommCommunity} />
+      <Route path="/portal/communication/messages" component={CommMessages} />
+      <Route path="/portal/communication">
+        {() => {
+          window.location.href = '/portal/communication/announcements';
+          return null;
+        }}
+      </Route>
+
       {/* Default redirect to dashboard */}
       <Route path="/portal" component={CustomerPortalDashboard} />
       <Route>

@@ -335,6 +335,36 @@ import {
   type InsertEmailProcessingLog,
   type EmailTemplate,
   type InsertEmailTemplate,
+  commPosts,
+  commPostTargets,
+  commPostReads,
+  commPostReactions,
+  commPostComments,
+  commChannels,
+  commChannelMembers,
+  commChannelMessages,
+  commDirectThreads,
+  commDirectMessages,
+  type CommPost,
+  type InsertCommPost,
+  type CommPostTarget,
+  type InsertCommPostTarget,
+  type CommPostRead,
+  type InsertCommPostRead,
+  type CommPostReaction,
+  type InsertCommPostReaction,
+  type CommPostComment,
+  type InsertCommPostComment,
+  type CommChannel,
+  type InsertCommChannel,
+  type CommChannelMember,
+  type InsertCommChannelMember,
+  type CommChannelMessage,
+  type InsertCommChannelMessage,
+  type CommDirectThread,
+  type InsertCommDirectThread,
+  type CommDirectMessage,
+  type InsertCommDirectMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
@@ -384,6 +414,33 @@ export interface IStorage {
   setCustomerPortalPassword(customerId: string, hashedPassword: string): Promise<void>;
   updateCustomerPortalLastLogin(customerId: string): Promise<void>;
   updateCustomerProfile(customerId: string, profileData: { name: string; email: string; phone?: string; company?: string }): Promise<void>;
+
+  // Communication operations
+  // Posts
+  getCommPosts(filters: { type?: string; authorId?: string; organizationId?: string; workspaceId?: string; status?: string; limit?: number }): Promise<CommPost[]>;
+  getCommPostsForCustomer(customerOrgId: string, organizationId: string): Promise<CommPost[]>;
+  createCommPost(post: InsertCommPost): Promise<CommPost>;
+  updateCommPost(id: string, updates: Partial<InsertCommPost>): Promise<CommPost>;
+  deleteCommPost(id: string): Promise<void>;
+  markCommPostRead(postId: string, readerId: string, readerType: string): Promise<CommPostRead>;
+  toggleCommPostReaction(postId: string, reactorId: string, reactorType: string, emoji: string): Promise<void>;
+  getCommPostComments(postId: string): Promise<CommPostComment[]>;
+  createCommPostComment(comment: InsertCommPostComment): Promise<CommPostComment>;
+  getCommPostReads(postId: string): Promise<CommPostRead[]>;
+
+  // Channels
+  getCommChannels(filters: { organizationId?: string; memberId?: string; type?: string; customerOrgId?: string }): Promise<CommChannel[]>;
+  createCommChannel(channel: InsertCommChannel, ownerId: string, ownerType: string): Promise<CommChannel>;
+  getCommChannelMessages(channelId: string, limit?: number): Promise<CommChannelMessage[]>;
+  createCommChannelMessage(message: InsertCommChannelMessage): Promise<CommChannelMessage>;
+  addCommChannelMember(member: InsertCommChannelMember): Promise<CommChannelMember>;
+  removeCommChannelMember(channelId: string, memberId: string): Promise<void>;
+
+  // Direct Messages
+  getCommDirectThreads(participantId: string, participantType: string): Promise<CommDirectThread[]>;
+  getOrCreateCommDirectThread(data: InsertCommDirectThread): Promise<CommDirectThread>;
+  getCommDirectMessages(threadId: string, limit?: number): Promise<CommDirectMessage[]>;
+  createCommDirectMessage(message: InsertCommDirectMessage): Promise<CommDirectMessage>;
 
   // Conversation operations
   getConversation(id: string): Promise<Conversation | undefined>;
@@ -9180,6 +9237,218 @@ export class DatabaseStorage implements IStorage {
       .where(eq(aiDataAccessLog.organizationId, organizationId))
       .orderBy(desc(aiDataAccessLog.createdAt))
       .limit(limit);
+  }
+
+  // ============================================
+  // COMMUNICATION MODULE OPERATIONS
+  // ============================================
+
+  // Posts
+  async getCommPosts(filters: { type?: string; authorId?: string; organizationId?: string; workspaceId?: string; status?: string; limit?: number }): Promise<CommPost[]> {
+    const conditions = [];
+    if (filters.type) conditions.push(eq(commPosts.type, filters.type));
+    if (filters.authorId) conditions.push(eq(commPosts.authorId, filters.authorId));
+    if (filters.organizationId) conditions.push(eq(commPosts.organizationId, filters.organizationId));
+    if (filters.workspaceId) conditions.push(eq(commPosts.workspaceId, filters.workspaceId));
+    if (filters.status) conditions.push(eq(commPosts.status, filters.status));
+
+    return await db.select().from(commPosts)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(commPosts.isPinned), desc(commPosts.createdAt))
+      .limit(filters.limit || 50);
+  }
+
+  async getCommPostsForCustomer(customerOrgId: string, organizationId: string): Promise<CommPost[]> {
+    // Posts targeted to this specific customerOrgId OR all retailers (null)
+    const targets = await db.select({ postId: commPostTargets.postId })
+      .from(commPostTargets)
+      .where(or(
+        eq(commPostTargets.customerOrgId, customerOrgId),
+        isNull(commPostTargets.customerOrgId)
+      ));
+    
+    const targetPostIds = targets.map(t => t.postId);
+
+    if (targetPostIds.length === 0) return [];
+
+    return await db.select().from(commPosts)
+      .where(and(
+        inArray(commPosts.id, targetPostIds),
+        eq(commPosts.organizationId, organizationId),
+        eq(commPosts.status, 'active')
+      ))
+      .orderBy(desc(commPosts.isPinned), desc(commPosts.createdAt));
+  }
+
+  async createCommPost(post: InsertCommPost): Promise<CommPost> {
+    const [created] = await db.insert(commPosts).values(post).returning();
+    return created;
+  }
+
+  async updateCommPost(id: string, updates: Partial<InsertCommPost>): Promise<CommPost> {
+    const [updated] = await db.update(commPosts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(commPosts.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteCommPost(id: string): Promise<void> {
+    await db.update(commPosts)
+      .set({ status: 'archived', updatedAt: new Date() })
+      .where(eq(commPosts.id, id));
+  }
+
+  async markCommPostRead(postId: string, readerId: string, readerType: string): Promise<CommPostRead> {
+    const [read] = await db.insert(commPostReads)
+      .values({ postId, readerId, readerType })
+      .returning();
+    return read;
+  }
+
+  async toggleCommPostReaction(postId: string, reactorId: string, reactorType: string, emoji: string): Promise<void> {
+    const existing = await db.select().from(commPostReactions)
+      .where(and(
+        eq(commPostReactions.postId, postId),
+        eq(commPostReactions.reactorId, reactorId),
+        eq(commPostReactions.emoji, emoji)
+      ));
+
+    if (existing.length > 0) {
+      await db.delete(commPostReactions)
+        .where(eq(commPostReactions.id, existing[0].id));
+    } else {
+      await db.insert(commPostReactions)
+        .values({ postId, reactorId, reactorType, emoji });
+    }
+  }
+
+  async getCommPostComments(postId: string): Promise<CommPostComment[]> {
+    return await db.select().from(commPostComments)
+      .where(eq(commPostComments.postId, postId))
+      .orderBy(asc(commPostComments.createdAt));
+  }
+
+  async createCommPostComment(comment: InsertCommPostComment): Promise<CommPostComment> {
+    const [created] = await db.insert(commPostComments).values(comment).returning();
+    return created;
+  }
+
+  async getCommPostReads(postId: string): Promise<CommPostRead[]> {
+    return await db.select().from(commPostReads)
+      .where(eq(commPostReads.postId, postId));
+  }
+
+  // Channels
+  async getCommChannels(filters: { organizationId?: string; memberId?: string; type?: string; customerOrgId?: string }): Promise<CommChannel[]> {
+    const conditions = [];
+    if (filters.organizationId) conditions.push(eq(commChannels.organizationId, filters.organizationId));
+    if (filters.type) conditions.push(eq(commChannels.type, filters.type));
+    if (filters.customerOrgId) conditions.push(eq(commChannels.customerOrgId, filters.customerOrgId));
+
+    if (filters.memberId) {
+      const memberships = await db.select({ channelId: commChannelMembers.channelId })
+        .from(commChannelMembers)
+        .where(eq(commChannelMembers.memberId, filters.memberId));
+      
+      const channelIds = memberships.map(m => m.channelId);
+      if (channelIds.length === 0) return [];
+      conditions.push(inArray(commChannels.id, channelIds));
+    }
+
+    return await db.select().from(commChannels)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(commChannels.name));
+  }
+
+  async createCommChannel(channel: InsertCommChannel, ownerId: string, ownerType: string): Promise<CommChannel> {
+    const [created] = await db.insert(commChannels).values(channel).returning();
+    
+    // Add creator as owner
+    await db.insert(commChannelMembers).values({
+      channelId: created.id,
+      memberId: ownerId,
+      memberType: ownerType,
+      role: 'owner'
+    });
+
+    return created;
+  }
+
+  async getCommChannelMessages(channelId: string, limit = 50): Promise<CommChannelMessage[]> {
+    return await db.select().from(commChannelMessages)
+      .where(eq(commChannelMessages.channelId, channelId))
+      .orderBy(desc(commChannelMessages.createdAt))
+      .limit(limit);
+  }
+
+  async createCommChannelMessage(message: InsertCommChannelMessage): Promise<CommChannelMessage> {
+    const [created] = await db.insert(commChannelMessages).values(message).returning();
+    return created;
+  }
+
+  async addCommChannelMember(member: InsertCommChannelMember): Promise<CommChannelMember> {
+    const [created] = await db.insert(commChannelMembers).values(member).returning();
+    return created;
+  }
+
+  async removeCommChannelMember(channelId: string, memberId: string): Promise<void> {
+    await db.delete(commChannelMembers)
+      .where(and(
+        eq(commChannelMembers.channelId, channelId),
+        eq(commChannelMembers.memberId, memberId)
+      ));
+  }
+
+  // Direct Messages
+  async getCommDirectThreads(participantId: string, participantType: string): Promise<CommDirectThread[]> {
+    return await db.select().from(commDirectThreads)
+      .where(or(
+        and(eq(commDirectThreads.participantAId, participantId), eq(commDirectThreads.participantAType, participantType)),
+        and(eq(commDirectThreads.participantBId, participantId), eq(commDirectThreads.participantBType, participantType))
+      ))
+      .orderBy(desc(commDirectThreads.lastMessageAt));
+  }
+
+  async getOrCreateCommDirectThread(data: InsertCommDirectThread): Promise<CommDirectThread> {
+    const existing = await db.select().from(commDirectThreads)
+      .where(or(
+        and(
+          eq(commDirectThreads.participantAId, data.participantAId),
+          eq(commDirectThreads.participantAType, data.participantAType),
+          eq(commDirectThreads.participantBId, data.participantBId),
+          eq(commDirectThreads.participantBType, data.participantBType)
+        ),
+        and(
+          eq(commDirectThreads.participantAId, data.participantBId),
+          eq(commDirectThreads.participantAType, data.participantBType),
+          eq(commDirectThreads.participantBId, data.participantAId),
+          eq(commDirectThreads.participantBType, data.participantAType)
+        )
+      ));
+
+    if (existing.length > 0) return existing[0];
+
+    const [created] = await db.insert(commDirectThreads).values(data).returning();
+    return created;
+  }
+
+  async getCommDirectMessages(threadId: string, limit = 50): Promise<CommDirectMessage[]> {
+    return await db.select().from(commDirectMessages)
+      .where(eq(commDirectMessages.threadId, threadId))
+      .orderBy(desc(commDirectMessages.createdAt))
+      .limit(limit);
+  }
+
+  async createCommDirectMessage(message: InsertCommDirectMessage): Promise<CommDirectMessage> {
+    const [created] = await db.insert(commDirectMessages).values(message).returning();
+    
+    // Update thread lastMessageAt
+    await db.update(commDirectThreads)
+      .set({ lastMessageAt: new Date() })
+      .where(eq(commDirectThreads.id, message.threadId));
+
+    return created;
   }
 }
 

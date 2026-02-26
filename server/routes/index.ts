@@ -5,6 +5,7 @@ import { registerPushRoutes } from './push.routes';
 import { registerPolicyRoutes } from './policy.routes';
 import { registerStationRoutes } from './station.routes';
 import { registerAgenticRoutes } from './agentic.routes';
+import { registerCommunicationRoutes } from './communication.routes';
 
 export { globalApiLimiter } from './shared';
 
@@ -15,6 +16,7 @@ const routeRegistrars: RouteRegistrar[] = [
   registerPolicyRoutes,
   registerStationRoutes,
   registerAgenticRoutes,
+  registerCommunicationRoutes,
 ];
 
 export function registerAllRoutes(context: RouteContext) {

@@ -5370,6 +5370,157 @@ export const aiDataAccessLog = pgTable("ai_data_access_log", {
   actionIdx: index("ai_data_access_log_action_idx").on(table.action),
 }));
 
+// ============================================================
+// COMMUNICATION MODULE
+// ============================================================
+
+export const commPosts = pgTable("comm_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  workspaceId: varchar("workspace_id"),
+  authorId: varchar("author_id").notNull(),
+  authorType: varchar("author_type").notNull(), // 'superadmin' | 'staff' | 'customer'
+  type: varchar("type").notNull(), // 'announcement' | 'workspace_feed' | 'retail_feed'
+  title: varchar("title"),
+  content: text("content").notNull(),
+  tags: text("tags").array().default([]),
+  isPinned: boolean("is_pinned").default(false),
+  status: varchar("status").default("active"), // 'active' | 'archived'
+  stationId: varchar("station_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const commPostTargets = pgTable("comm_post_targets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => commPosts.id, { onDelete: "cascade" }),
+  customerOrgId: varchar("customer_org_id"), // null = visible to all retailers
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const commPostReads = pgTable("comm_post_reads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => commPosts.id, { onDelete: "cascade" }),
+  readerId: varchar("reader_id").notNull(),
+  readerType: varchar("reader_type").notNull(), // 'staff' | 'customer'
+  readAt: timestamp("read_at").defaultNow(),
+});
+
+export const commPostReactions = pgTable("comm_post_reactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => commPosts.id, { onDelete: "cascade" }),
+  reactorId: varchar("reactor_id").notNull(),
+  reactorType: varchar("reactor_type").notNull(), // 'staff' | 'customer'
+  emoji: varchar("emoji").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const commPostComments = pgTable("comm_post_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => commPosts.id, { onDelete: "cascade" }),
+  authorId: varchar("author_id").notNull(),
+  authorType: varchar("author_type").notNull(), // 'staff' | 'customer'
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const commChannels = pgTable("comm_channels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  name: varchar("name").notNull(),
+  description: text("description"),
+  type: varchar("type").notNull(), // 'internal' | 'customer_facing' | 'customer_internal'
+  customerOrgId: varchar("customer_org_id"), // set for customer_internal and customer_facing
+  createdByType: varchar("created_by_type").notNull(), // 'staff' | 'customer'
+  createdById: varchar("created_by_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const commChannelMembers = pgTable("comm_channel_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id").notNull().references(() => commChannels.id, { onDelete: "cascade" }),
+  memberId: varchar("member_id").notNull(),
+  memberType: varchar("member_type").notNull(), // 'staff' | 'customer'
+  role: varchar("role").default("member"), // 'owner' | 'member'
+  joinedAt: timestamp("joined_at").defaultNow(),
+});
+
+export const commChannelMessages = pgTable("comm_channel_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id").notNull().references(() => commChannels.id, { onDelete: "cascade" }),
+  authorId: varchar("author_id").notNull(),
+  authorType: varchar("author_type").notNull(), // 'staff' | 'customer'
+  content: text("content").notNull(),
+  attachments: jsonb("attachments"),
+  isEdited: boolean("is_edited").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const commDirectThreads = pgTable("comm_direct_threads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull(),
+  participantAId: varchar("participant_a_id").notNull(),
+  participantAType: varchar("participant_a_type").notNull(), // 'staff' | 'customer'
+  participantBId: varchar("participant_b_id").notNull(),
+  participantBType: varchar("participant_b_type").notNull(),
+  lastMessageAt: timestamp("last_message_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const commDirectMessages = pgTable("comm_direct_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  threadId: varchar("thread_id").notNull().references(() => commDirectThreads.id, { onDelete: "cascade" }),
+  senderId: varchar("sender_id").notNull(),
+  senderType: varchar("sender_type").notNull(), // 'staff' | 'customer'
+  content: text("content").notNull(),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Communication module insert schemas and types
+export const insertCommPostSchema = createInsertSchema(commPosts).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCommPost = z.infer<typeof insertCommPostSchema>;
+export type CommPost = typeof commPosts.$inferSelect;
+
+export const insertCommPostTargetSchema = createInsertSchema(commPostTargets).omit({ id: true, createdAt: true });
+export type InsertCommPostTarget = z.infer<typeof insertCommPostTargetSchema>;
+export type CommPostTarget = typeof commPostTargets.$inferSelect;
+
+export const insertCommPostReadSchema = createInsertSchema(commPostReads).omit({ id: true, readAt: true });
+export type InsertCommPostRead = z.infer<typeof insertCommPostReadSchema>;
+export type CommPostRead = typeof commPostReads.$inferSelect;
+
+export const insertCommPostReactionSchema = createInsertSchema(commPostReactions).omit({ id: true, createdAt: true });
+export type InsertCommPostReaction = z.infer<typeof insertCommPostReactionSchema>;
+export type CommPostReaction = typeof commPostReactions.$inferSelect;
+
+export const insertCommPostCommentSchema = createInsertSchema(commPostComments).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCommPostComment = z.infer<typeof insertCommPostCommentSchema>;
+export type CommPostComment = typeof commPostComments.$inferSelect;
+
+export const insertCommChannelSchema = createInsertSchema(commChannels).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCommChannel = z.infer<typeof insertCommChannelSchema>;
+export type CommChannel = typeof commChannels.$inferSelect;
+
+export const insertCommChannelMemberSchema = createInsertSchema(commChannelMembers).omit({ id: true, joinedAt: true });
+export type InsertCommChannelMember = z.infer<typeof insertCommChannelMemberSchema>;
+export type CommChannelMember = typeof commChannelMembers.$inferSelect;
+
+export const insertCommChannelMessageSchema = createInsertSchema(commChannelMessages).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertCommChannelMessage = z.infer<typeof insertCommChannelMessageSchema>;
+export type CommChannelMessage = typeof commChannelMessages.$inferSelect;
+
+export const insertCommDirectThreadSchema = createInsertSchema(commDirectThreads).omit({ id: true, createdAt: true, lastMessageAt: true });
+export type InsertCommDirectThread = z.infer<typeof insertCommDirectThreadSchema>;
+export type CommDirectThread = typeof commDirectThreads.$inferSelect;
+
+export const insertCommDirectMessageSchema = createInsertSchema(commDirectMessages).omit({ id: true, createdAt: true, readAt: true });
+export type InsertCommDirectMessage = z.infer<typeof insertCommDirectMessageSchema>;
+export type CommDirectMessage = typeof commDirectMessages.$inferSelect;
+
 // Schema exports for new tables
 export const insertResolutionStepSchema = createInsertSchema(resolutionSteps).omit({ id: true, createdAt: true });
 export type InsertResolutionStep = z.infer<typeof insertResolutionStepSchema>;

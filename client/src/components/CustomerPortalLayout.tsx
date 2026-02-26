@@ -12,7 +12,8 @@ import {
   Megaphone,
   BookOpen,
   Plus,
-  ChevronRight
+  ChevronRight,
+  MessageSquareDot
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -68,6 +69,7 @@ function CustomerPortalSidebar() {
 
   const mainNavItems = [
     { path: '/portal/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/portal/communication', icon: MessageSquareDot, label: 'Communication' },
     { path: '/portal/conversations', icon: MessageSquare, label: 'Conversations', badge: totalUnread > 0 ? totalUnread : undefined },
     { path: '/portal/knowledge-base', icon: BookOpen, label: 'Knowledge Base' },
     { path: '/portal/feeds', icon: Megaphone, label: 'Announcements' },

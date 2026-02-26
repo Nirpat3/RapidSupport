@@ -96,6 +96,13 @@ const WebhooksPage = lazy(() => import("@/pages/WebhooksPage"));
 const CustomDomainsPage = lazy(() => import("@/pages/CustomDomainsPage"));
 const DataExportPage = lazy(() => import("@/pages/DataExportPage"));
 
+// Staff Communication
+const StaffCommLayout = lazy(() => import("@/pages/staff-communication/StaffCommLayout"));
+const StaffAnnouncements = lazy(() => import("@/pages/staff-communication/StaffAnnouncements"));
+const StaffFeed = lazy(() => import("@/pages/staff-communication/StaffFeed"));
+const StaffCommunity = lazy(() => import("@/pages/staff-communication/StaffCommunity"));
+const StaffMessages = lazy(() => import("@/pages/staff-communication/StaffMessages"));
+
 function Router() {
   return (
     <Suspense fallback={<PageLoader />}>
@@ -339,6 +346,34 @@ function Router() {
             <DataExportPage />
           </PermissionGuard>
         </Route>
+
+        {/* Staff Communication Section */}
+        <Route path="/communication/announcements">
+          <StaffCommLayout>
+            <StaffAnnouncements />
+          </StaffCommLayout>
+        </Route>
+        <Route path="/communication/feed">
+          <StaffCommLayout>
+            <StaffFeed />
+          </StaffCommLayout>
+        </Route>
+        <Route path="/communication/community">
+          <StaffCommLayout>
+            <StaffCommunity />
+          </StaffCommLayout>
+        </Route>
+        <Route path="/communication/messages">
+          <StaffCommLayout>
+            <StaffMessages />
+          </StaffCommLayout>
+        </Route>
+        <Route path="/communication">
+          <StaffCommLayout>
+            <StaffAnnouncements />
+          </StaffCommLayout>
+        </Route>
+
         <Route path="/policies/:type" component={PublicPolicyPage} />
         <Route path="/org/:slug/policies/:type" component={PublicPolicyPage} />
         <Route path="/install-app" component={InstallAppPage} />
