@@ -5,6 +5,7 @@ import { storage } from '../storage';
 import { verifyCustomerToken, createSimpleToken, verifySimpleToken, generateEmbedSecret, registerEmbedSecret } from '../embed-auth';
 import { requireAuth, requireRole } from '../auth';
 import type { SupportCategory } from '@shared/schema';
+import { zodErrorResponse } from '../middleware/errors';
 
 const orgIdParamSchema = z.object({
   orgId: z.string().uuid(),
@@ -147,7 +148,7 @@ export function registerEmbedRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('[Embed] Token exchange failed:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data' });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Token exchange failed' });
     }

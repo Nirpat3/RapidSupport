@@ -14,6 +14,13 @@ The frontend uses React 18, TypeScript, Vite, Radix UI, and Tailwind CSS (shadcn
 ### Technical Implementations
 The backend is a Node.js Express.js application in TypeScript, providing a RESTful API with Zod validation and rate limiting. Authentication is session-based using Passport.js and Express sessions, with role-based access control and anonymous customer support. A custom WebSocket server handles real-time communication. PostgreSQL, accessed via Drizzle ORM and Neon serverless, is the primary database.
 
+### Coding Standards (see STANDARDS.md for full detail)
+- **Frontend HTTP calls**: All API requests must use `apiRequest(url, method, data?)` from `client/src/lib/queryClient.ts`. Raw `fetch()` is never used in components or service files. Service functions in `client/src/lib/api.ts` wrap `apiRequest`.
+- **Backend authentication**: Staff routes use `requireAuth`/`requireRole` from `server/auth.ts`. Customer portal routes are protected by a single `app.use('/api/customer-portal', requireCustomerAuth)` middleware from `server/middleware/customerAuth.ts` — no inline session checks inside handlers.
+- **Zod validation errors**: All catch blocks must use `zodErrorResponse(error)` from `server/middleware/errors.ts` to produce consistent `{ error, details }` 400 responses.
+- **Global error handler**: `globalErrorHandler` from `server/middleware/errors.ts` is registered last in `registerRoutes` and normalizes all unhandled errors.
+- **Route structure**: New routes go in `server/routes/<domain>.routes.ts`. The legacy `server/routes.ts` monolith is not extended with new code.
+
 ### Workspace Architecture
 The platform supports a hierarchical multi-tenant architecture: Platform Admins → Organizations (with parent-child sub-org hierarchy) → Workspaces → Departments → Users/Customers/Stations. Multi-region and reseller support is enabled. Knowledge collections allow content sharing across workspaces with defined visibility levels. Both staff and customer sessions track `selectedOrganizationId` for multi-org context switching.
 

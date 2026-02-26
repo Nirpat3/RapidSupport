@@ -2,6 +2,7 @@ import type { RouteContext } from './types';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../auth';
 import { storage } from '../storage';
+import { zodErrorResponse } from '../middleware/errors';
 
 function getSelectedOrgId(req: any): string | null {
   return (req.session as any)?.selectedOrganizationId || (req.user as any)?.organizationId || null;
@@ -65,7 +66,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error creating AI tool:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to create AI tool' });
     }
@@ -105,7 +106,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error updating AI tool:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to update AI tool' });
     }
@@ -155,7 +156,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error assigning tool to agent:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to assign tool to agent' });
     }
@@ -177,7 +178,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error updating agent tool assignment:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to update agent tool assignment' });
     }
@@ -220,7 +221,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error creating guardrail:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to create guardrail' });
     }
@@ -242,7 +243,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error updating guardrail:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to update guardrail' });
     }
@@ -299,7 +300,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error creating workflow:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to create workflow' });
     }
@@ -324,7 +325,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error updating workflow:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to update workflow' });
     }
@@ -369,7 +370,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error creating connection:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to create connection' });
     }
@@ -393,7 +394,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error updating connection:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to update connection' });
     }
@@ -453,7 +454,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error creating chain:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to create chain' });
     }
@@ -480,7 +481,7 @@ export function registerAgenticRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error updating chain:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to update chain' });
     }

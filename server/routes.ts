@@ -11,6 +11,8 @@ import { fromZodError } from 'zod-validation-error';
 import { hash, compare } from 'bcryptjs';
 import passport from './auth';
 import { requireAuth, requireRole } from './auth';
+import { requireCustomerAuth } from './middleware/customerAuth';
+import { globalErrorHandler, zodErrorResponse } from './middleware/errors';
 import { storage } from "./storage";
 import ChatWebSocketServer from './websocket';
 import multer from 'multer';
@@ -1007,6 +1009,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Protect all /api/customer-portal/* routes with a single middleware
+  app.use('/api/customer-portal', requireCustomerAuth);
+
   // Customer portal stats
   app.get('/api/customer-portal/stats', async (req, res) => {
     try {
@@ -1274,7 +1279,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Create portal conversation error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0]?.message || 'Invalid request data' });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to create conversation' });
     }
@@ -1710,7 +1715,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Send portal message error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0]?.message || 'Invalid request data' });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to send message' });
     }
@@ -2015,7 +2020,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.json(safeUser);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       console.error('Error creating user:', error);
       res.status(500).json({ error: 'Failed to create user' });
@@ -2067,7 +2072,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.json({ invite, inviteUrl });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       console.error('Error creating staff invite:', error);
       res.status(500).json({ error: 'Failed to create invite' });
@@ -2213,7 +2218,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.json({ success: true, message: 'Account created successfully' });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       console.error('Error completing staff registration:', error);
       res.status(500).json({ error: 'Failed to complete registration' });
@@ -2335,7 +2340,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.status(201).json(userWithoutPassword);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: fromZodError(error).message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       console.error('Failed to create user:', error);
       res.status(500).json({ error: 'Failed to create user' });
@@ -2380,7 +2385,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.json(userWithoutPassword);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: fromZodError(error).message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       console.error('Failed to update user:', error);
       res.status(500).json({ error: 'Failed to update user' });
@@ -2483,7 +2488,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.json(result);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: fromZodError(error).message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       console.error('Failed to set user permission:', error);
       res.status(500).json({ error: 'Failed to set user permission' });
@@ -4505,7 +4510,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.json({ success: true, message: 'Password reset successfully' });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       console.error('Error resetting password:', error);
       res.status(500).json({ error: 'Failed to reset password' });
@@ -7567,7 +7572,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Customer signup error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to create account' });
     }
@@ -7655,7 +7660,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Organization signup error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to register organization' });
     }
@@ -7691,7 +7696,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Contact form error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to submit contact form' });
     }
@@ -7779,7 +7784,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Organization application error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors[0].message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to submit application' });
     }
@@ -9796,7 +9801,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.status(201).json(post);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: fromZodError(error).message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       console.error('Failed to create post:', error);
       res.status(500).json({ error: 'Failed to create post' });
@@ -9877,7 +9882,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       res.status(201).json(comment);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: fromZodError(error).message });
+        return res.status(400).json(zodErrorResponse(error));
       }
       console.error('Failed to create comment:', error);
       res.status(500).json({ error: 'Failed to create comment' });
@@ -14621,6 +14626,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   registerAgenticRoutes(routeContext);
   registerPartnerRoutes(routeContext);
   registerResolutionMemoryRoutes(routeContext);
+
+  // Global error handler — must be last middleware registered
+  app.use(globalErrorHandler);
 
   return { server: httpServer, wsServer };
 }

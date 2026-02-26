@@ -6,7 +6,8 @@ import { randomUUID } from 'crypto';
 import { fromZodError } from 'zod-validation-error';
 import { storage } from '../storage';
 import { AIService } from '../ai-service';
-import { 
+import { zodErrorResponse } from '../middleware/errors';
+import {
   messageLimiter,
   customerChatUpload,
   createAnonymousCustomerSchema,
@@ -309,7 +310,7 @@ export function registerCustomerChatRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('[set-language] Error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data' });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to set language' });
     }

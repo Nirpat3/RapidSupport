@@ -7,6 +7,7 @@ import { customers, stations, stationMembers, customerOrganizationMemberships } 
 import { eq, and } from 'drizzle-orm';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
+import { zodErrorResponse } from '../middleware/errors';
 
 function getSelectedOrgId(req: any): string | null {
   return (req.session as any)?.selectedOrganizationId || (req.user as any)?.organizationId || req.query?.organizationId || null;
@@ -136,7 +137,7 @@ export function registerPartnerRoutes({ app }: RouteContext) {
       const integration = await storage.createPartnerIntegration(data as any);
       res.status(201).json({ integration });
     } catch (error: any) {
-      if (error?.name === 'ZodError') return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json(zodErrorResponse(error));
       console.error('Error creating partner integration:', error);
       res.status(500).json({ error: 'Failed to create partner integration' });
     }
@@ -254,7 +255,7 @@ export function registerPartnerRoutes({ app }: RouteContext) {
         embedCode: `<!-- Nova AI Partner Integration (${partner.displayName}) -->\n<script>\n  window.NOVA_AI_CONFIG = {\n    partnerApiKey: '${rawApiKey}',\n    partnerId: '${partner.slug}'\n  };\n</script>`,
       });
     } catch (error: any) {
-      if (error?.name === 'ZodError') return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json(zodErrorResponse(error));
       console.error('Error activating partner connection:', error);
       res.status(500).json({ error: 'Failed to activate partner connection' });
     }
@@ -394,7 +395,7 @@ export function registerPartnerRoutes({ app }: RouteContext) {
         message: 'Station registered',
       });
     } catch (error: any) {
-      if (error?.name === 'ZodError') return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json(zodErrorResponse(error));
       console.error('Error registering station:', error);
       res.status(500).json({ error: 'Failed to register station' });
     }
@@ -540,7 +541,7 @@ export function registerPartnerRoutes({ app }: RouteContext) {
         message: `${results.filter(r => r.created).length} users created, ${results.filter(r => !r.created).length} users updated`,
       });
     } catch (error: any) {
-      if (error?.name === 'ZodError') return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json(zodErrorResponse(error));
       console.error('Error registering users:', error);
       res.status(500).json({ error: 'Failed to register users' });
     }
@@ -877,7 +878,7 @@ export function registerPartnerRoutes({ app }: RouteContext) {
         message: 'Bulk registration completed',
       });
     } catch (error: any) {
-      if (error?.name === 'ZodError') return res.status(400).json({ error: 'Validation failed', details: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json(zodErrorResponse(error));
       console.error('Error in bulk registration:', error);
       res.status(500).json({ error: 'Failed to complete bulk registration' });
     }

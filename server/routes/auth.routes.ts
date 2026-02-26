@@ -8,6 +8,7 @@ import { authLimiter, csrfProtection } from './shared';
 import { db } from '../db';
 import { organizationMembers, organizations } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
+import { zodErrorResponse } from '../middleware/errors';
 
 export function registerAuthRoutes({ app }: RouteContext) {
   app.post('/api/auth/login', authLimiter, csrfProtection, (req, res, next) => {
@@ -247,7 +248,7 @@ export function registerAuthRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Customer portal login error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data' });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Login failed' });
     }
@@ -385,7 +386,7 @@ export function registerAuthRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Set customer password error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data' });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to set password' });
     }

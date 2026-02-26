@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from '../auth';
 import { quantumOptimizer, type RoutingContext, type AgentCapability } from '../quantum-optimizer';
 import { storage } from '../storage';
 import type { User, AiAgent, KnowledgeBase } from '@shared/schema';
+import { zodErrorResponse } from '../middleware/errors';
 
 const routingContextSchema = z.object({
   customerId: z.string(),
@@ -189,7 +190,7 @@ export function registerQuantumRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Quantum routing optimization error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to optimize routing' });
     }
@@ -277,7 +278,7 @@ export function registerQuantumRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Quantum knowledge optimization error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to optimize knowledge retrieval' });
     }
@@ -310,7 +311,7 @@ export function registerQuantumRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Quantum learning optimization error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to optimize learning' });
     }

@@ -1,11 +1,10 @@
-// API service functions for backend integration
 import { apiRequest } from './queryClient';
-import type { 
-  User, 
-  Customer, 
+import type {
+  User,
+  Customer,
   InsertCustomer,
-  Conversation, 
-  Message 
+  Conversation,
+  Message
 } from '@shared/schema';
 
 export interface DashboardStats {
@@ -25,59 +24,24 @@ export interface DashboardStats {
   };
 }
 
-// Authentication API
 export const authApi = {
-  me: async (): Promise<User> => {
-    const response = await fetch('/api/auth/me', {
-      credentials: 'include'
-    });
-    if (!response.ok) {
-      throw new Error('Not authenticated');
-    }
-    return response.json();
-  },
+  me: (): Promise<User> =>
+    apiRequest('/api/auth/me', 'GET'),
 
-  login: async (email: string, password: string): Promise<{ user: User; message: string }> => {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ email, password })
-    });
-    if (!response.ok) {
-      throw new Error('Login failed');
-    }
-    return response.json();
-  },
+  login: (email: string, password: string): Promise<{ user: User; message: string }> =>
+    apiRequest('/api/auth/login', 'POST', { email, password }),
 
-  logout: async (): Promise<{ message: string }> => {
-    const response = await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include'
-    });
-    if (!response.ok) {
-      throw new Error('Logout failed');
-    }
-    return response.json();
-  }
+  logout: (): Promise<{ message: string }> =>
+    apiRequest('/api/auth/logout', 'POST'),
 };
 
-// Dashboard API
 export const dashboardApi = {
-  getStats: async (): Promise<DashboardStats> => {
-    const response = await fetch('/api/dashboard/stats', {
-      credentials: 'include'
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch dashboard stats');
-    }
-    return response.json();
-  }
+  getStats: (): Promise<DashboardStats> =>
+    apiRequest('/api/dashboard/stats', 'GET'),
 };
 
-// Customers API
 export const customersApi = {
-  getAll: async (params?: {
+  getAll: (params?: {
     page?: number;
     limit?: number;
     search?: string;
@@ -86,179 +50,60 @@ export const customersApi = {
     sortOrder?: 'asc' | 'desc';
   }): Promise<{ customers: Customer[]; total: number; page: number; totalPages: number }> => {
     const queryParams = new URLSearchParams();
-    
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.search) queryParams.append('search', params.search);
     if (params?.status) queryParams.append('status', params.status);
     if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
     if (params?.sortOrder) queryParams.append('sortOrder', params.sortOrder);
-
-    const url = `/api/customers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    const response = await fetch(url, {
-      credentials: 'include'
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch customers');
-    }
-    return response.json();
+    const qs = queryParams.toString();
+    return apiRequest(`/api/customers${qs ? `?${qs}` : ''}`, 'GET');
   },
 
-  create: async (customer: InsertCustomer): Promise<Customer> => {
-    const response = await fetch('/api/customers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(customer)
-    });
-    if (!response.ok) {
-      throw new Error('Failed to create customer');
-    }
-    return response.json();
-  },
+  create: (customer: InsertCustomer): Promise<Customer> =>
+    apiRequest('/api/customers', 'POST', customer),
 
-  getById: async (id: string): Promise<Customer> => {
-    const response = await fetch(`/api/customers/${id}`, {
-      credentials: 'include'
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch customer');
-    }
-    return response.json();
-  },
+  getById: (id: string): Promise<Customer> =>
+    apiRequest(`/api/customers/${id}`, 'GET'),
 
-  updateStatus: async (id: string, status: string): Promise<{ message: string }> => {
-    const response = await fetch(`/api/customers/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ status })
-    });
-    if (!response.ok) {
-      throw new Error('Failed to update customer status');
-    }
-    return response.json();
-  }
+  updateStatus: (id: string, status: string): Promise<{ message: string }> =>
+    apiRequest(`/api/customers/${id}/status`, 'PATCH', { status }),
 };
 
-// Conversations API
 export const conversationsApi = {
-  getAll: async (): Promise<Conversation[]> => {
-    const response = await fetch('/api/conversations', {
-      credentials: 'include'
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch conversations');
-    }
-    return response.json();
-  },
+  getAll: (): Promise<Conversation[]> =>
+    apiRequest('/api/conversations', 'GET'),
 
-  getById: async (id: string): Promise<Conversation> => {
-    const response = await fetch(`/api/conversations/${id}`, {
-      credentials: 'include'
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch conversation');
-    }
-    return response.json();
-  },
+  getById: (id: string): Promise<Conversation> =>
+    apiRequest(`/api/conversations/${id}`, 'GET'),
 
-  getMessages: async (conversationId: string): Promise<Message[]> => {
-    const response = await fetch(`/api/conversations/${conversationId}/messages`, {
-      credentials: 'include'
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch messages');
-    }
-    return response.json();
-  },
+  getMessages: (conversationId: string): Promise<Message[]> =>
+    apiRequest(`/api/conversations/${conversationId}/messages`, 'GET'),
 
-  create: async (conversation: {
+  create: (conversation: {
     customerId: string;
     title: string;
     priority?: string;
     status?: string;
-  }): Promise<Conversation> => {
-    const response = await fetch('/api/conversations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(conversation)
-    });
-    if (!response.ok) {
-      throw new Error('Failed to create conversation');
-    }
-    return response.json();
-  },
+  }): Promise<Conversation> =>
+    apiRequest('/api/conversations', 'POST', conversation),
 
-  updateStatus: async (id: string, status: string): Promise<{ message: string }> => {
-    const response = await fetch(`/api/conversations/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ status })
-    });
-    if (!response.ok) {
-      throw new Error('Failed to update conversation status');
-    }
-    return response.json();
-  },
+  updateStatus: (id: string, status: string): Promise<{ message: string }> =>
+    apiRequest(`/api/conversations/${id}/status`, 'PATCH', { status }),
 
-  assign: async (id: string, agentId: string): Promise<{ message: string }> => {
-    const response = await fetch(`/api/conversations/${id}/assign`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ agentId })
-    });
-    if (!response.ok) {
-      throw new Error('Failed to assign conversation');
-    }
-    return response.json();
-  }
+  assign: (id: string, agentId: string): Promise<{ message: string }> =>
+    apiRequest(`/api/conversations/${id}/assign`, 'PATCH', { agentId }),
 };
 
-// Messages API
 export const messagesApi = {
-  create: async (message: {
-    conversationId: string;
-    content: string;
-  }): Promise<Message> => {
-    const response = await fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(message)
-    });
-    if (!response.ok) {
-      throw new Error('Failed to create message');
-    }
-    return response.json();
-  },
+  create: (message: { conversationId: string; content: string }): Promise<Message> =>
+    apiRequest('/api/messages', 'POST', message),
 
-  updateStatus: async (id: string, status: string): Promise<{ message: string }> => {
-    const response = await fetch(`/api/messages/${id}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ status })
-    });
-    if (!response.ok) {
-      throw new Error('Failed to update message status');
-    }
-    return response.json();
-  }
+  updateStatus: (id: string, status: string): Promise<{ message: string }> =>
+    apiRequest(`/api/messages/${id}/status`, 'PATCH', { status }),
 };
 
-// Users API
 export const usersApi = {
-  getAll: async (): Promise<User[]> => {
-    const response = await fetch('/api/users', {
-      credentials: 'include'
-    });
-    if (!response.ok) {
-      throw new Error('Failed to fetch users');
-    }
-    return response.json();
-  }
+  getAll: (): Promise<User[]> =>
+    apiRequest('/api/users', 'GET'),
 };
