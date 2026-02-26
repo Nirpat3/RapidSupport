@@ -43,7 +43,9 @@ export default function LoginPage() {
       if (data.redirectTo) {
         window.location.href = data.redirectTo;
       } else {
-        setLocation('/dashboard');
+        const role = data.user?.role;
+        const isAdmin = role === 'admin' || data.user?.isPlatformAdmin;
+        setLocation(isAdmin ? '/dashboard' : '/conversations');
       }
     },
     onError: (error: any) => {
@@ -72,7 +74,9 @@ export default function LoginPage() {
       if (data.redirectTo) {
         window.location.href = data.redirectTo;
       } else {
-        setLocation('/dashboard');
+        const role = data.user?.role;
+        const isAdmin = role === 'admin' || data.user?.isPlatformAdmin;
+        setLocation(isAdmin ? '/dashboard' : '/conversations');
       }
     },
     onError: (error: any) => {

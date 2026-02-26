@@ -35,7 +35,7 @@ export default function CustomerPortalLogin() {
         title: "Login successful",
         description: "Welcome to the customer portal.",
       });
-      setLocation("/portal");
+      setLocation("/portal/communication/announcements");
     },
     onError: (error: any) => {
       toast({
