@@ -91,8 +91,12 @@ export default function SurveyPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen p-4 bg-muted/30">
-      <Card className="w-full max-w-lg shadow-lg border-t-4" style={{ borderTopColor: survey.primaryColor || 'hsl(var(--primary))' }}>
-        <CardHeader className="text-center space-y-4">
+      <Card className="w-full max-w-lg">
+        <div 
+          className="rounded-t-md h-1.5 w-full"
+          style={{ backgroundColor: survey.primaryColor || 'hsl(var(--primary))' }}
+        />
+        <CardHeader className="text-center space-y-4 pt-6">
           {survey.organizationLogo && (
             <img 
               src={survey.organizationLogo} 
@@ -143,7 +147,8 @@ export default function SurveyPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
           <Button 
-            className="w-full h-11 text-lg font-semibold"
+            size="lg"
+            className="w-full"
             disabled={rating === 0 || mutation.isPending}
             onClick={() => mutation.mutate({ rating, feedback })}
             style={{ backgroundColor: survey.primaryColor }}

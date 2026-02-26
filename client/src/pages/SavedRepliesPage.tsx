@@ -41,6 +41,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Search, Edit2, Trash2, MessageSquare, Loader2, Share2, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -148,7 +149,7 @@ export default function SavedRepliesPage() {
         </div>
       </div>
 
-      <div className="border rounded-xl bg-card overflow-hidden">
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -209,7 +210,7 @@ export default function SavedRepliesPage() {
                       
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Button variant="ghost" size="icon" className="text-destructive">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>
@@ -224,7 +225,7 @@ export default function SavedRepliesPage() {
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction 
                               onClick={() => deleteMutation.mutate(reply.id)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              className="bg-destructive text-destructive-foreground"
                             >
                               Delete
                             </AlertDialogAction>
@@ -238,7 +239,7 @@ export default function SavedRepliesPage() {
             )}
           </TableBody>
         </Table>
-      </div>
+      </Card>
 
       <Dialog 
         open={isCreateOpen || !!editingReply} 

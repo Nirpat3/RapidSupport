@@ -51,9 +51,9 @@ export default function AgentAnalyticsCSAT() {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Average CSAT</CardTitle>
-            <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+            <Star className="h-4 w-4 text-yellow-500 fill-yellow-500 shrink-0" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.averageRating || "0.0"}</div>
@@ -61,9 +61,9 @@ export default function AgentAnalyticsCSAT() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Responses</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+            <MessageSquare className="h-4 w-4 text-muted-foreground shrink-0" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.totalSurveys || 0}</div>
@@ -71,9 +71,9 @@ export default function AgentAnalyticsCSAT() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Response Rate</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <Users className="h-4 w-4 text-muted-foreground shrink-0" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.responseRate || 0}%</div>
@@ -81,9 +81,9 @@ export default function AgentAnalyticsCSAT() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">CSAT Trend</CardTitle>
-            <TrendingUp className="h-4 w-4 text-emerald-500" />
+            <TrendingUp className="h-4 w-4 text-emerald-500 shrink-0" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">Stable</div>

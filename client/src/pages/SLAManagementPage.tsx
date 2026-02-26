@@ -41,6 +41,7 @@ import { insertSlaPolicySchema, type SlaPolicy } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, Edit, Trash2, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export default function SLAManagementPage() {
   const { toast } = useToast();
@@ -130,7 +131,7 @@ export default function SLAManagementPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">SLA Management</h1>
           <p className="text-muted-foreground">Configure Service Level Agreements for different priority levels.</p>
@@ -289,7 +290,7 @@ export default function SLAManagementPage() {
         </Card>
       </div>
 
-      <div className="rounded-md border bg-card">
+      <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -309,9 +310,9 @@ export default function SLAManagementPage() {
                 <TableCell>{policy.firstResponseMinutes} mins</TableCell>
                 <TableCell>{policy.resolutionMinutes} mins</TableCell>
                 <TableCell>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${policy.isActive ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>
+                  <Badge variant={policy.isActive ? "default" : "secondary"}>
                     {policy.isActive ? "Active" : "Inactive"}
-                  </span>
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
@@ -338,7 +339,7 @@ export default function SLAManagementPage() {
             )}
           </TableBody>
         </Table>
-      </div>
+      </Card>
     </div>
   );
 }
