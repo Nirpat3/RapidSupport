@@ -526,9 +526,7 @@ export default function KnowledgeManagementPage({ embedded = false }: KnowledgeM
     
     setIsSearching(true);
     try {
-      const response = await fetch(`/api/search/articles?query=${encodeURIComponent(semanticSearchQuery)}&maxResults=10`);
-      if (!response.ok) throw new Error('Search failed');
-      const results = await response.json();
+      const results = await apiRequest(`/api/search/articles?query=${encodeURIComponent(semanticSearchQuery)}&maxResults=10`, 'GET');
       setSemanticSearchResults(results);
     } catch (error) {
       console.error('Semantic search failed:', error);

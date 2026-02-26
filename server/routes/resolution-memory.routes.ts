@@ -7,6 +7,7 @@ import { ResolutionMemoryService } from '../services/resolution-memory';
 import { ImageErrorDetectionService } from '../services/image-error-detection';
 import { AIDataProtectionService } from '../services/ai-data-protection';
 import type { RouteContext } from './types';
+import { zodErrorResponse } from '../middleware/errors';
 
 function getSelectedOrgId(req: any): string | null {
   return (req.session as any)?.selectedOrganizationId || (req.user as any)?.organizationId || null;
@@ -59,7 +60,10 @@ export function registerResolutionMemoryRoutes({ app }: RouteContext) {
       res.status(201).json({ learning });
     } catch (error: any) {
       console.error('Error creating resolution learning:', error);
-      res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message || 'Failed to create resolution learning' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      res.status(500).json({ error: 'Failed to create resolution learning' });
     }
   });
 
@@ -129,7 +133,10 @@ export function registerResolutionMemoryRoutes({ app }: RouteContext) {
       res.json({ success: true, message: 'Learnings extracted from conversation' });
     } catch (error: any) {
       console.error('Error extracting learnings:', error);
-      res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message || 'Failed to extract learnings' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      res.status(500).json({ error: 'Failed to extract learnings' });
     }
   });
 
@@ -170,7 +177,10 @@ export function registerResolutionMemoryRoutes({ app }: RouteContext) {
       res.json({ success: true, message: 'Resolution steps and learnings saved' });
     } catch (error: any) {
       console.error('Error saving resolution steps:', error);
-      res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message || 'Failed to save resolution steps' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      res.status(500).json({ error: 'Failed to save resolution steps' });
     }
   });
 
@@ -223,7 +233,10 @@ export function registerResolutionMemoryRoutes({ app }: RouteContext) {
       });
     } catch (error: any) {
       console.error('Error analyzing image:', error);
-      res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message || 'Failed to analyze image' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      res.status(500).json({ error: 'Failed to analyze image' });
     }
   });
 
@@ -294,7 +307,10 @@ export function registerResolutionMemoryRoutes({ app }: RouteContext) {
       res.status(201).json({ rule });
     } catch (error: any) {
       console.error('Error creating sensitive data rule:', error);
-      res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message || 'Failed to create rule' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      res.status(500).json({ error: 'Failed to create rule' });
     }
   });
 
@@ -317,7 +333,10 @@ export function registerResolutionMemoryRoutes({ app }: RouteContext) {
       res.json({ rule });
     } catch (error: any) {
       console.error('Error updating sensitive data rule:', error);
-      res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message || 'Failed to update rule' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      res.status(500).json({ error: 'Failed to update rule' });
     }
   });
 
@@ -375,7 +394,10 @@ export function registerResolutionMemoryRoutes({ app }: RouteContext) {
       res.json({ context, formattedPrompt: formatted });
     } catch (error: any) {
       console.error('Error previewing resolution memory:', error);
-      res.status(error.name === 'ZodError' ? 400 : 500).json({ error: error.message || 'Failed to preview' });
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      res.status(500).json({ error: 'Failed to preview' });
     }
   });
 }

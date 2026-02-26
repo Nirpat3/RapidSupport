@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { useEffect, useState } from "react";
@@ -124,11 +124,7 @@ function ConversationHistory({ apiKey, customerId }: { apiKey?: string; customer
     queryKey: ['/api/widget/conversations', customerId],
     enabled: !!apiKey && !!customerId,
     queryFn: async () => {
-      const res = await fetch(`/api/widget/conversations/${customerId}`, {
-        headers: { 'x-api-key': apiKey || '' }
-      });
-      if (!res.ok) throw new Error('Failed to fetch conversations');
-      const data = await res.json();
+      const data = await apiRequest(`/api/widget/conversations/${customerId}`, 'GET', undefined, { headers: { 'x-api-key': apiKey || '' } });
       return data.data || [];
     }
   });
@@ -183,11 +179,7 @@ function TicketsList({ apiKey, customerId }: { apiKey?: string; customerId?: str
     queryKey: ['/api/widget/tickets', customerId],
     enabled: !!apiKey && !!customerId,
     queryFn: async () => {
-      const res = await fetch(`/api/widget/tickets/${customerId}`, {
-        headers: { 'x-api-key': apiKey || '' }
-      });
-      if (!res.ok) throw new Error('Failed to fetch tickets');
-      const data = await res.json();
+      const data = await apiRequest(`/api/widget/tickets/${customerId}`, 'GET', undefined, { headers: { 'x-api-key': apiKey || '' } });
       return data.data || [];
     }
   });
@@ -245,11 +237,7 @@ function FeedPosts({ apiKey }: { apiKey?: string }) {
     queryKey: ['/api/widget/feed'],
     enabled: !!apiKey,
     queryFn: async () => {
-      const res = await fetch('/api/widget/feed', {
-        headers: { 'x-api-key': apiKey || '' }
-      });
-      if (!res.ok) throw new Error('Failed to fetch feed');
-      const data = await res.json();
+      const data = await apiRequest('/api/widget/feed', 'GET', undefined, { headers: { 'x-api-key': apiKey || '' } });
       return data.data || [];
     }
   });

@@ -1,5 +1,6 @@
 import type { RouteContext } from './types';
 import { z } from 'zod';
+import { zodErrorResponse } from '../middleware/errors';
 import { requireAuth, requireRole } from '../auth';
 import { storage } from '../storage';
 
@@ -64,7 +65,7 @@ export function registerStationRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('Error creating station:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid request data', details: error.errors });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to create station' });
     }

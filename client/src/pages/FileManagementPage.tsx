@@ -110,35 +110,14 @@ export default function FileManagementPage({ embedded = false }: FileManagementP
       if (filterCategory && filterCategory !== 'all') params.append('category', filterCategory);
       if (filterStatus && filterStatus !== 'all') params.append('status', filterStatus);
       
-      const response = await fetch(`/api/files?${params.toString()}`, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch files');
-      }
-      
-      return response.json() as Promise<FileListResponse>;
+      return apiRequest(`/api/files?${params.toString()}`, 'GET') as Promise<FileListResponse>;
     },
     enabled: true
   });
 
   // Upload files mutation
   const uploadFilesMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      const response = await fetch('/api/files/upload', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
-      }
-      
-      return response.json();
-    },
+    mutationFn: (formData: FormData) => apiRequest('/api/files/upload', 'POST', formData),
     onSuccess: (data) => {
       const results = data.results as FileUploadResult[];
       const successCount = results.length;
@@ -172,16 +151,7 @@ export default function FileManagementPage({ embedded = false }: FileManagementP
 
   // Delete file mutation
   const deleteFileMutation = useMutation({
-    mutationFn: async (fileId: string) => {
-      const response = await fetch(`/api/files/${fileId}`, { 
-        method: 'DELETE',
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Delete failed');
-      }
-    },
+    mutationFn: (fileId: string) => apiRequest(`/api/files/${fileId}`, 'DELETE'),
     onSuccess: () => {
       toast({
         title: "File deleted",

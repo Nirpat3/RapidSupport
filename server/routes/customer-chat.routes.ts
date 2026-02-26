@@ -228,10 +228,7 @@ export function registerCustomerChatRoutes({ app }: RouteContext) {
       res.status(201).json(message);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ 
-          error: 'Invalid message data', 
-          details: fromZodError(error).toString() 
-        });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to send message' });
     }
@@ -336,7 +333,7 @@ export function registerCustomerChatRoutes({ app }: RouteContext) {
     } catch (error) {
       console.error('[GET /api/customer-chat/conversation/:id/status] Error:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid conversation ID' });
+        return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to fetch conversation status' });
     }

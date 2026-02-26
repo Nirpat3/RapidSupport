@@ -198,12 +198,9 @@ export default function ChatInterface({
       if (!conversationId) return;
       
       try {
-        const response = await fetch(`/api/conversations/${conversationId}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.aiAssistanceEnabled !== undefined) {
-            setAiAssistanceEnabled(data.aiAssistanceEnabled);
-          }
+        const data = await apiRequest(`/api/conversations/${conversationId}`, 'GET');
+        if (data.aiAssistanceEnabled !== undefined) {
+          setAiAssistanceEnabled(data.aiAssistanceEnabled);
         }
       } catch (error) {
         console.error('Failed to fetch conversation AI state:', error);
@@ -318,14 +315,7 @@ export default function ChatInterface({
         formData.append('files', file);
       });
 
-      const response = await fetch('/api/upload-attachment', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload files');
-      }
+      await apiRequest('/api/upload-attachment', 'POST', formData);
 
       toast({
         title: "Files uploaded",

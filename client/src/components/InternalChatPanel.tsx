@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Send, MessageSquareText, Users, X } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 
@@ -60,20 +60,7 @@ export default function InternalChatPanel({
   // Create internal message mutation
   const createInternalMessage = useMutation({
     mutationFn: async ({ content }: { content: string }) => {
-      const response = await fetch(`/api/conversations/${conversationId}/internal-messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to send internal message');
-      }
-
-      return response.json();
+      return apiRequest(`/api/conversations/${conversationId}/internal-messages`, 'POST', { content });
     },
     onSuccess: () => {
       // Invalidate and refetch internal messages

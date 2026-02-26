@@ -12,6 +12,12 @@ import { MessageSquare, Users, BookOpen, User, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
+const PALETTE_OPEN_EVENT = "nova:open-palette";
+
+export function openCommandPalette() {
+  window.dispatchEvent(new CustomEvent(PALETTE_OPEN_EVENT));
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -21,12 +27,17 @@ export function CommandPalette() {
     const down = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setOpen((open) => !open);
+        setOpen((prev) => !prev);
       }
     };
+    const openHandler = () => setOpen(true);
 
     document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
+    window.addEventListener(PALETTE_OPEN_EVENT, openHandler);
+    return () => {
+      document.removeEventListener("keydown", down);
+      window.removeEventListener(PALETTE_OPEN_EVENT, openHandler);
+    };
   }, []);
 
   const { data, isLoading } = useQuery({
@@ -57,7 +68,7 @@ export function CommandPalette() {
           </div>
         )}
         <CommandEmpty>No results found.</CommandEmpty>
-        
+
         {data?.conversations?.length > 0 && (
           <CommandGroup heading="Conversations">
             {data.conversations.map((convo: any) => (

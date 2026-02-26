@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useEffect, useState } from "react";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -178,7 +179,7 @@ function CustomerPortalSidebar() {
   const openTickets = stats?.openConversations || 0;
 
   const handleLogout = async () => {
-    await fetch('/api/portal/auth/logout', { method: 'POST' });
+    await apiRequest('/api/portal/auth/logout', 'POST');
     window.location.href = '/portal/login';
   };
 

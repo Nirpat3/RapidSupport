@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { apiRequest } from '@/lib/queryClient';
 import { 
   getLanguageForCountry, 
   getCountryName, 
@@ -40,13 +41,10 @@ export default function LanguageSuggestionBanner() {
       
       if (!countryCode) {
         try {
-          const response = await fetch('/api/geo/detect');
-          if (response.ok) {
-            const data: GeoResponse = await response.json();
-            if (data.countryCode) {
-              countryCode = data.countryCode;
-              localStorage.setItem(COUNTRY_STORAGE_KEY, countryCode);
-            }
+          const data: GeoResponse = await apiRequest('/api/geo/detect', 'GET');
+          if (data.countryCode) {
+            countryCode = data.countryCode;
+            localStorage.setItem(COUNTRY_STORAGE_KEY, countryCode);
           }
         } catch (error) {
           console.error('[LanguageSuggestion] Failed to detect country:', error);

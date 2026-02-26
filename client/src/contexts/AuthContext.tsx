@@ -37,14 +37,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setUser(data.user);
-      }
+      const data = await apiRequest('/api/auth/me', 'GET');
+      setUser(data.user);
     } catch (error) {
       console.log('Not authenticated');
     } finally {

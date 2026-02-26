@@ -118,11 +118,10 @@ export function usePushNotifications(sessionId?: string) {
       }
 
       // Get VAPID public key from server
-      const keyResponse = await fetch('/api/push/vapid-public-key');
-      if (!keyResponse.ok) {
+      const { publicKey } = await apiRequest('/api/push/vapid-public-key', 'GET');
+      if (!publicKey) {
         throw new Error('Push notifications not configured on server');
       }
-      const { publicKey } = await keyResponse.json();
 
       // Subscribe to push notifications
       const registration = await navigator.serviceWorker.ready;

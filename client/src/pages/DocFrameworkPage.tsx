@@ -319,18 +319,7 @@ export default function DocFrameworkPage({ embedded = false }: DocFrameworkPageP
       formData.append('file', file);
       formData.append('workspaceId', selectedWorkspaceId || '');
       
-      const response = await fetch('/api/docs/import-jobs/upload', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
-      }
-      
-      return response.json();
+      return apiRequest('/api/docs/import-jobs/upload', 'POST', formData);
     },
     onSuccess: () => {
       toast({ title: "Document uploaded", description: "AI processing started..." });

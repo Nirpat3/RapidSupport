@@ -356,11 +356,7 @@ export default function CustomerPortalChat() {
             formData.append('files', file);
           });
           
-          await fetch('/api/customer-chat/upload-files', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include',
-          });
+          await apiRequest('/api/customer-chat/upload-files', 'POST', formData);
         } catch (uploadError) {
           console.error('Failed to upload files:', uploadError);
         }

@@ -88,23 +88,13 @@ export default function CustomerProfilePage() {
   // Mutation for creating a new conversation
   const createConversationMutation = useMutation({
     mutationFn: async (data: { customerId: string; subject: string; initialMessage: string; priority: string }) => {
-      const response = await fetch('/api/conversations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          customerId: data.customerId,
-          title: data.subject,
-          status: 'open',
-          priority: data.priority,
-          initialMessage: data.initialMessage
-        })
+      return apiRequest('/api/conversations', 'POST', {
+        customerId: data.customerId,
+        title: data.subject,
+        status: 'open',
+        priority: data.priority,
+        initialMessage: data.initialMessage
       });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create conversation');
-      }
-      return response.json();
     },
     onSuccess: (conversation) => {
       toast({
@@ -185,26 +175,14 @@ export default function CustomerProfilePage() {
   // Fetch conversations for this customer
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<any[]>({
     queryKey: ['/api/customers', id, 'conversations'],
-    queryFn: async () => {
-      const response = await fetch(`/api/customers/${id}/conversations`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch conversations');
-      }
-      return response.json();
-    },
+    queryFn: () => apiRequest(`/api/customers/${id}/conversations`, 'GET'),
     enabled: !!id,
   });
 
   // Fetch tickets for this customer
   const { data: tickets = [], isLoading: ticketsLoading } = useQuery<Ticket[]>({
     queryKey: ['/api/tickets', { customerId: id }],
-    queryFn: async () => {
-      const response = await fetch(`/api/tickets?customerId=${id}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch tickets');
-      }
-      return response.json();
-    },
+    queryFn: () => apiRequest(`/api/tickets?customerId=${id}`, 'GET'),
     enabled: !!id,
   });
 

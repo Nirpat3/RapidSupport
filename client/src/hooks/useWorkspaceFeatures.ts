@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 interface WorkspaceFeatures {
   voiceChat: boolean;
@@ -16,11 +17,7 @@ export function useWorkspaceFeatures(workspaceId?: string) {
       const url = workspaceId 
         ? `/api/workspace-features?workspaceId=${workspaceId}`
         : '/api/workspace-features';
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Failed to fetch workspace features');
-      }
-      return response.json();
+      return apiRequest(url, 'GET');
     },
     staleTime: 5 * 60 * 1000,
   });

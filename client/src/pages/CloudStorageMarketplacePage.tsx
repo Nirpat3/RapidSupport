@@ -123,21 +123,13 @@ export default function CloudStorageMarketplacePage() {
 
   const { data: connections = [], isLoading: connectionsLoading } = useQuery<CloudStorageConnection[]>({
     queryKey: ['/api/cloud-storage/connections', selectedWorkspace],
-    queryFn: async () => {
-      const res = await fetch(`/api/cloud-storage/connections?workspaceId=${selectedWorkspace}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch connections');
-      return res.json();
-    },
+    queryFn: () => apiRequest(`/api/cloud-storage/connections?workspaceId=${selectedWorkspace}`, 'GET'),
     enabled: !!selectedWorkspace,
   });
 
   const { data: oauthConfigs = [] } = useQuery<CloudStorageOAuthConfig[]>({
     queryKey: ['/api/cloud-storage/oauth-configs', selectedWorkspace],
-    queryFn: async () => {
-      const res = await fetch(`/api/cloud-storage/oauth-configs?workspaceId=${selectedWorkspace}`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Failed to fetch OAuth configs');
-      return res.json();
-    },
+    queryFn: () => apiRequest(`/api/cloud-storage/oauth-configs?workspaceId=${selectedWorkspace}`, 'GET'),
     enabled: !!selectedWorkspace,
   });
 
@@ -169,16 +161,7 @@ export default function CloudStorageMarketplacePage() {
   }, [oauthConfigs]);
 
   const connectMutation = useMutation({
-    mutationFn: async (provider: string) => {
-      const response = await fetch(`/api/cloud-storage/oauth/${provider}/initiate?workspaceId=${selectedWorkspace}`, {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || error.error || 'Failed to start OAuth');
-      }
-      return response.json();
-    },
+    mutationFn: (provider: string) => apiRequest(`/api/cloud-storage/oauth/${provider}/initiate?workspaceId=${selectedWorkspace}`, 'GET'),
     onSuccess: (data) => {
       if (data.authUrl) {
         window.location.href = data.authUrl;

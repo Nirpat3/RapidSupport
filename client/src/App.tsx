@@ -12,7 +12,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import LoginForm from "@/components/LoginForm";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
-import { CommandPalette } from "@/components/CommandPalette";
+import { CommandPalette, openCommandPalette } from "@/components/CommandPalette";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import NotFound from "@/pages/not-found";
 import { lazy, Suspense, useEffect } from "react";
@@ -100,6 +100,7 @@ const WebhooksPage = lazy(() => import("@/pages/WebhooksPage"));
 const CustomDomainsPage = lazy(() => import("@/pages/CustomDomainsPage"));
 const DataExportPage = lazy(() => import("@/pages/DataExportPage"));
 const AuditLogPage = lazy(() => import("@/pages/AuditLogPage"));
+const SecuritySettingsPage = lazy(() => import("@/pages/SecuritySettingsPage"));
 
 // Staff Communication
 const StaffCommLayout = lazy(() => import("@/pages/staff-communication/StaffCommLayout"));
@@ -366,6 +367,9 @@ function Router() {
             <AuditLogPage />
           </PermissionGuard>
         </Route>
+        <Route path="/settings/security">
+          <SecuritySettingsPage />
+        </Route>
 
         {/* Staff Communication Section */}
         <Route path="/communication/announcements">
@@ -465,6 +469,17 @@ function AuthenticatedApp() {
                 <span className="text-xs text-muted-foreground truncate lg:hidden max-w-20 px-2" data-testid="text-user-name-short">
                   {user?.name?.split(' ')[0]}
                 </span>
+                <button
+                  onClick={() => openCommandPalette()}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/50 border border-border/50"
+                  data-testid="button-command-palette"
+                  aria-label="Open search"
+                >
+                  <span className="hidden sm:inline">Search</span>
+                  <kbd className="pointer-events-none inline-flex h-4 select-none items-center gap-0.5 rounded border bg-muted px-1 font-mono text-[9px] font-medium opacity-80">
+                    <span>&#x2318;K</span>
+                  </kbd>
+                </button>
                 <NotificationBell />
                 <ThemeToggle />
                 <button 

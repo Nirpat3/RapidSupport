@@ -263,6 +263,12 @@ const settingsSubItems: NavigationItem[] = [
     allowedRoles: ['admin']
   },
   {
+    title: "Security Settings",
+    url: "/settings/security",
+    icon: Shield,
+    allowedRoles: 'all'
+  },
+  {
     title: "Rate Limiting",
     url: "/rate-limiting",
     icon: Gauge,

@@ -1,3 +1,5 @@
+import { apiRequest } from './queryClient';
+
 type VocabularyTerm = {
   term: string;
   aliases: string[];
@@ -276,11 +278,8 @@ export function correctTranscript(transcript: string): { corrected: string; corr
 
 export async function fetchKBKeywords(): Promise<string[]> {
   try {
-    const response = await fetch('/api/knowledge-base/keywords');
-    if (response.ok) {
-      const data = await response.json();
-      return data.keywords || [];
-    }
+    const data = await apiRequest('/api/knowledge-base/keywords', 'GET');
+    return data.keywords || [];
   } catch (error) {
     console.error('Failed to fetch KB keywords:', error);
   }

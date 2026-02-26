@@ -253,12 +253,7 @@ export default function OrganizationManagementPage() {
 
   const { data: orgUsers = [], isLoading: usersLoading, refetch: refetchUsers } = useQuery<OrganizationUser[]>({
     queryKey: ['/api/admin/organizations', selectedOrg?.id, 'users'],
-    queryFn: async () => {
-      if (!selectedOrg?.id) return [];
-      const response = await fetch(`/api/admin/organizations/${selectedOrg.id}/users`, { credentials: 'include' });
-      if (!response.ok) throw new Error('Failed to fetch users');
-      return response.json();
-    },
+    queryFn: () => selectedOrg?.id ? apiRequest(`/api/admin/organizations/${selectedOrg.id}/users`, 'GET') : Promise.resolve([]),
     enabled: !!selectedOrg?.id && usersDialogOpen,
   });
 

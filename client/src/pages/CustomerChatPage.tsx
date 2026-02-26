@@ -202,13 +202,9 @@ export default function CustomerChatPage({ orgSlug }: CustomerChatPageProps) {
   const handleLanguageChange = async (langCode: string) => {
     if (chatState.conversationId) {
       try {
-        await fetch('/api/customer-chat/set-language', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            conversationId: chatState.conversationId,
-            language: langCode
-          })
+        await apiRequest('/api/customer-chat/set-language', 'POST', {
+          conversationId: chatState.conversationId,
+          language: langCode
         });
         console.log(`[CustomerChat] Set customer language to ${langCode} for conversation ${chatState.conversationId}`);
       } catch (error) {
@@ -374,10 +370,7 @@ export default function CustomerChatPage({ orgSlug }: CustomerChatPageProps) {
           formData.append('messageId', messageResponse.id);
 
           try {
-            await fetch('/api/customer-chat/upload-files', {
-              method: 'POST',
-              body: formData,
-            });
+            await apiRequest('/api/customer-chat/upload-files', 'POST', formData);
           } catch (error) {
             console.error('Failed to upload pending files:', error);
           }
@@ -685,10 +678,7 @@ export default function CustomerChatPage({ orgSlug }: CustomerChatPageProps) {
     formData.append('messageId', messageId);
 
     try {
-      await fetch('/api/customer-chat/upload-files', {
-        method: 'POST',
-        body: formData,
-      });
+      await apiRequest('/api/customer-chat/upload-files', 'POST', formData);
       setSelectedFiles([]);
     } catch (error) {
       console.error('Failed to upload files:', error);

@@ -88,23 +88,12 @@ export default function ApiIntegrationPage() {
 
   const { data: embedConfig, isLoading: configLoading, refetch: refetchConfig } = useQuery<EmbedConfig>({
     queryKey: ['/api/admin/organizations', selectedOrgId, 'embed-config'],
-    queryFn: async () => {
-      const response = await fetch(`/api/admin/organizations/${selectedOrgId}/embed-config`, {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch embed config');
-      }
-      return response.json();
-    },
+    queryFn: () => apiRequest(`/api/admin/organizations/${selectedOrgId}/embed-config`, 'GET'),
     enabled: !!selectedOrgId,
   });
 
   const generateSecretMutation = useMutation({
-    mutationFn: async (orgId: string) => {
-      const response = await apiRequest('POST', `/api/admin/organizations/${orgId}/embed-secret`);
-      return response.json();
-    },
+    mutationFn: (orgId: string) => apiRequest(`/api/admin/organizations/${orgId}/embed-secret`, 'POST'),
     onSuccess: (data) => {
       setGeneratedSecret(data.secret);
       setShowSecretDialog(true);
@@ -124,10 +113,7 @@ export default function ApiIntegrationPage() {
   });
 
   const revokeSecretMutation = useMutation({
-    mutationFn: async (orgId: string) => {
-      const response = await apiRequest('DELETE', `/api/admin/organizations/${orgId}/embed-secret`);
-      return response.json();
-    },
+    mutationFn: (orgId: string) => apiRequest(`/api/admin/organizations/${orgId}/embed-secret`, 'DELETE'),
     onSuccess: () => {
       setShowRevokeDialog(false);
       queryClient.invalidateQueries({ queryKey: ['/api/admin/organizations', selectedOrgId, 'embed-config'] });
