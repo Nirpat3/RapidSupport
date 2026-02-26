@@ -404,7 +404,7 @@ export const PLATFORM_PAGES: PageInfo[] = [
   {
     path: '/install-app',
     name: 'Install App',
-    description: 'Instructions for installing Support Board as a Progressive Web App (PWA).',
+    description: 'Instructions for installing Nova AI as a Progressive Web App (PWA) on mobile and desktop.',
     category: 'support',
     feature: 'install',
     icon: 'Smartphone',
@@ -414,6 +414,110 @@ export const PLATFORM_PAGES: PageInfo[] = [
       'Add to home screen',
       'Enable push notifications'
     ]
+  },
+  {
+    path: '/saved-replies',
+    name: 'Saved Replies',
+    description: 'Manage canned responses and quick reply templates. Agents can insert saved replies into conversations to respond faster and more consistently.',
+    category: 'management',
+    feature: 'saved-replies',
+    icon: 'FileText',
+    keywords: ['canned responses', 'templates', 'quick replies', 'snippets', 'macros', 'shortcuts'],
+    capabilities: [
+      'Create and manage reply templates by category',
+      'Search saved replies while in a conversation',
+      'Use {{customerName}} and other variables in templates',
+      'Track usage count per reply',
+      'Share replies across all agents or keep personal',
+      'Filter by category (General, Billing, Technical, etc.)'
+    ],
+    formFields: [
+      { name: 'title', type: 'text', label: 'Reply Title', description: 'Short name for this reply (e.g. "Greeting")', required: true },
+      { name: 'category', type: 'select', label: 'Category', description: 'Group for organizing replies', required: true, options: ['General', 'Billing', 'Technical', 'Sales'] },
+      { name: 'content', type: 'textarea', label: 'Reply Content', description: 'Full text of the reply. Use {{customerName}} for personalization.', required: true },
+      { name: 'isShared', type: 'checkbox', label: 'Share with all agents', description: 'If checked, all agents can use this reply', required: false }
+    ],
+    relatedPages: ['/conversations']
+  },
+  {
+    path: '/sla-management',
+    name: 'SLA Management',
+    description: 'Configure Service Level Agreement (SLA) policies — set first-response and resolution time targets per conversation priority. Monitor breaches and compliance.',
+    category: 'admin',
+    feature: 'sla',
+    icon: 'Clock',
+    keywords: ['sla', 'service level', 'response time', 'deadline', 'breach', 'priority'],
+    capabilities: [
+      'Create SLA policies per priority level (low/medium/high/urgent)',
+      'Set first-response time targets (e.g. 1 hour)',
+      'Set resolution time targets (e.g. 8 hours)',
+      'Toggle business-hours-only enforcement',
+      'View SLA breach notifications and alerts',
+      'Monitor compliance percentage in analytics'
+    ],
+    formFields: [
+      { name: 'name', type: 'text', label: 'Policy Name', description: 'e.g. "Standard SLA" or "VIP SLA"', required: true },
+      { name: 'priority', type: 'select', label: 'Priority', description: 'Applies to conversations with this priority', required: true, options: ['low', 'medium', 'high', 'urgent'] },
+      { name: 'firstResponseMinutes', type: 'number', label: 'First Response (minutes)', description: 'Time limit for first agent reply, e.g. 60 for 1 hour', required: true },
+      { name: 'resolutionMinutes', type: 'number', label: 'Resolution (minutes)', description: 'Time limit to resolve, e.g. 480 for 8 hours', required: true },
+      { name: 'businessHoursOnly', type: 'checkbox', label: 'Business Hours Only', description: 'Only count business hours, not nights/weekends', required: false }
+    ],
+    requiredRole: 'admin',
+    relatedPages: ['/conversations', '/analytics', '/monitoring']
+  },
+  {
+    path: '/audit-log',
+    name: 'Audit Log',
+    description: 'View a complete record of all administrative actions performed on the platform — who did what and when. Filter by action type, entity, date, and user.',
+    category: 'admin',
+    feature: 'audit',
+    icon: 'ClipboardList',
+    keywords: ['audit', 'log', 'history', 'changes', 'activity', 'compliance', 'trail'],
+    capabilities: [
+      'Filter by entity type (conversation, user, customer, etc.)',
+      'Filter by action (create, update, delete)',
+      'Filter by who performed the action',
+      'Filter by date range',
+      'Expand rows to see before/after values',
+      'Export audit log to CSV'
+    ],
+    requiredRole: 'admin',
+    relatedPages: ['/monitoring', '/user-management']
+  },
+  {
+    path: '/settings/security',
+    name: 'Security Settings',
+    description: 'Manage account security including Two-Factor Authentication (2FA/TOTP). Enable 2FA using authenticator apps like Google Authenticator or Authy.',
+    category: 'admin',
+    feature: 'security',
+    icon: 'Shield',
+    keywords: ['2fa', 'two factor', 'totp', 'security', 'authentication', 'mfa', 'authenticator', 'google authenticator'],
+    capabilities: [
+      'Enable Two-Factor Authentication (2FA)',
+      'Scan QR code with authenticator app',
+      'Save backup codes for account recovery',
+      'Disable 2FA with password confirmation',
+      'View session security information'
+    ],
+    relatedPages: ['/settings', '/user-management']
+  },
+  {
+    path: '/analytics',
+    name: 'Analytics',
+    description: 'Comprehensive analytics hub — conversation volume, CSAT scores, agent performance, response times, and team metrics.',
+    category: 'management',
+    feature: 'analytics',
+    icon: 'BarChart3',
+    keywords: ['csat', 'analytics', 'reports', 'metrics', 'performance', 'statistics', 'survey', 'satisfaction'],
+    capabilities: [
+      'View CSAT survey scores and trends',
+      'Track conversation volume over time',
+      'Monitor average response times',
+      'Compare agent performance',
+      'View resolution rate metrics',
+      'Export reports to CSV'
+    ],
+    relatedPages: ['/dashboard', '/ai-performance']
   }
 ];
 
@@ -496,6 +600,33 @@ export const PLATFORM_ACTIONS: ActionInfo[] = [
     parameters: [
       { name: 'name', type: 'string', required: true, description: 'Workspace name (e.g., "Rapid")' },
       { name: 'description', type: 'string', required: false, description: 'Workspace description' }
+    ]
+  },
+  {
+    id: 'create_saved_reply',
+    name: 'Create Saved Reply',
+    description: 'Create a new canned response/saved reply template for agents to use in conversations',
+    endpoint: '/api/saved-replies',
+    method: 'POST',
+    requiredRole: 'agent',
+    parameters: [
+      { name: 'title', type: 'string', required: true, description: 'Short name for the reply (e.g. "Greeting")' },
+      { name: 'content', type: 'string', required: true, description: 'Full reply text. Use {{customerName}} for personalization.' },
+      { name: 'category', type: 'string', required: false, description: 'Category (General, Billing, Technical, Sales)' }
+    ]
+  },
+  {
+    id: 'create_sla_policy',
+    name: 'Create SLA Policy',
+    description: 'Create a Service Level Agreement policy that sets response and resolution time targets for a conversation priority level',
+    endpoint: '/api/sla-policies',
+    method: 'POST',
+    requiredRole: 'admin',
+    parameters: [
+      { name: 'name', type: 'string', required: true, description: 'Policy name (e.g. "Standard SLA")' },
+      { name: 'priority', type: 'string', required: true, description: 'Priority level: low, medium, high, or urgent' },
+      { name: 'firstResponseMinutes', type: 'number', required: true, description: 'Minutes until first response deadline (e.g. 60)' },
+      { name: 'resolutionMinutes', type: 'number', required: true, description: 'Minutes until resolution deadline (e.g. 480)' }
     ]
   }
 ];

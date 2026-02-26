@@ -1,22 +1,27 @@
 import OpenAI from 'openai';
 import { db } from './db';
-import { eq, desc, and, ilike, or } from 'drizzle-orm';
-import { 
-  platformAssistantConversations, 
+import { eq, desc, and, ilike, count, sql, or, ne } from 'drizzle-orm';
+import {
+  platformAssistantConversations,
   platformAssistantMessages,
   onboardingProgress,
   knowledgeBase,
   workspaces,
+  conversations,
+  customers,
+  users,
+  aiAgents,
+  savedReplies,
+  slaPolicies,
   type PlatformAssistantMessage,
   type PlatformAssistantConversation
 } from '@shared/schema';
-import { 
-  PLATFORM_PAGES, 
-  PLATFORM_ACTIONS, 
+import {
+  PLATFORM_PAGES,
+  PLATFORM_ACTIONS,
   ONBOARDING_CHECKLIST,
   searchPages,
   searchActions,
-  getPageByPath,
   type PageInfo,
   type ActionInfo
 } from '@shared/platform-documentation';
@@ -24,16 +29,24 @@ import { storage } from './storage';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-interface AssistantResponse {
+export interface AssistantResponse {
   content: string;
-  actionType?: 'navigate' | 'configure' | 'explain' | 'action';
+  steps?: string[];
+  actionType?: 'navigate' | 'configure' | 'explain' | 'action_executed' | null;
   actionPayload?: {
     path?: string;
+    label?: string;
+    description?: string;
     prefillData?: Record<string, any>;
     actionId?: string;
     parameters?: Record<string, any>;
   };
-  relatedPages?: string[];
+  executedAction?: {
+    success: boolean;
+    message: string;
+    data?: any;
+  };
+  relatedPages?: Array<{ path: string; label: string; description?: string }>;
   suggestedQuestions?: string[];
 }
 
@@ -45,146 +58,579 @@ interface ConversationContext {
   workspaceId?: string;
 }
 
+// --- Tool definitions for OpenAI function calling ---
+
+const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'fetch_platform_stats',
+      description: 'Get real-time statistics from the platform database. Use this when the user asks about current numbers, counts, or status of anything on the platform.',
+      parameters: {
+        type: 'object',
+        properties: {
+          metrics: {
+            type: 'array',
+            items: {
+              type: 'string',
+              enum: [
+                'open_conversations',
+                'total_customers',
+                'total_agents',
+                'ai_agents_count',
+                'knowledge_articles',
+                'saved_replies_count',
+                'pending_conversations',
+                'resolved_today',
+                'sla_policies_count',
+                'active_workspaces'
+              ]
+            },
+            description: 'Which metrics to fetch'
+          }
+        },
+        required: ['metrics']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_platform_resources',
+      description: 'List resources from the platform such as AI agents, saved replies, SLA policies, or workspaces. Use this when the user wants to see what exists.',
+      parameters: {
+        type: 'object',
+        properties: {
+          resource: {
+            type: 'string',
+            enum: ['ai_agents', 'saved_replies', 'sla_policies', 'workspaces', 'recent_conversations', 'team_members']
+          },
+          limit: { type: 'number', description: 'Max items to return (default 5)' }
+        },
+        required: ['resource']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'execute_platform_task',
+      description: 'Execute a task on the platform such as creating a workspace, saved reply, SLA policy, or support category. Only use when the user explicitly requests creation.',
+      parameters: {
+        type: 'object',
+        properties: {
+          task: {
+            type: 'string',
+            enum: [
+              'create_workspace',
+              'create_support_category',
+              'create_saved_reply',
+              'create_sla_policy'
+            ]
+          },
+          parameters: {
+            type: 'object',
+            description: 'Task-specific parameters. For create_workspace: {name, description}. For create_support_category: {name, description, icon, color}. For create_saved_reply: {title, content, category}. For create_sla_policy: {name, priority, firstResponseMinutes, resolutionMinutes}.'
+          }
+        },
+        required: ['task', 'parameters']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_platform_help',
+      description: 'Search platform documentation, page descriptions, and knowledge base for help articles. Use this to find step-by-step guides for any feature.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What to search for' },
+          include_knowledge_base: { type: 'boolean', description: 'Also search the org knowledge base' }
+        },
+        required: ['query']
+      }
+    }
+  }
+];
+
 export class PlatformAssistantService {
-  private async searchKnowledgeBase(query: string): Promise<Array<{ id: string; title: string; category: string; summary: string }>> {
+
+  // --- Tool implementations ---
+
+  private async toolFetchPlatformStats(metrics: string[], context: ConversationContext): Promise<Record<string, any>> {
+    const result: Record<string, any> = {};
+
+    for (const metric of metrics) {
+      try {
+        switch (metric) {
+          case 'open_conversations': {
+            const [row] = await db.select({ count: count() }).from(conversations)
+              .where(and(
+                ne(conversations.status, 'resolved'),
+                ne(conversations.status, 'closed')
+              ));
+            result.open_conversations = row?.count ?? 0;
+            break;
+          }
+          case 'pending_conversations': {
+            const [row] = await db.select({ count: count() }).from(conversations)
+              .where(eq(conversations.status, 'pending'));
+            result.pending_conversations = row?.count ?? 0;
+            break;
+          }
+          case 'resolved_today': {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const [row] = await db.select({ count: count() }).from(conversations)
+              .where(and(
+                eq(conversations.status, 'resolved'),
+                sql`${conversations.updatedAt} >= ${today}`
+              ));
+            result.resolved_today = row?.count ?? 0;
+            break;
+          }
+          case 'total_customers': {
+            const [row] = await db.select({ count: count() }).from(customers);
+            result.total_customers = row?.count ?? 0;
+            break;
+          }
+          case 'total_agents': {
+            const [row] = await db.select({ count: count() }).from(users)
+              .where(or(eq(users.role, 'agent'), eq(users.role, 'admin')));
+            result.total_agents = row?.count ?? 0;
+            break;
+          }
+          case 'ai_agents_count': {
+            const [row] = await db.select({ count: count() }).from(aiAgents)
+              .where(eq(aiAgents.isActive, true));
+            result.ai_agents_count = row?.count ?? 0;
+            break;
+          }
+          case 'knowledge_articles': {
+            const [row] = await db.select({ count: count() }).from(knowledgeBase)
+              .where(eq(knowledgeBase.isActive, true));
+            result.knowledge_articles = row?.count ?? 0;
+            break;
+          }
+          case 'saved_replies_count': {
+            try {
+              const [row] = await db.select({ count: count() }).from(savedReplies);
+              result.saved_replies_count = row?.count ?? 0;
+            } catch { result.saved_replies_count = 'N/A'; }
+            break;
+          }
+          case 'sla_policies_count': {
+            try {
+              const [row] = await db.select({ count: count() }).from(slaPolicies)
+                .where(eq(slaPolicies.isActive, true));
+              result.sla_policies_count = row?.count ?? 0;
+            } catch { result.sla_policies_count = 'N/A'; }
+            break;
+          }
+          case 'active_workspaces': {
+            const [row] = await db.select({ count: count() }).from(workspaces);
+            result.active_workspaces = row?.count ?? 0;
+            break;
+          }
+        }
+      } catch (err) {
+        result[metric] = 'unavailable';
+      }
+    }
+
+    return result;
+  }
+
+  private async toolListPlatformResources(resource: string, limit: number = 5, context: ConversationContext): Promise<any[]> {
     try {
-      const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-      if (keywords.length === 0) return [];
-
-      const primaryKeyword = keywords[0];
-      const titleMatch = ilike(knowledgeBase.title, `%${primaryKeyword}%`);
-
-      const results = await db.select({
-        id: knowledgeBase.id,
-        title: knowledgeBase.title,
-        category: knowledgeBase.category,
-      })
-        .from(knowledgeBase)
-        .where(and(
-          eq(knowledgeBase.isActive, true),
-          titleMatch
-        ))
-        .limit(3);
-
-      return results.map(r => ({
-        id: r.id,
-        title: r.title,
-        category: r.category,
-        summary: `Knowledge base article about ${r.category}`
-      }));
-    } catch (error) {
-      console.error('Knowledge base search error:', error);
+      switch (resource) {
+        case 'ai_agents': {
+          const rows = await db.select({
+            id: aiAgents.id,
+            name: aiAgents.name,
+            description: aiAgents.description,
+            isActive: aiAgents.isActive,
+          }).from(aiAgents).where(eq(aiAgents.isActive, true)).limit(limit);
+          return rows;
+        }
+        case 'saved_replies': {
+          try {
+            const rows = await db.select({
+              id: savedReplies.id,
+              title: savedReplies.title,
+              category: savedReplies.category,
+              usageCount: savedReplies.usageCount,
+            }).from(savedReplies).limit(limit);
+            return rows;
+          } catch { return []; }
+        }
+        case 'sla_policies': {
+          try {
+            const rows = await db.select({
+              id: slaPolicies.id,
+              name: slaPolicies.name,
+              priority: slaPolicies.priority,
+              firstResponseMinutes: slaPolicies.firstResponseMinutes,
+              resolutionMinutes: slaPolicies.resolutionMinutes,
+              isActive: slaPolicies.isActive,
+            }).from(slaPolicies).limit(limit);
+            return rows;
+          } catch { return []; }
+        }
+        case 'workspaces': {
+          const rows = await db.select({
+            id: workspaces.id,
+            name: workspaces.name,
+            description: workspaces.description,
+          }).from(workspaces).limit(limit);
+          return rows;
+        }
+        case 'recent_conversations': {
+          const rows = await db.select({
+            id: conversations.id,
+            title: conversations.title,
+            status: conversations.status,
+            priority: conversations.priority,
+            createdAt: conversations.createdAt,
+          }).from(conversations)
+            .orderBy(desc(conversations.createdAt))
+            .limit(limit);
+          return rows;
+        }
+        case 'team_members': {
+          const rows = await db.select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            role: users.role,
+            status: users.status,
+          }).from(users)
+            .where(or(eq(users.role, 'agent'), eq(users.role, 'admin')))
+            .limit(limit);
+          return rows;
+        }
+        default:
+          return [];
+      }
+    } catch (err) {
+      console.error(`Failed to list resource ${resource}:`, err);
       return [];
     }
   }
 
+  private async toolExecutePlatformTask(
+    task: string,
+    parameters: Record<string, any>,
+    context: ConversationContext
+  ): Promise<{ success: boolean; message: string; data?: any; redirectPath?: string }> {
+
+    if (context.userRole !== 'admin' && ['create_workspace', 'create_support_category', 'create_sla_policy'].includes(task)) {
+      return { success: false, message: 'This action requires admin permissions.' };
+    }
+
+    try {
+      switch (task) {
+        case 'create_workspace': {
+          if (!parameters.name) return { success: false, message: 'Workspace name is required.' };
+          if (!context.organizationId) return { success: false, message: 'Organization context is required.' };
+          const slug = parameters.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          const workspace = await storage.createWorkspace({
+            name: parameters.name,
+            description: parameters.description || `Workspace for ${parameters.name}`,
+            slug,
+            organizationId: context.organizationId,
+          });
+          return {
+            success: true,
+            message: `Workspace "${workspace.name}" created successfully!`,
+            data: workspace,
+            redirectPath: '/workspaces'
+          };
+        }
+
+        case 'create_support_category': {
+          if (!parameters.name) return { success: false, message: 'Category name is required.' };
+          const slug = parameters.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          const category = await storage.createSupportCategory({
+            name: parameters.name,
+            slug,
+            description: parameters.description || '',
+            icon: parameters.icon || 'HelpCircle',
+            color: parameters.color || '#6366f1',
+            isActive: true,
+          });
+          return {
+            success: true,
+            message: `Support category "${category.name}" created!`,
+            data: category,
+            redirectPath: '/support-categories'
+          };
+        }
+
+        case 'create_saved_reply': {
+          if (!parameters.title || !parameters.content) {
+            return { success: false, message: 'Title and content are required for a saved reply.' };
+          }
+          const [reply] = await db.insert(savedReplies).values({
+            title: parameters.title,
+            content: parameters.content,
+            category: parameters.category || 'General',
+            organizationId: context.organizationId || '',
+            createdById: context.userId,
+            isShared: true,
+          }).returning();
+          return {
+            success: true,
+            message: `Saved reply "${reply.title}" created!`,
+            data: reply,
+            redirectPath: '/saved-replies'
+          };
+        }
+
+        case 'create_sla_policy': {
+          if (!parameters.name || !parameters.priority) {
+            return { success: false, message: 'Policy name and priority are required.' };
+          }
+          const [policy] = await db.insert(slaPolicies).values({
+            name: parameters.name,
+            priority: parameters.priority,
+            firstResponseMinutes: parameters.firstResponseMinutes || 60,
+            resolutionMinutes: parameters.resolutionMinutes || 480,
+            organizationId: context.organizationId || '',
+            businessHoursOnly: parameters.businessHoursOnly || false,
+            isActive: true,
+          }).returning();
+          return {
+            success: true,
+            message: `SLA policy "${policy.name}" created for ${policy.priority} priority conversations!`,
+            data: policy,
+            redirectPath: '/sla-management'
+          };
+        }
+
+        default:
+          return { success: false, message: `Unknown task: ${task}` };
+      }
+    } catch (error: any) {
+      console.error(`Task execution failed for ${task}:`, error);
+      return { success: false, message: error.message || 'Task failed. Please try again.' };
+    }
+  }
+
+  private async toolSearchPlatformHelp(query: string, includeKnowledgeBase: boolean = false): Promise<{
+    pages: PageInfo[];
+    actions: ActionInfo[];
+    knowledgeArticles: Array<{ id: string; title: string; category: string }>;
+  }> {
+    const pages = searchPages(query).slice(0, 5);
+    const actions = searchActions(query).slice(0, 3);
+    let knowledgeArticles: Array<{ id: string; title: string; category: string }> = [];
+
+    if (includeKnowledgeBase) {
+      try {
+        const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        if (keywords.length > 0) {
+          knowledgeArticles = await db.select({
+            id: knowledgeBase.id,
+            title: knowledgeBase.title,
+            category: knowledgeBase.category,
+          }).from(knowledgeBase)
+            .where(and(
+              eq(knowledgeBase.isActive, true),
+              ilike(knowledgeBase.title, `%${keywords[0]}%`)
+            ))
+            .limit(3);
+        }
+      } catch { }
+    }
+
+    return { pages, actions, knowledgeArticles };
+  }
+
+  // --- System prompt ---
+
   private buildSystemPrompt(context: ConversationContext): string {
-    const rolePermissions = context.userRole === 'admin' 
-      ? 'full access to all features including user management, settings, and configuration'
-      : 'access to conversations, customers, knowledge base, and analytics';
+    const roleLabel = context.userRole === 'admin' ? 'Administrator' : 'Agent';
+    const roleCapabilities = context.userRole === 'admin'
+      ? 'full access: user management, settings, AI configuration, billing, all analytics, organization management'
+      : 'conversations, customers, knowledge base, saved replies, analytics (limited)';
 
-    const availablePages = PLATFORM_PAGES
+    const allPages = PLATFORM_PAGES
       .filter(p => !p.requiredRole || p.requiredRole === context.userRole || context.userRole === 'admin')
-      .map(p => `- ${p.name} (${p.path}): ${p.description}`)
+      .map(p => `• **${p.name}** → \`${p.path}\` — ${p.description.split('.')[0]}`)
       .join('\n');
 
-    const availableActions = PLATFORM_ACTIONS
-      .filter(a => !a.requiredRole || a.requiredRole === context.userRole || context.userRole === 'admin')
-      .map(a => `- ${a.name}: ${a.description}`)
-      .join('\n');
-
-    return `You are the Support Board Platform Assistant, an AI helper that guides users through the platform.
+    return `You are Nova, the intelligent Platform Assistant for Nova AI — a B2B customer support platform.
 
 ## Your Role
-- Help users navigate the platform and find features
-- Answer questions about how to use Support Board
-- Provide direct links to relevant pages
-- Help configure settings and create resources
-- Guide through onboarding steps
+You help ${roleLabel}s navigate the platform, understand features, execute tasks, and follow step-by-step guides. You have tools to:
+- Fetch live platform stats (conversation counts, customer numbers, AI agent status, etc.)
+- List existing resources (saved replies, AI agents, SLA policies, workspaces, team members)
+- Execute tasks directly (create workspaces, saved replies, SLA policies, support categories)
+- Search platform documentation for setup guides
 
 ## User Context
-- Role: ${context.userRole} (${rolePermissions})
-- Current page: ${context.currentPath || 'unknown'}
+- **Role**: ${roleLabel} (${roleCapabilities})
+- **Current page**: ${context.currentPath || 'dashboard'}
+- **Organization ID**: ${context.organizationId || 'default'}
 
-## Available Pages
-${availablePages}
+## Platform Pages Available
+${allPages}
 
-## Available Actions You Can Help With
-${availableActions}
+## Key Features to Guide Users On
+- **Conversations**: Real-time chat with customers. Assign, prioritize, tag, merge, resolve.
+- **AI Agents**: Configure GPT-powered agents. Set personality, confidence thresholds, knowledge links.
+- **Knowledge Base**: Articles power AI responses. Upload PDFs/DOCX for auto-processing.
+- **Saved Replies**: Canned responses for common questions. Use {{customerName}} for variables.
+- **SLA Management**: Set first-response + resolution deadlines per priority level.
+- **CSAT Surveys**: Auto-sent when conversations are resolved. Track scores in Analytics.
+- **Conversation Tags**: Freeform labels. Filter conversations by tags.
+- **Agent Status**: Set Available/Away/Busy/Offline from the sidebar avatar.
+- **Audit Log**: View all admin actions with timestamp, user, and change details.
+- **2FA Security**: Enable TOTP two-factor authentication at Settings > Security.
+- **Chat Widget**: Embed on any website via API Integration page. Copy the script tag.
+- **External Channels**: Connect WhatsApp Business API, Telegram Bot, Facebook Messenger.
+- **Email Integration**: Set up IMAP/SMTP for email-to-ticket conversion.
 
-## Response Format
-When responding, you should:
-1. Answer the user's question clearly and concisely
-2. If relevant, provide a direct link using this format: [Page Name](/path)
-3. If the user wants to create or configure something, offer to pre-fill a form
-4. Suggest related pages or next steps when helpful
-
-## Response JSON Structure
-Always respond with valid JSON in this format:
+## Response Format (ALWAYS use this JSON structure)
+\`\`\`json
 {
-  "content": "Your helpful response with [links](/path) embedded",
-  "actionType": "navigate" | "configure" | "explain" | null,
+  "content": "Your main response. Use **bold**, numbered lists (1. 2. 3.), and [link text](/path) for internal navigation. Keep it clear and actionable.",
+  "steps": ["Step 1: ...", "Step 2: ...", "Step 3: ..."],
+  "actionType": "navigate" | "configure" | "explain" | "action_executed" | null,
   "actionPayload": {
     "path": "/path-to-navigate",
-    "prefillData": { "field": "value" }
+    "label": "Human-readable button label",
+    "description": "One line description of where this goes"
   },
-  "relatedPages": ["/path1", "/path2"],
-  "suggestedQuestions": ["How do I...", "What is..."]
+  "relatedPages": [
+    { "path": "/path", "label": "Page Name", "description": "Why visit this page" }
+  ],
+  "suggestedQuestions": ["Follow-up question 1?", "Follow-up question 2?"]
 }
+\`\`\`
 
 ## Guidelines
-- Be concise and helpful
-- Always provide actionable guidance
-- Use markdown for formatting
-- Include relevant links
-- Suggest next steps
-- For admin-only features, check user role before suggesting
-- If user asks to do something they don't have permission for, explain politely`;
+- **Always use tools first** when the user asks about live data (numbers, lists of existing items)
+- **Be specific**: mention exact page names, button labels, and field names
+- **Provide steps** when explaining how to do something (3-7 numbered steps)
+- **Link everything**: include relatedPages for context
+- **Execute when asked**: if the user says "create a workspace called X", use execute_platform_task
+- **Confirm before executing** destructive/significant actions by asking for parameters if missing
+- **Role-aware**: Don't suggest admin-only features to agents
+- For navigation responses, always set actionPayload.path to the most relevant page`;
   }
 
-  private async buildContextualPrompt(
-    message: string, 
+  // --- Agentic tool call loop ---
+
+  private async runAgentLoop(
+    systemPrompt: string,
+    userPrompt: string,
     context: ConversationContext,
-    conversationHistory: PlatformAssistantMessage[]
-  ): Promise<string> {
-    const recentHistory = conversationHistory.slice(-10).map(m => 
-      `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
-    ).join('\n\n');
+    maxIterations: number = 3
+  ): Promise<AssistantResponse> {
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ];
 
-    const relevantPages = searchPages(message).slice(0, 5);
-    const relevantActions = searchActions(message).slice(0, 3);
-    const relevantDocs = await this.searchKnowledgeBase(message);
+    let executedActionResult: { success: boolean; message: string; data?: any; redirectPath?: string } | null = null;
+    let iterations = 0;
 
-    let contextInfo = '';
-    
-    if (relevantPages.length > 0) {
-      contextInfo += '\n\n## Relevant Pages Found:\n';
-      contextInfo += relevantPages.map(p => 
-        `- **${p.name}** (${p.path}): ${p.description}\n  Capabilities: ${p.capabilities.slice(0, 3).join(', ')}`
-      ).join('\n');
+    while (iterations < maxIterations) {
+      iterations++;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages,
+        tools: ASSISTANT_TOOLS,
+        tool_choice: 'auto',
+        temperature: 0.4,
+        max_tokens: 1500,
+        response_format: { type: 'json_object' }
+      });
+
+      const choice = completion.choices[0];
+
+      if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls) {
+        messages.push(choice.message);
+
+        for (const toolCall of choice.message.tool_calls) {
+          const toolName = toolCall.function.name;
+          let toolArgs: any;
+          try {
+            toolArgs = JSON.parse(toolCall.function.arguments);
+          } catch {
+            toolArgs = {};
+          }
+
+          let toolResult: any;
+
+          try {
+            if (toolName === 'fetch_platform_stats') {
+              toolResult = await this.toolFetchPlatformStats(toolArgs.metrics || [], context);
+            } else if (toolName === 'list_platform_resources') {
+              toolResult = await this.toolListPlatformResources(toolArgs.resource, toolArgs.limit || 5, context);
+            } else if (toolName === 'execute_platform_task') {
+              executedActionResult = await this.toolExecutePlatformTask(toolArgs.task, toolArgs.parameters || {}, context);
+              toolResult = executedActionResult;
+            } else if (toolName === 'search_platform_help') {
+              toolResult = await this.toolSearchPlatformHelp(toolArgs.query, toolArgs.include_knowledge_base);
+            } else {
+              toolResult = { error: 'Unknown tool' };
+            }
+          } catch (err: any) {
+            toolResult = { error: err.message || 'Tool execution failed' };
+          }
+
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(toolResult)
+          });
+        }
+
+        continue;
+      }
+
+      const responseText = choice.message?.content || '{}';
+      let parsed: AssistantResponse;
+      try {
+        parsed = JSON.parse(responseText);
+      } catch {
+        parsed = { content: responseText };
+      }
+
+      if (executedActionResult) {
+        parsed.actionType = 'action_executed';
+        parsed.executedAction = {
+          success: executedActionResult.success,
+          message: executedActionResult.message,
+          data: executedActionResult.data
+        };
+        if (executedActionResult.redirectPath && !parsed.actionPayload?.path) {
+          parsed.actionPayload = {
+            path: executedActionResult.redirectPath,
+            label: `Go to ${executedActionResult.redirectPath}`,
+            description: 'View the result of the action'
+          };
+        }
+      }
+
+      return parsed;
     }
 
-    if (relevantActions.length > 0) {
-      contextInfo += '\n\n## Relevant Actions:\n';
-      contextInfo += relevantActions.map(a => 
-        `- **${a.name}**: ${a.description}\n  Endpoint: ${a.endpoint} (${a.method})`
-      ).join('\n');
-    }
-
-    if (relevantDocs.length > 0) {
-      contextInfo += '\n\n## Relevant Knowledge Base Articles:\n';
-      contextInfo += relevantDocs.map(doc => {
-        return `- **${doc.title}** (${doc.category})\n  [View Article](/knowledge-base?article=${doc.id})`;
-      }).join('\n');
-    }
-
-    return `${recentHistory ? `## Previous Conversation:\n${recentHistory}\n\n` : ''}## User's Current Question:\n${message}${contextInfo}
-
-Please respond with a JSON object as specified in the system prompt. If documentation is available, include relevant setup instructions and link to the knowledge base article.`;
+    return {
+      content: "I've gathered the information and processed your request. If you need more help, feel free to ask!",
+      suggestedQuestions: ['What else can I help with?', 'How do I navigate to a specific page?']
+    };
   }
+
+  // --- Main chat entry point ---
 
   async chat(
-    message: string, 
+    message: string,
     context: ConversationContext,
     conversationId?: string
   ): Promise<{ response: AssistantResponse; conversationId: string }> {
@@ -195,7 +641,7 @@ Please respond with a JSON object as specified in the system prompt. If document
       const [newConv] = await db.insert(platformAssistantConversations)
         .values({
           userId: context.userId,
-          title: message.slice(0, 50) + (message.length > 50 ? '...' : ''),
+          title: message.slice(0, 60) + (message.length > 60 ? '...' : ''),
         })
         .returning();
       convId = newConv.id;
@@ -213,47 +659,39 @@ Please respond with a JSON object as specified in the system prompt. If document
     });
 
     const systemPrompt = this.buildSystemPrompt(context);
-    const userPrompt = await this.buildContextualPrompt(message, context, conversationHistory);
+
+    const historyText = conversationHistory.slice(-8).map(m =>
+      `${m.role === 'user' ? 'User' : 'Nova'}: ${m.content}`
+    ).join('\n\n');
+
+    const userPrompt = `${historyText ? `## Previous conversation:\n${historyText}\n\n---\n\n` : ''}## Current message:\n${message}
+
+Respond with valid JSON matching the specified format. Use your tools to fetch live data or execute tasks as needed before responding.`;
 
     try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-        response_format: { type: 'json_object' }
-      });
-
-      const responseText = completion.choices[0]?.message?.content || '{}';
-      let response: AssistantResponse;
-      
-      try {
-        response = JSON.parse(responseText);
-      } catch {
-        response = { content: responseText };
-      }
+      const response = await this.runAgentLoop(systemPrompt, userPrompt, context);
 
       await db.insert(platformAssistantMessages).values({
         conversationId: convId,
         role: 'assistant',
         content: response.content,
-        actionType: response.actionType,
-        actionPayload: response.actionPayload,
-        relatedPages: response.relatedPages,
+        actionType: response.actionType as any,
+        actionPayload: response.actionPayload as any,
+        relatedPages: Array.isArray(response.relatedPages)
+          ? response.relatedPages.map(r => (typeof r === 'string' ? r : r.path))
+          : response.relatedPages,
       });
 
       return { response, conversationId: convId };
     } catch (error) {
       console.error('Platform Assistant error:', error);
       const fallbackResponse: AssistantResponse = {
-        content: 'I apologize, but I encountered an issue processing your request. Please try again or navigate using the sidebar menu.',
+        content: 'I encountered an issue processing your request. Please try again, or use the sidebar to navigate manually.',
+        relatedPages: [{ path: '/dashboard', label: 'Dashboard', description: 'Return to main view' }],
         suggestedQuestions: [
-          'How do I navigate to conversations?',
-          'What can I do in the dashboard?',
-          'How do I configure AI agents?'
+          'How do I view conversations?',
+          'How do I configure AI agents?',
+          'How do I add a team member?'
         ]
       };
 
@@ -297,142 +735,29 @@ Please respond with a JSON object as specified in the system prompt. If document
     const pending = ONBOARDING_CHECKLIST.filter(item => !completedIds.includes(item.id));
     const percentComplete = Math.round((completedIds.length / ONBOARDING_CHECKLIST.length) * 100);
 
-    return {
-      completed: completedIds,
-      pending,
-      percentComplete
-    };
-  }
-
-  async markOnboardingComplete(
-    userId: string, 
-    checklistItemId: string,
-    metadata?: Record<string, any>
-  ): Promise<void> {
-    await db.insert(onboardingProgress)
-      .values({
-        userId,
-        checklistItemId,
-        completed: true,
-        completedAt: new Date(),
-        metadata: metadata || null,
-      })
-      .onConflictDoUpdate({
-        target: [onboardingProgress.userId, onboardingProgress.checklistItemId],
-        set: {
-          completed: true,
-          completedAt: new Date(),
-          metadata: metadata || null,
-          updatedAt: new Date(),
-        }
-      });
-  }
-
-  async executeAction(
-    actionId: string,
-    parameters: Record<string, any>,
-    context: ConversationContext
-  ): Promise<{ success: boolean; message: string; data?: any }> {
-    const action = PLATFORM_ACTIONS.find(a => a.id === actionId);
-    
-    if (!action) {
-      return { success: false, message: 'Action not found' };
-    }
-
-    if (action.requiredRole === 'admin' && context.userRole !== 'admin') {
-      return { success: false, message: 'You do not have permission to perform this action' };
-    }
-
-    try {
-      switch (actionId) {
-        case 'create_workspace': {
-          if (!parameters.name) {
-            return { success: false, message: 'Workspace name is required' };
-          }
-          if (!context.organizationId) {
-            return { success: false, message: 'Organization context is required to create a workspace' };
-          }
-          const slug = parameters.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-          const workspace = await storage.createWorkspace({
-            name: parameters.name,
-            description: parameters.description || `Workspace for ${parameters.name}`,
-            slug,
-            organizationId: context.organizationId,
-          });
-          return {
-            success: true,
-            message: `Successfully created workspace "${workspace.name}"!`,
-            data: { workspace, redirectPath: '/workspaces' }
-          };
-        }
-
-        case 'create_support_category': {
-          if (!parameters.name) {
-            return { success: false, message: 'Category name is required' };
-          }
-          const categorySlug = parameters.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-          const category = await storage.createSupportCategory({
-            name: parameters.name,
-            slug: categorySlug,
-            description: parameters.description || '',
-            icon: parameters.icon || 'HelpCircle',
-            color: parameters.color || '#6366f1',
-            isActive: true,
-          });
-          return {
-            success: true,
-            message: `Successfully created support category "${category.name}"!`,
-            data: { category, redirectPath: '/support-categories' }
-          };
-        }
-
-        default:
-          return {
-            success: true,
-            message: `To ${action.name.toLowerCase()}, please go to the appropriate page. I've prepared the data for you.`,
-            data: {
-              redirectPath: this.getPathForAction(actionId),
-              prefillData: parameters
-            }
-          };
-      }
-    } catch (error: any) {
-      console.error(`Failed to execute action ${actionId}:`, error);
-      return { success: false, message: error.message || 'Failed to execute action' };
-    }
-  }
-
-  private getPathForAction(actionId: string): string {
-    const actionPaths: Record<string, string> = {
-      'create_ai_agent': '/ai-configuration',
-      'create_knowledge_article': '/knowledge',
-      'create_support_category': '/support-categories',
-      'create_user': '/user-management',
-      'update_brand_voice': '/settings',
-      'create_workspace': '/workspaces',
-    };
-    return actionPaths[actionId] || '/dashboard';
+    return { completed: completedIds, pending, percentComplete };
   }
 
   getSuggestedQuestions(userRole: 'admin' | 'agent' | 'customer'): string[] {
-    const baseQuestions = [
-      'How do I view my conversations?',
-      'Where can I find customer information?',
+    const agentQuestions = [
+      'How do I view and respond to conversations?',
+      'How do I use saved replies in a chat?',
+      'Where can I find customer history?',
       'How does the AI respond to customers?',
-      'What analytics are available?',
     ];
 
     if (userRole === 'admin') {
       return [
-        ...baseQuestions,
+        ...agentQuestions,
+        'How do I configure an AI agent?',
+        'How do I set up SLA policies?',
         'How do I add a new team member?',
-        'How do I configure AI agents?',
-        'How do I set up WhatsApp integration?',
-        'How do I create support categories?',
+        'How do I enable 2FA for my account?',
+        'How do I connect WhatsApp?',
       ];
     }
 
-    return baseQuestions;
+    return agentQuestions;
   }
 
   getQuickActions(userRole: 'admin' | 'agent' | 'customer'): Array<{
@@ -441,22 +766,24 @@ Please respond with a JSON object as specified in the system prompt. If document
     path: string;
     icon: string;
   }> {
-    const baseActions = [
+    const base = [
       { id: 'conversations', label: 'View Conversations', path: '/conversations', icon: 'MessageSquare' },
-      { id: 'dashboard', label: 'Go to Dashboard', path: '/dashboard', icon: 'BarChart3' },
+      { id: 'dashboard', label: 'Dashboard', path: '/dashboard', icon: 'BarChart3' },
       { id: 'knowledge', label: 'Knowledge Base', path: '/knowledge', icon: 'BookOpen' },
+      { id: 'saved-replies', label: 'Saved Replies', path: '/saved-replies', icon: 'FileText' },
     ];
 
     if (userRole === 'admin') {
       return [
-        ...baseActions,
+        ...base,
         { id: 'ai-config', label: 'Configure AI', path: '/ai-configuration', icon: 'Bot' },
-        { id: 'users', label: 'Manage Users', path: '/user-management', icon: 'Users' },
-        { id: 'channels', label: 'External Channels', path: '/channels', icon: 'Share2' },
+        { id: 'sla', label: 'SLA Management', path: '/sla-management', icon: 'Clock' },
+        { id: 'users', label: 'Team Members', path: '/user-management', icon: 'Users' },
+        { id: 'security', label: 'Security Settings', path: '/settings/security', icon: 'Shield' },
       ];
     }
 
-    return baseActions;
+    return base;
   }
 }
 
