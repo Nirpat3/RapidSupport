@@ -5582,7 +5582,7 @@ export const savedReplies = pgTable("saved_replies", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertSavedReplySchema = createInsertSchema(savedReplies).omit({ id: true, createdAt: true, updatedAt: true, usageCount: true });
+export const insertSavedReplySchema = createInsertSchema(savedReplies).omit({ id: true, createdAt: true, updatedAt: true, usageCount: true, organizationId: true, createdById: true });
 export type InsertSavedReply = z.infer<typeof insertSavedReplySchema>;
 export type SavedReply = typeof savedReplies.$inferSelect;
 
@@ -5602,6 +5602,6 @@ export const slaPolicies = pgTable("sla_policies", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-export const insertSlaPolicySchema = createInsertSchema(slaPolicies).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSlaPolicySchema = createInsertSchema(slaPolicies).omit({ id: true, createdAt: true, updatedAt: true, organizationId: true });
 export type InsertSlaPolicy = z.infer<typeof insertSlaPolicySchema>;
 export type SlaPolicy = typeof slaPolicies.$inferSelect;

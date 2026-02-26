@@ -24,6 +24,15 @@ The platform supports a hierarchical multi-tenant architecture: Platform Admins 
 - **Knowledge Base Integration**: AI analyzes documents (TXT, PDF, DOCX) for metadata, FAQ generation, and vector embedding, with automatic hourly reindexing.
 - **Email Support Integration**: Comprehensive email integration with IMAP/SMTP, Gmail, or Outlook accounts for polling, AI-powered email analysis, auto-response generation, automatic ticket creation, templates, and auto-reply rules.
 - **External Channel Integration**: Supports WhatsApp Business API, Telegram Bot, and Facebook Messenger.
+- **Two-Factor Authentication (TOTP/2FA)**: Staff 2FA via /settings/security. Full setup flow with QR code, manual key entry, backup codes, and login step when 2FA is active. Routes: GET/POST /api/auth/2fa/*.
+- **Global Search Command Palette (Cmd+K)**: Unified search via Ctrl+K. Searches conversations, customers, articles, and users. Results grouped by type with keyboard navigation. Route: GET /api/search.
+- **CSAT Surveys**: Auto-triggered on conversation resolution. Public survey page at /survey/:token. Admin analytics at /api/admin/csat. Rating, feedback, response rate tracking.
+- **Saved Replies / Canned Responses**: Admin management at /saved-replies. Used in chat via quick-pick dialog. Category grouping, shared/personal flag, usage count tracking. Routes: /api/saved-replies.
+- **Conversation Tags**: Freeform tags on conversations. Tag autocomplete from existing org tags. Conversation list filter by tags. Route: PATCH /api/conversations/:id/tags.
+- **Agent Status Selector**: Agents set status (Available/Busy/Away/Offline) via sidebar avatar. WebSocket broadcast on change. Route: PATCH /api/users/me/status.
+- **Audit Log Admin UI**: Filterable, paginated audit log at /audit-log. Shows entity, action, performer, timestamp, and diffs. Platform admin can see all; workspace admins see their org only. Route: GET /api/admin/audit-log.
+- **Conversation Merge**: Move all messages from one conversation into another via POST /api/conversations/:id/merge. Original conversation is closed with a system note. Frontend dialog with search and preview.
+- **SLA Management**: Policy configuration at /sla-management (priority-based, first response + resolution times, business hours flag). Auto-calculated deadlines on new conversations. Breach check every 5 min via scheduler. Routes: /api/sla-policies.
 - **Platform Assistant AI (Nova)**: Upgraded intelligent assistant using OpenAI GPT-4o with function calling tools to fetch real-time platform stats, list resources, execute platform tasks, and search documentation.
 - **AI Data Protection & Safety**: Comprehensive sensitive data protection with pre-seeded and custom rules, pre-response blocking, post-response sanitization, security system prompt injection, encrypted data storage, and data access audit logging.
 - **Resolution Memory System**: Intelligent learning from past resolutions with step-by-step tracking, learning extraction, station-level memory, and automatic injection of proven solutions into AI response pipelines.

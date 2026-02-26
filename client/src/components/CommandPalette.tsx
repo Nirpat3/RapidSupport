@@ -31,12 +31,19 @@ export function CommandPalette() {
       }
     };
     const openHandler = () => setOpen(true);
+    const shortcutsHandler = () => {
+      // Logic to show shortcuts could go here or in a separate Dialog
+      setOpen(true);
+      setQuery("?"); // Just an example of how to trigger a "help" state
+    };
 
     document.addEventListener("keydown", down);
     window.addEventListener(PALETTE_OPEN_EVENT, openHandler);
+    window.addEventListener("nova:open-shortcuts", shortcutsHandler);
     return () => {
       document.removeEventListener("keydown", down);
       window.removeEventListener(PALETTE_OPEN_EVENT, openHandler);
+      window.removeEventListener("nova:open-shortcuts", shortcutsHandler);
     };
   }, []);
 

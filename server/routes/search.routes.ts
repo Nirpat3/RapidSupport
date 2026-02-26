@@ -25,6 +25,7 @@ export function registerSearchRoutes({ app }: RouteContext) {
       const searchPromises = typeList.map(async (type) => {
         switch (type) {
           case "conversations":
+            // search title, customer name, recent message content
             results.conversations = await storage.searchConversations(query);
             break;
           case "customers":

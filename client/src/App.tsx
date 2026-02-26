@@ -427,6 +427,11 @@ function AuthenticatedApp() {
         e.preventDefault();
         setLocation("/conversations");
       }
+      if (e.key === "?" && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        // This is a bit of a hack but it matches the shortcut implementation
+        window.dispatchEvent(new CustomEvent("nova:open-shortcuts"));
+      }
     };
 
     document.addEventListener("keydown", handleKeyDown);

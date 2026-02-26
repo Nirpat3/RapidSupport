@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal, GraduationCap, ChevronUp, ChevronDown, ArrowDown } from "lucide-react";
+import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal, GraduationCap, ChevronUp, ChevronDown, ArrowDown, Zap } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import ChatMessage, { type Message } from "./ChatMessage";
 import { TagEditor } from "./TagEditor";
@@ -1392,10 +1392,34 @@ export default function ChatInterface({
                 
                 <Button 
                   type="button"
-                  variant={isInternalMode ? "default" : "ghost"}
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsSavedRepliesOpen(true)}
+                  className="h-8 w-8"
+                  title="Quick replies"
+                  data-testid="button-saved-replies"
+                >
+                  <Zap className="w-4 h-4" />
+                </Button>
+
+                <Button 
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsKnowledgeSearchOpen(true)}
+                  className="h-8 w-8"
+                  title="Knowledge base"
+                  data-testid="button-knowledge-search"
+                >
+                  <BookOpen className="w-4 h-4" />
+                </Button>
+
+                <Button 
+                  type="button"
+                  variant="ghost"
                   size="icon"
                   onClick={() => setIsInternalMode(!isInternalMode)}
-                  className="h-8 w-8"
+                  className={`h-8 w-8 ${isInternalMode ? 'text-amber-500 bg-amber-500/10' : ''}`}
                   title={isInternalMode ? "Switch to public message" : "Switch to internal message (staff only)"}
                   data-testid="button-toggle-internal"
                 >

@@ -5,11 +5,21 @@ import { insertSavedReplySchema } from "@shared/schema";
 import { z } from "zod";
 import { zodErrorResponse } from "../middleware/errors";
 
+async function resolveOrgId(user: any): Promise<string | null> {
+  if (user?.organizationId) return user.organizationId;
+  if (user?.isPlatformAdmin || user?.role === 'admin') {
+    const orgs = await storage.getAllOrganizations();
+    return orgs[0]?.id ?? null;
+  }
+  return null;
+}
+
 export function registerSavedRepliesRoutes({ app }: RouteContext) {
   // List saved replies with optional category filter and search
   app.get("/api/saved-replies", requireAuth, async (req, res) => {
     try {
-      const organizationId = req.user?.organizationId;
+      const user = req.user as any;
+      const organizationId = await resolveOrgId(user);
       if (!organizationId) {
         return res.status(403).json({ error: "No organization associated with user" });
       }
@@ -18,7 +28,7 @@ export function registerSavedRepliesRoutes({ app }: RouteContext) {
       const replies = await storage.getSavedReplies(organizationId, {
         category: category as string,
         search: q as string,
-        userId: req.user?.id
+        userId: user?.id
       });
       
       res.json(replies);
@@ -31,18 +41,19 @@ export function registerSavedRepliesRoutes({ app }: RouteContext) {
   // Create a new saved reply
   app.post("/api/saved-replies", requireAuth, async (req, res) => {
     try {
-      const organizationId = req.user?.organizationId;
+      const user = req.user as any;
+      const organizationId = await resolveOrgId(user);
       if (!organizationId) {
         return res.status(403).json({ error: "No organization associated with user" });
       }
 
-      const validatedData = insertSavedReplySchema.parse({
-        ...req.body,
-        organizationId,
-        createdById: req.user?.id
-      });
+      const validatedData = insertSavedReplySchema.parse(req.body);
 
-      const reply = await storage.createSavedReply(validatedData);
+      const reply = await storage.createSavedReply({
+        ...validatedData,
+        organizationId,
+        createdById: user?.id
+      } as any);
       res.status(201).json(reply);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -56,8 +67,9 @@ export function registerSavedRepliesRoutes({ app }: RouteContext) {
   // Update a saved reply
   app.patch("/api/saved-replies/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as any;
       const { id } = req.params;
-      const organizationId = req.user?.organizationId;
+      const organizationId = user?.organizationId;
       
       const existing = await storage.getSavedReply(id);
       if (!existing) {
@@ -69,7 +81,7 @@ export function registerSavedRepliesRoutes({ app }: RouteContext) {
       }
 
       // Only author or admin can update
-      if (existing.createdById !== req.user?.id && req.user?.role !== "admin") {
+      if (existing.createdById !== user?.id && user?.role !== "admin") {
         return res.status(403).json({ error: "Only the author or an admin can update this reply" });
       }
 
@@ -88,8 +100,9 @@ export function registerSavedRepliesRoutes({ app }: RouteContext) {
   // Delete a saved reply
   app.delete("/api/saved-replies/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as any;
       const { id } = req.params;
-      const organizationId = req.user?.organizationId;
+      const organizationId = user?.organizationId;
       
       const existing = await storage.getSavedReply(id);
       if (!existing) {
@@ -101,7 +114,7 @@ export function registerSavedRepliesRoutes({ app }: RouteContext) {
       }
 
       // Only author or admin can delete
-      if (existing.createdById !== req.user?.id && req.user?.role !== "admin") {
+      if (existing.createdById !== user?.id && user?.role !== "admin") {
         return res.status(403).json({ error: "Only the author or an admin can delete this reply" });
       }
 
@@ -116,8 +129,9 @@ export function registerSavedRepliesRoutes({ app }: RouteContext) {
   // Increment usage count
   app.post("/api/saved-replies/:id/use", requireAuth, async (req, res) => {
     try {
+      const user = req.user as any;
       const { id } = req.params;
-      const organizationId = req.user?.organizationId;
+      const organizationId = user?.organizationId;
       
       const existing = await storage.getSavedReply(id);
       if (!existing || existing.organizationId !== organizationId) {

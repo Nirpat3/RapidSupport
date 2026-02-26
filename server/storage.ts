@@ -365,9 +365,15 @@ import {
   type InsertCommDirectThread,
   type CommDirectMessage,
   type InsertCommDirectMessage,
+  savedReplies,
+  type SavedReply,
+  type InsertSavedReply,
+  slaPolicies,
+  type SlaPolicy,
+  type InsertSlaPolicy,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc } from "drizzle-orm";
+import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc, isNotNull } from "drizzle-orm";
 import { KnowledgeRetrievalService } from "./knowledge-retrieval";
 
 // Updated interface for all CRUD operations
@@ -453,9 +459,28 @@ export interface IStorage {
   getAllConversations(): Promise<Conversation[]>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversationStatus(id: string, status: string): Promise<void>;
+  updateConversation(id: string, updates: Partial<Conversation>): Promise<Conversation>;
+  getConversationByToken(token: string): Promise<Conversation | undefined>;
+  getCsatStats(organizationId: string): Promise<any>;
+  getCsatResponses(organizationId: string, page: number, limit: number): Promise<{ responses: any[]; total: number }>;
   assignConversation(id: string, agentId: string): Promise<void>;
   updateConversationTags(id: string, tags: string[]): Promise<void>;
   getPopularTags(organizationId: string): Promise<string[]>;
+
+  // Saved Reply operations
+  getSavedReplies(organizationId: string, options: { category?: string; search?: string; userId?: string }): Promise<SavedReply[]>;
+  getSavedReply(id: string): Promise<SavedReply | undefined>;
+  createSavedReply(reply: InsertSavedReply): Promise<SavedReply>;
+  updateSavedReply(id: string, updates: Partial<InsertSavedReply>): Promise<SavedReply>;
+  deleteSavedReply(id: string): Promise<void>;
+  incrementSavedReplyUsage(id: string): Promise<void>;
+
+  // SLA Policy operations
+  getSlaPolicies(organizationId: string): Promise<SlaPolicy[]>;
+  getSlaPolicy(id: string): Promise<SlaPolicy | undefined>;
+  createSlaPolicy(policy: InsertSlaPolicy): Promise<SlaPolicy>;
+  updateSlaPolicy(id: string, updates: Partial<InsertSlaPolicy>): Promise<SlaPolicy>;
+  deleteSlaPolicy(id: string): Promise<void>;
 
   // Message operations
   getMessagesByConversation(conversationId: string): Promise<Message[]>;
@@ -1767,6 +1792,104 @@ export class DatabaseStorage implements IStorage {
       .update(conversations)
       .set({ status, updatedAt: new Date() })
       .where(eq(conversations.id, id));
+  }
+
+  async updateConversation(id: string, updates: Partial<Conversation>): Promise<Conversation> {
+    const [updated] = await db
+      .update(conversations)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(conversations.id, id))
+      .returning();
+    if (!updated) throw new Error("Conversation not found");
+    return updated;
+  }
+
+  async getConversationByToken(token: string): Promise<Conversation | undefined> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.surveyToken, token));
+    return conversation;
+  }
+
+  async getCsatStats(organizationId: string): Promise<any> {
+    const stats = await db
+      .select({
+        averageRating: sql<number>`AVG(${conversationRatings.rating})`,
+        totalSurveys: sql<number>`COUNT(*)`,
+      })
+      .from(conversationRatings)
+      .innerJoin(conversations, eq(conversationRatings.conversationId, conversations.id))
+      .where(eq(conversations.organizationId, organizationId));
+
+    const distribution = await db
+      .select({
+        rating: conversationRatings.rating,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(conversationRatings)
+      .innerJoin(conversations, eq(conversationRatings.conversationId, conversations.id))
+      .where(eq(conversations.organizationId, organizationId))
+      .groupBy(conversationRatings.rating);
+
+    const completedSurveys = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(conversations)
+      .where(and(
+        eq(conversations.organizationId, organizationId),
+        eq(conversations.surveyStatus, 'completed')
+      ));
+
+    const sentSurveys = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(conversations)
+      .where(and(
+        eq(conversations.organizationId, organizationId),
+        or(eq(conversations.surveyStatus, 'sent'), eq(conversations.surveyStatus, 'completed'))
+      ));
+
+    return {
+      averageRating: Number(stats[0]?.averageRating || 0),
+      totalSurveys: Number(stats[0]?.totalSurveys || 0),
+      completedSurveys: Number(completedSurveys[0]?.count || 0),
+      responseRate: sentSurveys[0]?.count ? (Number(completedSurveys[0]?.count || 0) / Number(sentSurveys[0]?.count)) * 100 : 0,
+      ratingDistribution: distribution.reduce((acc, curr) => {
+        acc[curr.rating] = Number(curr.count);
+        return acc;
+      }, {} as Record<number, number>),
+    };
+  }
+
+  async getCsatResponses(organizationId: string, page: number, limit: number): Promise<{ responses: any[]; total: number }> {
+    const offset = (page - 1) * limit;
+
+    const results = await db
+      .select({
+        id: conversationRatings.id,
+        rating: conversationRatings.rating,
+        feedback: conversationRatings.feedback,
+        createdAt: conversationRatings.createdAt,
+        customerName: customers.name,
+        conversationId: conversations.id,
+      })
+      .from(conversationRatings)
+      .innerJoin(conversations, eq(conversationRatings.conversationId, conversations.id))
+      .innerJoin(customers, eq(conversations.customerId, customers.id))
+      .where(eq(conversations.organizationId, organizationId))
+      .orderBy(desc(conversationRatings.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    const total = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(conversationRatings)
+      .innerJoin(conversations, eq(conversationRatings.conversationId, conversations.id))
+      .where(eq(conversations.organizationId, organizationId));
+
+    return {
+      responses: results,
+      total: Number(total[0]?.count || 0),
+    };
   }
 
   async assignConversation(id: string, agentId: string): Promise<void> {
@@ -6176,7 +6299,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: conversationRatings.id,
         conversationId: conversationRatings.conversationId,
-        conversationSubject: conversations.subject,
+        conversationSubject: conversations.title,
         rating: conversationRatings.rating,
         feedback: conversationRatings.feedback,
         sentiment: conversationRatings.aiSentimentScore,
@@ -6203,22 +6326,18 @@ export class DatabaseStorage implements IStorage {
     rating: number;
     feedback: string | null;
     sentiment: number | null;
-    customerTone: string | null;
-    resolutionQuality: string | null;
     createdAt: string;
   }>> {
     const results = await db
       .select({
         id: conversationRatings.id,
         conversationId: conversationRatings.conversationId,
-        conversationSubject: conversations.subject,
+        conversationSubject: conversations.title,
         customerName: customers.name,
         customerEmail: customers.email,
         rating: conversationRatings.rating,
         feedback: conversationRatings.feedback,
         sentiment: conversationRatings.aiSentimentScore,
-        customerTone: conversationRatings.aiCustomerTone,
-        resolutionQuality: conversationRatings.aiResolutionQuality,
         createdAt: conversationRatings.createdAt,
       })
       .from(conversationRatings)
@@ -9796,6 +9915,125 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSlaPolicy(id: string): Promise<void> {
     await db.delete(slaPolicies).where(eq(slaPolicies.id, id));
+  }
+
+  async getSlaOverview(organizationId: string): Promise<any> {
+    const approachingThreshold = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+
+    const approaching = await db.select({ count: sql<number>`COUNT(*)` }).from(conversations).where(
+      and(
+        eq(conversations.organizationId, organizationId),
+        or(
+          and(
+            isNotNull(conversations.slaFirstResponseAt),
+            lte(conversations.slaFirstResponseAt, approachingThreshold),
+            eq(conversations.slaFirstResponseBreached, false),
+            isNull(conversations.lastAgentReplyAt)
+          ),
+          and(
+            isNotNull(conversations.slaResolutionAt),
+            lte(conversations.slaResolutionAt, approachingThreshold),
+            eq(conversations.slaResolutionBreached, false),
+            or(eq(conversations.status, 'open'), eq(conversations.status, 'pending'))
+          )
+        )
+      )
+    );
+
+    const breached = await db.select({ count: sql<number>`COUNT(*)` }).from(conversations).where(
+      and(
+        eq(conversations.organizationId, organizationId),
+        or(
+          eq(conversations.slaFirstResponseBreached, true),
+          eq(conversations.slaResolutionBreached, true)
+        )
+      )
+    );
+
+    const totalClosed = await db.select({ count: sql<number>`COUNT(*)` }).from(conversations).where(
+      and(
+        eq(conversations.organizationId, organizationId),
+        or(eq(conversations.status, 'resolved'), eq(conversations.status, 'closed'))
+      )
+    );
+
+    const compliantClosed = await db.select({ count: sql<number>`COUNT(*)` }).from(conversations).where(
+      and(
+        eq(conversations.organizationId, organizationId),
+        or(eq(conversations.status, 'resolved'), eq(conversations.status, 'closed')),
+        eq(conversations.slaFirstResponseBreached, false),
+        eq(conversations.slaResolutionBreached, false)
+      )
+    );
+
+    const totalCount = Number(totalClosed[0]?.count || 0);
+    const compliantCount = Number(compliantClosed[0]?.count || 0);
+
+    return {
+      approachingBreach: Number(approaching[0]?.count || 0),
+      currentlyBreached: Number(breached[0]?.count || 0),
+      complianceRate: totalCount > 0 ? (compliantCount / totalCount) * 100 : 100,
+    };
+  }
+
+  // Saved Reply operations
+  async getSavedReplies(organizationId: string, options: { category?: string; search?: string; userId?: string }): Promise<SavedReply[]> {
+    let conditions = [eq(savedReplies.organizationId, organizationId)];
+    
+    if (options.category && options.category !== 'All') {
+      conditions.push(eq(savedReplies.category, options.category));
+    }
+    
+    if (options.search) {
+      conditions.push(or(
+        sql`${savedReplies.title} ILIKE ${'%' + options.search + '%'}`,
+        sql`${savedReplies.content} ILIKE ${'%' + options.search + '%'}`
+      ) as any);
+    }
+    
+    if (options.userId) {
+      conditions.push(or(
+        eq(savedReplies.isShared, true),
+        eq(savedReplies.createdById, options.userId)
+      ) as any);
+    } else {
+      conditions.push(eq(savedReplies.isShared, true));
+    }
+
+    return await db.select().from(savedReplies)
+      .where(and(...conditions))
+      .orderBy(desc(savedReplies.usageCount), desc(savedReplies.createdAt));
+  }
+
+  async getSavedReply(id: string): Promise<SavedReply | undefined> {
+    const [reply] = await db.select().from(savedReplies).where(eq(savedReplies.id, id));
+    return reply;
+  }
+
+  async createSavedReply(reply: InsertSavedReply): Promise<SavedReply> {
+    const [created] = await db.insert(savedReplies).values({
+      ...reply,
+      updatedAt: new Date()
+    }).returning();
+    return created;
+  }
+
+  async updateSavedReply(id: string, updates: Partial<InsertSavedReply>): Promise<SavedReply> {
+    const [updated] = await db.update(savedReplies)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(savedReplies.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSavedReply(id: string): Promise<void> {
+    await db.delete(savedReplies).where(eq(savedReplies.id, id));
+  }
+
+  async incrementSavedReplyUsage(id: string): Promise<void> {
+    await db.update(savedReplies)
+      .set({ usageCount: sql`${savedReplies.usageCount} + 1` })
+      .where(eq(savedReplies.id, id));
   }
 
   async getSlaOverview(organizationId: string): Promise<{

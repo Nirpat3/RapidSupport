@@ -439,6 +439,16 @@ export default function ConversationsPage() {
     return matchesSearch && matchesStatus && matchesTags && matchesViewMode;
   });
 
+  const handleRemoveTagFilter = (tagToRemove: string) => {
+    setTagFilter(prev => prev.filter(t => t !== tagToRemove));
+  };
+
+  const handleAddTagFilter = (tag: string) => {
+    if (!tagFilter.includes(tag)) {
+      setTagFilter(prev => [...prev, tag]);
+    }
+  };
+
   // Sort by most recent message
   const sortedConversations = [...filteredConversations].sort((a, b) => {
     const aTime = new Date(a.lastMessage?.timestamp || a.updatedAt).getTime();
@@ -741,25 +751,58 @@ export default function ConversationsPage() {
           </div>
 
           {/* Status Filter */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger data-testid="select-status-filter">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              {viewMode === 'active' ? (
-                <>
-                  <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                </>
-              ) : (
-                <>
-                  <SelectItem value="closed">Closed</SelectItem>
-                  <SelectItem value="resolved">Resolved</SelectItem>
-                </>
-              )}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col gap-2">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger data-testid="select-status-filter">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                {viewMode === 'active' ? (
+                  <>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </>
+                ) : (
+                  <>
+                    <SelectItem value="closed">Closed</SelectItem>
+                    <SelectItem value="resolved">Resolved</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+
+            {allTags.length > 0 && (
+              <div className="flex flex-wrap gap-1 items-center min-h-6">
+                <Tags className="w-3.5 h-3.5 text-muted-foreground mr-1" />
+                {allTags.slice(0, 8).map(tag => {
+                  const isSelected = tagFilter.includes(tag);
+                  return (
+                    <Badge
+                      key={tag}
+                      variant={isSelected ? "default" : "outline"}
+                      className={`cursor-pointer text-[10px] px-2 py-0 h-5 hover-elevate transition-colors ${
+                        isSelected ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                      onClick={() => isSelected ? handleRemoveTagFilter(tag) : handleAddTagFilter(tag)}
+                    >
+                      {tag}
+                    </Badge>
+                  );
+                })}
+                {tagFilter.length > 0 && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-5 px-1.5 text-[10px] text-muted-foreground"
+                    onClick={() => setTagFilter([])}
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Bulk Action Bar */}
           {selectedConversationIds.size > 0 && (
@@ -789,27 +832,6 @@ export default function ConversationsPage() {
             </div>
           )}
         </div>
-
-        {allTags.length > 0 && (
-          <div className="flex items-center gap-1.5 mt-3 px-1 overflow-x-auto pb-2 scrollbar-hide no-scrollbar">
-            {allTags.map(tag => (
-              <Badge
-                key={tag}
-                variant={tagFilter.includes(tag) ? "default" : "secondary"}
-                className="cursor-pointer whitespace-nowrap text-[10px] px-2 py-0 h-5"
-                onClick={() => {
-                  if (tagFilter.includes(tag)) {
-                    setTagFilter(tagFilter.filter(t => t !== tag));
-                  } else {
-                    setTagFilter([...tagFilter, tag]);
-                  }
-                }}
-              >
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
 
         {/* Conversation List - Native scrolling with no horizontal overflow */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
