@@ -97,7 +97,7 @@ export function registerSlaRoutes({ app }: RouteContext) {
   // GET /api/admin/sla/overview — stats
   app.get("/api/admin/sla/overview", requireAuth, requireRole(['admin']), async (req, res) => {
     try {
-      const organizationId = req.user?.organizationId;
+      const organizationId = await resolveOrgId(req.user as any);
       if (!organizationId) {
         return res.status(400).json({ error: "Organization ID not found" });
       }

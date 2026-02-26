@@ -2303,6 +2303,21 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get current authenticated user profile (must be before /:id to avoid conflict)
+  app.get('/api/users/me', requireAuth, async (req, res) => {
+    try {
+      const userId = (req.user as any).id;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const { password, twoFactorSecret, twoFactorBackupCodes, ...safeUser } = user as any;
+      res.json(safeUser);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch user profile' });
+    }
+  });
+
   // Get single user by ID (admin only)
   app.get('/api/users/:id', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
@@ -2783,6 +2798,23 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // Get popular tags for the organization (must be before /:id to avoid route conflict)
+  app.get('/api/conversations/tags', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const organizationId = user.organizationId || (req.session as any).selectedOrganizationId;
+      
+      if (!organizationId) {
+        return res.json([]);
+      }
+
+      const tags = await storage.getPopularTags(organizationId);
+      res.json(tags);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch tags' });
+    }
+  });
+
   // Get individual conversation by ID
   app.get('/api/conversations/:id', requireAuth, async (req, res) => {
     try {
@@ -3011,22 +3043,6 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to update tags' });
-    }
-  });
-
-  app.get('/api/conversations/tags', requireAuth, async (req, res) => {
-    try {
-      const user = req.user as any;
-      const organizationId = user.organizationId || (req.session as any).selectedOrganizationId;
-      
-      if (!organizationId) {
-        return res.status(400).json({ error: 'No organization context' });
-      }
-
-      const tags = await storage.getPopularTags(organizationId);
-      res.json(tags);
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch tags' });
     }
   });
 
@@ -3344,98 +3360,6 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         return res.status(400).json(zodErrorResponse(error));
       }
       res.status(500).json({ error: 'Failed to update conversation status' });
-    }
-  });
-
-  app.patch('/api/conversations/:id/tags', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
-    try {
-      const { id } = req.params;
-      const tagsSchema = z.object({
-        tags: z.array(z.string().max(30)).max(10)
-      });
-      const { tags } = tagsSchema.parse(req.body);
-      const user = req.user as any;
-      
-      const conversation = await storage.getConversation(id);
-      if (!conversation) {
-        return res.status(404).json({ error: 'Conversation not found' });
-      }
-
-      const updatedConversation = await storage.updateConversation(id, { tags });
-
-      // Create activity log entry
-      await storage.createActivityLog({
-        conversationId: id,
-        agentId: user.id,
-        action: 'tags_updated',
-        details: JSON.stringify({
-          previousTags: conversation.tags,
-          newTags: tags,
-          changedBy: user.name
-        })
-      });
-
-      // Broadcast update via WebSocket
-      const wsServer = (req.app as any).wsServer;
-      if (wsServer) {
-        wsServer.broadcastConversationUpdate(id, { tags });
-      }
-
-      res.json(updatedConversation);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json(zodErrorResponse(error));
-      }
-      res.status(500).json({ error: 'Failed to update conversation tags' });
-    }
-  });
-
-  app.get('/api/conversations/tags', requireAuth, async (req, res) => {
-    try {
-      const organizationId = (req.user as any).organizationId;
-      const conversations = await storage.getConversationsByOrganization(organizationId);
-      const tagMap = new Map<string, number>();
-      
-      conversations.forEach(conv => {
-        (conv.tags || []).forEach(tag => {
-          tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
-        });
-      });
-
-      const sortedTags = Array.from(tagMap.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([tag]) => tag);
-
-      res.json(sortedTags);
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch tags' });
-    }
-  });
-
-  app.patch('/api/users/me/status', requireAuth, async (req, res) => {
-    try {
-      const { status } = updateAgentStatusSchema.parse(req.body);
-      const userId = (req.user as any).id;
-      
-      const updatedUser = await storage.updateUser(userId, { status });
-      
-      // Broadcast WebSocket update
-      const wsServer = (req.app as any).wsServer;
-      if (wsServer) {
-        wsServer.broadcastToAll({
-          type: 'user_status_changed',
-          userId,
-          status,
-          userName: updatedUser.name
-        });
-      }
-
-      res.json(updatedUser);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json(zodErrorResponse(error));
-      }
-      res.status(500).json({ error: 'Failed to update status' });
     }
   });
 

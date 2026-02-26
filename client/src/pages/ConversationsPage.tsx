@@ -36,6 +36,7 @@ import {
   Bot,
   UserCog,
   GitBranch,
+  Tags,
 } from "lucide-react";
 import KnowledgeSearchDialog from "@/components/KnowledgeSearchDialog";
 import { WorkflowSidebar } from "@/components/WorkflowSidebar";

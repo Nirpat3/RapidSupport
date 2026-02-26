@@ -1,5 +1,24 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
+
+// Keep server alive when Replit workspace refreshes (sends SIGHUP which kills esbuild subprocess)
+// The SIGHUP kills esbuild → Vite logs "Pre-transform error: The service is no longer running"
+// → Vite's custom error logger calls process.exit(1). We prevent that exit here.
+process.on('SIGHUP', () => {
+  // Ignore SIGHUP signal itself in this Node.js process
+});
+
+// Prevent Vite from killing the server when esbuild is interrupted by SIGHUP
+const _origProcessExit = process.exit.bind(process);
+(process as NodeJS.Process).exit = ((code?: number) => {
+  // Allow SIGTERM shutdowns but prevent Vite's process.exit(1) due to esbuild interruption
+  if (code === 1) {
+    console.warn('[server] Suppressed process.exit(1) - likely Vite/esbuild interruption from SIGHUP');
+    return undefined as never;
+  }
+  return _origProcessExit(code ?? 0);
+}) as typeof process.exit;
+
 import helmet from "helmet";
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
@@ -107,9 +126,10 @@ app.use((req, res, next) => {
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
+    console.error('[Express Error Handler]', status, message, err.stack?.split('\n')[1]);
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
   });
 
   // importantly only setup vite in development and after

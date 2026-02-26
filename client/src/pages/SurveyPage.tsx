@@ -17,7 +17,12 @@ export default function SurveyPage() {
   const [feedback, setFeedback] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const { data: survey, isLoading, error } = useQuery({
+  const { data: survey, isLoading, error } = useQuery<{
+    primaryColor?: string;
+    organizationLogo?: string;
+    organizationName?: string;
+    title?: string;
+  }>({
     queryKey: [`/api/csat/survey/${params?.token}`],
     enabled: !!params?.token,
   });
@@ -30,13 +35,13 @@ export default function SurveyPage() {
       setSubmitted(true);
       toast({
         title: "Thank you!",
-        message: "Your feedback has been submitted successfully.",
+        description: "Your feedback has been submitted successfully.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Error",
-        message: error.message || "Failed to submit survey",
+        description: error.message || "Failed to submit survey",
         variant: "destructive",
       });
     },

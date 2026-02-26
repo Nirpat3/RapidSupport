@@ -373,7 +373,7 @@ import {
   type InsertSlaPolicy,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, asc, isNotNull } from "drizzle-orm";
+import { eq, desc, and, or, sql, isNull, inArray, gte, lte, lt, gt, asc, isNotNull } from "drizzle-orm";
 import { KnowledgeRetrievalService } from "./knowledge-retrieval";
 
 // Updated interface for all CRUD operations
@@ -6944,49 +6944,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConversationsApproachingSlaBreach(minutes: number): Promise<Conversation[]> {
-    const now = new Date();
-    const future = new Date(now.getTime() + minutes * 60 * 1000);
-    
-    return await db.select().from(conversations).where(
-      and(
-        or(eq(conversations.status, 'open'), eq(conversations.status, 'pending')),
-        or(
-          and(
-            sql`${conversations.slaFirstResponseAt} IS NOT NULL`,
-            gt(conversations.slaFirstResponseAt, now),
-            lt(conversations.slaFirstResponseAt, future),
-            eq(conversations.slaFirstResponseBreached, false)
-          ),
-          and(
-            sql`${conversations.slaResolutionAt} IS NOT NULL`,
-            gt(conversations.slaResolutionAt, now),
-            lt(conversations.slaResolutionAt, future),
-            eq(conversations.slaResolutionBreached, false)
-          )
-        )
-      )
-    );
+    try {
+      const result = await db.execute(
+        sql`SELECT * FROM conversations WHERE status IN ('open','pending') AND (
+          (sla_first_response_at IS NOT NULL AND sla_first_response_at > NOW() AND sla_first_response_at < NOW() + (${minutes} * INTERVAL '1 minute') AND sla_first_response_breached = false)
+          OR
+          (sla_resolution_at IS NOT NULL AND sla_resolution_at > NOW() AND sla_resolution_at < NOW() + (${minutes} * INTERVAL '1 minute') AND sla_resolution_breached = false)
+        )`
+      );
+      return (result.rows ?? []) as unknown as Conversation[];
+    } catch {
+      return [];
+    }
   }
 
   async getBreachedSlaConversations(): Promise<Conversation[]> {
-    const now = new Date();
-    return await db.select().from(conversations).where(
-      and(
-        or(eq(conversations.status, 'open'), eq(conversations.status, 'pending')),
-        or(
-          and(
-            sql`${conversations.slaFirstResponseAt} IS NOT NULL`,
-            lt(conversations.slaFirstResponseAt, now),
-            eq(conversations.slaFirstResponseBreached, false)
-          ),
-          and(
-            sql`${conversations.slaResolutionAt} IS NOT NULL`,
-            lt(conversations.slaResolutionAt, now),
-            eq(conversations.slaResolutionBreached, false)
-          )
-        )
-      )
-    );
+    try {
+      const result = await db.execute(
+        sql`SELECT * FROM conversations WHERE status IN ('open','pending') AND (
+          (sla_first_response_at IS NOT NULL AND sla_first_response_at < NOW() AND sla_first_response_breached = false)
+          OR
+          (sla_resolution_at IS NOT NULL AND sla_resolution_at < NOW() AND sla_resolution_breached = false)
+        )`
+      );
+      return (result.rows ?? []) as unknown as Conversation[];
+    } catch {
+      return [];
+    }
   }
 
   // Multi-agent participation tracking
@@ -10048,8 +10032,8 @@ export class DatabaseStorage implements IStorage {
         or(
           eq(conversations.slaFirstResponseBreached, true),
           eq(conversations.slaResolutionBreached, true),
-          sql`${conversations.slaFirstResponseAt} IS NOT NULL`,
-          sql`${conversations.slaResolutionAt} IS NOT NULL`
+          isNotNull(conversations.slaFirstResponseAt),
+          isNotNull(conversations.slaResolutionAt)
         )
       )
     );

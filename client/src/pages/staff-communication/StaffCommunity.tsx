@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Users, Plus, Send, MoreVertical, Hash, Lock, Search, Loader2 } from "lucide-react";
-import type { CommChannel, CommChannelMessage, User, CustomerOrganization } from "@shared/schema";
+import type { CommChannel, CommChannelMessage, User, CustomerOrganization, Customer } from "@shared/schema";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { format } from "date-fns";
 

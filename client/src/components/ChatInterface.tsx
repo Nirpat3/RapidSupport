@@ -75,6 +75,7 @@ export default function ChatInterface({
   conversationStatus,
   onStatusChange,
   typingUsers = [],
+  tags = [],
   onTypingStart,
   onTypingStop,
   prefilledContent,
