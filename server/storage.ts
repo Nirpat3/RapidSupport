@@ -377,7 +377,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserStatus(id: string, status: string): Promise<void>;
-  updateUser(id: string, updates: Partial<InsertUser>): Promise<User>;
+  updateUser(id: string, updates: Partial<User>): Promise<User>;
   deleteUser(id: string): Promise<void>;
   completeUserOnboarding(userId: string): Promise<void>;
   getAllAgents(includeDeleted?: boolean): Promise<User[]>;
@@ -454,6 +454,8 @@ export interface IStorage {
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversationStatus(id: string, status: string): Promise<void>;
   assignConversation(id: string, agentId: string): Promise<void>;
+  updateConversationTags(id: string, tags: string[]): Promise<void>;
+  getPopularTags(organizationId: string): Promise<string[]>;
 
   // Message operations
   getMessagesByConversation(conversationId: string): Promise<Message[]>;
@@ -520,6 +522,12 @@ export interface IStorage {
   // Assignment operations
   autoAssignConversation(conversationId: string): Promise<User | null>;
   getUnassignedConversations(): Promise<Conversation[]>;
+
+  // Unified Search operations
+  searchConversations(query: string, limit?: number): Promise<any[]>;
+  searchCustomers(query: string, limit?: number): Promise<Customer[]>;
+  searchKnowledgeBase(query: string, limit?: number): Promise<KnowledgeBase[]>;
+  searchUsers(query: string, limit?: number): Promise<User[]>;
 
   // AI Agent operations
   getAiAgent(id: string): Promise<AiAgent | undefined>;
@@ -890,6 +898,14 @@ export interface IStorage {
     sentiment: number | null;
     createdAt: string;
   }>>;
+
+  // Saved Reply operations
+  getSavedReply(id: string): Promise<SavedReply | undefined>;
+  getSavedReplies(organizationId: string, options?: { category?: string; search?: string; userId?: string }): Promise<SavedReply[]>;
+  createSavedReply(reply: InsertSavedReply): Promise<SavedReply>;
+  updateSavedReply(id: string, updates: Partial<InsertSavedReply>): Promise<SavedReply>;
+  deleteSavedReply(id: string): Promise<void>;
+  incrementSavedReplyUsage(id: string): Promise<void>;
   getAllFeedback(): Promise<Array<{
     id: string;
     conversationId: string;
@@ -947,6 +963,8 @@ export interface IStorage {
   // Follow-up tracking operations
   getConversationsNeedingFollowup(delayHours: number, maxFollowups: number): Promise<Conversation[]>;
   getInactiveConversationsForAutoClose(inactiveDays: number): Promise<Conversation[]>;
+  getConversationsApproachingSlaBreach(minutes: number): Promise<Conversation[]>;
+  getBreachedSlaConversations(): Promise<Conversation[]>;
   
   // Multi-agent participation tracking
   addParticipatingAgent(conversationId: string, agentId: string): Promise<void>;
@@ -1202,6 +1220,19 @@ export interface IStorage {
   updateEmailTemplate(id: string, updates: Partial<InsertEmailTemplate>): Promise<EmailTemplate>;
   deleteEmailTemplate(id: string): Promise<void>;
   incrementTemplateUsage(templateId: string): Promise<void>;
+
+  // SLA Policy operations
+  getSlaPolicies(organizationId: string): Promise<SlaPolicy[]>;
+  getSlaPolicy(id: string): Promise<SlaPolicy | undefined>;
+  getSlaPolicyByPriority(organizationId: string, priority: string): Promise<SlaPolicy | undefined>;
+  createSlaPolicy(policy: InsertSlaPolicy): Promise<SlaPolicy>;
+  updateSlaPolicy(id: string, updates: Partial<InsertSlaPolicy>): Promise<SlaPolicy>;
+  deleteSlaPolicy(id: string): Promise<void>;
+  getSlaOverview(organizationId: string): Promise<{
+    approachingBreach: number;
+    currentlyBreached: number;
+    complianceRate: number;
+  }>;
 }
 
 // Database implementation using blueprint: javascript_database
@@ -1235,7 +1266,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id));
   }
 
-  async updateUser(id: string, updates: Partial<InsertUser>): Promise<User> {
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
     const [user] = await db
       .update(users)
       .set({ ...updates, updatedAt: new Date() })
@@ -1706,10 +1737,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
+    const { organizationId, priority } = insertConversation;
+    let slaFirstResponseAt: Date | null = null;
+    let slaResolutionAt: Date | null = null;
+
+    if (organizationId && priority) {
+      const policy = await this.getSlaPolicyByPriority(organizationId, priority);
+      if (policy) {
+        const now = new Date();
+        slaFirstResponseAt = new Date(now.getTime() + policy.firstResponseMinutes * 60 * 1000);
+        slaResolutionAt = new Date(now.getTime() + policy.resolutionMinutes * 60 * 1000);
+      }
+    }
+
     const [conversation] = await db
       .insert(conversations)
       .values({
         ...insertConversation,
+        slaFirstResponseAt,
+        slaResolutionAt,
         updatedAt: new Date(),
       })
       .returning();
@@ -1728,6 +1774,32 @@ export class DatabaseStorage implements IStorage {
       .update(conversations)
       .set({ assignedAgentId: agentId, updatedAt: new Date() })
       .where(eq(conversations.id, id));
+  }
+
+  async updateConversationTags(id: string, tags: string[]): Promise<void> {
+    await db
+      .update(conversations)
+      .set({ tags, updatedAt: new Date() })
+      .where(eq(conversations.id, id));
+  }
+
+  async getPopularTags(organizationId: string): Promise<string[]> {
+    const results = await db
+      .select({ tags: conversations.tags })
+      .from(conversations)
+      .where(eq(conversations.organizationId, organizationId));
+
+    const tagCounts = new Map<string, number>();
+    results.forEach(row => {
+      (row.tags || []).forEach(tag => {
+        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
+      });
+    });
+
+    return Array.from(tagCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([tag]) => tag);
   }
 
   // Message operations
@@ -1775,9 +1847,21 @@ export class DatabaseStorage implements IStorage {
     
     // Only update conversation timestamp for public messages (customer-facing activity)
     if (messageData.scope === 'public') {
+      const updates: any = { updatedAt: new Date() };
+
+      // Mark SLA first response as met if this is the first agent reply
+      const conversation = await this.getConversation(insertMessage.conversationId);
+      if (conversation && 
+          (insertMessage.senderType === 'agent' || insertMessage.senderType === 'ai') &&
+          conversation.slaFirstResponseAt && 
+          !conversation.slaFirstResponseBreached &&
+          !conversation.lastAgentReplyAt) {
+        updates.slaFirstResponseAt = null; // Or some flag to indicate it was met
+      }
+
       await db
         .update(conversations)
-        .set({ updatedAt: new Date() })
+        .set(updates)
         .where(eq(conversations.id, insertMessage.conversationId));
     }
     
@@ -2855,6 +2939,75 @@ export class DatabaseStorage implements IStorage {
       console.error('Error in getUnassignedConversations:', error);
       return [];
     }
+  }
+
+  // Unified Search operations
+  async searchConversations(query: string, limit: number = 5): Promise<any[]> {
+    const searchLower = `%${query.toLowerCase()}%`;
+    return await db
+      .select({
+        id: conversations.id,
+        title: conversations.title,
+        status: conversations.status,
+        priority: conversations.priority,
+        customerName: customers.name,
+      })
+      .from(conversations)
+      .leftJoin(customers, eq(conversations.customerId, customers.id))
+      .where(
+        or(
+          sql`lower(${conversations.title}) like ${searchLower}`,
+          sql`lower(${customers.name}) like ${searchLower}`
+        )
+      )
+      .limit(limit)
+      .orderBy(desc(conversations.updatedAt));
+  }
+
+  async searchCustomers(query: string, limit: number = 5): Promise<Customer[]> {
+    const searchLower = `%${query.toLowerCase()}%`;
+    return await db
+      .select()
+      .from(customers)
+      .where(
+        or(
+          sql`lower(${customers.name}) like ${searchLower}`,
+          sql`lower(${customers.email}) like ${searchLower}`,
+          sql`lower(${customers.phone}) like ${searchLower}`
+        )
+      )
+      .limit(limit)
+      .orderBy(desc(customers.updatedAt));
+  }
+
+  async searchKnowledgeBase(query: string, limit: number = 5): Promise<KnowledgeBase[]> {
+    const searchLower = `%${query.toLowerCase()}%`;
+    return await db
+      .select()
+      .from(knowledgeBase)
+      .where(
+        or(
+          sql`lower(${knowledgeBase.title}) like ${searchLower}`,
+          sql`lower(${knowledgeBase.content}) like ${searchLower}`
+        )
+      )
+      .limit(limit)
+      .orderBy(desc(knowledgeBase.usageCount), desc(knowledgeBase.createdAt));
+  }
+
+  async searchUsers(query: string, limit: number = 5): Promise<User[]> {
+    const searchLower = `%${query.toLowerCase()}%`;
+    return await db
+      .select()
+      .from(users)
+      .where(
+        or(
+          sql`lower(${users.name}) like ${searchLower}`,
+          sql`lower(${users.email}) like ${searchLower}`
+        )
+      )
+      .limit(limit)
+      .orderBy(desc(users.updatedAt));
   }
 
   // AI Agent operations
@@ -6080,6 +6233,71 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  // Saved Reply operations
+  async getSavedReply(id: string): Promise<SavedReply | undefined> {
+    const [reply] = await db.select().from(savedReplies).where(eq(savedReplies.id, id));
+    return reply || undefined;
+  }
+
+  async getSavedReplies(organizationId: string, options?: { category?: string; search?: string; userId?: string }): Promise<SavedReply[]> {
+    let query = db.select().from(savedReplies).where(eq(savedReplies.organizationId, organizationId));
+
+    if (options?.category) {
+      query = db.select().from(savedReplies).where(
+        and(
+          eq(savedReplies.organizationId, organizationId),
+          eq(savedReplies.category, options.category)
+        )
+      ) as any;
+    }
+
+    const results = await query;
+    let filtered = results;
+
+    if (options?.search) {
+      const s = options.search.toLowerCase();
+      filtered = filtered.filter(r => 
+        r.title.toLowerCase().includes(s) || 
+        r.content.toLowerCase().includes(s)
+      );
+    }
+
+    if (options?.userId) {
+      filtered = filtered.filter(r => r.isShared || r.createdById === options.userId);
+    }
+
+    return filtered.sort((a, b) => b.usageCount - a.usageCount);
+  }
+
+  async createSavedReply(reply: InsertSavedReply): Promise<SavedReply> {
+    const [newReply] = await db.insert(savedReplies).values(reply).returning();
+    return newReply;
+  }
+
+  async updateSavedReply(id: string, updates: Partial<InsertSavedReply>): Promise<SavedReply> {
+    const [updated] = await db
+      .update(savedReplies)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(savedReplies.id, id))
+      .returning();
+    if (!updated) throw new Error("Saved reply not found");
+    return updated;
+  }
+
+  async deleteSavedReply(id: string): Promise<void> {
+    await db.delete(savedReplies).where(eq(savedReplies.id, id));
+  }
+
+  async incrementSavedReplyUsage(id: string): Promise<void> {
+    await db
+      .update(savedReplies)
+      .set({ 
+        usageCount: sql`${savedReplies.usageCount} + 1`,
+        updatedAt: new Date() 
+      })
+      .where(eq(savedReplies.id, id));
+  }
+
   // Message Rating operations
   async rateMessage(messageId: string, userId: string | null, customerId: string | null, rating: 'like' | 'dislike'): Promise<MessageRating> {
     // Check if a rating already exists for this message and user/customer
@@ -6604,6 +6822,52 @@ export class DatabaseStorage implements IStorage {
           lte(conversations.updatedAt, cutoffTime)
         )
       );
+  }
+
+  async getConversationsApproachingSlaBreach(minutes: number): Promise<Conversation[]> {
+    const now = new Date();
+    const future = new Date(now.getTime() + minutes * 60 * 1000);
+    
+    return await db.select().from(conversations).where(
+      and(
+        or(eq(conversations.status, 'open'), eq(conversations.status, 'pending')),
+        or(
+          and(
+            sql`${conversations.slaFirstResponseAt} IS NOT NULL`,
+            gt(conversations.slaFirstResponseAt, now),
+            lt(conversations.slaFirstResponseAt, future),
+            eq(conversations.slaFirstResponseBreached, false)
+          ),
+          and(
+            sql`${conversations.slaResolutionAt} IS NOT NULL`,
+            gt(conversations.slaResolutionAt, now),
+            lt(conversations.slaResolutionAt, future),
+            eq(conversations.slaResolutionBreached, false)
+          )
+        )
+      )
+    );
+  }
+
+  async getBreachedSlaConversations(): Promise<Conversation[]> {
+    const now = new Date();
+    return await db.select().from(conversations).where(
+      and(
+        or(eq(conversations.status, 'open'), eq(conversations.status, 'pending')),
+        or(
+          and(
+            sql`${conversations.slaFirstResponseAt} IS NOT NULL`,
+            lt(conversations.slaFirstResponseAt, now),
+            eq(conversations.slaFirstResponseBreached, false)
+          ),
+          and(
+            sql`${conversations.slaResolutionAt} IS NOT NULL`,
+            lt(conversations.slaResolutionAt, now),
+            eq(conversations.slaResolutionBreached, false)
+          )
+        )
+      )
+    );
   }
 
   // Multi-agent participation tracking
@@ -9491,6 +9755,79 @@ export class DatabaseStorage implements IStorage {
       .where(eq(commDirectThreads.id, message.threadId));
 
     return created;
+  }
+
+  // SLA Policy operations
+  async getSlaPolicies(organizationId: string): Promise<SlaPolicy[]> {
+    return await db.select().from(slaPolicies).where(eq(slaPolicies.organizationId, organizationId));
+  }
+
+  async getSlaPolicy(id: string): Promise<SlaPolicy | undefined> {
+    const [policy] = await db.select().from(slaPolicies).where(eq(slaPolicies.id, id));
+    return policy || undefined;
+  }
+
+  async getSlaPolicyByPriority(organizationId: string, priority: string): Promise<SlaPolicy | undefined> {
+    const [policy] = await db.select().from(slaPolicies).where(
+      and(
+        eq(slaPolicies.organizationId, organizationId),
+        eq(slaPolicies.priority, priority),
+        eq(slaPolicies.isActive, true)
+      )
+    );
+    return policy || undefined;
+  }
+
+  async createSlaPolicy(policy: InsertSlaPolicy): Promise<SlaPolicy> {
+    const [created] = await db.insert(slaPolicies).values({
+      ...policy,
+      updatedAt: new Date()
+    }).returning();
+    return created;
+  }
+
+  async updateSlaPolicy(id: string, updates: Partial<InsertSlaPolicy>): Promise<SlaPolicy> {
+    const [updated] = await db.update(slaPolicies)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(slaPolicies.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteSlaPolicy(id: string): Promise<void> {
+    await db.delete(slaPolicies).where(eq(slaPolicies.id, id));
+  }
+
+  async getSlaOverview(organizationId: string): Promise<{
+    approachingBreach: number;
+    currentlyBreached: number;
+    complianceRate: number;
+  }> {
+    const now = new Date();
+    const allConversations = await db.select().from(conversations).where(
+      and(
+        eq(conversations.organizationId, organizationId),
+        or(
+          eq(conversations.slaFirstResponseBreached, true),
+          eq(conversations.slaResolutionBreached, true),
+          sql`${conversations.slaFirstResponseAt} IS NOT NULL`,
+          sql`${conversations.slaResolutionAt} IS NOT NULL`
+        )
+      )
+    );
+
+    const currentlyBreached = allConversations.filter(c => c.slaFirstResponseBreached || c.slaResolutionBreached).length;
+    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+    const approachingBreach = allConversations.filter(c => {
+      const firstResponseApproaching = c.slaFirstResponseAt && c.slaFirstResponseAt > now && c.slaFirstResponseAt < oneHourFromNow && !c.slaFirstResponseBreached;
+      const resolutionApproaching = c.slaResolutionAt && c.slaResolutionAt > now && c.slaResolutionAt < oneHourFromNow && !c.slaResolutionBreached;
+      return firstResponseApproaching || resolutionApproaching;
+    }).length;
+
+    const totalWithSla = allConversations.length;
+    const complianceRate = totalWithSla > 0 ? ((totalWithSla - currentlyBreached) / totalWithSla) * 100 : 100;
+
+    return { approachingBreach, currentlyBreached, complianceRate };
   }
 }
 

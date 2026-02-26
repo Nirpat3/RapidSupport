@@ -27,6 +27,7 @@ interface WebSocketMessage {
 }
 
 class ChatWebSocketServer {
+  private static instance: ChatWebSocketServer;
   private wss: WebSocketServer;
   private connections: Map<string, Set<AuthenticatedWebSocket>> = new Map();
   private conversationConnections: Map<string, Set<string>> = new Map();
@@ -40,6 +41,14 @@ class ChatWebSocketServer {
     });
 
     this.wss.on('connection', this.handleConnection.bind(this));
+    ChatWebSocketServer.instance = this;
+  }
+
+  public static getInstance(): ChatWebSocketServer {
+    if (!ChatWebSocketServer.instance) {
+      throw new Error('ChatWebSocketServer not initialized');
+    }
+    return ChatWebSocketServer.instance;
   }
 
   private async handleConnection(ws: AuthenticatedWebSocket, request: any) {
@@ -360,7 +369,7 @@ class ChatWebSocketServer {
     });
   }
 
-  private broadcastToConversation(conversationId: string, message: any, excludeUsers: string[] = []) {
+  public broadcastToConversation(conversationId: string, message: any, excludeUsers: string[] = []) {
     const conversationUsers = this.conversationConnections.get(conversationId);
     if (!conversationUsers) return;
 
@@ -375,6 +384,16 @@ class ChatWebSocketServer {
           }
         });
       }
+    });
+  }
+
+  public broadcastToAll(message: any) {
+    this.connections.forEach((connectionSet) => {
+      connectionSet.forEach(ws => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(message));
+        }
+      });
     });
   }
 

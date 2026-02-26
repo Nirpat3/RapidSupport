@@ -36,6 +36,7 @@ import {
   Shield,
   TrendingUp,
   Bell,
+  Clock,
   FileText,
   Code,
   Code2,
@@ -62,9 +63,21 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAuth } from "@/contexts/AuthContext";
+
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem
+} from "@/components/ui/dropdown-menu";
+import { useMutation } from "@tanstack/react-query";
 
 interface AppSidebarProps {
   currentUser?: {
@@ -202,10 +215,22 @@ const settingsSubItems: NavigationItem[] = [
     allowedRoles: ['admin']
   },
   {
+    title: "Saved Replies",
+    url: "/saved-replies",
+    icon: MessageSquare,
+    allowedRoles: ['admin']
+  },
+  {
     title: "Billing & Usage",
     url: "/billing",
     icon: CreditCard,
     allowedRoles: 'all'
+  },
+  {
+    title: "SLA Management",
+    url: "/sla-management",
+    icon: Clock,
+    allowedRoles: ['admin']
   },
   {
     title: "Webhooks",
@@ -229,6 +254,12 @@ const settingsSubItems: NavigationItem[] = [
     title: "Monitoring",
     url: "/monitoring",
     icon: Monitor,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Audit Log",
+    url: "/audit-log",
+    icon: FileText,
     allowedRoles: ['admin']
   },
   {
@@ -264,6 +295,23 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
   const [location] = useLocation();
   const { totalUnreadCount } = useNotifications();
   const { user: authUser } = useAuth();
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (status: string) => apiRequest("/api/users/me/status", "PATCH", { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    }
+  });
+
+  const statusOptions = [
+    { label: "Online", value: "online", color: "bg-emerald-500" },
+    { label: "Away", value: "away", color: "bg-amber-500" },
+    { label: "Busy", value: "busy", color: "bg-rose-500" },
+    { label: "Offline", value: "offline", color: "bg-slate-500" },
+  ];
+
+  const currentStatusValue = authUser?.status || "offline";
+  const currentStatus = statusOptions.find(s => s.value === currentStatusValue) || statusOptions[3];
   
   // Use authenticated user from context, fall back to prop or default
   const user = authUser ? {
@@ -343,9 +391,14 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
             <h1 className="font-semibold text-base text-sidebar-foreground tracking-tight" data-testid="app-title">
               Support Board
             </h1>
-            <div className="flex items-center gap-1.5">
-              <Zap className="w-3 h-3 text-amber-400" />
-              <p className="text-xs text-sidebar-foreground/60">Enterprise Suite</p>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-3 h-3 text-amber-400" />
+                <p className="text-xs text-sidebar-foreground/60">Enterprise Suite</p>
+              </div>
+              <kbd className="pointer-events-none hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100 sm:flex">
+                <span className="text-xs">⌘</span>K
+              </kbd>
             </div>
           </div>
         </div>
@@ -458,41 +511,56 @@ export default function AppSidebar({ currentUser }: AppSidebarProps) {
       
       <SidebarFooter className="border-t border-sidebar-border/30 p-3">
         <div className="space-y-3">
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent/50 border border-sidebar-border/50">
-            <div className="relative">
-              <Avatar className="w-9 h-9 ring-2 ring-sidebar-primary/20 ring-offset-2 ring-offset-sidebar">
-                <AvatarImage src={user.avatar} />
-                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-medium">
-                  {user.name.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-sidebar" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-sidebar-foreground truncate" data-testid="user-name">
-                {user.name}
-              </p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <Badge 
-                  variant="secondary" 
-                  className="text-xs capitalize bg-sidebar-primary/10 text-sidebar-primary border-0 px-2 py-0"
-                  data-testid="user-role"
-                >
-                  {user.role}
-                </Badge>
-              </div>
-            </div>
-          </div>
-          
-          <Button 
-            variant="ghost" 
-            className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-smooth" 
-            onClick={() => console.log('Logout clicked')}
-            data-testid="button-logout"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-sidebar-accent/50 border border-sidebar-border/50 hover-elevate transition-smooth text-left">
+                <div className="relative">
+                  <Avatar className="w-9 h-9 ring-2 ring-sidebar-primary/20 ring-offset-2 ring-offset-sidebar">
+                    <AvatarImage src={user.avatar} />
+                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-medium">
+                      {user.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 ${currentStatus.color} rounded-full border-2 border-sidebar`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-sidebar-foreground truncate" data-testid="user-name">
+                    {user.name}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-sidebar-foreground/50">
+                      {currentStatus.label}
+                    </span>
+                    <Badge 
+                      variant="secondary" 
+                      className="text-[10px] uppercase h-4 bg-sidebar-primary/10 text-sidebar-primary border-0 px-1.5"
+                      data-testid="user-role"
+                    >
+                      {user.role}
+                    </Badge>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-sidebar-foreground/30 rotate-90" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56" side="right" sideOffset={10}>
+              <DropdownMenuLabel>My Status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuRadioGroup value={currentStatusValue} onValueChange={(s) => updateStatusMutation.mutate(s)}>
+                {statusOptions.map((option) => (
+                  <DropdownMenuRadioItem key={option.value} value={option.value} className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${option.color}`} />
+                    <span>{option.label}</span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => console.log('Logout clicked')}>
+                <LogOut className="w-4 h-4 mr-2" />
+                Sign Out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </SidebarFooter>
     </Sidebar>

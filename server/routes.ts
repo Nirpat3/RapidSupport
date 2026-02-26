@@ -23,12 +23,14 @@ import { db } from './db';
 import { eq, desc, and } from 'drizzle-orm';
 import { users, cloudStorageOAuthConfigs } from '@shared/schema';
 import { registerAuthRoutes } from './routes/auth.routes';
+import { registerSlaRoutes } from './routes/sla.routes';
 import { registerCustomerChatRoutes } from './routes/customer-chat.routes';
 import { registerEmbedRoutes } from './routes/embed.routes';
 import { registerQuantumRoutes } from './routes/quantum.routes';
 import { registerStationRoutes } from './routes/station.routes';
 import { registerAgenticRoutes } from './routes/agentic.routes';
 import { registerPartnerRoutes } from './routes/partner.routes';
+import { registerTwoFactorRoutes } from './routes/two-factor.routes';
 import { registerResolutionMemoryRoutes } from './routes/resolution-memory.routes';
 import { registerCommunicationRoutes } from './routes/communication.routes';
 import portalManifestRoutes from './routes/portal-manifest.routes';
@@ -2657,14 +2659,27 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const user = req.user as any;
       let conversations: any[];
       
+      const { tags } = z.object({
+        tags: z.string().optional()
+      }).parse(req.query);
+
       if (user.role === 'admin' || user.role === 'agent') {
         // Both admins and agents can see ALL conversations
         // Assignment is just a category/filter, not a visibility restriction
         const allConversations = await storage.getAllConversations();
         console.log(`${user.role} ${user.name} requesting conversations, found ${allConversations.length} conversations`);
         
+        // Filter by tags if provided
+        let filtered = allConversations;
+        if (tags) {
+          const tagList = tags.split(',').map(t => t.trim().toLowerCase());
+          filtered = allConversations.filter(conv => 
+            tagList.every(t => (conv.tags || []).map((ct: string) => ct.toLowerCase()).includes(t))
+          );
+        }
+
         // Mark each conversation with assignment status for filtering
-        conversations = allConversations.map(conv => ({
+        conversations = filtered.map(conv => ({
           ...conv,
           isAssigned: !!conv.assignedAgentId,
           isAssignedToMe: conv.assignedAgentId === user.id
@@ -2964,6 +2979,77 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  app.patch('/api/conversations/:id/tags', requireAuth, async (req, res) => {
+    try {
+      const id = req.params.id;
+      const { tags } = z.object({
+        tags: z.array(z.string().max(30)).max(10)
+      }).parse(req.body);
+
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      await storage.updateConversationTags(id, tags);
+      
+      // Broadcast update via WebSocket
+      const wsServer = ChatWebSocketServer.getInstance();
+      wsServer.broadcastToConversation(id, {
+        type: 'conversation_updated',
+        conversationId: id,
+        updates: { tags }
+      });
+
+      res.json({ success: true, tags });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      res.status(500).json({ error: 'Failed to update tags' });
+    }
+  });
+
+  app.get('/api/conversations/tags', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const organizationId = user.organizationId || (req.session as any).selectedOrganizationId;
+      
+      if (!organizationId) {
+        return res.status(400).json({ error: 'No organization context' });
+      }
+
+      const tags = await storage.getPopularTags(organizationId);
+      res.json(tags);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch tags' });
+    }
+  });
+
+  app.patch('/api/users/me/status', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { status } = updateAgentStatusSchema.parse(req.body);
+
+      await storage.updateUserStatus(user.id, status);
+
+      // Broadcast status change via WebSocket
+      const wsServer = ChatWebSocketServer.getInstance();
+      wsServer.broadcastToAll({
+        type: 'user_status_changed',
+        userId: user.id,
+        status
+      });
+
+      res.json({ success: true, status });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      res.status(500).json({ error: 'Failed to update status' });
+    }
+  });
+
   app.post('/api/conversations/:conversationId/mark-read', requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
@@ -3202,6 +3288,22 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         systemMessageContent = `Conversation closed by ${user.name}`;
       } else if (status === 'resolved') {
         systemMessageContent = `Conversation marked as resolved by ${user.name}`;
+        
+        // Handle CSAT survey generation
+        try {
+          const surveyToken = crypto.randomUUID();
+          await db.update(conversations)
+            .set({ 
+              surveyStatus: 'sent',
+              surveyToken 
+            })
+            .where(eq(conversations.id, conversationId));
+          
+          // Add CSAT link to system message or create a new message
+          systemMessageContent += `. How did we do? Please rate your experience: /survey/${surveyToken}`;
+        } catch (csatError) {
+          console.error('[CSAT] Failed to generate survey token:', csatError);
+        }
       } else if (status === 'open') {
         systemMessageContent = `Conversation reopened by ${user.name}`;
       } else if (status === 'pending') {
@@ -14630,6 +14732,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   registerStationRoutes(routeContext);
   registerAgenticRoutes(routeContext);
   registerPartnerRoutes(routeContext);
+  registerTwoFactorRoutes(routeContext);
   registerResolutionMemoryRoutes(routeContext);
   registerCommunicationRoutes(routeContext);
 

@@ -1,11 +1,44 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, MessageSquare, Clock } from "lucide-react";
+import { Search, MessageSquare, Clock, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+
+const SLATimer = ({ deadline, breached }: { deadline: Date; breached: boolean }) => {
+  const [timeLeft, setTimeLeft] = useState<number>(new Date(deadline).getTime() - Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft(new Date(deadline).getTime() - Date.now());
+    }, 60000); // update every minute
+    return () => clearInterval(timer);
+  }, [deadline]);
+
+  if (breached || timeLeft <= 0) {
+    return (
+      <Badge variant="destructive" className="text-[10px] h-4 px-1 flex items-center gap-0.5">
+        <AlertCircle className="w-2.5 h-2.5" />
+        Breached
+      </Badge>
+    );
+  }
+
+  const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+  const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+  
+  let colorClass = "bg-green-500";
+  if (timeLeft < 30 * 60 * 1000) colorClass = "bg-red-500"; // < 30m
+  else if (timeLeft < 60 * 60 * 1000) colorClass = "bg-amber-500"; // < 1h
+
+  return (
+    <Badge className={`${colorClass} text-[10px] h-4 px-1 text-white border-0`}>
+      {hours > 0 ? `${hours}h ` : ""}{minutes}m
+    </Badge>
+  );
+};
 
 export interface Conversation {
   id: string;
@@ -30,6 +63,10 @@ export interface Conversation {
   isAssigned?: boolean;
   assignedAgentId?: string;
   followupDate?: Date;
+  slaFirstResponseAt?: Date;
+  slaResolutionAt?: Date;
+  slaFirstResponseBreached?: boolean;
+  slaResolutionBreached?: boolean;
 }
 
 interface ConversationListProps {
@@ -121,6 +158,12 @@ export default function ConversationList({
                         {conversation.title || conversation.customer.name}
                       </h3>
                       <div className="flex items-center gap-1 flex-shrink-0">
+                        {(conversation.slaFirstResponseAt || conversation.slaResolutionAt) && (
+                          <SLATimer 
+                            deadline={conversation.slaFirstResponseAt || conversation.slaResolutionAt!} 
+                            breached={conversation.slaFirstResponseBreached || conversation.slaResolutionBreached || false} 
+                          />
+                        )}
                         {conversation.priority !== 'low' && (
                           <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${priorityColors[conversation.priority]}`} />
                         )}

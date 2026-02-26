@@ -6,6 +6,11 @@ import { registerPolicyRoutes } from './policy.routes';
 import { registerStationRoutes } from './station.routes';
 import { registerAgenticRoutes } from './agentic.routes';
 import { registerCommunicationRoutes } from './communication.routes';
+import { registerAdminAuditRoutes } from './admin-audit.routes';
+import { registerCsatRoutes } from './csat.routes';
+import { registerSearchRoutes } from './search.routes';
+import { registerSavedRepliesRoutes } from './saved-replies.routes';
+import { registerSlaRoutes } from './sla.routes';
 
 export { globalApiLimiter } from './shared';
 
@@ -17,6 +22,11 @@ const routeRegistrars: RouteRegistrar[] = [
   registerStationRoutes,
   registerAgenticRoutes,
   registerCommunicationRoutes,
+  registerAdminAuditRoutes,
+  registerCsatRoutes,
+  registerSearchRoutes,
+  registerSavedRepliesRoutes,
+  registerSlaRoutes,
 ];
 
 export function registerAllRoutes(context: RouteContext) {

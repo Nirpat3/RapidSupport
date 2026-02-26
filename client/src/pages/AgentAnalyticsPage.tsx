@@ -8,8 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CalendarIcon, TrendingUpIcon, Users2Icon, FileTextIcon, BarChart3Icon, ClockIcon, AlertTriangleIcon, CheckCircleIcon } from 'lucide-react';
+import { CalendarIcon, TrendingUpIcon, Users2Icon, FileTextIcon, BarChart3Icon, ClockIcon, AlertTriangleIcon, CheckCircleIcon, StarIcon } from 'lucide-react';
 import { format, subDays } from 'date-fns';
+import AgentAnalyticsCSAT from './AgentAnalyticsCSAT';
 
 interface AnalyticsData {
   overall: {
@@ -187,12 +188,13 @@ export default function AgentAnalyticsPage({ embedded = false }: AgentAnalyticsP
 
       <Tabs defaultValue="overview" className="space-y-6">
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-5">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:grid-cols-6">
             <TabsTrigger value="overview" className="flex-1 sm:flex-none" data-testid="tab-overview">Overview</TabsTrigger>
             <TabsTrigger value="agents" className="flex-1 sm:flex-none" data-testid="tab-agents">Agents</TabsTrigger>
             <TabsTrigger value="knowledge" className="flex-1 sm:flex-none" data-testid="tab-knowledge">Knowledge</TabsTrigger>
             <TabsTrigger value="workload" className="flex-1 sm:flex-none" data-testid="tab-workload">Workload</TabsTrigger>
             <TabsTrigger value="performance" className="flex-1 sm:flex-none" data-testid="tab-performance">Performance</TabsTrigger>
+            <TabsTrigger value="csat" className="flex-1 sm:flex-none" data-testid="tab-csat">CSAT</TabsTrigger>
           </TabsList>
         </div>
 
@@ -637,6 +639,10 @@ export default function AgentAnalyticsPage({ embedded = false }: AgentAnalyticsP
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="csat" className="space-y-6">
+          <AgentAnalyticsCSAT />
         </TabsContent>
       </Tabs>
     </div>

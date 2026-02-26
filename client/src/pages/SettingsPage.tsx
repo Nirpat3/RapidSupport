@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useRef } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,13 +8,27 @@ import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Shield, Palette, Globe, Bot, Loader2, CreditCard, TrendingUp, Zap, BookOpen, ArrowUp, ArrowDown, Mic, Plus, X } from "lucide-react";
+import { 
+  Bell, Shield, Palette, Globe, Bot, Loader2, CreditCard, 
+  TrendingUp, Zap, BookOpen, ArrowUp, ArrowDown, Mic, 
+  Plus, X, Lock, QrCode, Copy, CheckCircle2, AlertCircle,
+  KeyRound, RefreshCw, Trash2
+} from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 import { getCustomVocabulary, addCustomVocabularyTerm, removeCustomVocabularyTerm } from "@/lib/domainVocabulary";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
 
 interface EngagementSettings {
   id: string;
@@ -78,6 +92,93 @@ export default function SettingsPage({ embedded = false }: SettingsPageProps) {
   const { data: needsImprovement } = useQuery<ArticleMetric[]>({
     queryKey: ['/api/admin/ai-learning/needs-improvement'],
   });
+
+  // 2FA state
+  const [is2faSetupOpen, setIs2faSetupOpen] = useState(false);
+  const [is2faDisableOpen, setIs2faDisableOpen] = useState(false);
+  const [setupStep, setSetupStep] = useState(1);
+  const [setupData, setSetupData] = useState<{ secret: string; qrCodeDataUrl: string; backupCodes: string[] } | null>(null);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [disablePassword, setDisablePassword] = useState("");
+
+  const { data: twoFactorStatus, isLoading: twoFactorStatusLoading } = useQuery<{ enabled: boolean }>({
+    queryKey: ['/api/auth/2fa/status'],
+  });
+
+  const setup2faMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('/api/auth/2fa/setup', 'POST');
+      return res;
+    },
+    onSuccess: (data) => {
+      setSetupData(data);
+      setSetupStep(2);
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to start 2FA setup. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const enable2faMutation = useMutation({
+    mutationFn: async () => {
+      if (!setupData) return;
+      return apiRequest('/api/auth/2fa/enable', 'POST', {
+        secret: setupData.secret,
+        code: verificationCode,
+        backupCodes: setupData.backupCodes
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/2fa/status'] });
+      setIs2faSetupOpen(false);
+      setSetupStep(3); // Show backup codes final step
+      toast({
+        title: "2FA Enabled",
+        description: "Two-factor authentication has been successfully enabled.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Verification Failed",
+        description: error.message || "Invalid code. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const disable2faMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('/api/auth/2fa/disable', 'POST', { password: disablePassword });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/2fa/status'] });
+      setIs2faDisableOpen(false);
+      setDisablePassword("");
+      toast({
+        title: "2FA Disabled",
+        description: "Two-factor authentication has been disabled.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to disable 2FA. Check your password.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied",
+      description: "Secret key copied to clipboard.",
+    });
+  };
 
   const [aiLocalSettings, setAiLocalSettings] = useState({
     aiGlobalEnabled: true,
@@ -180,9 +281,10 @@ export default function SettingsPage({ embedded = false }: SettingsPageProps) {
         </div>
       )}
       
-      <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
+    <Tabs defaultValue="general" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 max-w-lg">
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="usage" className="flex items-center gap-2">
             <CreditCard className="w-4 h-4" />
             Usage & Billing
@@ -539,6 +641,250 @@ export default function SettingsPage({ embedded = false }: SettingsPageProps) {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="security" className="mt-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Lock className="w-5 h-5" />
+                  Two-Factor Authentication (2FA)
+                </CardTitle>
+                <CardDescription>
+                  Add an extra layer of security to your account
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {twoFactorStatusLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="font-medium">
+                        Status: {twoFactorStatus?.enabled ? (
+                          <span className="text-green-600 flex items-center gap-1">
+                            <CheckCircle2 className="w-4 h-4" /> Enabled
+                          </span>
+                        ) : (
+                          <span className="text-amber-600 flex items-center gap-1">
+                            <AlertCircle className="w-4 h-4" /> Disabled
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {twoFactorStatus?.enabled 
+                          ? "Your account is protected with two-factor authentication." 
+                          : "We recommend enabling 2FA for better security."}
+                      </p>
+                    </div>
+                    {twoFactorStatus?.enabled ? (
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setIs2faDisableOpen(true)}
+                      >
+                        Disable 2FA
+                      </Button>
+                    ) : (
+                      <Button 
+                        onClick={() => {
+                          setSetupStep(1);
+                          setIs2faSetupOpen(true);
+                        }}
+                      >
+                        Enable 2FA
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 2FA Setup Dialog */}
+            <Dialog open={is2faSetupOpen} onOpenChange={setIs2faSetupOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Set up Two-Factor Authentication</DialogTitle>
+                  <DialogDescription>
+                    Follow the steps to secure your account
+                  </DialogDescription>
+                </DialogHeader>
+
+                {setupStep === 1 && (
+                  <div className="space-y-4 py-4">
+                    <div className="flex flex-col items-center gap-4 text-center">
+                      <div className="bg-primary/10 p-4 rounded-full">
+                        <Shield className="w-12 h-12 text-primary" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-lg">Protect your account</h3>
+                        <p className="text-sm text-muted-foreground">
+                          2FA adds an extra layer of security. Every time you log in, 
+                          you'll need to provide a code from your authenticator app.
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      className="w-full" 
+                      onClick={() => setup2faMutation.mutate()}
+                      disabled={setup2faMutation.isPending}
+                    >
+                      {setup2faMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Start Setup
+                    </Button>
+                  </div>
+                )}
+
+                {setupStep === 2 && setupData && (
+                  <div className="space-y-6 py-4">
+                    <div className="space-y-4">
+                      <div className="flex flex-col items-center gap-4">
+                        <div className="p-4 bg-white rounded-lg border">
+                          <img 
+                            src={setupData.qrCodeDataUrl} 
+                            alt="QR Code" 
+                            className="w-48 h-48"
+                          />
+                        </div>
+                        <p className="text-sm text-center text-muted-foreground">
+                          Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-xs uppercase text-muted-foreground">Or enter key manually</Label>
+                        <div className="flex gap-2">
+                          <Input readOnly value={setupData.secret} className="font-mono text-sm" />
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            onClick={() => copyToClipboard(setupData.secret)}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-2">
+                        <Label htmlFor="verification-code">Verification Code</Label>
+                        <Input 
+                          id="verification-code"
+                          placeholder="000000"
+                          maxLength={6}
+                          value={verificationCode}
+                          onChange={(e) => setVerificationCode(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Enter the 6-digit code from your app to verify the setup
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      className="w-full" 
+                      onClick={() => enable2faMutation.mutate()}
+                      disabled={enable2faMutation.isPending || verificationCode.length !== 6}
+                    >
+                      {enable2faMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Verify and Enable
+                    </Button>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
+            {/* 2FA Disable Dialog */}
+            <Dialog open={is2faDisableOpen} onOpenChange={setIs2faDisableOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Disable Two-Factor Authentication</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to disable 2FA? This will make your account less secure.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="disable-password">Confirm Password</Label>
+                    <Input 
+                      id="disable-password"
+                      type="password"
+                      value={disablePassword}
+                      onChange={(e) => setDisablePassword(e.target.value)}
+                      placeholder="Enter your current password"
+                    />
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="outline" onClick={() => setIs2faDisableOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => disable2faMutation.mutate()}
+                    disabled={disable2faMutation.isPending || !disablePassword}
+                  >
+                    {disable2faMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Confirm Disable
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Backup Codes Dialog (shown after successful enable) */}
+            <Dialog 
+              open={setupStep === 3} 
+              onOpenChange={(open) => {
+                if (!open) {
+                  setSetupStep(1);
+                  setSetupData(null);
+                  setVerificationCode("");
+                }
+              }}
+            >
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    2FA Enabled Successfully
+                  </DialogTitle>
+                  <DialogDescription>
+                    Save these backup codes. You can use them to log in if you lose access to your authenticator app.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="bg-muted p-4 rounded-lg space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {setupData?.backupCodes.map((code) => (
+                      <div key={code} className="font-mono text-sm bg-background p-2 rounded border text-center">
+                        {code}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => copyToClipboard(setupData?.backupCodes.join('\n') || "")}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy All
+                  </Button>
+                  <Button 
+                    className="flex-1"
+                    onClick={() => setSetupStep(1)}
+                  >
+                    Done
+                  </Button>
+                </div>
+                <p className="text-xs text-center text-amber-600 font-medium">
+                  Important: These codes will only be shown once!
+                </p>
+              </DialogContent>
+            </Dialog>
           </div>
         </TabsContent>
 

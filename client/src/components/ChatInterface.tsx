@@ -17,8 +17,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Send, Paperclip, MoreVertical, Phone, Video, Ticket, MessageSquareText, UserCheck, X, Building2, Mail, Building, Sparkles, Check, AlertCircle, Clock, Calendar, BookOpen, Search, MoreHorizontal, GraduationCap, ChevronUp, ChevronDown, ArrowDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import ChatMessage, { type Message } from "./ChatMessage";
+import { TagEditor } from "./TagEditor";
 import InternalChatPanel from "./InternalChatPanel";
 import KnowledgeSearchDialog from "./KnowledgeSearchDialog";
+import SavedRepliesDialog from "./SavedRepliesDialog";
 import AiCorrectionDialog from "./AiCorrectionDialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -50,6 +52,7 @@ interface ChatInterfaceProps {
   conversationStatus?: string;
   onStatusChange?: (status: string) => void;
   typingUsers?: TypingUser[];
+  tags?: string[];
   onTypingStart?: () => void;
   onTypingStop?: () => void;
   prefilledContent?: string | null;
@@ -91,6 +94,7 @@ export default function ChatInterface({
   const [isCreateTicketOpen, setIsCreateTicketOpen] = useState(false);
   const [isInternalChatOpen, setIsInternalChatOpen] = useState(false);
   const [isKnowledgeSearchOpen, setIsKnowledgeSearchOpen] = useState(false);
+  const [isSavedRepliesOpen, setIsSavedRepliesOpen] = useState(false);
   const [isInternalMode, setIsInternalMode] = useState(false);
   const [aiAssistanceEnabled, setAiAssistanceEnabled] = useState(true);
   const [isTogglingAi, setIsTogglingAi] = useState(false);
@@ -695,6 +699,10 @@ export default function ChatInterface({
                     <BookOpen className="w-4 h-4 mr-2" />
                     Knowledge Base
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setIsSavedRepliesOpen(true)}>
+                    <MessageSquareText className="w-4 h-4 mr-2" />
+                    Quick Replies
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setIsCorrectionDialogOpen(true)} disabled={!messages.some(m => m.senderType === 'ai')}>
                     <GraduationCap className="w-4 h-4 mr-2" />
                     Teach AI
@@ -756,6 +764,11 @@ export default function ChatInterface({
                       </>
                     )}
                   </div>
+                  {conversationId && (
+                    <div className="mt-2">
+                      <TagEditor conversationId={conversationId} initialTags={tags} />
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -1553,6 +1566,19 @@ export default function ChatInterface({
             return prevMessage + separator + content;
           });
         }}
+      />
+
+      {/* Saved Replies Dialog */}
+      <SavedRepliesDialog
+        open={isSavedRepliesOpen}
+        onOpenChange={setIsSavedRepliesOpen}
+        onSelect={(content) => {
+          setNewMessage(prevMessage => {
+            const separator = prevMessage.trim() ? '\n\n' : '';
+            return prevMessage + separator + content;
+          });
+        }}
+        customerName={customer?.name}
       />
 
       {/* AI Correction Dialog */}

@@ -15,12 +15,25 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [requires2fa, setRequires2fa] = useState(false);
+  const [tempToken, setTempToken] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
       return await apiRequest('/api/auth/login', 'POST', credentials);
     },
     onSuccess: (data: any) => {
+      if (data.requiresTwoFactor) {
+        setRequires2fa(true);
+        setTempToken(data.tempToken);
+        toast({
+          title: "Two-factor authentication",
+          description: "Please enter the code from your authenticator app",
+        });
+        return;
+      }
+
       queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
       toast({
         title: "Login successful",
@@ -42,8 +55,41 @@ export default function LoginPage() {
     },
   });
 
+  const verify2faMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/auth/2fa/verify', 'POST', {
+        tempToken,
+        code: twoFactorCode
+      });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+      });
+      
+      if (data.redirectTo) {
+        window.location.href = data.redirectTo;
+      } else {
+        setLocation('/dashboard');
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Verification failed",
+        description: error.message || "Invalid 2FA code",
+      });
+    }
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (requires2fa) {
+      verify2faMutation.mutate();
+      return;
+    }
     if (!email || !password) {
       toast({
         variant: "destructive",
@@ -72,72 +118,109 @@ export default function LoginPage() {
           <CardHeader className="text-center">
             <CardTitle className="text-2xl flex items-center justify-center gap-2">
               <LogIn className="w-6 h-6" />
-              Staff Login
+              {requires2fa ? "Two-Factor Authentication" : "Staff Login"}
             </CardTitle>
             <CardDescription>
-              Sign in to access the Nova AI platform
+              {requires2fa 
+                ? "Enter the 6-digit code from your authenticator app" 
+                : "Sign in to access the Nova AI platform"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  disabled={loginMutation.isPending}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
+              {!requires2fa ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                      disabled={loginMutation.isPending}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="current-password"
+                        disabled={loginMutation.isPending}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <Eye className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="2fa-code">Authenticator Code</Label>
                   <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    disabled={loginMutation.isPending}
+                    id="2fa-code"
+                    type="text"
+                    placeholder="000000"
+                    maxLength={6}
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value)}
+                    autoFocus
+                    disabled={verify2faMutation.isPending}
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-muted-foreground" />
-                    )}
-                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Enter the 6-digit code from your app.
+                  </p>
                 </div>
-              </div>
+              )}
 
               <Button 
                 type="submit" 
                 className="w-full gap-2"
-                disabled={loginMutation.isPending}
+                disabled={loginMutation.isPending || verify2faMutation.isPending}
               >
-                {loginMutation.isPending ? (
+                {loginMutation.isPending || verify2faMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Signing in...
+                    {requires2fa ? "Verifying..." : "Signing in..."}
                   </>
                 ) : (
                   <>
                     <LogIn className="w-4 h-4" />
-                    Sign In
+                    {requires2fa ? "Verify & Sign In" : "Sign In"}
                   </>
                 )}
               </Button>
+
+              {requires2fa && (
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  className="w-full"
+                  onClick={() => {
+                    setRequires2fa(false);
+                    setTwoFactorCode("");
+                  }}
+                >
+                  Back to Login
+                </Button>
+              )}
             </form>
           </CardContent>
         </Card>

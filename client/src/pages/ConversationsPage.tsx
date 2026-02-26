@@ -39,12 +39,14 @@ import {
 } from "lucide-react";
 import KnowledgeSearchDialog from "@/components/KnowledgeSearchDialog";
 import { WorkflowSidebar } from "@/components/WorkflowSidebar";
+import { TagEditor } from "@/components/TagEditor";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
 import ChatInterface from "@/components/ChatInterface";
 import { type Message } from "@/components/ChatMessage";
+import { MergeConversationDialog } from "@/components/MergeConversationDialog";
 
 interface Conversation {
   id: string;
@@ -70,6 +72,7 @@ interface Conversation {
   lastAgentReplyAt?: string;
   autoFollowupCount?: number;
   aiAssistanceEnabled?: boolean;
+  tags?: string[];
 }
 
 const statusIcons = {
@@ -104,6 +107,7 @@ export default function ConversationsPage() {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'active' | 'history'>('active');
   const [selectedConversationIds, setSelectedConversationIds] = useState<Set<string>>(new Set());
   const [ws, setWs] = useState<WebSocket | null>(null);
@@ -409,6 +413,11 @@ export default function ConversationsPage() {
     setSelectedConversationIds(new Set());
   }, [viewMode]);
 
+  // Fetch all popular tags for filtering
+  const { data: allTags = [] } = useQuery<string[]>({
+    queryKey: ['/api/conversations/tags'],
+  });
+
   // Filter and search conversations
   const filteredConversations = conversations.filter(conv => {
     const matchesSearch = searchQuery === "" || 
@@ -418,12 +427,16 @@ export default function ConversationsPage() {
     
     const matchesStatus = statusFilter === "all" || conv.status === statusFilter;
     
+    // Filter by tags
+    const matchesTags = tagFilter.length === 0 || 
+      tagFilter.every(tag => (conv.tags || []).map((t: string) => t.toLowerCase()).includes(tag.toLowerCase()));
+    
     // Filter by view mode - Active shows only open/pending, History shows closed/resolved
     const matchesViewMode = viewMode === 'active' 
       ? (conv.status === 'open' || conv.status === 'pending')
       : (conv.status === 'closed' || conv.status === 'resolved');
     
-    return matchesSearch && matchesStatus && matchesViewMode;
+    return matchesSearch && matchesStatus && matchesTags && matchesViewMode;
   });
 
   // Sort by most recent message
@@ -777,6 +790,27 @@ export default function ConversationsPage() {
           )}
         </div>
 
+        {allTags.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-3 px-1 overflow-x-auto pb-2 scrollbar-hide no-scrollbar">
+            {allTags.map(tag => (
+              <Badge
+                key={tag}
+                variant={tagFilter.includes(tag) ? "default" : "secondary"}
+                className="cursor-pointer whitespace-nowrap text-[10px] px-2 py-0 h-5"
+                onClick={() => {
+                  if (tagFilter.includes(tag)) {
+                    setTagFilter(tagFilter.filter(t => t !== tag));
+                  } else {
+                    setTagFilter([...tagFilter, tag]);
+                  }
+                }}
+              >
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         {/* Conversation List - Native scrolling with no horizontal overflow */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden">
           {conversationsLoading ? (
@@ -941,6 +975,21 @@ export default function ConversationsPage() {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>Search Knowledge Base</TooltipContent>
+                </Tooltip>
+
+                {/* Merge Conversation Button */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <MergeConversationDialog 
+                      sourceConversationId={activeConversationId!} 
+                      onSuccess={(targetId) => {
+                        setActiveConversationId(targetId);
+                        setLocation(`/conversations/${targetId}`);
+                        queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+                      }}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>Merge with another conversation</TooltipContent>
                 </Tooltip>
 
                 {/* Workflow Guide Toggle */}

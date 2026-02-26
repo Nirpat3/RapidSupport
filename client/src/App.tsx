@@ -12,9 +12,10 @@ import { NotificationBell } from "@/components/NotificationBell";
 import LoginForm from "@/components/LoginForm";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import PlatformAssistantWidget from "@/components/PlatformAssistantWidget";
+import { CommandPalette } from "@/components/CommandPalette";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 import NotFound from "@/pages/not-found";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
 const PageLoader = () => (
@@ -36,6 +37,7 @@ const EmbedChatWidget = lazy(() => import("@/pages/EmbedChatWidget"));
 const SupportCenterWidget = lazy(() => import("@/pages/SupportCenterWidget"));
 const PublicArticlePage = lazy(() => import("@/pages/PublicArticlePage"));
 const KnowledgeCategoryPage = lazy(() => import("@/pages/KnowledgeCategoryPage"));
+const SurveyPage = lazy(() => import("@/pages/SurveyPage"));
 const CustomerPortalLogin = lazy(() => import("@/pages/CustomerPortalLogin"));
 const OrgCustomerLoginPage = lazy(() => import("@/pages/OrgCustomerLoginPage"));
 const WorkspaceSelectPage = lazy(() => import("@/pages/WorkspaceSelectPage"));
@@ -47,6 +49,7 @@ const PublicPolicyPage = lazy(() => import("@/pages/PublicPolicyPage"));
 const CustomerPortalRouter = lazy(() => import("@/components/CustomerPortalRouter").then(m => ({ default: m.CustomerPortalRouter })));
 
 const ConversationsPage = lazy(() => import("@/pages/ConversationsPage"));
+const SavedRepliesPage = lazy(() => import("@/pages/SavedRepliesPage"));
 const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
 const CustomersPage = lazy(() => import("@/pages/CustomersPage"));
 const CustomerProfilePage = lazy(() => import("@/pages/CustomerProfilePage"));
@@ -89,12 +92,14 @@ const EmailIntegrationPage = lazy(() => import("@/pages/EmailIntegrationPage"));
 const BillingUsagePage = lazy(() => import("@/pages/BillingUsagePage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const TeamManagementPage = lazy(() => import("@/pages/TeamManagementPage"));
+const SLAManagementPage = lazy(() => import("@/pages/SLAManagementPage"));
 const JoinPage = lazy(() => import("@/pages/JoinPage"));
 const MonitoringPage = lazy(() => import("@/pages/MonitoringPage"));
 const RateLimitingPage = lazy(() => import("@/pages/RateLimitingPage"));
 const WebhooksPage = lazy(() => import("@/pages/WebhooksPage"));
 const CustomDomainsPage = lazy(() => import("@/pages/CustomDomainsPage"));
 const DataExportPage = lazy(() => import("@/pages/DataExportPage"));
+const AuditLogPage = lazy(() => import("@/pages/AuditLogPage"));
 
 // Staff Communication
 const StaffCommLayout = lazy(() => import("@/pages/staff-communication/StaffCommLayout"));
@@ -148,6 +153,11 @@ function Router() {
             <ConversationsPage />
           </PermissionGuard>
         </Route>
+        <Route path="/saved-replies">
+          <PermissionGuard feature="settings">
+            <SavedRepliesPage />
+          </PermissionGuard>
+        </Route>
         <Route path="/activity">
           <PermissionGuard feature="activity">
             <ActivityPage />
@@ -196,6 +206,11 @@ function Router() {
         <Route path="/billing">
           <PermissionGuard feature="dashboard">
             <BillingUsagePage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/sla-management">
+          <PermissionGuard feature="settings">
+            <SLAManagementPage />
           </PermissionGuard>
         </Route>
         <Route path="/administration">
@@ -346,6 +361,11 @@ function Router() {
             <DataExportPage />
           </PermissionGuard>
         </Route>
+        <Route path="/audit-log">
+          <PermissionGuard feature="platform-admin">
+            <AuditLogPage />
+          </PermissionGuard>
+        </Route>
 
         {/* Staff Communication Section */}
         <Route path="/communication/announcements">
@@ -376,6 +396,7 @@ function Router() {
 
         <Route path="/policies/:type" component={PublicPolicyPage} />
         <Route path="/org/:slug/policies/:type" component={PublicPolicyPage} />
+        <Route path="/survey/:token" component={SurveyPage} />
         <Route path="/install-app" component={InstallAppPage} />
         <Route component={NotFound} />
       </Switch>
@@ -385,6 +406,28 @@ function Router() {
 
 function AuthenticatedApp() {
   const { user, logout } = useAuth();
+  const [, setLocation] = useLocation();
+  
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input or textarea
+      if (
+        document.activeElement?.tagName === "INPUT" ||
+        document.activeElement?.tagName === "TEXTAREA" ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        setLocation("/conversations");
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [setLocation]);
   
   const style = {
     "--sidebar-width": "16rem", 
@@ -440,6 +483,7 @@ function AuthenticatedApp() {
           </div>
         </div>
         <PlatformAssistantWidget />
+        <CommandPalette />
       </SidebarProvider>
     </NotificationProvider>
   );
@@ -464,6 +508,7 @@ function AppContent() {
   const isInstallAppPage = pathname === '/install-app';
   const isPublicArticlePage = pathname.startsWith('/kb/');
   const isOrgLoginPage = pathname.startsWith('/org/') && pathname.endsWith('/login');
+  const isSurveyPage = pathname.startsWith('/survey/');
   const isWorkspaceSelectPage = pathname === '/workspace-select';
   const isOrganizationSetupPage = pathname === '/setup-organization';
   const isPortalLoginPage = pathname === '/portal/login';
@@ -670,6 +715,19 @@ function AppContent() {
         <TooltipProvider>
           <Suspense fallback={<PageLoader />}>
             <PublicArticlePage />
+          </Suspense>
+          <Toaster />
+        </TooltipProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  if (isSurveyPage) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Suspense fallback={<PageLoader />}>
+            <SurveyPage />
           </Suspense>
           <Toaster />
         </TooltipProvider>

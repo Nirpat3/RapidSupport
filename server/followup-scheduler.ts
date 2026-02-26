@@ -29,6 +29,8 @@ export class FollowupScheduler {
       if (settings.autoCloseEnabled) {
         await this.autoCloseInactiveConversations(settings);
       }
+
+      await this.processSlaBreaches();
     } catch (error) {
       console.error('[FollowupScheduler] Error processing followups:', error);
     }
@@ -128,6 +130,55 @@ export class FollowupScheduler {
       }
     } catch (error) {
       console.error('[FollowupScheduler] Error in autoCloseInactiveConversations:', error);
+    }
+  }
+
+  private async processSlaBreaches(): Promise<void> {
+    try {
+      const breachedConversations = await storage.getBreachedSlaConversations();
+      const now = new Date();
+
+      for (const conversation of breachedConversations) {
+        const updates: any = {};
+        let reason = "";
+
+        if (conversation.slaFirstResponseAt && conversation.slaFirstResponseAt < now && !conversation.slaFirstResponseBreached) {
+          updates.slaFirstResponseBreached = true;
+          reason = "First Response SLA breached";
+        }
+
+        if (conversation.slaResolutionAt && conversation.slaResolutionAt < now && !conversation.slaResolutionBreached) {
+          updates.slaResolutionBreached = true;
+          reason = reason ? `${reason} and Resolution SLA breached` : "Resolution SLA breached";
+        }
+
+        if (Object.keys(updates).length > 0) {
+          await storage.updateConversation(conversation.id, {
+            ...updates,
+            updatedAt: now
+          });
+
+          // Notify agents/admins via System message (internal)
+          await storage.createMessage({
+            conversationId: conversation.id,
+            senderId: 'system',
+            senderType: 'system',
+            content: `[SLA BREACH] ${reason}`,
+            scope: 'internal',
+          });
+
+          if (this.wsServer) {
+            this.wsServer.broadcastToConversation(conversation.id, {
+              type: 'sla_breach',
+              conversationId: conversation.id,
+              reason
+            });
+          }
+          console.log(`[FollowupScheduler] SLA breached for conversation ${conversation.id}: ${reason}`);
+        }
+      }
+    } catch (error) {
+      console.error('[FollowupScheduler] Error in processSlaBreaches:', error);
     }
   }
 

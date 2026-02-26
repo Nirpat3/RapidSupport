@@ -9,6 +9,8 @@ import { db } from '../db';
 import { organizationMembers, organizations } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { zodErrorResponse } from '../middleware/errors';
+import { pending2FASessions } from './two-factor.routes';
+import { randomUUID } from 'crypto';
 
 export function registerAuthRoutes({ app }: RouteContext) {
   app.post('/api/auth/login', authLimiter, csrfProtection, (req, res, next) => {
@@ -18,6 +20,19 @@ export function registerAuthRoutes({ app }: RouteContext) {
       }
       if (!user) {
         return res.status(401).json({ error: info?.message || 'Invalid credentials' });
+      }
+
+      // Check for 2FA requirement
+      if (user.twoFactorEnabled) {
+        const tempToken = randomUUID();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        pending2FASessions.set(tempToken, { userId: user.id, expiresAt });
+        
+        return res.json({ 
+          requiresTwoFactor: true, 
+          tempToken,
+          message: 'Two-factor authentication required' 
+        });
       }
       
       req.session.regenerate(async (regenerateErr: any) => {

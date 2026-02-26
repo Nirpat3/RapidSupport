@@ -198,6 +198,11 @@ export const insertAuditLogSchema = createInsertSchema(auditLog).omit({ id: true
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLog = typeof auditLog.$inferSelect;
 
+// Conversation Merge Schema
+export const conversationMergeSchema = z.object({
+  targetConversationId: z.string().uuid('Invalid target conversation ID'),
+});
+
 // Brand Voice Configuration - Centralized AI tone and style settings (Singleton table)
 export const brandConfig = pgTable("brand_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -298,6 +303,10 @@ export const users = pgTable("users", {
   // Soft delete
   deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
   deletedBy: varchar("deleted_by"), // User ID who deleted this record
+  // Two-Factor Authentication (TOTP)
+  twoFactorSecret: text("two_factor_secret"), // Encrypted TOTP secret (null if 2FA not set up)
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  twoFactorBackupCodes: text("two_factor_backup_codes").array(), // Hashed backup codes
 });
 
 // Staff invite tokens for self-registration
@@ -548,6 +557,16 @@ export const conversations = pgTable("conversations", {
   autoFollowupSentAt: timestamp("auto_followup_sent_at"), // Last time auto-followup was sent
   autoFollowupCount: integer("auto_followup_count").notNull().default(0), // Number of auto-followups sent
   participatingAgentIds: text("participating_agent_ids").array().default([]), // Array of agent IDs who have responded to this conversation
+  // Tags for flexible categorization and filtering
+  tags: text("tags").array().default([]), // Freeform tags e.g. ['billing', 'urgent', 'bug']
+  // CSAT survey tracking
+  surveyStatus: text("survey_status").notNull().default("not_sent"), // 'not_sent' | 'sent' | 'completed'
+  surveyToken: text("survey_token"), // Unique token for secure survey link
+  // SLA tracking
+  slaFirstResponseAt: timestamp("sla_first_response_at"), // Deadline for first agent response
+  slaResolutionAt: timestamp("sla_resolution_at"), // Deadline for resolution
+  slaFirstResponseBreached: boolean("sla_first_response_breached").notNull().default(false),
+  slaResolutionBreached: boolean("sla_resolution_breached").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
@@ -1883,6 +1902,9 @@ export const insertConversationRatingSchema = createInsertSchema(conversationRat
   createdAt: true,
 });
 
+export type InsertConversationRating = z.infer<typeof insertConversationRatingSchema>;
+export type ConversationRating = typeof conversationRatings.$inferSelect;
+
 // Agent Performance Stats schemas
 export const insertAgentPerformanceStatsSchema = createInsertSchema(agentPerformanceStats).omit({
   id: true,
@@ -2345,8 +2367,6 @@ export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertAgentWorkload = z.infer<typeof insertAgentWorkloadSchema>;
 export type AgentWorkload = typeof agentWorkload.$inferSelect;
-export type InsertConversationRating = z.infer<typeof insertConversationRatingSchema>;
-export type ConversationRating = typeof conversationRatings.$inferSelect;
 export type InsertAgentPerformanceStats = z.infer<typeof insertAgentPerformanceStatsSchema>;
 export type AgentPerformanceStats = typeof agentPerformanceStats.$inferSelect;
 export type InsertActivityNotification = z.infer<typeof insertActivityNotificationSchema>;
@@ -5545,3 +5565,43 @@ export type AiSensitiveDataRule = typeof aiSensitiveDataRules.$inferSelect;
 export const insertAiDataAccessLogSchema = createInsertSchema(aiDataAccessLog).omit({ id: true, createdAt: true });
 export type InsertAiDataAccessLog = z.infer<typeof insertAiDataAccessLogSchema>;
 export type AiDataAccessLog = typeof aiDataAccessLog.$inferSelect;
+
+// ============================================================
+// SAVED REPLIES (Canned Responses for agents)
+// ============================================================
+export const savedReplies = pgTable("saved_replies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  category: varchar("category", { length: 100 }).notNull().default("General"),
+  createdById: varchar("created_by_id").notNull().references(() => users.id),
+  isShared: boolean("is_shared").notNull().default(true), // true = visible to all agents in org
+  usageCount: integer("usage_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSavedReplySchema = createInsertSchema(savedReplies).omit({ id: true, createdAt: true, updatedAt: true, usageCount: true });
+export type InsertSavedReply = z.infer<typeof insertSavedReplySchema>;
+export type SavedReply = typeof savedReplies.$inferSelect;
+
+// ============================================================
+// SLA POLICIES
+// ============================================================
+export const slaPolicies = pgTable("sla_policies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  priority: text("priority").notNull(), // 'low' | 'medium' | 'high' | 'urgent'
+  firstResponseMinutes: integer("first_response_minutes").notNull(), // e.g. 60 = 1 hour
+  resolutionMinutes: integer("resolution_minutes").notNull(), // e.g. 480 = 8 hours
+  businessHoursOnly: boolean("business_hours_only").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertSlaPolicySchema = createInsertSchema(slaPolicies).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSlaPolicy = z.infer<typeof insertSlaPolicySchema>;
+export type SlaPolicy = typeof slaPolicies.$inferSelect;
