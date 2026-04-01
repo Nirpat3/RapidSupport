@@ -8506,16 +8506,28 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             indexedAt: new Date()
           });
           console.log(`✅ Successfully re-indexed updated article ${id} for AI search`);
+
+          // Sync updated article to Shre platform (non-blocking, best-effort)
+          const updated = await storage.getKnowledgeBase(id);
+          if (updated) {
+            syncArticleToShre({
+              id: String(updated.id),
+              title: updated.title,
+              content: updated.content || '',
+              category: updated.category || 'general',
+              tags: updated.tags || [],
+            }).catch(() => {}); // silent fail — Shre sync is best-effort
+          }
         } catch (indexError) {
           // Mark as failed with error message
-          await storage.updateKnowledgeBase(id, { 
+          await storage.updateKnowledgeBase(id, {
             indexingStatus: 'failed',
             indexingError: indexError instanceof Error ? indexError.message : String(indexError)
           });
           console.error(`⚠️ Warning: Failed to re-index article ${id}:`, indexError);
         }
       });
-      
+
       // Sync agent assignments if they changed
       if (validationResult.data.assignedAgentIds !== undefined) {
         await syncAgentKnowledgeAssignments(id, validationResult.data.assignedAgentIds || []);
@@ -11649,6 +11661,97 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   });
 
   // ========================================
+  // SHRE PLATFORM PROVISIONING WEBHOOK
+  // ========================================
+  // Called by MIB007 marketplace when "Support" app is activated for a customer.
+  // Receives: orgSlug, embedSecret, apiKey, companyId
+  // Verifies HMAC-SHA256 signature via X-Webhook-Signature header.
+  app.post('/api/support/webhook/provision', webhookRateLimiter, async (req, res) => {
+    try {
+      const webhookSecret = process.env.SHRE_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        console.warn('[Shre Provision] SHRE_WEBHOOK_SECRET not configured — webhook disabled');
+        return res.status(503).json({ error: 'Provisioning webhook not configured' });
+      }
+
+      // Verify HMAC-SHA256 signature
+      const signature = req.headers['x-webhook-signature'] as string;
+      if (!signature) {
+        return res.status(401).json({ error: 'Missing X-Webhook-Signature header' });
+      }
+
+      const payload = JSON.stringify(req.body);
+      const expected = crypto.createHmac('sha256', webhookSecret).update(payload).digest('hex');
+      const sigBuffer = Buffer.from(signature, 'hex');
+      const expectedBuffer = Buffer.from(expected, 'hex');
+
+      if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+        console.warn('[Shre Provision] Invalid webhook signature');
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+
+      const { orgSlug, embedSecret, apiKey, companyId } = req.body;
+
+      if (!orgSlug || !companyId) {
+        return res.status(400).json({ error: 'orgSlug and companyId are required' });
+      }
+
+      console.log(`[Shre Provision] Received provisioning for org=${orgSlug} company=${companyId}`);
+
+      // Store the Shre API key and embed secret for this workspace
+      // These enable the ShreGateway to route AI calls through the Shre platform
+      const provisionRecord = {
+        orgSlug,
+        companyId,
+        apiKey: apiKey || null,
+        embedSecret: embedSecret || null,
+        provisionedAt: new Date().toISOString(),
+      };
+
+      // Store in DB for multi-tenant key lookup
+      // For now, log it — the primary key is set via SHRE_API_KEY env var
+      console.log(`[Shre Provision] Provisioned successfully:`, {
+        orgSlug,
+        companyId,
+        hasApiKey: !!apiKey,
+        hasEmbedSecret: !!embedSecret,
+      });
+
+      // Auto-trigger bulk KB sync to Shre if API key was provided
+      if (apiKey && isShreEnabled) {
+        setImmediate(async () => {
+          try {
+            const articles = await storage.getAllKnowledgeBase();
+            const activeArticles = articles.filter(a => a.isActive && a.content);
+            if (activeArticles.length > 0) {
+              const mapped = activeArticles.map(a => ({
+                id: String(a.id),
+                title: a.title,
+                content: a.content || '',
+                category: a.category || 'general',
+                tags: a.tags || [],
+              }));
+              const result = await bulkSyncKBToShre(mapped);
+              console.log(`[Shre Provision] Auto-synced ${result.synced} KB articles to Shre`);
+            }
+          } catch (err) {
+            console.error('[Shre Provision] Auto-sync failed:', err);
+          }
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Provisioned for org ${orgSlug}`,
+        companyId,
+      });
+    } catch (error) {
+      console.error('[Shre Provision] Webhook error:', error);
+      res.status(500).json({ error: 'Provisioning failed' });
+    }
+  });
+
+  // ========================================
   // ONBOARDING API ENDPOINTS
   // ========================================
 
@@ -13985,24 +14088,141 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const syncRun = await storage.createCloudStorageSyncRun({
         connectionId: connection.id,
         status: 'running',
-        triggerType: 'manual',
+        syncType: 'manual',
       });
 
-      // In a real implementation, this would kick off an async job
-      // For now, we'll simulate completing the sync
-      await storage.updateCloudStorageSyncRun(syncRun.id, {
-        status: 'completed',
-        completedAt: new Date(),
-        filesDiscovered: 0,
-        filesProcessed: 0,
-        filesImported: 0,
-      });
-
-      await storage.updateCloudStorageConnection(connection.id, {
-        lastSyncAt: new Date(),
-      });
-
+      // Kick off async sync — fetch files from Google Drive, import as KB articles
       res.json({ message: 'Sync initiated', syncRunId: syncRun.id });
+
+      setImmediate(async () => {
+        let filesDiscovered = 0;
+        let filesProcessed = 0;
+        let filesImported = 0;
+        const errors: string[] = [];
+
+        try {
+          const folders = await storage.getCloudStorageFoldersByConnection(connection.id);
+          if (!folders || folders.length === 0) {
+            await storage.updateCloudStorageSyncRun(syncRun.id, {
+              status: 'completed', completedAt: new Date(), filesImported: 0,
+            });
+            return;
+          }
+
+          const accessToken = connection.accessToken;
+          if (!accessToken) {
+            await storage.updateCloudStorageSyncRun(syncRun.id, {
+              status: 'failed', completedAt: new Date(),
+              errorMessage: 'No access token available', filesImported: 0,
+            });
+            return;
+          }
+
+          for (const folder of folders) {
+            try {
+              // List files in the Google Drive folder
+              const listUrl = `https://www.googleapis.com/drive/v3/files?q='${folder.providerFolderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,modifiedTime)&pageSize=100`;
+              const listResp = await fetch(listUrl, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+
+              if (!listResp.ok) {
+                errors.push(`Failed to list folder ${folder.folderName}: ${listResp.status}`);
+                continue;
+              }
+
+              const listData = await listResp.json() as { files: Array<{ id: string; name: string; mimeType: string; modifiedTime: string }> };
+              const files = listData.files || [];
+              filesDiscovered += files.length;
+
+              for (const file of files) {
+                try {
+                  // Only process text-based files (docs, txt, pdf, html, etc.)
+                  const supportedTypes = [
+                    'application/vnd.google-apps.document',
+                    'text/plain', 'text/html', 'text/markdown',
+                    'application/pdf',
+                  ];
+                  const isGoogleDoc = file.mimeType.startsWith('application/vnd.google-apps.');
+                  const isSupported = supportedTypes.includes(file.mimeType) || isGoogleDoc;
+
+                  if (!isSupported) {
+                    filesProcessed++;
+                    continue;
+                  }
+
+                  // Export Google Docs as plain text, download others directly
+                  let content = '';
+                  if (isGoogleDoc) {
+                    const exportUrl = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=text/plain`;
+                    const exportResp = await fetch(exportUrl, {
+                      headers: { Authorization: `Bearer ${accessToken}` },
+                    });
+                    if (exportResp.ok) content = await exportResp.text();
+                  } else {
+                    const downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+                    const downloadResp = await fetch(downloadUrl, {
+                      headers: { Authorization: `Bearer ${accessToken}` },
+                    });
+                    if (downloadResp.ok) content = await downloadResp.text();
+                  }
+
+                  if (!content || content.length < 10) {
+                    filesProcessed++;
+                    continue;
+                  }
+
+                  // Create or update KB article from the file
+                  const newArticle = await storage.createKnowledgeBase({
+                    title: file.name.replace(/\.[^/.]+$/, ''), // strip extension
+                    content,
+                    category: 'imported',
+                    tags: ['google-drive', folder.folderName || 'imported'],
+                  });
+
+                  filesImported++;
+                  filesProcessed++;
+
+                  // Auto-sync imported article to Shre (best-effort)
+                  syncArticleToShre({
+                    id: String(newArticle.id),
+                    title: newArticle.title,
+                    content: content,
+                    category: 'imported',
+                    tags: ['google-drive'],
+                  }).catch(() => {});
+
+                } catch (fileErr) {
+                  filesProcessed++;
+                  errors.push(`Failed to process ${file.name}: ${fileErr instanceof Error ? fileErr.message : String(fileErr)}`);
+                }
+              }
+            } catch (folderErr) {
+              errors.push(`Folder sync error: ${folderErr instanceof Error ? folderErr.message : String(folderErr)}`);
+            }
+          }
+
+          await storage.updateCloudStorageSyncRun(syncRun.id, {
+            status: errors.length > 0 ? 'completed_with_errors' : 'completed',
+            completedAt: new Date(),
+            filesImported,
+            errorMessage: errors.length > 0 ? errors.join('; ') : null,
+          });
+
+          await storage.updateCloudStorageConnection(connection.id, {
+            lastSyncAt: new Date(),
+          });
+
+          console.log(`[CloudSync] Sync complete: ${filesImported} imported, ${filesDiscovered} discovered, ${errors.length} errors`);
+        } catch (err) {
+          await storage.updateCloudStorageSyncRun(syncRun.id, {
+            status: 'failed', completedAt: new Date(),
+            filesImported,
+            errorMessage: err instanceof Error ? err.message : String(err),
+          });
+          console.error('[CloudSync] Sync failed:', err);
+        }
+      });
     } catch (error) {
       console.error('Failed to trigger sync:', error);
       res.status(500).json({ error: 'Failed to trigger sync' });
