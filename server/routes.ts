@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { randomUUID } from "crypto";
 import crypto from "crypto";
 import rateLimit from 'express-rate-limit';
-import { chatCompletion, syncArticleToShre, bulkSyncKBToShre, isShreEnabled } from './shre-gateway';
+import { chatCompletion, syncArticleToShre, bulkSyncKBToShre, deleteArticleFromShre, isShreEnabled } from './shre-gateway';
 import { DocumentProcessor } from './document-processor';
 import { AIDocumentAnalyzer } from './ai-document-analyzer';
 import { z } from 'zod';
@@ -8598,7 +8598,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       // Finally, delete the article itself
       await storage.deleteKnowledgeBase(id);
-      
+
+      // Remove from Shre's Qdrant vector store (best-effort)
+      deleteArticleFromShre(id).catch(err =>
+        console.warn(`[ShreGateway] KB delete sync failed: ${err instanceof Error ? err.message : err}`)
+      );
+
       const deletedImageCount = associatedImages.length;
       const message = deletedImageCount > 0 
         ? `Knowledge base article and ${deletedImageCount} associated image(s) deleted successfully`
