@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import { chatCompletion, chatCompletionStream, isShreEnabled, openai, syncArticleToShre } from './shre-gateway';
 import { Message, Conversation, AiTicketGeneration, AiAgent, KnowledgeBase, AiAgentSession, AiAgentLearning, BrandConfig, KnowledgeBaseImage, InsertAiTokenUsage, InsertAiKnowledgeFeedback } from '@shared/schema';
 import { storage } from './storage';
 import { knowledgeRetrieval, type SearchResult, type RetrievalOptions, type EnhancedSearchResponse, type RagTraceContext } from './knowledge-retrieval';
@@ -166,10 +166,7 @@ async function trackKnowledgeFeedback(
   }
 }
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// OpenAI client imported from shre-gateway (used for tool-calling + TTS fallback)
 
 export interface ProofreadResult {
   originalText: string;
@@ -372,8 +369,7 @@ Provide a JSON response with:
 - confidence: Number from 0-100 indicating classification confidence
 - reasoning: Brief explanation (1-2 sentences) of why you chose this category`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -381,11 +377,11 @@ Provide a JSON response with:
         max_completion_tokens: 200,
       });
 
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
-      
+
       const result = JSON.parse(responseContent);
-      
+
       return {
         intent: result.intent || 'general',
         confidence: result.confidence || 50,
@@ -564,8 +560,7 @@ Respond with JSON format:
   "confidence": 0-100 confidence score
 }`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Translate to ${targetLangName}:\n\n${text}` }
@@ -573,7 +568,7 @@ Respond with JSON format:
         max_completion_tokens: 2000,
       });
 
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
       
       const result = JSON.parse(responseContent);
@@ -607,8 +602,7 @@ Respond with JSON format:
   "confidence": 0-100 confidence score
 }`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Detect language:\n\n${text}` }
@@ -616,7 +610,7 @@ Respond with JSON format:
         max_completion_tokens: 100,
       });
 
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
       
       const result = JSON.parse(responseContent);
@@ -659,8 +653,7 @@ Provide a JSON response with all four scores:
   "completenessScore": 0-100
 }`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -668,7 +661,7 @@ Provide a JSON response with all four scores:
         max_completion_tokens: 300,
       });
 
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
       
       const result = JSON.parse(responseContent);
@@ -815,8 +808,7 @@ Respond with a JSON object containing:
 
 If no improvements are needed, return hasChanges: false and suggestedText should be the same as originalText.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -825,7 +817,7 @@ If no improvements are needed, return hasChanges: false and suggestedText should
       });
 
       // Parse AI response, handling markdown code blocks if present
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       
       // Remove markdown code blocks if present (```json ... ```)
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
@@ -902,8 +894,7 @@ Provide a JSON response with:
 
 Keep all suggestions professional, helpful, and appropriate for customer support.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -911,7 +902,7 @@ Keep all suggestions professional, helpful, and appropriate for customer support
         max_completion_tokens: 2000,
       });
 
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
       
       const result = JSON.parse(responseContent);
@@ -964,8 +955,7 @@ Provide a JSON response with:
 - keyIssues: Array of main issues identified
 - suggestedActions: Array of recommended next steps`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -974,7 +964,7 @@ Provide a JSON response with:
       });
 
       // Parse AI response, handling markdown code blocks if present
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       
       // Remove markdown code blocks if present (```json ... ```)
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
@@ -1039,8 +1029,7 @@ Focus on:
 - Signs of frustration, confusion, or appreciation
 - Overall quality of the support experience from customer's perspective`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -1049,7 +1038,7 @@ Focus on:
       });
 
       // Parse AI response, handling markdown code blocks if present
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       
       // Remove markdown code blocks if present (```json ... ```)
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
@@ -1158,8 +1147,7 @@ Generate questions that:
 Provide ONLY an array of 4 question strings in JSON format:
 ["Question 1", "Question 2", "Question 3", "Question 4"]`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -1167,7 +1155,7 @@ Provide ONLY an array of 4 question strings in JSON format:
         max_completion_tokens: 300,
       });
 
-      let responseContent = completion.choices[0].message.content || '[]';
+      let responseContent = completion.content || '[]';
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
       
       const questions = JSON.parse(responseContent);
@@ -1262,8 +1250,7 @@ FORMATTING GUIDELINES:
 
 IMPORTANT: If no relevant knowledge base information is available, set requiresHumanTakeover to true and explain that you need to connect them with a human agent who can help with their specific question.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -1272,7 +1259,7 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
       });
 
       // Parse AI response, handling markdown code blocks if present
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       
       // Remove markdown code blocks if present (```json ... ```)
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
@@ -2573,8 +2560,7 @@ The more details you can share, the better I can help you resolve this quickly!"
       }
 
       const startTime = Date.now();
-      const completion = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -2588,7 +2574,7 @@ The more details you can share, the better I can help you resolve this quickly!"
       // Track token usage
       await trackTokenUsage(
         completion.usage,
-        "gpt-4o-mini",
+        completion.model || 'shre-auto',
         "chat_response",
         {
           conversationId: contextData?.conversationId,
@@ -2598,7 +2584,7 @@ The more details you can share, the better I can help you resolve this quickly!"
       );
 
       // Parse AI response with robust fallback handling
-      let responseContent = completion.choices[0].message.content || '{}';
+      let responseContent = completion.content || '{}';
       
       // Remove markdown code blocks if present (```json ... ```)
       responseContent = responseContent.replace(/```json\s*|\s*```/g, '').trim();
@@ -3954,16 +3940,13 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
         console.log(`[Brand Voice] Injected brand voice configuration for ${brandConfig.companyName}`);
       }
 
-      // Call OpenAI with streaming enabled
-      const stream = await openai.chat.completions.create({
-        model: "gpt-5", // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+      // Stream AI response via Shre gateway (or OpenAI fallback)
+      const stream = chatCompletionStream({
         messages: [
           { role: "system", content: enhancedSystemPrompt },
           { role: "user", content: userPrompt }
         ],
-        // Note: gpt-5 doesn't support temperature parameter
         max_completion_tokens: agent.maxTokens || 1000,
-        stream: true, // Enable streaming
       });
 
       // Stream greeting first if configured (for first response without diagnostic flow)
@@ -3979,12 +3962,11 @@ ${searchResults.length > 0 && !shouldAbstain ? 'IMPORTANT: Use the provided know
 
       // Stream tokens as they arrive
       for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || '';
-        if (content) {
-          fullResponse += content;
+        if (chunk.type === 'token' && chunk.data) {
+          fullResponse += chunk.data;
           yield {
             type: 'token',
-            data: content
+            data: chunk.data as string
           };
         }
       }
@@ -4256,8 +4238,7 @@ If the knowledge base doesn't help, acknowledge this and offer to connect them w
     ];
 
     const startTime = Date.now();
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-5', // the newest OpenAI model is "gpt-5" which was released August 7, 2025
+    const completion = await chatCompletion({
       messages,
       max_completion_tokens: 300
     });
@@ -4266,12 +4247,12 @@ If the knowledge base doesn't help, acknowledge this and offer to connect them w
     // Track token usage
     await trackTokenUsage(
       completion.usage,
-      'gpt-5',
+      completion.model || 'shre-auto',
       'voice_response',
       { latencyMs }
     );
 
-    const response = completion.choices[0].message.content || 
+    const response = completion.content ||
       "I'm sorry, I didn't catch that. Could you repeat?";
 
     // Extract knowledge links

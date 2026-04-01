@@ -1,8 +1,4 @@
-import OpenAI from 'openai';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { chatCompletion } from './shre-gateway';
 
 export interface DocumentAnalysisResult {
   suggestedTitle?: string;
@@ -56,8 +52,7 @@ Respond in JSON format:
   "summary": "string"
 }`;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+      const completion = await chatCompletion({
         messages: [
           {
             role: 'system',
@@ -86,7 +81,7 @@ Always respond with valid JSON only, no additional text.`
         response_format: { type: 'json_object' }
       });
 
-      const responseContent = completion.choices[0]?.message?.content;
+      const responseContent = completion.content;
       if (!responseContent) {
         throw new Error('No response from AI');
       }

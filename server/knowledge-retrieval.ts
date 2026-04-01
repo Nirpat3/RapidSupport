@@ -1,12 +1,8 @@
-import OpenAI from 'openai';
+import { chatCompletion, openai } from './shre-gateway';
 import { KnowledgeBase, InsertRagQueryTrace } from '@shared/schema';
 import { storage } from './storage';
 import { db } from './db';
 import { ragQueryTraces } from '@shared/schema';
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 // Knowledge chunk with embeddings
 export interface KnowledgeChunk {
@@ -1453,13 +1449,12 @@ export class KnowledgeRetrievalService {
     keywords: string[];
   }> {
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-5',
+      const response = await chatCompletion({
         messages: [
           {
             role: 'system',
             content: `You are a query expansion assistant. Given a user query, generate 2-3 alternative phrasings and extract key search terms.
-            
+
 Respond in JSON format:
 {
   "alternatives": ["alternative query 1", "alternative query 2"],
@@ -1478,7 +1473,7 @@ Keep alternatives concise and semantically similar to the original.`,
         response_format: { type: 'json_object' },
       });
 
-      const content = response.choices[0]?.message?.content;
+      const content = response.content;
       if (content) {
         const parsed = JSON.parse(content);
         return {
@@ -2013,13 +2008,12 @@ Keep alternatives concise and semantically similar to the original.`,
    */
   private async reformulateQuery(query: string, uncertaintyReason?: string): Promise<string> {
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-5',
+      const response = await chatCompletion({
         messages: [
           {
             role: 'system',
             content: `You are a query reformulation assistant. Given a search query that didn't find good results, generate a better version.
-            
+
 Rules:
 - Keep the core intent
 - Try different phrasing or synonyms
@@ -2035,7 +2029,7 @@ Rules:
         max_tokens: 100,
       });
 
-      return response.choices[0]?.message?.content?.trim() || query;
+      return response.content?.trim() || query;
     } catch (error) {
       console.error('[Reformulate] Error:', error);
       return query;
@@ -2115,8 +2109,7 @@ Rules:
     if (!isComplex) return [];
     
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-5',
+      const response = await chatCompletion({
         messages: [
           {
             role: 'system',
@@ -2131,7 +2124,7 @@ Return only the JSON array.`,
         response_format: { type: 'json_object' },
       });
 
-      const content = response.choices[0]?.message?.content;
+      const content = response.content;
       if (content) {
         const parsed = JSON.parse(content);
         return parsed.queries || parsed.subQueries || [];

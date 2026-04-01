@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { randomUUID } from "crypto";
 import crypto from "crypto";
 import rateLimit from 'express-rate-limit';
-import OpenAI from 'openai';
+import { chatCompletion, syncArticleToShre, bulkSyncKBToShre, isShreEnabled } from './shre-gateway';
 import { DocumentProcessor } from './document-processor';
 import { AIDocumentAnalyzer } from './ai-document-analyzer';
 import { z } from 'zod';
@@ -416,6 +416,15 @@ async function processFileForAITraining(
           indexedAt: new Date()
         });
         console.log(`✅ Successfully indexed article ${knowledgeArticle.id} for AI search`);
+
+        // Sync to Shre platform (non-blocking, no-op if not configured)
+        syncArticleToShre({
+          id: String(knowledgeArticle.id),
+          title: knowledgeArticle.title,
+          content: knowledgeArticle.content || '',
+          category: knowledgeArticle.category || 'general',
+          tags: knowledgeArticle.tags || [],
+        }).catch(() => {}); // silent fail — Shre sync is best-effort
       } catch (indexError) {
         // Mark as failed with error message
         await storage.updateKnowledgeBase(knowledgeArticle.id, { 
@@ -518,9 +527,7 @@ async function processDocumentImport(
     console.log(`[DocImport] Extracted ${documentContent.metadata?.wordCount || 0} words from ${uploadedFile.originalName}`);
 
     // Phase 1: AI analyzes content and identifies atomic document boundaries
-    const openai = new OpenAI();
-    const analysisResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const analysisResponse = await chatCompletion({
       messages: [
         {
           role: 'system',
@@ -565,7 +572,7 @@ Guidelines:
 
     // Parse section analysis
     let sections: Array<{ title: string; domain: string; intent: string; startText?: string; endText?: string }> = [];
-    const analysisContent = analysisResponse.choices[0]?.message?.content || '';
+    const analysisContent = analysisResponse.content || '';
     const jsonMatch = analysisContent.match(/```json\s*([\s\S]*?)\s*```/);
     
     if (jsonMatch) {
@@ -660,8 +667,7 @@ Guidelines:
       // Limit section content to reasonable size
       sectionContent = sectionContent.substring(0, 6000);
       
-      const docResponse = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+      const docResponse = await chatCompletion({
         messages: [
           {
             role: 'system',
@@ -697,7 +703,7 @@ Guidelines:
         max_tokens: 2000,
       });
 
-      const docContent = docResponse.choices[0]?.message?.content || '';
+      const docContent = docResponse.content || '';
       const parsed = parseAtomicDocument(docContent);
       
       if (parsed) {
@@ -8645,6 +8651,42 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to start bulk reindexing:', error);
       res.status(500).json({ error: 'Failed to start bulk reindexing' });
+    }
+  });
+
+  // Sync all KB articles to Shre AI platform (Qdrant vector store)
+  app.post('/api/knowledge-base/sync-shre', requireAuth, requireRole(['admin']), async (req, res) => {
+    if (!isShreEnabled) {
+      return res.status(400).json({ error: 'Shre AI not configured. Set SHRE_API_KEY environment variable.' });
+    }
+
+    try {
+      const articles = await storage.getAllKnowledgeBase();
+      const activeArticles = articles.filter(a => a.isActive && a.content);
+
+      console.log(`[Shre Sync] Starting bulk sync of ${activeArticles.length} articles to Shre AI...`);
+
+      const mapped = activeArticles.map(a => ({
+        id: String(a.id),
+        title: a.title,
+        content: a.content || '',
+        category: a.category || 'general',
+        tags: a.tags || [],
+      }));
+
+      const result = await bulkSyncKBToShre(mapped);
+
+      console.log(`[Shre Sync] Complete: ${result.synced} synced, ${result.errors} errors`);
+      res.json({
+        success: true,
+        message: `Synced ${result.synced} articles to Shre AI platform`,
+        synced: result.synced,
+        errors: result.errors,
+        total: activeArticles.length,
+      });
+    } catch (error) {
+      console.error('[Shre Sync] Failed:', error);
+      res.status(500).json({ error: 'Failed to sync KB to Shre AI' });
     }
   });
 

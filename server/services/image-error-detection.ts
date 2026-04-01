@@ -1,7 +1,5 @@
 import { storage } from '../storage';
-import OpenAI from 'openai';
-
-const openai = new OpenAI();
+import { chatCompletion } from '../shre-gateway';
 
 export interface ImageAnalysisResult {
   extractedText: string;
@@ -121,8 +119,7 @@ export class ImageErrorDetectionService {
     isErrorScreen: boolean;
   }> {
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
+      const response = await chatCompletion({
         messages: [
           {
             role: 'system',
@@ -163,7 +160,7 @@ Return a JSON object:
         temperature: 0.1,
       });
 
-      const result = JSON.parse(response.choices[0]?.message?.content || '{}');
+      const result = JSON.parse(response.content || '{}');
       return {
         extractedText: result.extractedText || '',
         errorType: result.errorType || null,
@@ -190,8 +187,7 @@ Return a JSON object:
           learnings.slice(0, 5).map(l => `- [${l.learningType}] ${l.content}`).join('\n');
       }
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+      const response = await chatCompletion({
         messages: [
           {
             role: 'system',
@@ -217,7 +213,7 @@ Be practical and specific. Reference the exact error if you recognize it.`
         temperature: 0.3,
       });
 
-      const result = JSON.parse(response.choices[0]?.message?.content || '{}');
+      const result = JSON.parse(response.content || '{}');
       return {
         solution: result.solution || 'Unable to determine a specific solution',
         steps: result.steps || [],

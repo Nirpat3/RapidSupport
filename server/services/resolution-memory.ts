@@ -1,7 +1,5 @@
 import { storage } from '../storage';
-import OpenAI from 'openai';
-
-const openai = new OpenAI();
+import { chatCompletion } from '../shre-gateway';
 
 export interface ResolutionContext {
   learnings: {
@@ -237,12 +235,11 @@ export class ResolutionMemoryService {
     try {
       const conversationText = messages.map(m => `${m.role}: ${m.content}`).join('\n');
 
-      const analysis = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+      const analysis = await chatCompletion({
         messages: [
           {
             role: 'system',
-            content: `You are analyzing a customer support conversation to extract learnings. 
+            content: `You are analyzing a customer support conversation to extract learnings.
 Extract what worked, what didn't work, what to avoid, and any tips for handling similar issues in the future.
 Return a JSON object with these fields:
 {
@@ -265,7 +262,7 @@ Keep each item concise (under 100 chars). Only include items with actual learnin
         max_tokens: 500,
       });
 
-      const result = JSON.parse(analysis.choices[0]?.message?.content || '{}');
+      const result = JSON.parse(analysis.content || '{}');
       const signature = result.issueSignature || this.generateIssueSignature(issueCategory, conversationText.substring(0, 200));
 
       const learningTypes: Array<{ type: string; items: string[] }> = [
