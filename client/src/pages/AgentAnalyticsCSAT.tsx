@@ -38,11 +38,18 @@ export default function AgentAnalyticsCSAT() {
     );
   }
 
+  const ratingDist = stats?.ratingDistribution;
   const chartData = [1, 2, 3, 4, 5].map(rating => {
-    const found = stats?.ratingDistribution?.find((d: any) => Number(d.rating) === rating);
+    let count = 0;
+    if (Array.isArray(ratingDist)) {
+      const found = ratingDist.find((d: any) => Number(d.rating) === rating);
+      count = found ? Number(found.count) : 0;
+    } else if (ratingDist && typeof ratingDist === 'object') {
+      count = Number(ratingDist[rating] || 0);
+    }
     return {
       rating: `${rating} Star`,
-      count: found ? Number(found.count) : 0,
+      count,
       color: RATING_COLORS[rating as keyof typeof RATING_COLORS]
     };
   });
@@ -135,8 +142,8 @@ export default function AgentAnalyticsCSAT() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
-              {responses?.length > 0 ? (
-                responses.map((response: any) => (
+              {(responses?.responses ?? responses)?.length > 0 ? (
+                (responses?.responses ?? responses).map((response: any) => (
                   <div key={response.id} className="border-b pb-4 last:border-0 last:pb-0">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-1">

@@ -60,6 +60,7 @@ const HumanOversightPage = lazy(() => import("@/pages/HumanOversightPage"));
 const KnowledgeManagementPage = lazy(() => import("@/pages/KnowledgeManagementPage"));
 const FileManagementPage = lazy(() => import("@/pages/FileManagementPage"));
 const AgentAnalyticsPage = lazy(() => import("@/pages/AgentAnalyticsPage"));
+const AgentAnalyticsCSAT = lazy(() => import("@/pages/AgentAnalyticsCSAT"));
 const FeedPage = lazy(() => import("@/pages/FeedPage"));
 const ActivityPage = lazy(() => import("@/pages/ActivityPage"));
 const FeedbackEvaluationPage = lazy(() => import("@/pages/FeedbackEvaluationPage"));
@@ -262,6 +263,11 @@ function Router() {
         <Route path="/analytics">
           <PermissionGuard feature="analytics">
             <AgentAnalyticsPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/analytics/csat">
+          <PermissionGuard feature="analytics">
+            <AgentAnalyticsCSAT />
           </PermissionGuard>
         </Route>
         <Route path="/feedback">

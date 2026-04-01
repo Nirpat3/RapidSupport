@@ -66,7 +66,9 @@ import {
   insertResolutionRecordSchema,
   customers,
   conversations,
-  channelContacts
+  channelContacts,
+  knowledgeCollections,
+  knowledgeCollectionArticles
 } from '@shared/schema';
 import { WebScraper } from './web-scraper';
 
@@ -8645,6 +8647,73 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to start bulk reindexing:', error);
       res.status(500).json({ error: 'Failed to start bulk reindexing' });
+    }
+  });
+
+  // Sync all existing articles into the org's shared knowledge collection
+  app.post('/api/knowledge-base/sync-shared', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const orgId = resolveOrgId(req);
+      if (!orgId) return res.status(400).json({ error: 'Organization context required' });
+
+      // Get all active articles for this org
+      const allArticles = await storage.getAllKnowledgeBase();
+      const orgArticles = allArticles.filter(a => a.organizationId === orgId && a.isActive);
+
+      // Find or create the org-level shared collection
+      const existing = await db
+        .select()
+        .from(knowledgeCollections)
+        .where(and(
+          eq(knowledgeCollections.ownerOrganizationId, orgId),
+          eq(knowledgeCollections.visibility, 'shared')
+        ))
+        .limit(1);
+
+      let collectionId: string;
+      if (existing.length > 0) {
+        collectionId = existing[0].id;
+      } else {
+        const slug = `org-shared-${orgId.slice(0, 8)}`;
+        const [created] = await db
+          .insert(knowledgeCollections)
+          .values({
+            name: 'Shared Knowledge Base',
+            description: 'All articles shared across workspaces',
+            slug,
+            ownerOrganizationId: orgId,
+            visibility: 'shared',
+            isActive: true,
+          })
+          .returning();
+        collectionId = created.id;
+      }
+
+      // Insert all articles into the collection (skip duplicates)
+      let synced = 0;
+      for (const article of orgArticles) {
+        try {
+          await db
+            .insert(knowledgeCollectionArticles)
+            .values({ collectionId, articleId: article.id, sortOrder: synced })
+            .onConflictDoNothing();
+          synced++;
+        } catch (_) {
+          // already linked — skip
+        }
+      }
+
+      console.log(`sync-shared: synced ${synced}/${orgArticles.length} articles into collection ${collectionId}`);
+      res.json({
+        success: true,
+        collectionId,
+        totalArticles: orgArticles.length,
+        syncedArticles: synced,
+        message: `Successfully synced ${synced} articles into the shared knowledge collection`,
+      });
+    } catch (error) {
+      console.error('sync-shared error:', error);
+      res.status(500).json({ error: 'Failed to sync shared articles' });
     }
   });
 
