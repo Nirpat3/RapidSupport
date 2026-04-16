@@ -933,6 +933,38 @@ export default function ConversationsPage() {
                             <span>
                               {formatDistanceToNow(new Date(conversation.lastMessage?.timestamp || conversation.updatedAt), { addSuffix: true })}
                             </span>
+                            {(conversation.slaFirstResponseAt || conversation.slaResolutionAt) && conversation.status !== 'resolved' && conversation.status !== 'closed' && (() => {
+                              const deadline = conversation.slaFirstResponseAt && !conversation.slaFirstResponseBreached
+                                ? new Date(conversation.slaFirstResponseAt)
+                                : conversation.slaResolutionAt
+                                  ? new Date(conversation.slaResolutionAt)
+                                  : null;
+                              if (!deadline) return null;
+                              const now = Date.now();
+                              const msLeft = deadline.getTime() - now;
+                              const breached = msLeft <= 0;
+                              const hoursLeft = Math.floor(Math.abs(msLeft) / 3600000);
+                              const minsLeft = Math.floor((Math.abs(msLeft) % 3600000) / 60000);
+                              const label = breached
+                                ? 'Breached'
+                                : hoursLeft > 0
+                                  ? `${hoursLeft}h ${minsLeft}m`
+                                  : `${minsLeft}m`;
+                              const colorClass = breached || conversation.slaResolutionBreached || conversation.slaFirstResponseBreached
+                                ? 'text-red-500 dark:text-red-400'
+                                : msLeft < 1800000
+                                  ? 'text-amber-500 dark:text-amber-400'
+                                  : 'text-emerald-600 dark:text-emerald-400';
+                              return (
+                                <>
+                                  <span>•</span>
+                                  <span className={`flex items-center gap-0.5 ${colorClass}`}>
+                                    <Clock className="w-3 h-3" />
+                                    {label}
+                                  </span>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
