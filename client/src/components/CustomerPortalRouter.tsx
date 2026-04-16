@@ -8,6 +8,8 @@ import CustomerPortalFeedback from "@/pages/CustomerPortalFeedback";
 import CustomerPortalKnowledgeBase from "@/pages/CustomerPortalKnowledgeBase";
 import CustomerPortalArticlePage from "@/pages/CustomerPortalArticlePage";
 import CustomerPortalChat from "@/pages/CustomerPortalChat";
+import CustomerPortalTickets from "@/pages/CustomerPortalTickets";
+import CustomerPortalTicketDetail from "@/pages/CustomerPortalTicketDetail";
 import CommAnnouncements from "@/pages/portal-communication/CommAnnouncements";
 import CommFeed from "@/pages/portal-communication/CommFeed";
 import CommCommunity from "@/pages/portal-communication/CommCommunity";
@@ -21,6 +23,8 @@ export function CustomerPortalRouter() {
       <Route path="/portal/conversations" component={CustomerPortalConversations} />
       <Route path="/portal/chat/:conversationId" component={CustomerPortalChat} />
       <Route path="/portal/chat" component={CustomerPortalChat} />
+      <Route path="/portal/tickets/:id" component={CustomerPortalTicketDetail} />
+      <Route path="/portal/tickets" component={CustomerPortalTickets} />
       <Route path="/portal/feedback" component={CustomerPortalFeedback} />
       <Route path="/portal/feeds" component={CustomerPortalFeed} />
       <Route path="/portal/articles/:id" component={CustomerPortalArticlePage} />

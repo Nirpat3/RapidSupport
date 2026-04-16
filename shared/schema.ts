@@ -455,6 +455,9 @@ export const customers = pgTable("customers", {
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Notification preferences
+  smsOptIn: boolean("sms_opt_in").notNull().default(false), // Customer opted in for SMS notifications
+  emailOptIn: boolean("email_opt_in").notNull().default(true), // Customer opted in for email notifications
   // Soft delete
   deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
   deletedBy: varchar("deleted_by"), // User ID who deleted this record
@@ -5633,3 +5636,21 @@ export const shreAiConfigs = pgTable("shre_ai_configs", {
 export const insertShreAiConfigSchema = createInsertSchema(shreAiConfigs).omit({ id: true, createdAt: true, updatedAt: true, organizationId: true, totalReplies: true, totalHandoffs: true });
 export type InsertShreAiConfig = z.infer<typeof insertShreAiConfigSchema>;
 export type ShreAiConfig = typeof shreAiConfigs.$inferSelect;
+
+// ============================================================
+// TICKET COMMENTS — per-ticket comment thread (agents + customers)
+// ============================================================
+export const ticketComments = pgTable("ticket_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: varchar("ticket_id").notNull().references(() => tickets.id, { onDelete: 'cascade' }),
+  authorId: varchar("author_id"), // userId or customerId — nullable for system messages
+  authorType: text("author_type").notNull().default("agent"), // 'agent' | 'customer' | 'system'
+  authorName: text("author_name"), // Denormalized display name
+  content: text("content").notNull(),
+  isInternal: boolean("is_internal").notNull().default(false), // true = agent-only note, not visible to customer
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertTicketCommentSchema = createInsertSchema(ticketComments).omit({ id: true, createdAt: true });
+export type InsertTicketComment = z.infer<typeof insertTicketCommentSchema>;
+export type TicketComment = typeof ticketComments.$inferSelect;
