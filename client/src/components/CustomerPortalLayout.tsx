@@ -18,7 +18,8 @@ import {
   MessageSquareDot,
   Download,
   X,
-  Ticket
+  Ticket,
+  Building2
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -190,6 +191,7 @@ function CustomerPortalSidebar() {
     { path: '/portal/communication', icon: MessageSquareDot, label: 'Communication' },
     { path: '/portal/conversations', icon: MessageSquare, label: 'Conversations', badge: totalUnread > 0 ? totalUnread : undefined },
     { path: '/portal/knowledge-base', icon: BookOpen, label: 'Knowledge Base' },
+    { path: '/portal/org', icon: Building2, label: 'Organization' },
   ];
 
   const secondaryNavItems = [

@@ -42,6 +42,9 @@ import { registerSearchRoutes } from './routes/search.routes';
 import { registerTicketCommentRoutes } from './routes/ticket-comments.routes';
 import { resellerRouter } from './routes/reseller.routes';
 import { agentNotificationsRouter } from './routes/agent-notifications.routes';
+import { businessTransferRouter } from './routes/business-transfer.routes';
+import { externalAppLinksRouter } from './routes/external-app-links.routes';
+import { customerOrgSocialRouter } from './routes/customer-org-social.routes';
 import portalManifestRoutes from './routes/portal-manifest.routes';
 import adminMonitoringRoutes from './routes/admin-monitoring.routes';
 import type { RouteContext } from './routes/types';
@@ -935,6 +938,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   app.use('/api/shre-ai', shreAiRouter);
   app.use('/api/resellers', resellerRouter);
   app.use('/api/agent-notifications', agentNotificationsRouter);
+  app.use('/api/business-transfer', businessTransferRouter);
+  app.use('/api/external-links', externalAppLinksRouter);
+  app.use('/api/org-social', customerOrgSocialRouter);
 
   // Notification API routes
   app.get('/api/notifications', requireAuth, async (req, res) => {

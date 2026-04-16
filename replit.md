@@ -1,7 +1,7 @@
 # Nova AI - Your Intelligent Support Companion
 
 ## Overview
-Nova AI is a multi-tenant customer support platform designed to optimize real-time chat, conversation management, and administrative tasks. It supports various user roles (admin, agent, customer) and features conversation assignment, status tracking, priority management, and analytics. Key capabilities include an internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base, and a multi-agent AI system for intent classification and routing. The platform aims to enhance customer interaction and agent productivity through a robust, multi-region architecture, focusing on a comprehensive B2B solution.
+Nova AI is a multi-tenant customer support platform designed to optimize real-time chat, conversation management, and administrative tasks. It supports various user roles and features conversation assignment, status tracking, priority management, and analytics. Key capabilities include an internal staff chat, an anonymous customer chat widget, an AI-powered knowledge base, and a multi-agent AI system for intent classification and routing. The platform aims to enhance customer interaction and agent productivity through a robust, multi-region architecture, focusing on a comprehensive B2B solution with significant market potential for optimizing customer service operations.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -9,50 +9,50 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 
 ### UI/UX Decisions
-The frontend uses React 18, TypeScript, Vite, Radix UI, and Tailwind CSS (shadcn/ui pattern) for a custom, theme-aware design (light/dark modes). The customer chat features a Perplexity-style interface with a hero input, progressive disclosure, suggested questions, and visual feature cards. Design elements include an Indigo-Emerald-Amber color scheme, refined typography, independent scrolling, and mobile optimization. The Public Knowledge Base has tab navigation and category filters, and the Staff Conversations Page uses a clean, mobile-first 2-column layout. All pages are responsive and support PWA features. Dual PWA support is implemented for staff and customer portals, each with distinct theming and shortcuts.
+The frontend uses React 18, TypeScript, Vite, Radix UI, and Tailwind CSS (shadcn/ui pattern) for a custom, theme-aware design (light/dark modes). The customer chat features a Perplexity-style interface with a hero input, progressive disclosure, suggested questions, and visual feature cards. Design elements include an Indigo-Emerald-Amber color scheme, refined typography, independent scrolling, and mobile optimization. The Public Knowledge Base has tab navigation and category filters, and the Staff Conversations Page uses a clean, mobile-first 2-column layout. All pages are responsive and support PWA features with dual PWA support for staff and customer portals, each with distinct theming and shortcuts.
 
 ### Technical Implementations
 The backend is a Node.js Express.js application in TypeScript, providing a RESTful API with Zod validation and rate limiting. Authentication is session-based using Passport.js and Express sessions, with role-based access control and anonymous customer support. A custom WebSocket server handles real-time communication. PostgreSQL, accessed via Drizzle ORM and Neon serverless, is the primary database. Security hardening is implemented using Helmet.js, production error sanitization, and DOMPurify.
 
-### Workspace Architecture
+### System Design Choices
 The platform supports a hierarchical multi-tenant architecture: Platform Admins → Organizations (with parent-child sub-org hierarchy) → Workspaces → Departments → Users/Customers/Stations. Multi-region and reseller support is enabled. Knowledge collections allow content sharing across workspaces with defined visibility levels. Both staff and customer sessions track `selectedOrganizationId` for multi-org context switching.
 
 ### Feature Specifications
 - **Real-time Communication**: Custom WebSocket server for chat, presence, routing, and typing indicators.
-- **AI Capabilities**: A multi-agent AI system (OpenAI GPT-5) for intent classification, smart routing, agent handoff, and agentic tool use with a Centralized Brand Voice System and enhanced RAG optimization. Conversational Intelligence provides customer memory, sentiment analysis, and conversation tracking. This includes specialized AI agents for different categories, an enhanced RAG system with hybrid search and advanced retrieval methods, and an AI learning system for continuous improvement.
-  - **Agentic AI System**: Autonomous AI agents with OpenAI function calling for multi-step reasoning and action execution. Features a configurable tool registry, per-agent tool assignments, configurable guardrails, agent workflows, multi-channel input connections, and multi-agent chaining. External tools support API calls with authentication.
-- **Knowledge Base Integration**: AI analyzes documents (TXT, PDF, DOCX) for metadata, FAQ generation, and vector embedding, with automatic hourly reindexing.
-- **Email Support Integration**: Comprehensive email integration with IMAP/SMTP, Gmail, or Outlook accounts for polling, AI-powered email analysis, auto-response generation, automatic ticket creation, templates, and auto-reply rules.
+- **AI Capabilities**: A multi-agent AI system (OpenAI GPT-5) for intent classification, smart routing, agent handoff, and agentic tool use with a Centralized Brand Voice System and enhanced RAG optimization. Conversational Intelligence provides customer memory, sentiment analysis, and conversation tracking. This includes specialized AI agents, an enhanced RAG system with hybrid search, and an AI learning system for continuous improvement. The Agentic AI System supports OpenAI function calling for multi-step reasoning, configurable tool registry, per-agent tool assignments, guardrails, workflows, multi-channel input, and multi-agent chaining.
+- **Knowledge Base Integration**: AI analyzes documents (TXT, PDF, DOCX) for metadata, FAQ generation, and vector embedding, with automatic hourly reindexing. Cloud storage sync from Google Drive, OneDrive, and Dropbox keeps the knowledge base updated.
+- **Email Support Integration**: Comprehensive email integration (IMAP/SMTP, Gmail, Outlook) for polling, AI-powered analysis, auto-response generation, automatic ticket creation, and templates.
 - **External Channel Integration**: Supports WhatsApp Business API, Telegram Bot, and Facebook Messenger.
-- **Two-Factor Authentication (TOTP/2FA)**: Staff 2FA via /settings/security. Full setup flow with QR code, manual key entry, backup codes, and login step when 2FA is active. Routes: GET/POST /api/auth/2fa/*.
-- **Global Search Command Palette (Cmd+K)**: Unified search via Ctrl+K. Searches conversations, customers, articles, and users. Results grouped by type with keyboard navigation. Route: GET /api/search.
-- **CSAT Surveys**: Auto-triggered on conversation resolution. Public survey page at /survey/:token. Admin analytics at /api/admin/csat. Rating, feedback, response rate tracking.
-- **Saved Replies / Canned Responses**: Admin management at /saved-replies. Used in chat via quick-pick dialog. Category grouping, shared/personal flag, usage count tracking. Routes: /api/saved-replies.
-- **Conversation Tags**: Freeform tags on conversations. Tag autocomplete from existing org tags. Conversation list filter by tags. Route: PATCH /api/conversations/:id/tags.
-- **Agent Status Selector**: Agents set status (Available/Busy/Away/Offline) via sidebar avatar. WebSocket broadcast on change. Route: PATCH /api/users/me/status.
-- **Audit Log Admin UI**: Filterable, paginated audit log at /audit-log. Shows entity, action, performer, timestamp, and diffs. Platform admin can see all; workspace admins see their org only. Route: GET /api/admin/audit-log.
-- **Conversation Merge**: Move all messages from one conversation into another via POST /api/conversations/:id/merge. Original conversation is closed with a system note. Frontend dialog with search and preview.
-- **SLA Management**: Policy configuration at /sla-management (priority-based, first response + resolution times, business hours flag). Auto-calculated deadlines on new conversations. Breach check every 5 min via scheduler. Routes: /api/sla-policies.
-- **Platform Assistant AI (Nova)**: Upgraded intelligent assistant using OpenAI GPT-4o with function calling tools to fetch real-time platform stats, list resources, execute platform tasks, and search documentation.
-- **AI Data Protection & Safety**: Comprehensive sensitive data protection with pre-seeded and custom rules, pre-response blocking, post-response sanitization, security system prompt injection, encrypted data storage, and data access audit logging.
-- **Resolution Memory System**: Intelligent learning from past resolutions with step-by-step tracking, learning extraction, station-level memory, and automatic injection of proven solutions into AI response pipelines.
-- **Image Error Detection (OCR)**: OpenAI Vision API integration for analyzing error screenshots, error pattern normalization, three-tier solution matching, and automatic solution retrieval.
-- **Communication Module**: Full internal communication system for both staff and customer portal, including Announcements, Feed, Community (channels), and Messages (DMs).
-- **Customer Organizations**: Multi-user business accounts for customer portal access with role-based access, including a B2B landing page and organization application workflow.
-- **Partner Integration Marketplace**: Third-party integration system with a marketplace catalog, org-level connections, and a public REST API for external systems to manage stations and users.
-- **Billing & Usage Analytics**: Multi-level AI token usage tracking with role-based visibility, including token counts, cost estimates, request counts, and model breakdown.
-- **Enterprise Deployment Features**: Production-ready monitoring, webhooks, and data management, including a system monitoring dashboard, rate limiting dashboard, webhook integration system, custom domain support, and data export system.
-- **Customer Contact Panel**: Right-side panel in the conversation view showing customer profile (name, email, phone, company, lead status), stats (total/resolved conversations), conversation history tab, knowledge base suggestion tab (context-aware using recent messages), and agent notes tab (editable). Toggle via User icon button in conversation header. Routes: GET/PATCH /api/customers/:id/notes, GET /api/customers/:id/kb-suggestions.
-- **Shre AI Automated Agent**: Configurable integration with Shre AI as an automated support agent. Admin settings page at /shre-ai with connection configuration (API endpoint + key), behavior settings (enable/disable, auto-reply on new conversations, handoff keywords), system prompt, test connection, and usage stats. Routes: GET/POST /api/shre-ai/config, POST /api/shre-ai/test, GET /api/shre-ai/stats, POST /api/shre-ai/reply. DB table: shre_ai_configs.
-- **Cloud Storage Real Sync**: Real file synchronization from Google Drive, OneDrive, and Dropbox into the knowledge base. Lists files via provider API, downloads text/document content, creates KB articles. Supports token refresh for expired OAuth tokens. Background async sync with status tracking in cloud_storage_sync_runs table. Skips binary/non-text files.
-- **Ticket Comment System**: Per-ticket threaded comment system. Agents can post public or internal (agent-only) notes. Customers can reply via customer portal. System auto-posts status-change comments. Routes: GET/POST /api/tickets/:id/comments, DELETE /api/tickets/:id/comments/:commentId, PATCH /api/tickets/:id/status.
-- **Customer Portal Tickets**: Customer-facing ticket list at /portal/tickets and detail view at /portal/tickets/:id. Shows ticket status, priority, category, resolution time, and full comment thread. Customers can add replies. Reopens closed tickets on customer reply.
-- **SMS & Email Notifications**: Twilio SMS service (server/services/twilio-sms.service.ts) and SendGrid email service (server/services/sendgrid.service.ts) for ticket lifecycle notifications (created, updated, closed). Customers opt in/out via notification preferences (smsOptIn, emailOptIn on customers table). Branded HTML email templates with survey link on close. Env vars needed: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER, SENDGRID_API_KEY, SENDGRID_FROM_EMAIL.
-- **Customer Notification Preferences**: Customers opt in/out for SMS and email ticket notifications. PATCH /api/customer/notification-preferences. Fields: smsOptIn, emailOptIn, phone.
-- **Multi-Channel Messaging Gateway**: WhatsApp Business API, Telegram Bot, and Facebook Messenger fully integrated via channel-service.ts and channel-providers/ (meta_cloud and Twilio providers). Admin configuration at /channels. Incoming messages create conversations in the unified inbox automatically.
-- **Pre-Chat Intake Form**: Customer chat widget shows category selection and info-gathering step before conversation starts (embedded mode). Categories configurable; name/email collected for anonymous users.
-- **Reseller Management System**: Multi-tier reseller organization support. Admins create reseller orgs (with tier 1/2/3 classification) as child organizations. Customers are assigned to resellers for first-line support. Conversations from reseller-assigned customers route to the reseller's agents first. Agents can escalate conversations to the parent org with a note. Escalation dialog in conversation header. Admin page at /resellers. Routes: GET/POST /api/resellers, GET/POST/DELETE /api/resellers/:id/customers, POST /api/resellers/escalate/:conversationId, GET /api/resellers/:id/stats. DB: organizations.is_reseller, customers.reseller_id, conversations.is_escalated, reseller_assignments table.
-- **Native Agent PWA & Push Notifications**: Full PWA support for iOS/Android/Windows/Mac/Linux with install prompts (PWAInstallBanner component). Per-agent notification preferences with granular event control: conversation assigned, new messages, mentions, SLA breach/warning, ticket updates, customer replies, escalations, org-wide new convos. Quiet hours configuration (start/end hours). Push notification subscription management per device. Test notification endpoint. Settings at /settings/notifications. Routes: GET/PATCH /api/agent-notifications/preferences, GET /api/agent-notifications/subscription-status, POST /api/agent-notifications/test. DB: agent_notification_preferences table.
+- **Two-Factor Authentication (TOTP/2FA)**: Full setup flow with QR code, manual key, backup codes, and login step.
+- **Global Search Command Palette (Cmd+K)**: Unified search across conversations, customers, articles, and users.
+- **CSAT Surveys**: Auto-triggered on conversation resolution with public survey page and admin analytics.
+- **Saved Replies / Canned Responses**: Admin management and quick-pick dialog usage in chat.
+- **Conversation Tags**: Freeform tagging on conversations with autocomplete and filtering.
+- **Agent Status Selector**: Agents set status (Available/Busy/Away/Offline) via sidebar, broadcasted via WebSocket.
+- **Audit Log Admin UI**: Filterable, paginated log showing entity, action, performer, timestamp, and diffs.
+- **Conversation Merge**: Move messages from one conversation to another, closing the original.
+- **SLA Management**: Configurable policies for priority, response/resolution times, and business hours, with auto-calculated deadlines.
+- **Platform Assistant AI (Nova)**: Upgraded intelligent assistant using OpenAI GPT-4o with function calling tools to fetch real-time platform stats, resources, execute tasks, and search documentation.
+- **AI Data Protection & Safety**: Comprehensive sensitive data protection with pre-seeded/custom rules, blocking, sanitization, security prompt injection, and encrypted storage.
+- **Resolution Memory System**: Intelligent learning from past resolutions, step-by-step tracking, and automatic injection into AI response pipelines.
+- **Image Error Detection (OCR)**: OpenAI Vision API integration for analyzing error screenshots, pattern normalization, and solution retrieval.
+- **Communication Module**: Internal communication system for staff and customer portals, including Announcements, Feed, Community, and Messages (DMs).
+- **Customer Organizations**: Multi-user business accounts for customer portal access with role-based access.
+- **Partner Integration Marketplace**: Third-party integration system with a marketplace catalog, org-level connections, and a public REST API.
+- **Billing & Usage Analytics**: Multi-level AI token usage tracking with role-based visibility, including costs, request counts, and model breakdown.
+- **Enterprise Deployment Features**: Production-ready monitoring, webhooks, custom domain support, and data export.
+- **Customer Contact Panel**: Right-side panel in conversation view showing customer profile, stats, history, context-aware KB suggestions, and agent notes.
+- **Shre AI Automated Agent**: Configurable integration with Shre AI as an automated support agent with connection, behavior, and system prompt settings.
+- **Ticket Comment System**: Per-ticket threaded comment system with public/internal notes and customer replies.
+- **Customer Portal Tickets**: Customer-facing ticket list and detail view for managing and replying to tickets.
+- **SMS & Email Notifications**: Twilio SMS and SendGrid email services for ticket lifecycle notifications with customer opt-in/out.
+- **Multi-Channel Messaging Gateway**: Unified inbox integration for WhatsApp Business API, Telegram Bot, and Facebook Messenger.
+- **Pre-Chat Intake Form**: Customer chat widget with category selection and info-gathering before conversation starts.
+- **Reseller Management System**: Multi-tier reseller organization support with customer assignment and escalation mechanisms.
+- **Native Agent PWA & Push Notifications**: Full PWA support with install prompts, granular per-agent notification preferences, quiet hours, and push subscription management.
+- **Business Ownership Transfer**: Full transfer mechanism for business sales, including all data, with audit trail.
+- **External App Linking (3rd Party Integration)**: Link customer organizations to external systems (Shopify, Salesforce) via identifiers for data lookup and webhook sync.
+- **Customer Organization Hub**: Portal page showing org announcements/posts, member directory with DM capability, and business transfer UI for admins.
 
 ## External Dependencies
 
