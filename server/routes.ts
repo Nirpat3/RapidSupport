@@ -3048,6 +3048,50 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // POST /api/conversations/:id/merge — merge source into target conversation
+  app.post('/api/conversations/:id/merge', requireAuth, async (req, res) => {
+    try {
+      const { id: sourceId } = req.params;
+      const { targetConversationId } = z.object({
+        targetConversationId: z.string().min(1)
+      }).parse(req.body);
+
+      if (sourceId === targetConversationId) {
+        return res.status(400).json({ error: 'Cannot merge a conversation into itself' });
+      }
+
+      const source = await storage.getConversation(sourceId);
+      const target = await storage.getConversation(targetConversationId);
+
+      if (!source || !target) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      if (source.organizationId !== target.organizationId) {
+        return res.status(400).json({ error: 'Conversations must belong to the same organization' });
+      }
+
+      const result = await storage.mergeConversations(sourceId, targetConversationId);
+
+      await storage.createActivityLog({
+        entityType: 'conversation',
+        entityId: targetConversationId,
+        action: 'merge',
+        performedById: (req.user as any).id,
+        organizationId: source.organizationId || '',
+        details: { mergedFromId: sourceId, mergedFromTitle: source.title }
+      });
+
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      console.error('[Merge] Error:', error);
+      res.status(500).json({ error: 'Failed to merge conversations' });
+    }
+  });
+
   app.patch('/api/users/me/status', requireAuth, async (req, res) => {
     try {
       const user = req.user as any;

@@ -1,265 +1,280 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CommLayout } from "./CommLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
-import { Heart, MessageSquare, Send, Rss } from "lucide-react";
+import {
+  Globe, Lock, MessageSquare, Heart, ImagePlus,
+  Loader2, Send, Users, ChevronDown
+} from "lucide-react";
 import { useState } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 
-interface Post {
+interface FeedPost {
   id: string;
   content: string;
-  authorId: string;
+  visibility: string;
+  audience: string;
   authorType: string;
-  authorName: string;
+  authorId: string;
   createdAt: string;
-  reactions: Record<string, number>;
-  userReaction?: string;
   commentCount: number;
+  reactionCount?: number;
 }
 
-export default function CommFeed() {
-  const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("workspace");
-  const [newPostContent, setNewPostContent] = useState("");
-
-  const { data: workspacePosts, isLoading: loadingWorkspace } = useQuery<Post[]>({
-    queryKey: ["/api/customer-portal/comm/posts", { type: "workspace_feed" }],
-  });
-
-  const { data: retailPosts, isLoading: loadingRetail } = useQuery<Post[]>({
-    queryKey: ["/api/customer-portal/comm/posts", { type: "retail_feed" }],
-  });
-
-  const createPostMutation = useMutation({
-    mutationFn: async (content: string) => {
-      return apiRequest("/api/customer-portal/comm/posts", "POST", {
-        content,
-        type: "retail_feed",
-      });
-    },
-    onSuccess: () => {
-      setNewPostContent("");
-      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts", { type: "retail_feed" }] });
-      toast({ title: "Post published" });
-    },
-  });
-
-  return (
-    <CommLayout>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-        <TabsList className="w-full justify-start mb-4">
-          <TabsTrigger value="workspace">From Workspace</TabsTrigger>
-          <TabsTrigger value="team">From My Team</TabsTrigger>
-        </TabsList>
-
-        <div className="flex-1 overflow-hidden">
-          <TabsContent value="workspace" className="h-full mt-0">
-            <PostList posts={workspacePosts} isLoading={loadingWorkspace} emptyMessage="No posts from workspace yet." />
-          </TabsContent>
-
-          <TabsContent value="team" className="h-full mt-0 flex flex-col gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex gap-4">
-                  <Avatar>
-                    <AvatarFallback>ME</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 space-y-4">
-                    <Textarea 
-                      placeholder="Share an update with your team..." 
-                      className="min-h-[100px] resize-none border-none focus-visible:ring-0 p-0"
-                      value={newPostContent}
-                      onChange={(e) => setNewPostContent(e.target.value)}
-                    />
-                    <div className="flex justify-end pt-2">
-                      <Button 
-                        disabled={!newPostContent.trim() || createPostMutation.isPending}
-                        onClick={() => createPostMutation.mutate(newPostContent)}
-                        className="gap-2"
-                      >
-                        <Send className="h-4 w-4" />
-                        Post
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex-1 overflow-hidden">
-              <PostList posts={retailPosts} isLoading={loadingRetail} emptyMessage="No posts from your team yet. Be the first!" />
-            </div>
-          </TabsContent>
-        </div>
-      </Tabs>
-    </CommLayout>
-  );
+interface Comment {
+  id: string;
+  content: string;
+  authorName: string;
+  authorType: string;
+  createdAt: string;
 }
 
-function PostList({ posts, isLoading, emptyMessage }: { posts?: Post[]; isLoading: boolean; emptyMessage: string }) {
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        {Array(3).fill(0).map((_, i) => (
-          <Card key={i} className="animate-pulse h-32" />
-        ))}
-      </div>
-    );
-  }
-
-  if (!posts || posts.length === 0) {
-    return (
-      <div className="text-center py-12 border-2 border-dashed rounded-lg">
-        <Rss className="mx-auto h-12 w-12 text-muted-foreground opacity-20 mb-4" />
-        <p className="text-muted-foreground">{emptyMessage}</p>
-      </div>
-    );
-  }
-
-  return (
-    <ScrollArea className="h-full pr-4">
-      <div className="space-y-4 pb-6">
-        {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
-        ))}
-      </div>
-    </ScrollArea>
-  );
-}
-
-function PostCard({ post }: { post: Post }) {
-  const { toast } = useToast();
-  const [showComments, setShowComments] = useState(false);
-
-  const reactMutation = useMutation({
-    mutationFn: async (emoji: string) => {
-      return apiRequest(`/api/customer-portal/comm/posts/${post.id}/react`, "POST", { emoji });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts"] });
-    },
+function PostComments({ postId, isPortal }: { postId: string; isPortal?: boolean }) {
+  const base = isPortal ? "/api/customer-portal" : "/api";
+  const { data: comments = [], isLoading } = useQuery<Comment[]>({
+    queryKey: [`${base}/comm/posts`, postId, "comments"],
+    queryFn: () => apiRequest(`${base}/comm/posts/${postId}/comments`, "GET"),
   });
-
+  if (isLoading) return <p className="text-xs text-muted-foreground">Loading...</p>;
+  if (!comments.length) return <p className="text-xs text-muted-foreground">Be the first to comment.</p>;
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarFallback>{post.authorName.split(" ").map(n => n[0]).join("")}</AvatarFallback>
+    <div className="space-y-2">
+      {comments.map(c => (
+        <div key={c.id} className="flex gap-2">
+          <Avatar className="h-6 w-6 shrink-0">
+            <AvatarFallback className="text-xs">{(c.authorName || "U")[0]}</AvatarFallback>
           </Avatar>
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold">{post.authorName}</span>
-              <span className="text-xs text-muted-foreground">
-                {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-              </span>
-            </div>
-            <span className="text-xs text-muted-foreground capitalize">{post.authorType}</span>
+          <div className="bg-muted rounded-md px-3 py-2 text-xs flex-1">
+            <span className="font-medium">{c.authorName || "User"}</span>
+            <span className="text-muted-foreground ml-2">{formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}</span>
+            <p className="mt-1">{c.content}</p>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="pb-2">
-        <p className="text-sm whitespace-pre-wrap">{post.content}</p>
-      </CardContent>
-      <CardFooter className="flex flex-col items-stretch gap-2 pt-2">
-        <Separator />
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className={cn("gap-2", post.userReaction === "❤️" && "text-red-500")}
-            onClick={() => reactMutation.mutate("❤️")}
-          >
-            <Heart className={cn("h-4 w-4", post.userReaction === "❤️" && "fill-current")} />
-            {post.reactions?.["❤️"] || 0}
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="gap-2"
-            onClick={() => setShowComments(!showComments)}
-          >
-            <MessageSquare className="h-4 w-4" />
-            {post.commentCount || 0}
-          </Button>
-        </div>
-        {showComments && (
-           <div className="pt-2">
-             <FeedCommentSection postId={post.id} />
-           </div>
-        )}
-      </CardFooter>
-    </Card>
-  );
-}
-
-function FeedCommentSection({ postId }: { postId: string }) {
-  const [content, setContent] = useState("");
-  
-  const { data: comments, isLoading } = useQuery<any[]>({
-    queryKey: ["/api/customer-portal/comm/posts", postId, "comments"],
-  });
-
-  const commentMutation = useMutation({
-    mutationFn: async (content: string) => {
-      return apiRequest(`/api/customer-portal/comm/posts/${postId}/comments`, "POST", { content });
-    },
-    onSuccess: () => {
-      setContent("");
-      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts", postId, "comments"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts"] });
-    }
-  });
-
-  if (isLoading) {
-    return <div className="space-y-2 py-2"><div className="h-8 w-full bg-accent animate-pulse rounded" /></div>;
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-3">
-        {(!comments || comments.length === 0) ? (
-          <p className="text-xs text-muted-foreground italic">No comments yet.</p>
-        ) : comments.map((c) => (
-          <div key={c.id} className="flex gap-2">
-            <Avatar className="h-6 w-6 shrink-0">
-              <AvatarFallback className="text-[10px]">
-                {c.authorName.split(" ").map((n: string) => n[0]).join("")}
-              </AvatarFallback>
-            </Avatar>
-            <div className="bg-accent/30 p-2 rounded-lg flex-1">
-               <div className="flex justify-between items-center mb-1">
-                 <span className="text-[10px] font-bold">{c.authorName}</span>
-                 <span className="text-[9px] text-muted-foreground">{formatDistanceToNow(new Date(c.createdAt))} ago</span>
-               </div>
-               <p className="text-xs">{c.content}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <Textarea 
-          placeholder="Write a comment..." 
-          className="min-h-[40px] text-xs resize-none"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-        />
-        <Button size="icon" disabled={!content.trim() || commentMutation.isPending} onClick={() => commentMutation.mutate(content)}>
-          <Send className="h-4 w-4" />
-        </Button>
-      </div>
+      ))}
     </div>
   );
 }
 
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ");
+export default function CommFeed() {
+  const { toast } = useToast();
+  const [newPost, setNewPost] = useState("");
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+  const [newComment, setNewComment] = useState<Record<string, string>>({});
+  const [activeTab, setActiveTab] = useState<"all" | "public" | "mine">("all");
+
+  const { data: posts = [], isLoading } = useQuery<FeedPost[]>({
+    queryKey: ["/api/customer-portal/comm/posts", "community"],
+    queryFn: () => apiRequest("/api/customer-portal/comm/posts?type=community", "GET"),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("/api/customer-portal/comm/posts", "POST", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts"] });
+      setNewPost("");
+      toast({ title: visibility === "public" ? "Post shared publicly" : "Post saved privately" });
+    },
+    onError: () => toast({ title: "Failed to post", variant: "destructive" }),
+  });
+
+  const reactMutation = useMutation({
+    mutationFn: ({ postId, emoji }: { postId: string; emoji: string }) =>
+      apiRequest(`/api/customer-portal/comm/posts/${postId}/react`, "POST", { emoji }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts"] }),
+  });
+
+  const commentMutation = useMutation({
+    mutationFn: ({ postId, content }: { postId: string; content: string }) =>
+      apiRequest(`/api/customer-portal/comm/posts/${postId}/comments`, "POST", { content }),
+    onSuccess: (_, { postId }) => {
+      setNewComment(prev => ({ ...prev, [postId]: "" }));
+      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts"] });
+    },
+    onError: () => toast({ title: "Failed to comment", variant: "destructive" }),
+  });
+
+  const handlePost = () => {
+    if (!newPost.trim()) return;
+    createMutation.mutate({ content: newPost, type: "community", visibility });
+  };
+
+  const filteredPosts = posts.filter(p => {
+    if (activeTab === "public") return p.visibility === "public";
+    if (activeTab === "mine") return true; // API already filters by session
+    return true;
+  });
+
+  return (
+    <CommLayout>
+      <div className="p-4 md:p-6 space-y-5 max-w-2xl">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" /> Community Feed
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Share updates, ask questions, or post privately just for yourself.
+          </p>
+        </div>
+
+        {/* Composer card */}
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <Textarea
+              placeholder="What's on your mind? Share with the community or post privately..."
+              className="min-h-[100px] resize-none text-sm"
+              value={newPost}
+              onChange={e => setNewPost(e.target.value)}
+            />
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <Select value={visibility} onValueChange={v => setVisibility(v as any)}>
+                <SelectTrigger className="w-44 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-3 w-3 text-green-500" />
+                      <span>Public — Everyone</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="private">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-3 w-3 text-amber-500" />
+                      <span>Private — Only me</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                className="gap-2"
+                onClick={handlePost}
+                disabled={!newPost.trim() || createMutation.isPending}
+              >
+                {createMutation.isPending
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <Send className="h-3 w-3" />}
+                {visibility === "public" ? "Share" : "Save privately"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Filter tabs */}
+        <div className="flex gap-2">
+          {[
+            { key: "all", label: "All Posts" },
+            { key: "public", label: "Public" },
+          ].map(tab => (
+            <Button
+              key={tab.key}
+              size="sm"
+              variant={activeTab === tab.key ? "default" : "outline"}
+              onClick={() => setActiveTab(tab.key as any)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Posts */}
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : filteredPosts.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
+              <p>No posts yet. Be the first to share something!</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-4">
+            {filteredPosts.map(post => (
+              <Card key={post.id}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-9 w-9 shrink-0">
+                      <AvatarFallback className="text-sm">
+                        {post.authorType === "customer" ? "C" : "S"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">
+                          {post.authorType === "customer" ? "Community Member" : "Support Team"}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          {post.visibility === "private"
+                            ? <><Lock className="h-3 w-3 text-amber-500" /> Private</>
+                            : <><Globe className="h-3 w-3 text-green-500" /> Public</>}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{post.content}</p>
+                </CardContent>
+                <CardFooter className="pt-0 flex gap-2 flex-wrap">
+                  {post.visibility === "public" && (
+                    <Button
+                      size="sm" variant="ghost" className="h-7 text-xs gap-1"
+                      onClick={() => reactMutation.mutate({ postId: post.id, emoji: "❤" })}
+                    >
+                      <Heart className="h-3 w-3" />
+                      {post.reactionCount || 0}
+                    </Button>
+                  )}
+                  {post.visibility === "public" && (
+                    <Collapsible
+                      open={openComments[post.id]}
+                      onOpenChange={open => setOpenComments(prev => ({ ...prev, [post.id]: open }))}
+                    >
+                      <CollapsibleTrigger asChild>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs gap-1">
+                          <MessageSquare className="h-3 w-3" />{post.commentCount || 0} comments
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-3 space-y-3 w-64 sm:w-full">
+                        <PostComments postId={post.id} isPortal />
+                        <div className="flex gap-2">
+                          <Textarea
+                            placeholder="Comment..."
+                            className="min-h-[52px] text-sm"
+                            value={newComment[post.id] || ""}
+                            onChange={e => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
+                          />
+                          <Button
+                            size="sm" className="shrink-0 self-end"
+                            disabled={!newComment[post.id]?.trim() || commentMutation.isPending}
+                            onClick={() => commentMutation.mutate({ postId: post.id, content: newComment[post.id] })}
+                          >
+                            Post
+                          </Button>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </CommLayout>
+  );
 }

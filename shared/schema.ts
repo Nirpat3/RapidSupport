@@ -5400,13 +5400,19 @@ export const commPosts = pgTable("comm_posts", {
   workspaceId: varchar("workspace_id"),
   authorId: varchar("author_id").notNull(),
   authorType: varchar("author_type").notNull(), // 'superadmin' | 'staff' | 'customer'
-  type: varchar("type").notNull(), // 'announcement' | 'workspace_feed' | 'retail_feed'
+  type: varchar("type").notNull(), // 'announcement' | 'workspace_feed' | 'retail_feed' | 'community'
   title: varchar("title"),
   content: text("content").notNull(),
   tags: text("tags").array().default([]),
   isPinned: boolean("is_pinned").default(false),
   status: varchar("status").default("active"), // 'active' | 'archived'
   stationId: varchar("station_id"),
+  // Audience: who receives this post
+  audience: varchar("audience").default("org_staff"), // 'platform' | 'org_staff' | 'org_customers' | 'org_all' | 'workspace_staff' | 'workspace_customers' | 'workspace_all'
+  // Visibility: for community/feed posts
+  visibility: varchar("visibility").default("public"), // 'public' | 'private'
+  // Selected org IDs when audience = 'selected_orgs'
+  targetOrgIds: text("target_org_ids").array().default([]),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

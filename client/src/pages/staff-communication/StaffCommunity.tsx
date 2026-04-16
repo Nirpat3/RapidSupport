@@ -1,263 +1,312 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Users, Plus, Send, MoreVertical, Hash, Lock, Search, Loader2 } from "lucide-react";
-import type { CommChannel, CommChannelMessage, User, CustomerOrganization, Customer } from "@shared/schema";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
+import {
+  Globe, Lock, Users, UserCheck, Building2,
+  MessageSquare, Heart, Send, Loader2, Plus
+} from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useToast } from "@/hooks/use-toast";
+
+interface CommPost {
+  id: string;
+  content: string;
+  visibility: string;
+  audience: string;
+  authorType: string;
+  authorId: string;
+  createdAt: string;
+  commentCount: number;
+  reactionCount?: number;
+}
+
+interface Comment {
+  id: string;
+  content: string;
+  authorName: string;
+  authorType: string;
+  createdAt: string;
+}
+
+const AUDIENCE_OPTIONS = [
+  { value: "org_staff", label: "Staff Only", icon: UserCheck },
+  { value: "org_customers", label: "Customers Only", icon: Users },
+  { value: "org_all", label: "Everyone", icon: Building2 },
+];
+
+function AudienceLabel({ audience }: { audience: string }) {
+  const map: Record<string, { label: string; icon: any; cls: string }> = {
+    org_staff: { label: "Staff", icon: UserCheck, cls: "text-blue-600" },
+    org_customers: { label: "Customers", icon: Users, cls: "text-green-600" },
+    org_all: { label: "Everyone", icon: Building2, cls: "text-amber-600" },
+    platform: { label: "Platform", icon: Globe, cls: "text-purple-600" },
+  };
+  const m = map[audience] || map.org_staff;
+  const Icon = m.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs ${m.cls}`}>
+      <Icon className="h-3 w-3" />{m.label}
+    </span>
+  );
+}
+
+function PostComments({ postId }: { postId: string }) {
+  const { data: comments = [], isLoading } = useQuery<Comment[]>({
+    queryKey: ["/api/comm/posts", postId, "comments"],
+    queryFn: () => apiRequest(`/api/comm/posts/${postId}/comments`, "GET"),
+  });
+  if (isLoading) return <p className="text-xs text-muted-foreground">Loading...</p>;
+  if (!comments.length) return <p className="text-xs text-muted-foreground">No comments yet.</p>;
+  return (
+    <div className="space-y-2">
+      {comments.map(c => (
+        <div key={c.id} className="flex gap-2">
+          <Avatar className="h-6 w-6 shrink-0">
+            <AvatarFallback className="text-xs">{(c.authorName || "U")[0]}</AvatarFallback>
+          </Avatar>
+          <div className="bg-muted rounded-md px-3 py-2 text-xs flex-1">
+            <span className="font-medium">{c.authorName || "Staff"}</span>
+            <span className="text-muted-foreground ml-2">{formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}</span>
+            <p className="mt-1">{c.content}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function StaffCommunity() {
   const { toast } = useToast();
-  const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
-  const [newMessage, setNewMessage] = useState("");
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [channelName, setChannelName] = useState("");
-  const [channelType, setChannelType] = useState<"internal" | "customer_facing" | "customer_internal">("internal");
+  const [newPost, setNewPost] = useState("");
+  const [postAudience, setPostAudience] = useState("org_staff");
+  const [postVisibility, setPostVisibility] = useState<"public" | "private">("public");
+  const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+  const [newComment, setNewComment] = useState<Record<string, string>>({});
+  const [filterAudience, setFilterAudience] = useState("all");
 
-  const { data: channels = [], isLoading: channelsLoading } = useQuery<CommChannel[]>({
-    queryKey: ["/api/comm/channels"],
-    queryFn: async () => apiRequest("/api/comm/channels", "GET")
+  const { data: posts = [], isLoading } = useQuery<CommPost[]>({
+    queryKey: ["/api/comm/posts", "community"],
+    queryFn: () => apiRequest("/api/comm/posts?type=community", "GET"),
   });
 
-  const { data: messages = [], isLoading: messagesLoading } = useQuery<CommChannelMessage[]>({
-    queryKey: ["/api/comm/channels", selectedChannel, "messages"],
-    queryFn: async () => {
-      return apiRequest(`/api/comm/channels/${selectedChannel}/messages`, "GET");
-    },
-    enabled: !!selectedChannel,
-    refetchInterval: 5000,
-  });
-
-  const { data: users = [] } = useQuery<User[]>({
-    queryKey: ["/api/users"],
-    queryFn: async () => apiRequest("/api/users", "GET")
-  });
-
-  const { data: customers = [] } = useQuery<Customer[]>({
-    queryKey: ["/api/customers"],
-    queryFn: async () => apiRequest("/api/customers", "GET")
-  });
-
-  const getUserName = (id: string, type: string) => {
-    if (type === 'staff' || type === 'superadmin') {
-      return users.find(u => u.id === id)?.name || 'Staff';
-    }
-    return customers.find(c => c.id === id)?.name || 'Customer';
-  };
-
-  const getUserAvatar = (id: string, type: string) => {
-    // In a real app we'd have avatar URLs
-    return undefined;
-  };
-
-  const createChannelMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiRequest("/api/comm/channels", "POST", data);
-    },
+  const createMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("/api/comm/posts", "POST", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/comm/channels"] });
-      setIsCreateDialogOpen(false);
-      setChannelName("");
-      toast({ title: "Channel created" });
+      queryClient.invalidateQueries({ queryKey: ["/api/comm/posts"] });
+      setNewPost("");
+      toast({ title: postVisibility === "public" ? "Post shared" : "Post saved privately" });
     },
+    onError: () => toast({ title: "Failed to create post", variant: "destructive" }),
   });
 
-  const sendMessageMutation = useMutation({
-    mutationFn: async (content: string) => {
-      return apiRequest(`/api/comm/channels/${selectedChannel}/messages`, "POST", { content });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/comm/channels", selectedChannel, "messages"] });
-      setNewMessage("");
-    },
+  const reactMutation = useMutation({
+    mutationFn: ({ postId, emoji }: { postId: string; emoji: string }) =>
+      apiRequest(`/api/comm/posts/${postId}/react`, "POST", { emoji }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/comm/posts"] }),
   });
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedChannel) return;
-    sendMessageMutation.mutate(newMessage);
+  const commentMutation = useMutation({
+    mutationFn: ({ postId, content }: { postId: string; content: string }) =>
+      apiRequest(`/api/comm/posts/${postId}/comments`, "POST", { content }),
+    onSuccess: (_, { postId }) => {
+      setNewComment(prev => ({ ...prev, [postId]: "" }));
+      queryClient.invalidateQueries({ queryKey: ["/api/comm/posts"] });
+    },
+    onError: () => toast({ title: "Failed to comment", variant: "destructive" }),
+  });
+
+  const handlePost = () => {
+    if (!newPost.trim()) return;
+    createMutation.mutate({
+      content: newPost,
+      type: "community",
+      audience: postAudience,
+      visibility: postVisibility,
+    });
   };
 
-  const handleCreateChannel = () => {
-    if (!channelName.trim()) return;
-    createChannelMutation.mutate({ name: channelName, type: channelType });
-  };
-
-  const internalChannels = channels.filter(c => c.type === "internal");
-  const customerChannels = channels.filter(c => c.type === "customer_facing" || c.type === "customer_internal");
-
-  const activeChannel = channels.find(c => c.id === selectedChannel);
+  const filteredPosts = filterAudience === "all"
+    ? posts
+    : posts.filter(p => p.audience === filterAudience);
 
   return (
-    <div className="flex h-full">
-      <div className="w-80 border-r bg-muted/30 flex flex-col">
-        <div className="p-4 border-b flex items-center justify-between">
-          <h2 className="font-semibold">Community</h2>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create Channel</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Channel Name</label>
-                  <Input 
-                    placeholder="e.g. general-support" 
-                    value={channelName}
-                    onChange={(e) => setChannelName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Type</label>
-                  <Tabs value={channelType} onValueChange={(v: any) => setChannelType(v)}>
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="internal">Internal</TabsTrigger>
-                      <TabsTrigger value="customer_facing">Customer Facing</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                </div>
-                <Button 
-                  className="w-full" 
-                  onClick={handleCreateChannel}
-                  disabled={createChannelMutation.isPending || !channelName.trim()}
-                >
-                  Create Channel
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        <Tabs defaultValue="internal" className="flex-1 flex flex-col min-h-0">
-          <div className="px-4 pt-4 pb-2">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="internal">Internal</TabsTrigger>
-              <TabsTrigger value="customer">Customer</TabsTrigger>
-            </TabsList>
-          </div>
-          
-          <ScrollArea className="flex-1">
-            <TabsContent value="internal" className="m-0 p-2 space-y-1">
-              {internalChannels.map(channel => (
-                <Button
-                  key={channel.id}
-                  variant={selectedChannel === channel.id ? "secondary" : "ghost"}
-                  className="w-full justify-start gap-2 h-9 px-3"
-                  onClick={() => setSelectedChannel(channel.id)}
-                >
-                  <Hash className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate">{channel.name}</span>
-                </Button>
-              ))}
-            </TabsContent>
-            <TabsContent value="customer" className="m-0 p-2 space-y-1">
-              {customerChannels.map(channel => (
-                <Button
-                  key={channel.id}
-                  variant={selectedChannel === channel.id ? "secondary" : "ghost"}
-                  className="w-full justify-start gap-2 h-9 px-3"
-                  onClick={() => setSelectedChannel(channel.id)}
-                >
-                  <Lock className="h-4 w-4 text-muted-foreground" />
-                  <span className="truncate">{channel.name}</span>
-                </Button>
-              ))}
-            </TabsContent>
-          </ScrollArea>
-        </Tabs>
+    <div className="p-6 space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <Users className="h-6 w-6 text-primary" /> Community Feed
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          Share updates with staff, customers, or everyone. Posts can be public or private.
+        </p>
       </div>
 
-      <div className="flex-1 flex flex-col bg-background">
-        {selectedChannel ? (
-          <>
-            <div className="p-4 border-b flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Hash className="h-5 w-5 text-muted-foreground" />
-                <h3 className="font-semibold">{activeChannel?.name}</h3>
-                <Badge variant="outline" className="text-[10px] uppercase ml-2">{activeChannel?.type}</Badge>
-              </div>
-              <Button variant="ghost" size="icon">
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-6">
-                {messagesLoading ? (
-                  <div className="flex justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
-                    This is the start of the #{activeChannel?.name} channel.
-                  </div>
-                ) : (
-                  messages.map((msg) => (
-                    <div key={msg.id} className="flex gap-4 group">
-                      <Avatar className="h-8 w-8 mt-1">
-                        <AvatarFallback>{getUserName(msg.authorId, msg.authorType).slice(0, 2).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold">{getUserName(msg.authorId, msg.authorType)}</span>
-                          <span className="text-xs text-muted-foreground">{msg.createdAt ? format(new Date(msg.createdAt), 'h:mm a') : ''}</span>
-                        </div>
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+      {/* Composer */}
+      <Card>
+        <CardContent className="pt-4 space-y-3">
+          <Textarea
+            placeholder="Share something with your team, customers, or keep it private..."
+            className="min-h-[100px] resize-none text-sm"
+            value={newPost}
+            onChange={e => setNewPost(e.target.value)}
+          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <Select value={postAudience} onValueChange={setPostAudience}>
+              <SelectTrigger className="w-44 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AUDIENCE_OPTIONS.map(opt => {
+                  const Icon = opt.icon;
+                  return (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-3 w-3 text-muted-foreground" />
+                        {opt.label}
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-
-            <div className="p-4 border-t">
-              <div className="relative">
-                <Textarea
-                  placeholder={`Message #${activeChannel?.name}`}
-                  className="min-h-[44px] max-h-32 pr-12 py-3 resize-none"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                />
-                <Button 
-                  size="icon" 
-                  className="absolute right-2 bottom-2 h-8 w-8"
-                  onClick={handleSendMessage}
-                  disabled={sendMessageMutation.isPending || !newMessage.trim()}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
-            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-              <Users className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-medium">Select a channel</h3>
-            <p className="text-muted-foreground">Choose a channel from the left to join the conversation.</p>
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <Select value={postVisibility} onValueChange={v => setPostVisibility(v as any)}>
+              <SelectTrigger className="w-36 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="public">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-3 w-3 text-green-500" /> Public
+                  </div>
+                </SelectItem>
+                <SelectItem value="private">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-3 w-3 text-amber-500" /> Private
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              className="gap-2 ml-auto"
+              onClick={handlePost}
+              disabled={!newPost.trim() || createMutation.isPending}
+            >
+              {createMutation.isPending
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <Send className="h-3 w-3" />}
+              Post
+            </Button>
           </div>
-        )}
+        </CardContent>
+      </Card>
+
+      {/* Filter */}
+      <div className="flex gap-2 flex-wrap">
+        {[{ key: "all", label: "All" }, ...AUDIENCE_OPTIONS.map(o => ({ key: o.value, label: o.label }))].map(f => (
+          <Button
+            key={f.key}
+            size="sm"
+            variant={filterAudience === f.key ? "default" : "outline"}
+            onClick={() => setFilterAudience(f.key)}
+          >
+            {f.label}
+          </Button>
+        ))}
       </div>
+
+      {/* Posts */}
+      {isLoading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : filteredPosts.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <Users className="h-10 w-10 mx-auto mb-3 opacity-30" />
+            <p>No posts yet. Start the conversation!</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredPosts.map(post => (
+            <Card key={post.id}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start gap-3">
+                  <Avatar className="h-9 w-9 shrink-0">
+                    <AvatarFallback className="text-sm">
+                      {post.authorType === "superadmin" ? "SA" : post.authorType === "staff" ? "ST" : "C"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">
+                        {post.authorType === "superadmin" ? "Platform Admin"
+                          : post.authorType === "staff" ? "Staff Member"
+                          : "Customer"}
+                      </span>
+                      <AudienceLabel audience={post.audience || "org_staff"} />
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        {post.visibility === "private"
+                          ? <><Lock className="h-3 w-3 text-amber-500" /> Private</>
+                          : <><Globe className="h-3 w-3 text-green-500" /> Public</>}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{post.content}</p>
+              </CardContent>
+              <CardFooter className="pt-0 flex gap-1 flex-wrap">
+                <Button
+                  size="sm" variant="ghost" className="h-7 text-xs gap-1"
+                  onClick={() => reactMutation.mutate({ postId: post.id, emoji: "❤" })}
+                >
+                  <Heart className="h-3 w-3" />{post.reactionCount || 0}
+                </Button>
+                <Collapsible
+                  open={openComments[post.id]}
+                  onOpenChange={open => setOpenComments(prev => ({ ...prev, [post.id]: open }))}
+                >
+                  <CollapsibleTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1">
+                      <MessageSquare className="h-3 w-3" />{post.commentCount || 0}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3 space-y-3 w-64 sm:w-full">
+                    <PostComments postId={post.id} />
+                    <div className="flex gap-2">
+                      <Textarea
+                        placeholder="Comment..."
+                        className="min-h-[52px] text-sm"
+                        value={newComment[post.id] || ""}
+                        onChange={e => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
+                      />
+                      <Button
+                        size="sm" className="shrink-0 self-end"
+                        disabled={!newComment[post.id]?.trim() || commentMutation.isPending}
+                        onClick={() => commentMutation.mutate({ postId: post.id, content: newComment[post.id] })}
+                      >
+                        Post
+                      </Button>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

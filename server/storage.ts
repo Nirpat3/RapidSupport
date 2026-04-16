@@ -423,8 +423,9 @@ export interface IStorage {
 
   // Communication operations
   // Posts
-  getCommPosts(filters: { type?: string; authorId?: string; organizationId?: string; workspaceId?: string; status?: string; limit?: number }): Promise<CommPost[]>;
-  getCommPostsForCustomer(customerOrgId: string, organizationId: string): Promise<CommPost[]>;
+  getCommPosts(filters: { type?: string; authorId?: string; organizationId?: string; workspaceId?: string; status?: string; audience?: string; visibility?: string; limit?: number; includePlatform?: boolean }): Promise<CommPost[]>;
+  getCommPostsForCustomer(customerOrgId: string | null, organizationId: string, type?: string): Promise<CommPost[]>;
+  getPlatformAnnouncements(type?: string): Promise<CommPost[]>;
   createCommPost(post: InsertCommPost): Promise<CommPost>;
   updateCommPost(id: string, updates: Partial<InsertCommPost>): Promise<CommPost>;
   deleteCommPost(id: string): Promise<void>;
@@ -466,6 +467,7 @@ export interface IStorage {
   assignConversation(id: string, agentId: string): Promise<void>;
   updateConversationTags(id: string, tags: string[]): Promise<void>;
   getPopularTags(organizationId: string): Promise<string[]>;
+  mergeConversations(sourceId: string, targetId: string): Promise<Conversation>;
 
   // Saved Reply operations
   getSavedReplies(organizationId: string, options: { category?: string; search?: string; userId?: string }): Promise<SavedReply[]>;
@@ -1923,6 +1925,36 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20)
       .map(([tag]) => tag);
+  }
+
+  async mergeConversations(sourceId: string, targetId: string): Promise<Conversation> {
+    // Move all messages from source to target
+    await db
+      .update(messages)
+      .set({ conversationId: targetId })
+      .where(eq(messages.conversationId, sourceId));
+
+    // Get source conversation info for the system note
+    const [source] = await db.select().from(conversations).where(eq(conversations.id, sourceId)).limit(1);
+
+    // Create system message in target
+    await db.insert(messages).values({
+      id: crypto.randomUUID(),
+      conversationId: targetId,
+      content: `Conversation "${source?.title || sourceId}" was merged into this conversation.`,
+      senderType: 'system',
+      timestamp: new Date(),
+      isInternal: false,
+    } as any);
+
+    // Close the source conversation
+    await db.update(conversations)
+      .set({ status: 'closed', updatedAt: new Date() })
+      .where(eq(conversations.id, sourceId));
+
+    // Return updated target
+    const [target] = await db.select().from(conversations).where(eq(conversations.id, targetId)).limit(1);
+    return target;
   }
 
   // Message operations
@@ -9613,39 +9645,68 @@ export class DatabaseStorage implements IStorage {
   // ============================================
 
   // Posts
-  async getCommPosts(filters: { type?: string; authorId?: string; organizationId?: string; workspaceId?: string; status?: string; limit?: number }): Promise<CommPost[]> {
+  async getCommPosts(filters: { type?: string; authorId?: string; organizationId?: string; workspaceId?: string; status?: string; audience?: string; visibility?: string; limit?: number; includePlatform?: boolean }): Promise<CommPost[]> {
     const conditions = [];
     if (filters.type) conditions.push(eq(commPosts.type, filters.type));
     if (filters.authorId) conditions.push(eq(commPosts.authorId, filters.authorId));
-    if (filters.organizationId) conditions.push(eq(commPosts.organizationId, filters.organizationId));
-    if (filters.workspaceId) conditions.push(eq(commPosts.workspaceId, filters.workspaceId));
     if (filters.status) conditions.push(eq(commPosts.status, filters.status));
+    if (filters.audience) conditions.push(eq(commPosts.audience, filters.audience as any));
+    if (filters.visibility) conditions.push(eq(commPosts.visibility, filters.visibility as any));
+
+    // When includePlatform is true, also show platform-wide posts (audience='platform')
+    if (filters.organizationId && filters.includePlatform) {
+      conditions.push(or(
+        eq(commPosts.organizationId, filters.organizationId),
+        eq(commPosts.audience, 'platform' as any)
+      ));
+    } else if (filters.organizationId) {
+      conditions.push(eq(commPosts.organizationId, filters.organizationId));
+    }
+
+    if (filters.workspaceId) conditions.push(eq(commPosts.workspaceId, filters.workspaceId));
 
     return await db.select().from(commPosts)
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(commPosts.isPinned), desc(commPosts.createdAt))
-      .limit(filters.limit || 50);
+      .limit(filters.limit || 100);
   }
 
-  async getCommPostsForCustomer(customerOrgId: string, organizationId: string): Promise<CommPost[]> {
-    // Posts targeted to this specific customerOrgId OR all retailers (null)
-    const targets = await db.select({ postId: commPostTargets.postId })
-      .from(commPostTargets)
-      .where(or(
-        eq(commPostTargets.customerOrgId, customerOrgId),
-        isNull(commPostTargets.customerOrgId)
-      ));
-    
-    const targetPostIds = targets.map(t => t.postId);
+  async getCommPostsForCustomer(customerOrgId: string | null, organizationId: string, type?: string): Promise<CommPost[]> {
+    // Customers can see: org_customers, org_all, platform, and public community posts
+    const audienceConditions = [
+      eq(commPosts.audience, 'org_customers' as any),
+      eq(commPosts.audience, 'org_all' as any),
+      eq(commPosts.audience, 'platform' as any),
+    ];
 
-    if (targetPostIds.length === 0) return [];
+    const conditions: any[] = [
+      or(
+        // Their org's posts for customers
+        and(
+          eq(commPosts.organizationId, organizationId),
+          or(...audienceConditions)
+        ),
+        // Platform-wide posts from any org
+        eq(commPosts.audience, 'platform' as any)
+      ),
+      eq(commPosts.status, 'active'),
+    ];
+
+    if (type) conditions.push(eq(commPosts.type, type));
 
     return await db.select().from(commPosts)
-      .where(and(
-        inArray(commPosts.id, targetPostIds),
-        eq(commPosts.organizationId, organizationId),
-        eq(commPosts.status, 'active')
-      ))
+      .where(and(...conditions))
+      .orderBy(desc(commPosts.isPinned), desc(commPosts.createdAt));
+  }
+
+  async getPlatformAnnouncements(type?: string): Promise<CommPost[]> {
+    const conditions: any[] = [
+      eq(commPosts.audience, 'platform' as any),
+      eq(commPosts.status, 'active'),
+    ];
+    if (type) conditions.push(eq(commPosts.type, type));
+    return await db.select().from(commPosts)
+      .where(and(...conditions))
       .orderBy(desc(commPosts.isPinned), desc(commPosts.createdAt));
   }
 

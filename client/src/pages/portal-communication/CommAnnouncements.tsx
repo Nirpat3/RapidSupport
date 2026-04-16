@@ -1,29 +1,26 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { CommLayout } from "./CommLayout";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
-import { Megaphone, CheckCircle2, MessageSquare, Tag } from "lucide-react";
+import { Megaphone, CheckCircle2, MessageSquare, Globe, Building2, Pin, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 interface CommPost {
   id: string;
-  title: string;
+  title?: string;
   content: string;
-  tags: string[];
+  tags?: string[];
   isPinned: boolean;
+  audience: string;
+  authorType: string;
   createdAt: string;
-  author: {
-    id: string;
-    name: string;
-  };
   hasRead: boolean;
   commentCount: number;
 }
@@ -37,178 +34,182 @@ interface CommComment {
   authorName: string;
 }
 
+function TagBadge({ tag }: { tag: string }) {
+  const t = tag.toLowerCase();
+  if (t === "urgent") return <Badge variant="destructive" className="text-xs">{tag}</Badge>;
+  if (t === "important") return <Badge className="text-xs bg-amber-500 text-white border-amber-600">{tag}</Badge>;
+  if (t === "fyi") return <Badge className="text-xs bg-blue-500 text-white border-blue-600">{tag}</Badge>;
+  if (t === "update") return <Badge className="text-xs bg-green-500 text-white border-green-600">{tag}</Badge>;
+  return <Badge variant="secondary" className="text-xs">{tag}</Badge>;
+}
+
+function PostComments({ postId }: { postId: string }) {
+  const { data: comments = [], isLoading } = useQuery<CommComment[]>({
+    queryKey: ["/api/customer-portal/comm/posts", postId, "comments"],
+    queryFn: () => apiRequest(`/api/customer-portal/comm/posts/${postId}/comments`, "GET"),
+  });
+  if (isLoading) return <div className="text-xs text-muted-foreground py-2">Loading...</div>;
+  if (!comments.length) return <div className="text-xs text-muted-foreground py-2">No comments yet.</div>;
+  return (
+    <div className="space-y-2">
+      {comments.map(c => (
+        <div key={c.id} className="flex gap-2">
+          <Avatar className="h-6 w-6 shrink-0">
+            <AvatarFallback className="text-xs">{(c.authorName || "U")[0]}</AvatarFallback>
+          </Avatar>
+          <div className="bg-muted rounded-md px-3 py-2 text-xs flex-1">
+            <span className="font-medium">{c.authorName || "User"}</span>
+            <span className="text-muted-foreground ml-2">{formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}</span>
+            <p className="mt-1">{c.content}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function CommAnnouncements() {
   const { toast } = useToast();
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [newComment, setNewComment] = useState<Record<string, string>>({});
 
-  const { data: posts, isLoading } = useQuery<CommPost[]>({
-    queryKey: ["/api/customer-portal/comm/posts", { type: "announcement" }],
+  const { data: posts = [], isLoading } = useQuery<CommPost[]>({
+    queryKey: ["/api/customer-portal/comm/posts", "announcement"],
+    queryFn: () => apiRequest("/api/customer-portal/comm/posts?type=announcement", "GET"),
   });
 
   const markReadMutation = useMutation({
-    mutationFn: async (postId: string) => {
-      return apiRequest(`/api/customer-portal/comm/posts/${postId}/read`, "POST");
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts"] });
-    },
+    mutationFn: (postId: string) => apiRequest(`/api/customer-portal/comm/posts/${postId}/read`, "POST"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts"] }),
   });
 
   const addCommentMutation = useMutation({
-    mutationFn: async ({ postId, content }: { postId: string; content: string }) => {
-      return apiRequest(`/api/customer-portal/comm/posts/${postId}/comments`, "POST", { content });
-    },
+    mutationFn: ({ postId, content }: { postId: string; content: string }) =>
+      apiRequest(`/api/customer-portal/comm/posts/${postId}/comments`, "POST", { content }),
     onSuccess: (_, { postId }) => {
       setNewComment(prev => ({ ...prev, [postId]: "" }));
-      queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts", postId, "comments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/customer-portal/comm/posts"] });
       toast({ title: "Comment added" });
     },
   });
 
-  const getTagBadge = (tag: string) => {
-    const normalized = tag.toLowerCase();
-    if (normalized === "urgent") return <Badge variant="destructive" className="gap-1"><Tag className="h-3 w-3" />Urgent</Badge>;
-    if (normalized === "important") return <Badge className="bg-amber-500 hover:bg-amber-600 gap-1 text-white no-default-hover-elevate border-amber-600"><Tag className="h-3 w-3" />Important</Badge>;
-    if (normalized === "fyi") return <Badge className="bg-blue-500 hover:bg-blue-600 gap-1 text-white no-default-hover-elevate border-blue-600"><Tag className="h-3 w-3" />FYI</Badge>;
-    if (normalized === "update") return <Badge className="bg-green-500 hover:bg-green-600 gap-1 text-white no-default-hover-elevate border-green-600"><Tag className="h-3 w-3" />Update</Badge>;
-    if (normalized === "promo" || normalized === "promotion") return <Badge className="bg-purple-500 hover:bg-purple-600 gap-1 text-white no-default-hover-elevate border-purple-600"><Tag className="h-3 w-3" />Promo</Badge>;
-    return <Badge variant="secondary" className="gap-1"><Tag className="h-3 w-3" />{tag}</Badge>;
-  };
+  const platformPosts = posts.filter(p => p.audience === "platform" || p.authorType === "superadmin");
+  const orgPosts = posts.filter(p => p.audience !== "platform" && p.authorType !== "superadmin");
+
+  const renderPost = (post: CommPost) => (
+    <Card key={post.id} className={post.isPinned ? "border-primary/30" : ""}>
+      <CardHeader className="pb-2">
+        <div className="flex items-start gap-3">
+          <div className={`h-9 w-9 rounded-full flex items-center justify-center shrink-0 ${post.authorType === "superadmin" ? "bg-purple-100 dark:bg-purple-900/30" : "bg-primary/10"}`}>
+            {post.authorType === "superadmin"
+              ? <Globe className="h-4 w-4 text-purple-500" />
+              : <Megaphone className="h-4 w-4 text-primary" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              {post.isPinned && <Pin className="h-3 w-3 text-primary shrink-0" />}
+              {post.title && <span className="font-semibold text-sm">{post.title}</span>}
+              {(post.authorType === "superadmin" || post.audience === "platform") && (
+                <Badge className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200">
+                  Platform Notice
+                </Badge>
+              )}
+              {post.tags?.map(tag => <TagBadge key={tag} tag={tag} />)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {post.authorType === "superadmin" ? "Platform" : "Support Team"}
+              {" · "}{formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
+            </p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">{post.content}</p>
+      </CardContent>
+      <CardFooter className="flex items-center gap-2 pt-0 flex-wrap">
+        {!post.hasRead ? (
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+            onClick={() => markReadMutation.mutate(post.id)}>
+            <CheckCircle2 className="h-3 w-3" /> Mark as read
+          </Button>
+        ) : (
+          <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+            <CheckCircle2 className="h-3 w-3" /> Read
+          </span>
+        )}
+        <Collapsible
+          open={openComments[post.id]}
+          onOpenChange={open => setOpenComments(prev => ({ ...prev, [post.id]: open }))}
+        >
+          <CollapsibleTrigger asChild>
+            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1">
+              <MessageSquare className="h-3 w-3" />{post.commentCount || 0} comments
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-3 space-y-3 w-full">
+            <PostComments postId={post.id} />
+            <div className="flex gap-2">
+              <Textarea
+                placeholder="Write a comment..."
+                className="min-h-[60px] text-sm"
+                value={newComment[post.id] || ""}
+                onChange={e => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
+              />
+              <Button size="sm" className="shrink-0 self-end"
+                disabled={!newComment[post.id]?.trim() || addCommentMutation.isPending}
+                onClick={() => addCommentMutation.mutate({ postId: post.id, content: newComment[post.id] })}>
+                Post
+              </Button>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </CardFooter>
+    </Card>
+  );
 
   return (
     <CommLayout>
-      <ScrollArea className="h-full pr-4">
-        <div className="space-y-6 pb-6">
-          {isLoading ? (
-            Array(3).fill(0).map((_, i) => (
-              <Card key={i} className="animate-pulse h-48" />
-            ))
-          ) : !posts || posts.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed rounded-lg">
-              <Megaphone className="mx-auto h-12 w-12 text-muted-foreground opacity-20 mb-4" />
-              <h3 className="text-lg font-medium">No announcements</h3>
-              <p className="text-muted-foreground">You're all caught up!</p>
-            </div>
-          ) : (
-            posts.map((post) => (
-              <Card key={post.id} className={post.isPinned ? "border-primary/50" : ""}>
-                <CardHeader>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex flex-wrap gap-2">
-                      {post.tags.map(tag => (
-                        <span key={tag}>{getTagBadge(tag)}</span>
-                      ))}
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}
-                    </span>
+      <div className="p-4 md:p-6 space-y-6 max-w-2xl">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-primary" /> Announcements
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">Notices from your support team and platform updates.</p>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+        ) : (
+          <>
+            {platformPosts.length > 0 && (
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-purple-600 dark:text-purple-400">
+                  <Globe className="h-4 w-4" /> Platform Notices
+                </div>
+                {platformPosts.map(renderPost)}
+              </section>
+            )}
+            {orgPosts.length > 0 && (
+              <section className="space-y-3">
+                {platformPosts.length > 0 && (
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Building2 className="h-4 w-4" /> From Your Support Team
                   </div>
-                  <CardTitle className="flex items-center gap-2">
-                    {post.isPinned && <Megaphone className="h-4 w-4 text-primary shrink-0" />}
-                    {post.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    {post.content}
-                  </div>
+                )}
+                {orgPosts.map(renderPost)}
+              </section>
+            )}
+            {posts.length === 0 && (
+              <Card>
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Megaphone className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p>No announcements yet. Check back soon!</p>
                 </CardContent>
-                <CardFooter className="flex flex-col items-stretch gap-4 border-t pt-4">
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Avatar className="h-6 w-6">
-                        <AvatarFallback className="text-[10px]">
-                          {post.author.name.split(" ").map(n => n[0]).join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span>{post.author.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!post.hasRead && (
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          className="gap-2"
-                          onClick={() => markReadMutation.mutate(post.id)}
-                          disabled={markReadMutation.isPending}
-                        >
-                          <CheckCircle2 className="h-4 w-4" />
-                          Acknowledge
-                        </Button>
-                      )}
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="gap-2"
-                        onClick={() => setOpenComments(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                        {post.commentCount || 0} Comments
-                      </Button>
-                    </div>
-                  </div>
-
-                  <Collapsible open={openComments[post.id]}>
-                    <CollapsibleContent className="space-y-4 pt-4">
-                      <CommentList postId={post.id} />
-                      <div className="flex flex-col gap-2 pt-2">
-                        <Textarea 
-                          placeholder="Add a comment..." 
-                          className="min-h-[80px]"
-                          value={newComment[post.id] || ""}
-                          onChange={(e) => setNewComment(prev => ({ ...prev, [post.id]: e.target.value }))}
-                        />
-                        <div className="flex justify-end">
-                          <Button 
-                            size="sm"
-                            disabled={!newComment[post.id]?.trim() || addCommentMutation.isPending}
-                            onClick={() => addCommentMutation.mutate({ postId: post.id, content: newComment[post.id] })}
-                          >
-                            Post Comment
-                          </Button>
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </CardFooter>
               </Card>
-            ))
-          )}
-        </div>
-      </ScrollArea>
+            )}
+          </>
+        )}
+      </div>
     </CommLayout>
-  );
-}
-
-function CommentList({ postId }: { postId: string }) {
-  const { data: comments, isLoading } = useQuery<CommComment[]>({
-    queryKey: ["/api/customer-portal/comm/posts", postId, "comments"],
-  });
-
-  if (isLoading) return <div className="space-y-2"><div className="h-4 w-full bg-accent animate-pulse rounded" /></div>;
-
-  return (
-    <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
-      {comments?.map((comment) => (
-        <div key={comment.id} className="flex gap-3">
-          <Avatar className="h-8 w-8 shrink-0">
-            <AvatarFallback className="text-xs">
-              {comment.authorName.split(" ").map(n => n[0]).join("")}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 bg-accent/50 p-3 rounded-lg">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold">{comment.authorName}</span>
-              <span className="text-[10px] text-muted-foreground">
-                {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
-              </span>
-            </div>
-            <p className="text-sm">{comment.content}</p>
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }
