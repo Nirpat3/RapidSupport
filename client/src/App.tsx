@@ -103,6 +103,8 @@ const DataExportPage = lazy(() => import("@/pages/DataExportPage"));
 const AuditLogPage = lazy(() => import("@/pages/AuditLogPage"));
 const SecuritySettingsPage = lazy(() => import("@/pages/SecuritySettingsPage"));
 const ShreAIPage = lazy(() => import("@/pages/ShreAIPage"));
+const ResellerManagementPage = lazy(() => import("@/pages/ResellerManagementPage"));
+const NotificationSettingsPage = lazy(() => import("@/pages/NotificationSettingsPage"));
 
 // Staff Communication
 const StaffCommLayout = lazy(() => import("@/pages/staff-communication/StaffCommLayout"));
@@ -220,6 +222,14 @@ function Router() {
           <PermissionGuard feature="settings">
             <ShreAIPage />
           </PermissionGuard>
+        </Route>
+        <Route path="/resellers">
+          <PermissionGuard feature="settings">
+            <ResellerManagementPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/settings/notifications">
+          <NotificationSettingsPage />
         </Route>
         <Route path="/administration">
           <PermissionGuard feature="platform-admin">

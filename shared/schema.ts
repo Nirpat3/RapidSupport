@@ -87,6 +87,10 @@ export const organizations = pgTable("organizations", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   // Sub-organization hierarchy
   parentOrganizationId: varchar("parent_organization_id"), // Self-referential FK for org hierarchy (parent org → child orgs)
+  // Reseller configuration
+  isReseller: boolean("is_reseller").notNull().default(false), // Is this org a reseller (first-line support tier)
+  resellerTier: integer("reseller_tier").default(1), // 1 = primary reseller, 2+ = sub-reseller
+  resellerSupportEmail: text("reseller_support_email"), // Reseller's dedicated support email
   // Soft delete
   deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
   deletedBy: varchar("deleted_by"), // User ID who deleted this record
@@ -458,6 +462,9 @@ export const customers = pgTable("customers", {
   // Notification preferences
   smsOptIn: boolean("sms_opt_in").notNull().default(false), // Customer opted in for SMS notifications
   emailOptIn: boolean("email_opt_in").notNull().default(true), // Customer opted in for email notifications
+  // Reseller assignment — which reseller org provides first-line support for this customer
+  resellerId: varchar("reseller_id").references(() => organizations.id),
+  resellerAssignedAt: timestamp("reseller_assigned_at"),
   // Soft delete
   deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
   deletedBy: varchar("deleted_by"), // User ID who deleted this record
@@ -570,6 +577,13 @@ export const conversations = pgTable("conversations", {
   slaResolutionAt: timestamp("sla_resolution_at"), // Deadline for resolution
   slaFirstResponseBreached: boolean("sla_first_response_breached").notNull().default(false),
   slaResolutionBreached: boolean("sla_resolution_breached").notNull().default(false),
+  // Reseller routing — tracks which reseller org is handling this conversation
+  resellerId: varchar("reseller_id").references(() => organizations.id),
+  // Escalation — when reseller escalates to parent org
+  isEscalated: boolean("is_escalated").notNull().default(false),
+  escalatedAt: timestamp("escalated_at"),
+  escalatedBy: varchar("escalated_by").references(() => users.id),
+  escalationNote: text("escalation_note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
@@ -5654,3 +5668,51 @@ export const ticketComments = pgTable("ticket_comments", {
 export const insertTicketCommentSchema = createInsertSchema(ticketComments).omit({ id: true, createdAt: true });
 export type InsertTicketComment = z.infer<typeof insertTicketCommentSchema>;
 export type TicketComment = typeof ticketComments.$inferSelect;
+
+// ============================================================
+// AGENT NOTIFICATION PREFERENCES — per-agent push notification control
+// ============================================================
+export const agentNotificationPreferences = pgTable("agent_notification_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  // Global toggle
+  pushEnabled: boolean("push_enabled").notNull().default(true),
+  soundEnabled: boolean("sound_enabled").notNull().default(true),
+  // Event-specific toggles
+  newConversationAssigned: boolean("new_conversation_assigned").notNull().default(true),
+  newMessageInAssigned: boolean("new_message_in_assigned").notNull().default(true),
+  newMessageMention: boolean("new_message_mention").notNull().default(true),
+  slaBreach: boolean("sla_breach").notNull().default(true),
+  slaWarning: boolean("sla_warning").notNull().default(true),
+  ticketUpdate: boolean("ticket_update").notNull().default(true),
+  customerReply: boolean("customer_reply").notNull().default(true),
+  conversationEscalated: boolean("conversation_escalated").notNull().default(true),
+  newConversationInOrg: boolean("new_conversation_in_org").notNull().default(false), // All new convos (noisy)
+  // Quiet hours
+  quietHoursEnabled: boolean("quiet_hours_enabled").notNull().default(false),
+  quietHoursStart: integer("quiet_hours_start").default(22), // Hour 0-23 (e.g. 22 = 10pm)
+  quietHoursEnd: integer("quiet_hours_end").default(8),     // Hour 0-23 (e.g. 8 = 8am)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertAgentNotificationPreferencesSchema = createInsertSchema(agentNotificationPreferences).omit({ id: true, createdAt: true, updatedAt: true, userId: true });
+export type InsertAgentNotificationPreferences = z.infer<typeof insertAgentNotificationPreferencesSchema>;
+export type AgentNotificationPreferences = typeof agentNotificationPreferences.$inferSelect;
+
+// ============================================================
+// RESELLER CUSTOMER ASSIGNMENTS — explicit log of when customers were assigned
+// ============================================================
+export const resellerAssignments = pgTable("reseller_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  resellerId: varchar("reseller_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  assignedBy: varchar("assigned_by").references(() => users.id),
+  assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+export const insertResellerAssignmentSchema = createInsertSchema(resellerAssignments).omit({ id: true, assignedAt: true });
+export type InsertResellerAssignment = z.infer<typeof insertResellerAssignmentSchema>;
+export type ResellerAssignment = typeof resellerAssignments.$inferSelect;

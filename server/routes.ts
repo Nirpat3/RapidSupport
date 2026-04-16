@@ -40,6 +40,8 @@ import { registerCsatRoutes } from './routes/csat.routes';
 import { registerAdminAuditRoutes } from './routes/admin-audit.routes';
 import { registerSearchRoutes } from './routes/search.routes';
 import { registerTicketCommentRoutes } from './routes/ticket-comments.routes';
+import { resellerRouter } from './routes/reseller.routes';
+import { agentNotificationsRouter } from './routes/agent-notifications.routes';
 import portalManifestRoutes from './routes/portal-manifest.routes';
 import adminMonitoringRoutes from './routes/admin-monitoring.routes';
 import type { RouteContext } from './routes/types';
@@ -931,6 +933,8 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
   // Shre AI routes
   app.use('/api/shre-ai', shreAiRouter);
+  app.use('/api/resellers', resellerRouter);
+  app.use('/api/agent-notifications', agentNotificationsRouter);
 
   // Notification API routes
   app.get('/api/notifications', requireAuth, async (req, res) => {

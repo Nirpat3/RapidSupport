@@ -48,6 +48,7 @@ import { formatDistanceToNow } from "date-fns";
 import ChatInterface from "@/components/ChatInterface";
 import { type Message } from "@/components/ChatMessage";
 import { MergeConversationDialog } from "@/components/MergeConversationDialog";
+import { EscalateConversationDialog } from "@/components/EscalateConversationDialog";
 import CustomerContactPanel from "@/components/CustomerContactPanel";
 
 interface Conversation {
@@ -1047,6 +1048,18 @@ export default function ConversationsPage() {
                     />
                   </TooltipTrigger>
                   <TooltipContent>Merge with another conversation</TooltipContent>
+                </Tooltip>
+
+                {/* Escalate to Parent Org Button */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <EscalateConversationDialog
+                      conversationId={activeConversationId!}
+                      isEscalated={conversations?.find((c: any) => c.id === activeConversationId)?.isEscalated}
+                      onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/conversations"] })}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>Escalate to parent support team</TooltipContent>
                 </Tooltip>
 
                 {/* Workflow Guide Toggle */}
