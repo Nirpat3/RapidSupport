@@ -407,6 +407,7 @@ export interface IStorage {
   updateCustomerOrganizationId(customerId: string, organizationId: string): Promise<void>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomerStatus(id: string, status: string): Promise<void>;
+  updateCustomerNotes(id: string, notes: string): Promise<void>;
   updateCustomerOrganizationMembership(customerId: string, customerOrgId: string, role: string): Promise<void>;
   getAllCustomers(options?: {
     page?: number;
@@ -1511,6 +1512,13 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(customers)
       .set({ status, updatedAt: new Date() })
+      .where(eq(customers.id, id));
+  }
+
+  async updateCustomerNotes(id: string, notes: string): Promise<void> {
+    await db
+      .update(customers)
+      .set({ notes, updatedAt: new Date() })
       .where(eq(customers.id, id));
   }
 

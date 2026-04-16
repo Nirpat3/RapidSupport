@@ -31,6 +31,8 @@ import { registerStationRoutes } from './routes/station.routes';
 import { registerAgenticRoutes } from './routes/agentic.routes';
 import { registerPartnerRoutes } from './routes/partner.routes';
 import { registerTwoFactorRoutes } from './routes/two-factor.routes';
+import { shreAiRouter } from './routes/shre-ai.routes';
+import { runCloudStorageSync } from './services/cloud-storage-sync.service';
 import { registerResolutionMemoryRoutes } from './routes/resolution-memory.routes';
 import { registerCommunicationRoutes } from './routes/communication.routes';
 import { registerSavedRepliesRoutes } from './routes/saved-replies.routes';
@@ -925,6 +927,9 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   
   // Register admin monitoring routes
   app.use('/api/admin', adminMonitoringRoutes);
+
+  // Shre AI routes
+  app.use('/api/shre-ai', shreAiRouter);
 
   // Notification API routes
   app.get('/api/notifications', requireAuth, async (req, res) => {
@@ -4300,6 +4305,48 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         });
       }
       res.status(500).json({ error: 'Failed to create customer' });
+    }
+  });
+
+  // PATCH /api/customers/:id/notes — update agent notes for a customer
+  app.patch('/api/customers/:id/notes', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { notes } = z.object({ notes: z.string().max(5000) }).parse(req.body);
+      const customer = await storage.getCustomer(id);
+      if (!customer) return res.status(404).json({ error: 'Customer not found' });
+      await storage.updateCustomerNotes(id, notes);
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json(zodErrorResponse(error));
+      res.status(500).json({ error: 'Failed to update notes' });
+    }
+  });
+
+  // GET /api/customers/:customerId/kb-suggestions — top KB articles relevant to this customer
+  app.get('/api/customers/:customerId/kb-suggestions', requireAuth, async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      const { conversationId } = req.query;
+      const user = req.user as any;
+      const organizationId = user.organizationId;
+
+      // Get recent messages from this conversation to derive context
+      let contextQuery = '';
+      if (conversationId) {
+        const msgs = await storage.getMessagesByConversation(conversationId as string);
+        // Use last 3 customer messages as context
+        const customerMsgs = msgs.filter(m => m.senderType === 'customer').slice(-3);
+        contextQuery = customerMsgs.map(m => m.content).join(' ');
+      }
+
+      // Search KB for relevant articles
+      const articles = await storage.searchKnowledgeBase(contextQuery || 'frequently asked questions', 6);
+      const filtered = articles.filter(a => !a.organizationId || a.organizationId === organizationId);
+      res.json(filtered.slice(0, 5).map(a => ({ id: a.id, title: a.title, categoryId: a.categoryId })));
+    } catch (error) {
+      console.error('KB suggestions error:', error);
+      res.json([]);
     }
   });
 
@@ -14059,21 +14106,37 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         triggerType: 'manual',
       });
 
-      // In a real implementation, this would kick off an async job
-      // For now, we'll simulate completing the sync
-      await storage.updateCloudStorageSyncRun(syncRun.id, {
-        status: 'completed',
-        completedAt: new Date(),
-        filesDiscovered: 0,
-        filesProcessed: 0,
-        filesImported: 0,
-      });
-
-      await storage.updateCloudStorageConnection(connection.id, {
-        lastSyncAt: new Date(),
-      });
-
+      // Respond immediately so UI doesn't wait, then run real sync async
       res.json({ message: 'Sync initiated', syncRunId: syncRun.id });
+
+      // Run real sync in background (non-blocking)
+      runCloudStorageSync(connection.id)
+        .then(async (result) => {
+          await storage.updateCloudStorageSyncRun(syncRun.id, {
+            status: 'completed',
+            completedAt: new Date(),
+            filesDiscovered: result.filesDiscovered,
+            filesProcessed: result.filesProcessed,
+            filesImported: result.filesImported,
+            errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
+          });
+          await storage.updateCloudStorageConnection(connection.id, {
+            lastSyncAt: new Date(),
+          });
+          console.log(`[CloudSync] Connection ${connection.id}: ${result.filesImported} imported, ${result.filesSkipped} skipped`);
+        })
+        .catch(async (err) => {
+          console.error('[CloudSync] Sync error:', err);
+          await storage.updateCloudStorageSyncRun(syncRun.id, {
+            status: 'failed',
+            completedAt: new Date(),
+            errorMessage: err.message,
+          }).catch(() => {});
+          await storage.updateCloudStorageConnection(connection.id, {
+            status: 'error',
+            errorMessage: err.message,
+          }).catch(() => {});
+        });
     } catch (error) {
       console.error('Failed to trigger sync:', error);
       res.status(500).json({ error: 'Failed to trigger sync' });

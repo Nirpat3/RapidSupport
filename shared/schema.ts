@@ -5611,3 +5611,25 @@ export const slaPolicies = pgTable("sla_policies", {
 export const insertSlaPolicySchema = createInsertSchema(slaPolicies).omit({ id: true, createdAt: true, updatedAt: true, organizationId: true });
 export type InsertSlaPolicy = z.infer<typeof insertSlaPolicySchema>;
 export type SlaPolicy = typeof slaPolicies.$inferSelect;
+
+// ─────────────────────────────────────────────
+// Shre AI configuration (per organization)
+// ─────────────────────────────────────────────
+export const shreAiConfigs = pgTable("shre_ai_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }).unique(),
+  endpoint: text("endpoint").notNull().default(""),
+  apiKey: text("api_key").notNull().default(""),
+  systemPrompt: text("system_prompt"),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  autoReplyOnNew: boolean("auto_reply_on_new").notNull().default(false),
+  handoffKeywords: text("handoff_keywords").notNull().default("human,agent,speak to someone,real person"),
+  totalReplies: integer("total_replies").notNull().default(0),
+  totalHandoffs: integer("total_handoffs").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertShreAiConfigSchema = createInsertSchema(shreAiConfigs).omit({ id: true, createdAt: true, updatedAt: true, organizationId: true, totalReplies: true, totalHandoffs: true });
+export type InsertShreAiConfig = z.infer<typeof insertShreAiConfigSchema>;
+export type ShreAiConfig = typeof shreAiConfigs.$inferSelect;

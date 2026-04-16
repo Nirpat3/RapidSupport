@@ -48,6 +48,7 @@ import { formatDistanceToNow } from "date-fns";
 import ChatInterface from "@/components/ChatInterface";
 import { type Message } from "@/components/ChatMessage";
 import { MergeConversationDialog } from "@/components/MergeConversationDialog";
+import CustomerContactPanel from "@/components/CustomerContactPanel";
 
 interface Conversation {
   id: string;
@@ -136,6 +137,7 @@ export default function ConversationsPage() {
   // Knowledge search dialog state
   const [isKnowledgeSearchOpen, setIsKnowledgeSearchOpen] = useState(false);
   const [showWorkflowSidebar, setShowWorkflowSidebar] = useState(false);
+  const [showContactPanel, setShowContactPanel] = useState(false);
   const [messageToInsert, setMessageToInsert] = useState<string | null>(null);
 
   // WebSocket setup
@@ -1032,6 +1034,25 @@ export default function ConversationsPage() {
                   </TooltipContent>
                 </Tooltip>
 
+                {/* Contact Panel Toggle */}
+                {(activeConversation.customerId || activeConversation.customer?.id) && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={showContactPanel ? "default" : "outline"}
+                        size="icon"
+                        onClick={() => setShowContactPanel(!showContactPanel)}
+                        data-testid="button-contact-panel-toggle"
+                      >
+                        <User className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {showContactPanel ? "Hide Contact" : "Show Contact"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+
                 {/* Human Takeover Toggle */}
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1183,6 +1204,15 @@ export default function ConversationsPage() {
                     onClose={() => setShowWorkflowSidebar(false)}
                   />
                 </div>
+              )}
+
+              {/* Customer Contact Panel */}
+              {showContactPanel && (activeConversation.customerId || activeConversation.customer?.id) && (
+                <CustomerContactPanel
+                  customerId={(activeConversation.customerId || activeConversation.customer?.id)!}
+                  conversationId={activeConversationId || undefined}
+                  onClose={() => setShowContactPanel(false)}
+                />
               )}
             </div>
           </>

@@ -233,6 +233,12 @@ const settingsSubItems: NavigationItem[] = [
     allowedRoles: ['admin']
   },
   {
+    title: "Shre AI Agent",
+    url: "/shre-ai",
+    icon: Bot,
+    allowedRoles: ['admin']
+  },
+  {
     title: "Webhooks",
     url: "/webhooks",
     icon: Webhook,
