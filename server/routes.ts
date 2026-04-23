@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import crypto from "crypto";
 import rateLimit from 'express-rate-limit';
 import { chatCompletion, syncArticleToShre, bulkSyncKBToShre, deleteArticleFromShre, isShreEnabled } from './shre-gateway';
+import { enqueueShreEvent } from './shre-outbox';
 import { DocumentProcessor } from './document-processor';
 import { AIDocumentAnalyzer } from './ai-document-analyzer';
 import { z } from 'zod';
@@ -3302,8 +3303,19 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             reason: `Status changed by ${user.name}`
           }),
         });
+
+        // Ship resolution events to Shre for training signal (conversation
+        // outcomes are high-value training data — what got resolved vs closed).
+        if (status === 'resolved' || status === 'closed') {
+          void enqueueShreEvent('conversation.resolved', {
+            conversationId,
+            previousStatus,
+            newStatus: status,
+            resolvedBy: { id: user.id, name: user.name, type: 'agent' },
+          });
+        }
       }
-      
+
       // Verify the update
       const updatedConversation = await storage.getConversation(conversationId);
       console.log(`[PATCH /api/conversations/:id/status] Status after update: ${updatedConversation?.status}`);
@@ -6397,6 +6409,18 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         category: kb.category || 'general',
         tags: kb.tags || [],
       }).catch(() => {});
+
+      // Emit training signal — human-in-the-loop corrections are the highest-
+      // quality training data we have for the support agent.
+      void enqueueShreEvent('kb.article.corrected', {
+        articleId: String(knowledgeBaseId),
+        title: kb.title,
+        question,
+        originalResponse,
+        correctedResponse,
+        reasoning,
+        agentId,
+      });
 
       // Create learning entry for the correction if agentId is provided
       if (agentId) {
