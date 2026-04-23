@@ -23,7 +23,21 @@ import { db } from '../db';
 import { externalSystems } from '@shared/schema';
 import { and, eq } from 'drizzle-orm';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { AIDataProtectionService } from '../services/ai-data-protection';
+
+/** Rate limiter for partner-push endpoint, keyed by integration Bearer. */
+const partnerPushLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => {
+    const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+    return m ? 'partnerPush:' + crypto.createHash('sha256').update(m[1]).digest('hex').slice(0, 16) : 'ip:' + (req.ip || 'unknown');
+  },
+  message: { error: 'rate_limited', message: 'too many store pushes — 20/min per integration (bulk up to 500 stores per call)' },
+});
 
 function getSelectedOrgId(req: any): string | null {
   return (
@@ -115,6 +129,19 @@ export function registerStoresRoutes({ app }: RouteContext) {
     }
   });
 
+  // Bulk per-store stats — one query, returns map keyed by store id.
+  app.get('/api/stores/stats', requireAuth, async (req: any, res) => {
+    try {
+      const orgId = getSelectedOrgId(req);
+      if (!orgId) return res.status(400).json({ error: 'No organization context' });
+      const stats = await storesService.statsByOrg(orgId);
+      res.json(stats);
+    } catch (err: any) {
+      console.error('[stores][stats]', err);
+      res.status(500).json({ error: err?.message || 'internal error' });
+    }
+  });
+
   app.get('/api/stores/:id', requireAuth, async (req: any, res) => {
     try {
       const orgId = getSelectedOrgId(req);
@@ -179,7 +206,7 @@ export function registerStoresRoutes({ app }: RouteContext) {
 
   // ── Partner push (auth via Bearer embedSecret) ──
 
-  app.post('/api/partner/stores', async (req, res) => {
+  app.post('/api/partner/stores', partnerPushLimiter, async (req, res) => {
     try {
       const parsed = partnerPushSchema.safeParse(req.body);
       if (!parsed.success) return zodErrorResponse(res, parsed.error);

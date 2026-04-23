@@ -10,8 +10,11 @@
  * idempotently upsert instead of duplicating.
  */
 import { db } from '../db';
-import { customerOrganizations, type CustomerOrganization } from '@shared/schema';
-import { and, eq, isNull } from 'drizzle-orm';
+import {
+  customerOrganizations, customers, conversations,
+  type CustomerOrganization,
+} from '@shared/schema';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 
 export interface StoreInput {
   name: string;
@@ -146,5 +149,33 @@ export const storesService = {
         eq(customerOrganizations.organizationId, organizationId),
         isNull(customerOrganizations.externalSystemId),
       ));
+  },
+
+  /**
+   * Per-store conversation stats in one bulk query. Returns a map keyed by
+   * store id — zero rows for stores with no conversations yet.
+   */
+  async statsByOrg(organizationId: string): Promise<Record<string, { open: number; total: number; lastActivity: string | null }>> {
+    const rows = await db.select({
+      storeId: customers.customerOrganizationId,
+      total: sql<number>`count(${conversations.id})::int`,
+      open: sql<number>`count(${conversations.id}) filter (where ${conversations.status} in ('open','pending'))::int`,
+      lastActivity: sql<Date | null>`max(greatest(coalesce(${conversations.lastCustomerReplyAt}, ${conversations.createdAt}), coalesce(${conversations.lastAgentReplyAt}, ${conversations.createdAt})))`,
+    })
+      .from(conversations)
+      .innerJoin(customers, eq(customers.id, conversations.customerId))
+      .where(eq(conversations.organizationId, organizationId))
+      .groupBy(customers.customerOrganizationId);
+
+    const out: Record<string, { open: number; total: number; lastActivity: string | null }> = {};
+    for (const r of rows) {
+      if (!r.storeId) continue;
+      out[r.storeId] = {
+        open: r.open || 0,
+        total: r.total || 0,
+        lastActivity: r.lastActivity ? new Date(r.lastActivity as any).toISOString() : null,
+      };
+    }
+    return out;
   },
 };

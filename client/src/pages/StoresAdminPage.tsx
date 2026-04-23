@@ -74,6 +74,11 @@ export default function StoresAdminPage() {
     queryKey: ["/api/workspaces"],
   });
 
+  const { data: stats = {} } = useQuery<Record<string, { open: number; total: number; lastActivity: string | null }>>({
+    queryKey: ["/api/stores/stats"],
+    refetchInterval: 30_000, // auto-refresh every 30s
+  });
+
   const createMutation = useMutation({
     mutationFn: async (body: any) =>
       apiRequest("POST", "/api/stores", body).then(r => r.json()),
@@ -190,12 +195,22 @@ export default function StoresAdminPage() {
                   <TableHead>Support ID</TableHead>
                   <TableHead>Workspace</TableHead>
                   <TableHead>Source</TableHead>
+                  <TableHead>Conversations</TableHead>
+                  <TableHead>Last activity</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-24 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {stores.map(row => (
+                {stores.map(row => {
+                  const s = stats[row.id] || { open: 0, total: 0, lastActivity: null };
+                  const lastAct = s.lastActivity ? new Date(s.lastActivity) : null;
+                  const lastActLabel = lastAct
+                    ? (Date.now() - lastAct.getTime() < 60_000
+                        ? "just now"
+                        : lastAct.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }))
+                    : "—";
+                  return (
                   <TableRow key={row.id}>
                     <TableCell>
                       <div className="font-medium">{row.name}</div>
@@ -213,6 +228,18 @@ export default function StoresAdminPage() {
                         <span className="text-xs text-muted-foreground">manual</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-sm">
+                      {s.total === 0 ? (
+                        <span className="text-muted-foreground">—</span>
+                      ) : (
+                        <span>
+                          {s.open > 0 && <span className="font-medium text-primary">{s.open} open</span>}
+                          {s.open > 0 && <span className="text-muted-foreground"> / </span>}
+                          <span className="text-muted-foreground">{s.total} total</span>
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{lastActLabel}</TableCell>
                     <TableCell>
                       <Badge variant={row.isActive ? "default" : "secondary"}>
                         {row.isActive ? "Active" : "Disabled"}
@@ -227,7 +254,8 @@ export default function StoresAdminPage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}

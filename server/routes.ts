@@ -27,7 +27,9 @@ import fs from "fs";
 import { AIService } from "./ai-service";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
-import { users, cloudStorageOAuthConfigs } from "@shared/schema";
+import { users, cloudStorageOAuthConfigs, customerOrganizations } from "@shared/schema";
+import { enqueueShreEvent } from "./shre-outbox";
+import { firePartnerWebhook } from "./services/partner-webhook.service";
 import { registerAuthRoutes } from "./routes/auth.routes";
 import { registerSlaRoutes } from "./routes/sla.routes";
 import { registerCustomerChatRoutes } from "./routes/customer-chat.routes";
@@ -3978,6 +3980,39 @@ export async function registerRoutes(
               reason: `Status changed by ${user.name}`,
             }),
           });
+
+          // Training signal to Shre (outbox)
+          if (status === "resolved" || status === "closed") {
+            void enqueueShreEvent("conversation.resolved", {
+              conversationId,
+              previousStatus,
+              newStatus: status,
+              resolvedBy: { id: user.id, name: user.name, type: "agent" },
+            });
+
+            // Outbound webhook to partner system (if the conversation's store
+            // came from a partner-imported external_system that has a webhookUrl).
+            void (async () => {
+              try {
+                const convo = await storage.getConversationWithCustomer(conversationId);
+                const customerOrgId = (convo as any)?.customer?.customerOrganizationId;
+                if (!customerOrgId) return;
+                const [store] = await db.select().from(customerOrganizations)
+                  .where(eq(customerOrganizations.id, customerOrgId));
+                if (!store?.externalSystemId) return;
+                await firePartnerWebhook(store.externalSystemId, {
+                  event: status === "resolved" ? "conversation.resolved" : "conversation.closed",
+                  conversationId,
+                  storeId: store.id,
+                  externalId: store.externalId,
+                  resolvedBy: { id: user.id, name: user.name },
+                  closedAt: new Date().toISOString(),
+                });
+              } catch (err) {
+                console.error("[partner-webhook] resolution dispatch failed:", (err as Error).message);
+              }
+            })();
+          }
         }
 
         // Verify the update

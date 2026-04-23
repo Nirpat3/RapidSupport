@@ -33,9 +33,23 @@ import { db } from '../db';
 import { externalSystems } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { AIDataProtectionService } from '../services/ai-data-protection';
 import { storesService } from '../services/stores.service';
 import { signEmbedToken } from '../services/embed-tokens';
+
+/** Per-integration rate limiter (key = sha256 of bearer, or IP fallback). */
+const embedTokenLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => {
+    const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
+    return m ? 'embedSecret:' + crypto.createHash('sha256').update(m[1]).digest('hex').slice(0, 16) : 'ip:' + (req.ip || 'unknown');
+  },
+  message: { error: 'rate_limited', message: 'too many token mints — 100/min per integration' },
+});
 
 const MAX_TTL_SEC = 24 * 60 * 60; // 24h
 const DEFAULT_TTL_SEC = 60 * 60;  // 1h
@@ -76,7 +90,7 @@ async function resolveIntegration(req: any, slug: string): Promise<{ id: string;
 }
 
 export function registerEmbedTokenRoutes({ app }: RouteContext) {
-  app.post('/api/embed/token', async (req, res) => {
+  app.post('/api/embed/token', embedTokenLimiter, async (req, res) => {
     try {
       const parsed = bodySchema.safeParse(req.body);
       if (!parsed.success) return zodErrorResponse(res, parsed.error);
