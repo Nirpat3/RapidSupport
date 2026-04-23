@@ -79,33 +79,40 @@ interface ChatCompletionResult {
 // ── Core Gateway Function (non-streaming) ──
 
 /**
- * Send a chat completion — routes through Shre if configured, OpenAI otherwise.
+ * Send a chat completion — routes ALL calls through Shre when configured.
  *
- * For tool-calling (agentic loops), always falls back to OpenAI since shre-router
- * doesn't support OpenAI-style tool_calls yet.
+ * Tool-calling requests include tools in the Shre payload. shre-router handles
+ * forwarding to the appropriate provider with tool support.
+ * Falls back to direct OpenAI only if Shre call fails or is not configured.
  */
 export async function chatCompletion(opts: ChatCompletionOptions): Promise<ChatCompletionResult> {
-  const hasTools = opts.tools && opts.tools.length > 0;
-
-  // Tool-calling requires OpenAI directly (shre-router doesn't support tool_calls format yet)
-  if (hasTools || !isShreEnabled) {
+  if (!isShreEnabled) {
     return openaiChatCompletion(opts);
   }
 
-  // Route through Shre
+  // Route through Shre — including tool-calling requests
   try {
     const result = await shreClient!.chat({
-      messages: opts.messages.map((m: ChatMessage) => ({ role: m.role, content: m.content })),
+      messages: opts.messages.map((m: ChatMessage) => ({
+        role: m.role,
+        content: m.content,
+        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {}),
+        ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}),
+      })),
       model: 'auto',
       max_tokens: opts.max_completion_tokens || opts.max_tokens,
       agentId: SHRE_AGENT_ID,
-      metadata: { source: 'rapidsupport' },
+      metadata: { source: 'rapidsupport', hasTools: Boolean(opts.tools?.length) },
+      ...(opts.tools ? { tools: opts.tools } : {}),
+      ...(opts.tool_choice ? { tool_choice: opts.tool_choice } : {}),
+      ...(opts.response_format ? { response_format: opts.response_format } : {}),
     });
 
     return {
       content: result.content,
       usage: result.usage,
       model: result.model || 'shre-auto',
+      tool_calls: result.tool_calls,
     };
   } catch (err: any) {
     console.warn(`[ShreGateway] Shre call failed, falling back to OpenAI: ${err.message}`);

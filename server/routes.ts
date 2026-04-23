@@ -6389,6 +6389,15 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         content: correctedResponse
       });
 
+      // Sync corrected content to Shre platform (non-blocking, best-effort)
+      syncArticleToShre({
+        id: String(knowledgeBaseId),
+        title: kb.title,
+        content: correctedResponse,
+        category: kb.category || 'general',
+        tags: kb.tags || [],
+      }).catch(() => {});
+
       // Create learning entry for the correction if agentId is provided
       if (agentId) {
         // Create a temporary conversation for the training session
@@ -8471,26 +8480,35 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
           await knowledgeRetrieval.reindexArticle(newArticle.id);
           
           // Mark as indexed with timestamp
-          await storage.updateKnowledgeBase(newArticle.id, { 
+          await storage.updateKnowledgeBase(newArticle.id, {
             indexingStatus: 'indexed',
             indexedAt: new Date()
           });
           console.log(`✅ Successfully indexed manually created article ${newArticle.id} for AI search`);
+
+          // Sync to Shre platform (non-blocking, no-op if not configured)
+          syncArticleToShre({
+            id: String(newArticle.id),
+            title: newArticle.title,
+            content: newArticle.content || '',
+            category: newArticle.category || 'general',
+            tags: newArticle.tags || [],
+          }).catch(() => {}); // silent fail — Shre sync is best-effort
         } catch (indexError) {
           // Mark as failed with error message
-          await storage.updateKnowledgeBase(newArticle.id, { 
+          await storage.updateKnowledgeBase(newArticle.id, {
             indexingStatus: 'failed',
             indexingError: indexError instanceof Error ? indexError.message : String(indexError)
           });
           console.error(`⚠️ Warning: Failed to index article ${newArticle.id}:`, indexError);
         }
       });
-      
+
       // Sync agent assignments
       if (validationResult.data.assignedAgentIds) {
         await syncAgentKnowledgeAssignments(newArticle.id, validationResult.data.assignedAgentIds);
       }
-      
+
       res.status(201).json(newArticle);
     } catch (error) {
       console.error('Failed to create knowledge base article:', error);
