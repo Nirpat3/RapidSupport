@@ -8235,25 +8235,57 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   // Public support search - AI-powered knowledge base search without authentication
   app.post('/api/public/support/search', async (req, res) => {
     try {
-      const { question } = req.body;
-      
+      const { question, organizationName } = req.body;
+
       if (!question) {
         return res.status(400).json({ error: 'Question is required' });
       }
 
-      // Get a default AI agent for public support (first active agent)
-      const agents = await storage.getAllAiAgents();
-      const publicAgent = agents.find(a => a.isActive) || agents[0];
-      
-      if (!publicAgent) {
-        return res.status(503).json({ error: 'Support service temporarily unavailable' });
+      // Resolve knowledge base IDs. Prefer a specific org's active articles;
+      // falls back to the default AI agent's assigned KBs; finally to ALL
+      // active articles system-wide so search always has a corpus even if
+      // no agent has been explicitly configured with KB IDs.
+      let kbIds: string[] = [];
+
+      if (organizationName) {
+        try {
+          const { organizations, knowledgeBase } = await import('@shared/schema');
+          const { eq, and } = await import('drizzle-orm');
+          const { db } = await import('./db');
+          const [org] = await db.select().from(organizations).where(eq(organizations.name, String(organizationName)));
+          if (org) {
+            const arts = await db.select({ id: knowledgeBase.id })
+              .from(knowledgeBase)
+              .where(and(eq(knowledgeBase.organizationId, org.id), eq(knowledgeBase.isActive, true)));
+            kbIds = arts.map(a => a.id);
+          }
+        } catch (e) {
+          console.warn('Org-scoped KB lookup failed, falling back:', (e as Error).message);
+        }
+      }
+
+      if (kbIds.length === 0) {
+        const agents = await storage.getAllAiAgents();
+        const publicAgent = agents.find(a => a.isActive) || agents[0];
+        kbIds = publicAgent?.knowledgeBaseIds || [];
+      }
+
+      if (kbIds.length === 0) {
+        // Final fallback: every active article
+        try {
+          const all = await storage.getAllKnowledgeBase();
+          kbIds = all.filter(a => a.isActive).map(a => a.id);
+        } catch (e) {
+          console.warn('getAllKnowledgeBase failed:', (e as Error).message);
+        }
+      }
+
+      if (kbIds.length === 0) {
+        return res.status(503).json({ error: 'No knowledge articles available to search' });
       }
 
       // Get relevant knowledge base articles
-      const searchResults = await AIService.getRelevantKnowledge(
-        question,
-        publicAgent.knowledgeBaseIds || []
-      );
+      const searchResults = await AIService.getRelevantKnowledge(question, kbIds);
 
       // Get full article data for sources
       const knowledgeBaseIds = searchResults.map(r => r.id);
