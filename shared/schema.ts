@@ -5736,3 +5736,42 @@ export const resellerAssignments = pgTable("reseller_assignments", {
 export const insertResellerAssignmentSchema = createInsertSchema(resellerAssignments).omit({ id: true, assignedAt: true });
 export type InsertResellerAssignment = z.infer<typeof insertResellerAssignmentSchema>;
 export type ResellerAssignment = typeof resellerAssignments.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────
+// External Systems — partner integrations (RapidRMS, Square, Shopify, etc.)
+// ─────────────────────────────────────────────────────────────────────
+// Each reseller org can activate one or more external systems as sources of
+// store (customer_organization) identity. Stores created from an external
+// system link back via customer_organizations.settings.externalSystemId.
+//
+// Credentials and embed secret are AES-256-GCM encrypted at rest using the
+// existing AIDataProtectionService encryption helpers.
+export const externalSystems = pgTable("external_systems", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }), // reseller that owns this integration
+  slug: text("slug").notNull(), // e.g. 'rapidrms', 'square', 'shopify'
+  name: text("name").notNull(), // display name e.g. "RapidRMS Production"
+  apiEndpoint: text("api_endpoint").notNull(), // e.g. https://api.rapidrms.com
+  clientId: text("client_id").notNull(), // reseller's identifier within the external system
+  credentialsEncrypted: text("credentials_encrypted").notNull(), // AES-256-GCM encrypted JSON blob
+  embedSecretEncrypted: text("embed_secret_encrypted").notNull(), // AES-256-GCM encrypted HMAC secret for iframe tokens
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}), // provider-specific extras
+  isActive: boolean("is_active").notNull().default(true),
+  lastHealthCheck: timestamp("last_health_check"),
+  lastError: text("last_error"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgSlugUnique: unique().on(table.organizationId, table.slug),
+}));
+
+export const insertExternalSystemSchema = createInsertSchema(externalSystems).omit({
+  id: true, createdAt: true, updatedAt: true, credentialsEncrypted: true, embedSecretEncrypted: true, lastHealthCheck: true, lastError: true,
+}).extend({
+  // API accepts plaintext on input — server encrypts before persisting
+  credentials: z.record(z.string()),
+  embedSecret: z.string().min(32, 'embedSecret must be at least 32 chars'),
+});
+export type InsertExternalSystem = z.infer<typeof insertExternalSystemSchema>;
+export type ExternalSystem = typeof externalSystems.$inferSelect;
