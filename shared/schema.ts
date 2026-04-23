@@ -410,27 +410,36 @@ export const departmentMembers = pgTable("department_members", {
 // Represents a business/company that has multiple customer users
 export const customerOrganizations = pgTable("customer_organizations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  
+
   // Business identification
   name: text("name").notNull(), // Business name (e.g., "Acme Corp")
   slug: text("slug").notNull().unique(), // URL-friendly identifier
-  
+
   // Optional support ID for verification
   supportId: text("support_id").unique(), // Unique support ID that customers can share (e.g., "ACME-2024-001")
   requireSupportId: boolean("require_support_id").notNull().default(false), // Toggle: require support ID for new members
-  
+
   // Multi-tenant scoping (links to staff organization)
   organizationId: varchar("organization_id").references(() => organizations.id), // Which staff org serves this customer org
-  
+
+  // Partner integration link — populated when this store was imported from
+  // an external system (e.g. RapidRMS). Null for manually-created stores.
+  externalSystemId: varchar("external_system_id"), // FK → external_systems.id, resolved at query time
+  externalId: text("external_id"), // partner's ID for this store (e.g. RapidRMS store ID)
+  externalMetadata: jsonb("external_metadata").$type<Record<string, any>>().default({}), // partner-specific fields (merchant_id, tax_id, etc.)
+
   // Settings
   settings: jsonb("settings"), // JSON for additional settings
-  
+
   // Status
   isActive: boolean("is_active").notNull().default(true),
-  
+
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => ({
+  // Prevent duplicate imports: one (externalSystemId, externalId) pair = one store
+  externalIdUnique: uniqueIndex("customer_organizations_external_unique").on(table.externalSystemId, table.externalId),
+}));
 
 // Customers table
 export const customers = pgTable("customers", {
