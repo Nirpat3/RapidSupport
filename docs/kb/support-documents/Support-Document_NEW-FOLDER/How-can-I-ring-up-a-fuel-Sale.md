@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I ring up a fuel Sale.docx
 extracted: 2026-04-23T02:42:55.111Z
 sha: 54091747dd0e
+category: Fuel & Pump
+tags: payment
 ---
 
 # How can I ring up a fuel Sale

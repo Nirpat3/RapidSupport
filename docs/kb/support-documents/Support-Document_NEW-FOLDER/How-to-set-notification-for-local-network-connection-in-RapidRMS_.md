@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set notification for local network connection in RapidRMS_.docx
 extracted: 2026-04-23T02:36:47.150Z
 sha: 48726d9c056b
+category: Mobile & Setup
+tags: ipad,pax,howto
 ---
 
 # How to set notification for local network connection in RapidRMS_

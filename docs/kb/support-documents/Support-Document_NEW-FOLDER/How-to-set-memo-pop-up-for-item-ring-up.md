@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set memo pop up for item ring up.docx
 extracted: 2026-04-23T02:34:43.646Z
 sha: 9ba865cf8735
+category: POS Operations
+tags: pos,bof,howto,inventory
 ---
 
 # How to set memo pop up for item ring up

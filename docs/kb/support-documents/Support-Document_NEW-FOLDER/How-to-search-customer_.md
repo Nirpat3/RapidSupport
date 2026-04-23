@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to search customer_.docx
 extracted: 2026-04-23T02:37:56.266Z
 sha: ded30e3afeef
+category: Customers & Loyalty
+tags: howto,loyalty
 ---
 
 # How to search customer_

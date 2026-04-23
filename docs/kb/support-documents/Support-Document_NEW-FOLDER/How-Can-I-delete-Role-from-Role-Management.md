@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Can I delete Role from Role Management.docx
 extracted: 2026-04-23T02:41:01.142Z
 sha: 7ab15c7966d7
+category: User & Role Management
+tags: bof
 ---
 
 # How Can I delete Role from Role Management

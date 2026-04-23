@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to define price change count_.docx
 extracted: 2026-04-23T02:32:45.637Z
 sha: 231da16565c1
+category: Reports
+tags: howto,report
 ---
 
 # How to define price change count_

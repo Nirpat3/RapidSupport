@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Can I update or edit Role from Role Management.docx
 extracted: 2026-04-23T02:42:53.515Z
 sha: 90181b90ff04
+category: User & Role Management
+tags: bof
 ---
 
 # How Can I update or edit Role from Role Management

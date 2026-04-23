@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How GC liability field define in report_.docx
 extracted: 2026-04-23T02:41:53.772Z
 sha: 97bb998a272d
+category: Reports
+tags: report,gift-card
 ---
 
 # How GC liability field define in report_

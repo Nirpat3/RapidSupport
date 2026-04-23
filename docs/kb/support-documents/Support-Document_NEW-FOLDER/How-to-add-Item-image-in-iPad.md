@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add Item image in iPad.docx
 extracted: 2026-04-23T02:41:06.308Z
 sha: 251be2fbaee6
+category: Inventory & Items
+tags: pos,ipad,howto,inventory
 ---
 
 # How to add Item image in iPad

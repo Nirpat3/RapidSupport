@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to deposit.docx
 extracted: 2026-04-23T02:29:57.888Z
 sha: 125f463d51a5
+category: Payments
+tags: howto,inventory
 ---
 
 # How to deposit

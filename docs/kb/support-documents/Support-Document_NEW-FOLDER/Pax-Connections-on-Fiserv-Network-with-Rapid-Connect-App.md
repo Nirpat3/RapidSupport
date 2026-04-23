@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Pax Connections on Fiserv Network with Rapid Connect App.docx
 extracted: 2026-04-23T02:26:47.847Z
 sha: 868fc239db09
+category: Payments
+tags: pos,ipad,pax,troubleshoot,payment
 ---
 
 # Pax Connections on Fiserv Network with Rapid Connect App

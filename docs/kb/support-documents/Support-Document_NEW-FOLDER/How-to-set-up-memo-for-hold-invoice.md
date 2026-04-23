@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set up memo for hold invoice.docx
 extracted: 2026-04-23T02:29:39.860Z
 sha: f877b4d5e20c
+category: POS Operations
+tags: bof,howto
 ---
 
 # How to set up memo for hold invoice

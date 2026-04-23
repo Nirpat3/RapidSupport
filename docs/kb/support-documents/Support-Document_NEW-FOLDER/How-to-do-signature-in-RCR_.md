@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to do signature in RCR_.docx
 extracted: 2026-04-23T02:32:59.213Z
 sha: f0999207c26d
+category: POS Operations
+tags: howto,payment
 ---
 
 # How to do signature in RCR_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can i give manual discount in POS.docx
 extracted: 2026-04-23T02:43:33.486Z
 sha: bfb976bf333e
+category: POS Operations
+tags: pos
 ---
 
 # How can i give manual discount in POS

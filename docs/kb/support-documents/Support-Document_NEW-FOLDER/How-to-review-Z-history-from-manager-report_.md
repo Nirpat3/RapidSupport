@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to review Z history from manager report_.docx
 extracted: 2026-04-23T02:34:54.815Z
 sha: c0b79aed6f5b
+category: Reports
+tags: howto,report
 ---
 
 # How to review Z history from manager report_

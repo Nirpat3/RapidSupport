@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I open Imported EDI file in edit mode.docx
 extracted: 2026-04-23T02:43:43.878Z
 sha: 3c3fa6051c65
+category: Integrations
+tags: inventory
 ---
 
 # How do I open Imported EDI file in edit mode

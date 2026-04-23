@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to suspend pump_.docx
 extracted: 2026-04-23T02:35:43.422Z
 sha: b3d822099df1
+category: Fuel & Pump
+tags: howto
 ---
 
 # How to suspend pump_

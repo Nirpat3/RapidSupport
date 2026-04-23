@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I release and reactive register.docx
 extracted: 2026-04-23T02:42:01.149Z
 sha: c4f20c1c5df4
+category: POS Operations
+tags: 
 ---
 
 # How do I release and reactive register

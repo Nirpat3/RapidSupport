@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How does Vendor Inventory work.docx
 extracted: 2026-04-23T02:42:48.067Z
 sha: 4df284974a96
+category: Inventory & Items
+tags: inventory
 ---
 
 # How does Vendor Inventory work

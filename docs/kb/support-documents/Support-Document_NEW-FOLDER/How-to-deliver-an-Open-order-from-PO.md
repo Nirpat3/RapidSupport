@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to deliver an Open order from PO.docx
 extracted: 2026-04-23T02:38:54.840Z
 sha: cabe0d15d608
+category: POS Operations
+tags: howto
 ---
 
 # How to deliver an Open order from PO

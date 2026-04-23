@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I add users for RapidRMS.docx
 extracted: 2026-04-23T02:40:50.654Z
 sha: bf2a81ad35a3
+category: User & Role Management
+tags: pos
 ---
 
 # How do I add users for RapidRMS

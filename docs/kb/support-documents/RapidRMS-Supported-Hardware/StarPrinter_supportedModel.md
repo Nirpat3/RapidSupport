@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: RapidRMS Supported Hardware/StarPrinter_supportedModel.pdf
 extracted: 2026-04-23T02:25:33.304Z
 sha: 7dea7ad464c8
+category: Hardware
+tags: 
 ---
 
 # StarPrinter_supportedModel

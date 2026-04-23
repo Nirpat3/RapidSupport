@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Load Balance in Gift Card.docx
 extracted: 2026-04-23T02:32:38.243Z
 sha: 14f4d16bedcc
+category: Payments
+tags: howto,payment,gift-card
 ---
 
 # How to Load Balance in Gift Card

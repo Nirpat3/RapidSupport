@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to change GROUP PRICE.docx
 extracted: 2026-04-23T02:35:31.219Z
 sha: 126224d3bf63
+category: Promotions & Pricing
+tags: bof,howto,inventory
 ---
 
 # How to change GROUP PRICE

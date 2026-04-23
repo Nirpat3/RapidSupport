@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add QSR operations for modifier.docx
 extracted: 2026-04-23T02:32:41.095Z
 sha: ce0227fd3b2f
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to add QSR operations for modifier

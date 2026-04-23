@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to upload EDI File_KeHe.docx
 extracted: 2026-04-23T02:26:02.080Z
 sha: abf605ee9c7e
+category: Integrations
+tags: bof,howto,inventory
 ---
 
 # How to upload EDI File_KeHe

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How OFFLINE Drop Amount Work.docx
 extracted: 2026-04-23T02:41:30.874Z
 sha: 919c7128f7a8
+category: Troubleshooting
+tags: pos,bof,ipad,troubleshoot,payment
 ---
 
 # How OFFLINE Drop Amount Work

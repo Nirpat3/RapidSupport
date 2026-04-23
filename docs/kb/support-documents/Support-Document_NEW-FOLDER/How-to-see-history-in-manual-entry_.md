@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to see history in manual entry_.docx
 extracted: 2026-04-23T02:29:02.149Z
 sha: b0f633c4cb70
+category: POS Operations
+tags: howto
 ---
 
 # How to see history in manual entry_

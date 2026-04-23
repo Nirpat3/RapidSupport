@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to reconcile invoice from Manual entry.docx
 extracted: 2026-04-23T02:32:54.682Z
 sha: 27501d2058d6
+category: POS Operations
+tags: howto,inventory
 ---
 
 # How to reconcile invoice from Manual entry

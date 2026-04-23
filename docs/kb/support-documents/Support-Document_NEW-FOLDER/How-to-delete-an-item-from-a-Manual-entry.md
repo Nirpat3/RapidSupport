@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete an item from a Manual entry.docx
 extracted: 2026-04-23T02:29:45.742Z
 sha: ab3fca17143c
+category: POS Operations
+tags: howto
 ---
 
 # How to delete an item from a Manual entry

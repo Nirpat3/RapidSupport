@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to manage Item option from iPad.docx
 extracted: 2026-04-23T02:36:29.224Z
 sha: 382b86ae58f1
+category: POS Operations
+tags: pos,ipad,ebt,howto,inventory
 ---
 
 # How to manage Item option from iPad

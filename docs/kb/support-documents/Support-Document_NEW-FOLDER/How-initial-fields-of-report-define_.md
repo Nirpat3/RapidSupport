@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How initial fields of report define_.docx
 extracted: 2026-04-23T02:42:50.857Z
 sha: d9c52d1ba6d3
+category: Reports
+tags: bof,ipad,report
 ---
 
 # How initial fields of report define_

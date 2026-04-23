@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Synchronize Database.docx
 extracted: 2026-04-23T02:28:53.449Z
 sha: 0ca46302e24b
+category: Troubleshooting
+tags: howto
 ---
 
 # How to Synchronize Database

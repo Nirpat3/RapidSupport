@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set tax on price.docx
 extracted: 2026-04-23T02:32:30.149Z
 sha: f6b707d086cd
+category: Payments
+tags: howto
 ---
 
 # How to set tax on price

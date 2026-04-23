@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add item in PO list.docx
 extracted: 2026-04-23T02:40:38.630Z
 sha: 75803cdf3bac
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to add item in PO list

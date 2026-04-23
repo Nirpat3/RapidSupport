@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete an existing department.docx
 extracted: 2026-04-23T02:35:41.790Z
 sha: 14c6ec509efb
+category: Inventory & Items
+tags: troubleshoot,howto,inventory
 ---
 
 # How to delete an existing department

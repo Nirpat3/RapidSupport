@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Delete Item in iPad.docx
 extracted: 2026-04-23T02:36:30.908Z
 sha: 1b22e05bd32d
+category: POS Operations
+tags: ipad,howto,inventory
 ---
 
 # How to Delete Item in iPad

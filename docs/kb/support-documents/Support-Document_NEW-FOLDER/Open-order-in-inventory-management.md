@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Open order in inventory management.docx
 extracted: 2026-04-23T02:26:52.239Z
 sha: 8f7b0957ba76
+category: POS Operations
+tags: inventory
 ---
 
 # Open order in inventory management

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to open close your keyboard when you Bluetooth scanner is connected to your iPad.docx
 extracted: 2026-04-23T02:39:03.434Z
 sha: 64d29d3e6e90
+category: POS Operations
+tags: ipad,howto
 ---
 
 # How to open close your keyboard when you Bluetooth scanner is connected to your iPad

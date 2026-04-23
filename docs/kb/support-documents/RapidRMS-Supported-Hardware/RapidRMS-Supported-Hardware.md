@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: RapidRMS Supported Hardware/RapidRMS Supported Hardware.xlsx
 extracted: 2026-04-23T02:25:30.893Z
 sha: 3c7c179fb37d
+category: Hardware
+tags: 
 ---
 
 # RapidRMS Supported Hardware

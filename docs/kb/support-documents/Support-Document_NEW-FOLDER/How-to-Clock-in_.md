@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Clock in_.docx
 extracted: 2026-04-23T02:28:41.424Z
 sha: 89c7aa7e496e
+category: User & Role Management
+tags: howto
 ---
 
 # How to Clock in_

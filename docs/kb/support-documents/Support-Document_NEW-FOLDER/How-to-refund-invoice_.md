@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to refund invoice_.docx
 extracted: 2026-04-23T02:30:02.056Z
 sha: 6a0b5e45b4f1
+category: POS Operations
+tags: howto
 ---
 
 # How to refund invoice_

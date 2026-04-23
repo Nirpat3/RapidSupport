@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Can I create New invoice from manual entry.docx
 extracted: 2026-04-23T02:41:50.756Z
 sha: 38f048903a3e
+category: POS Operations
+tags: 
 ---
 
 # How Can I create New invoice from manual entry

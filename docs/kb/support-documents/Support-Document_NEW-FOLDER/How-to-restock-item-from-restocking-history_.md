@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to restock item from restocking history_.docx
 extracted: 2026-04-23T02:30:42.209Z
 sha: 209486c443f3
+category: Reports
+tags: howto,report
 ---
 
 # How to restock item from restocking history_

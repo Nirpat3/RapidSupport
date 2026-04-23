@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set up a Pax gateway from Back office.docx
 extracted: 2026-04-23T02:37:47.434Z
 sha: c8e854785ac8
+category: Payments
+tags: pos,bof,pax,howto,payment
 ---
 
 # How to set up a Pax gateway from Back office

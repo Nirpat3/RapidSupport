@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to setup Epson TM T82 printer.docx
 extracted: 2026-04-23T02:32:50.788Z
 sha: 72c08713ab25
+category: Hardware
+tags: ipad,setup,howto
 ---
 
 # How to setup Epson TM T82 printer

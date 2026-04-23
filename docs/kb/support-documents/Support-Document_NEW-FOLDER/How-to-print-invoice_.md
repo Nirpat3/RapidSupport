@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to print invoice_.docx
 extracted: 2026-04-23T02:28:59.926Z
 sha: d1dd9b78ec7c
+category: POS Operations
+tags: howto
 ---
 
 # How to print invoice_

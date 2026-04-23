@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: eCommerce/E-COMMERCE PORTAL_User Manual_V 1.pdf
 extracted: 2026-04-23T02:25:29.620Z
 sha: 939d51dbc1a2
+category: eCommerce
+tags: pos,payment
 ---
 
 # E-COMMERCE PORTAL_User Manual_V 1

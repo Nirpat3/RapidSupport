@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to transfer pump_.docx
 extracted: 2026-04-23T02:33:58.028Z
 sha: ad96a6b56d05
+category: Fuel & Pump
+tags: howto,payment
 ---
 
 # How to transfer pump_

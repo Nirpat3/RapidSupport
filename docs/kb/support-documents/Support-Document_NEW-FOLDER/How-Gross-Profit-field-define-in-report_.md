@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Gross Profit field define in report_.docx
 extracted: 2026-04-23T02:42:46.642Z
 sha: 949de479d988
+category: Reports
+tags: report
 ---
 
 # How Gross Profit field define in report_

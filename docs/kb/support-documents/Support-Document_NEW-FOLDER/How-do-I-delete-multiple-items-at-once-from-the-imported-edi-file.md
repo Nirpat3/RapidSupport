@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I delete multiple items at once from the imported edi file.docx
 extracted: 2026-04-23T02:41:55.062Z
 sha: 2fbce40657c7
+category: Integrations
+tags: inventory
 ---
 
 # How do I delete multiple items at once from the imported edi file

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Filter items list to select items from third party promotions for RJR scan Data.docx
 extracted: 2026-04-23T02:39:52.564Z
 sha: b0cf9a33d96c
+category: Promotions & Pricing
+tags: rjr
 ---
 
 # Filter items list to select items from third party promotions for RJR scan Data

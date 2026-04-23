@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete invoice from inventory count_.docx
 extracted: 2026-04-23T02:28:46.466Z
 sha: 741d0e9f90e2
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to delete invoice from inventory count_

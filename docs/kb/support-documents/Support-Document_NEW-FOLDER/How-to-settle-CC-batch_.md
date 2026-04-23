@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to settle CC batch_.docx
 extracted: 2026-04-23T02:36:49.751Z
 sha: d66855c17618
+category: Reports
+tags: pos,howto,report
 ---
 
 # How to settle CC batch_

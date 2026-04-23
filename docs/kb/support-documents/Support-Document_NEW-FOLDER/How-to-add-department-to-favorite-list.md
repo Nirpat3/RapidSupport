@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add department to favorite list.docx
 extracted: 2026-04-23T02:40:58.618Z
 sha: 238a22451bdb
+category: Inventory & Items
+tags: howto
 ---
 
 # How to add department to favorite list

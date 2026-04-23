@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Hold transaction_.docx
 extracted: 2026-04-23T02:37:36.748Z
 sha: bbbaaefc9fe3
+category: POS Operations
+tags: howto
 ---
 
 # How to Hold transaction_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Delete a gateway from Back.docx
 extracted: 2026-04-23T02:32:53.249Z
 sha: c643d34812ff
+category: Payments
+tags: bof,howto,payment
 ---
 
 # How to Delete a gateway from Back

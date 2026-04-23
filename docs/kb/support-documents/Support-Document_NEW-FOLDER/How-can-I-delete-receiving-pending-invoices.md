@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I delete receiving pending invoices.docx
 extracted: 2026-04-23T02:43:42.439Z
 sha: 24f2cf0c96f9
+category: Inventory & Items
+tags: 
 ---
 
 # How can I delete receiving pending invoices

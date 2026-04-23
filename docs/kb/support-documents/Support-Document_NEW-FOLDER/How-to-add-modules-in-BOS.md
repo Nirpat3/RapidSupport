@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add modules in BOS.docx
 extracted: 2026-04-23T02:40:44.246Z
 sha: 5a611d9ff7f6
+category: POS Operations
+tags: bof,howto
 ---
 
 # How to add modules in BOS

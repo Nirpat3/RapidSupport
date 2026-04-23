@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can we activate GIFT CARD Service from BackOffice.docx
 extracted: 2026-04-23T02:43:36.453Z
 sha: 60b8c9f60aa3
+category: Payments
+tags: bof,inventory,gift-card
 ---
 
 # How can we activate GIFT CARD Service from BackOffice

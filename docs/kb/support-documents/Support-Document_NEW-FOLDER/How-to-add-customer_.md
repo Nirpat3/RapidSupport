@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add customer_.docx
 extracted: 2026-04-23T02:43:51.509Z
 sha: 383b5c32d9a5
+category: Customers & Loyalty
+tags: howto,loyalty
 ---
 
 # How to add customer_

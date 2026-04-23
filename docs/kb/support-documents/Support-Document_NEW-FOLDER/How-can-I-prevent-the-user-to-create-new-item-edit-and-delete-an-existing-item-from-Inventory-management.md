@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I prevent the user to create new item, edit and delete an existing item from Inventory management.docx
 extracted: 2026-04-23T02:42:52.242Z
 sha: 5c14da650731
+category: Inventory & Items
+tags: pos,bof,inventory
 ---
 
 # How can I prevent the user to create new item, edit and delete an existing item from Inventory management

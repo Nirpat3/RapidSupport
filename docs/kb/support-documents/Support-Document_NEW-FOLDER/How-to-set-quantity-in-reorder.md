@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set quantity in reorder.docx
 extracted: 2026-04-23T02:34:39.187Z
 sha: bce3e00562d5
+category: Inventory & Items
+tags: howto
 ---
 
 # How to set quantity in reorder

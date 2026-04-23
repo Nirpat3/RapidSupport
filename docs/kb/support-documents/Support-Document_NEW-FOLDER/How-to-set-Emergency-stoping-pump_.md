@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How  to set Emergency stoping pump_.docx
 extracted: 2026-04-23T02:40:59.863Z
 sha: 2756f26a6b34
+category: Fuel & Pump
+tags: 
 ---
 
 # How  to set Emergency stoping pump_

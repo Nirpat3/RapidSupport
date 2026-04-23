@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to edit category of the department from Back office.docx
 extracted: 2026-04-23T02:33:38.493Z
 sha: e58287f0b19f
+category: Inventory & Items
+tags: bof,howto,inventory,report
 ---
 
 # How to edit category of the department from Back office

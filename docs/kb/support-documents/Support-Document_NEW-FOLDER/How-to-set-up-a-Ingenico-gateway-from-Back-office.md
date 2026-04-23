@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set up a Ingenico gateway from Back office.docx
 extracted: 2026-04-23T02:33:59.457Z
 sha: fe9ef16e5d98
+category: Payments
+tags: pos,bof,howto,payment
 ---
 
 # How to set up a Ingenico gateway from Back office

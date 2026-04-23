@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to void in clock in out.docx
 extracted: 2026-04-23T02:27:42.857Z
 sha: 34d206a8898e
+category: User & Role Management
+tags: howto
 ---
 
 # How to void in clock in out

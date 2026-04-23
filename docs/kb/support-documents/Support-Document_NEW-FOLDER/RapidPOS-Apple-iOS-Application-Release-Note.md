@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/RapidPOS Apple iOS Application Release Note.docx
 extracted: 2026-04-23T02:26:59.084Z
 sha: c04bebc1442e
+category: Mobile & Setup
+tags: 
 ---
 
 # RapidPOS Apple iOS Application Release Note

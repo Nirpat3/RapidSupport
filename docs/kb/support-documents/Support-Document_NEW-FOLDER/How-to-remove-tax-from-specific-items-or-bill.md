@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to remove tax from specific items or bill.docx
 extracted: 2026-04-23T02:29:28.759Z
 sha: ec6d2eaf0c20
+category: Uncategorized
+tags: howto
 ---
 
 # How to remove tax from specific items or bill

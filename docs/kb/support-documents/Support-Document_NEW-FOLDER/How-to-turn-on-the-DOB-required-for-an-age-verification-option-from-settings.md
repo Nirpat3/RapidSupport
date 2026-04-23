@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to turn on the DOB required for an age verification option from settings.docx
 extracted: 2026-04-23T02:27:27.059Z
 sha: 49c254bd753d
+category: Inventory & Items
+tags: howto
 ---
 
 # How to turn on the DOB required for an age verification option from settings

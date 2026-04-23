@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to export list in restock report_.docx
 extracted: 2026-04-23T02:28:39.454Z
 sha: 0bdb4de77145
+category: Reports
+tags: howto,report
 ---
 
 # How to export list in restock report_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to calculate value in default section of department_.docx
 extracted: 2026-04-23T02:37:53.278Z
 sha: 5effa811c19a
+category: Inventory & Items
+tags: howto,report
 ---
 
 # How to calculate value in default section of department_

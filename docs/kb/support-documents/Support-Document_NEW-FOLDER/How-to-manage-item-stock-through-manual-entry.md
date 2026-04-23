@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to manage item stock through manual entry.docx
 extracted: 2026-04-23T02:32:26.108Z
 sha: a56f14cf0243
+category: POS Operations
+tags: howto,inventory
 ---
 
 # How to manage item stock through manual entry

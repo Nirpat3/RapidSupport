@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to do payment by house charge_.docx
 extracted: 2026-04-23T02:35:57.930Z
 sha: 877175b69359
+category: Payments
+tags: bof,howto,payment
 ---
 
 # How to do payment by house charge_

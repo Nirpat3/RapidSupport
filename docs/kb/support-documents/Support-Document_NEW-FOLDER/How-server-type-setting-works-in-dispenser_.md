@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How server type setting works in dispenser_.docx
 extracted: 2026-04-23T02:40:53.483Z
 sha: 965d0f74e700
+category: Fuel & Pump
+tags: 
 ---
 
 # How server type setting works in dispenser_

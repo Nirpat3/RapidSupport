@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to search item invoice from invoice page.docx
 extracted: 2026-04-23T02:28:01.794Z
 sha: 195f1e7c48f0
+category: POS Operations
+tags: howto
 ---
 
 # How to search item invoice from invoice page

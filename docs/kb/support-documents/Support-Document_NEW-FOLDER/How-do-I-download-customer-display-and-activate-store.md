@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I download customer display and activate store.docx
 extracted: 2026-04-23T02:41:49.000Z
 sha: 659482b7b0e5
+category: Inventory & Items
+tags: pos,bof,ipad
 ---
 
 # How do I download customer display and activate store

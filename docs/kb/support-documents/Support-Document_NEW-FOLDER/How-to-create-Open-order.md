@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create Open order.docx
 extracted: 2026-04-23T02:33:02.900Z
 sha: 7b75e72080d2
+category: POS Operations
+tags: howto
 ---
 
 # How to create Open order

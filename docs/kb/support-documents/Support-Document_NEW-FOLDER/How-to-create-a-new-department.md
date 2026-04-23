@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create a new department.docx
 extracted: 2026-04-23T02:35:53.245Z
 sha: cb3f9703543f
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to create a new department

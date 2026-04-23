@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to turn on Scan data promotion from Back office.docx
 extracted: 2026-04-23T02:27:39.374Z
 sha: 7428487a2fe4
+category: Promotions & Pricing
+tags: bof,howto
 ---
 
 # How to turn on Scan data promotion from Back office

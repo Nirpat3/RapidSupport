@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Transfer Order from source to destination store.docx
 extracted: 2026-04-23T02:38:51.420Z
 sha: f1fa54c5c81b
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to Transfer Order from source to destination store

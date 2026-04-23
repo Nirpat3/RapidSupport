@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to complete counting in inventory count_.docx
 extracted: 2026-04-23T02:36:58.819Z
 sha: 28bfb5cbad67
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to complete counting in inventory count_

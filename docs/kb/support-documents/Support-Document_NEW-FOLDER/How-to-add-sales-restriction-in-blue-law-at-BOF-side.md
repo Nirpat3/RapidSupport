@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add sales restriction in blue law at BOF side.docx
 extracted: 2026-04-23T02:36:02.646Z
 sha: 65a7cf352c65
+category: Promotions & Pricing
+tags: pos,bof,howto
 ---
 
 # How to add sales restriction in blue law at BOF side

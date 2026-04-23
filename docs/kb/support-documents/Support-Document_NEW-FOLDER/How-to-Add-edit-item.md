@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Add edit item.docx
 extracted: 2026-04-23T02:41:36.004Z
 sha: 84cf09d7991a
+category: Inventory & Items
+tags: ipad,howto,inventory
 ---
 
 # How to Add edit item

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I revert the reconciled EDI file.docx
 extracted: 2026-04-23T02:43:39.361Z
 sha: 16162bc76524
+category: Reports
+tags: inventory
 ---
 
 # How do I revert the reconciled EDI file

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set up Bluetooth printer.docx
 extracted: 2026-04-23T02:34:02.496Z
 sha: 84cc554c78c7
+category: Hardware
+tags: ipad,howto
 ---
 
 # How to set up Bluetooth printer

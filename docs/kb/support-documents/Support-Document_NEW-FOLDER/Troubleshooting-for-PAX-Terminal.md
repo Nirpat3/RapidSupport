@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Troubleshooting for PAX Terminal.docx
 extracted: 2026-04-23T02:25:59.043Z
 sha: 1fbb19b6806b
+category: Troubleshooting
+tags: ipad,pax,troubleshoot,payment
 ---
 
 # Troubleshooting for PAX Terminal

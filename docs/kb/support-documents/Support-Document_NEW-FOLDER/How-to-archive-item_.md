@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to archive item_.docx
 extracted: 2026-04-23T02:35:47.842Z
 sha: c7b0aec45e4a
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to archive item_

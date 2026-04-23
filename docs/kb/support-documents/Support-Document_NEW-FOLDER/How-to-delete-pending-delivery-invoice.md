@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete pending delivery invoice.docx
 extracted: 2026-04-23T02:29:54.871Z
 sha: 2aa397b16dce
+category: POS Operations
+tags: howto
 ---
 
 # How to delete pending delivery invoice

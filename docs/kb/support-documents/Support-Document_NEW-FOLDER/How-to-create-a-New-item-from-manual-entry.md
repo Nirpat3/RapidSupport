@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create a New item from manual entry.docx
 extracted: 2026-04-23T02:28:48.044Z
 sha: 612099c984f9
+category: POS Operations
+tags: pos,howto
 ---
 
 # How to create a New item from manual entry

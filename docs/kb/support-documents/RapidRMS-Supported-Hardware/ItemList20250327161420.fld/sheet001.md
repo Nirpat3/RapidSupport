@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: RapidRMS Supported Hardware/ItemList20250327161420.fld/sheet001.htm
 extracted: 2026-04-23T02:25:43.654Z
 sha: fcad620da8e3
+category: Inventory & Items
+tags: inventory,report
 ---
 
 # sheet001

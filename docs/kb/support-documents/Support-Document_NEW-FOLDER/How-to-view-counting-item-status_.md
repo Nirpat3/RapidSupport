@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to view counting item status_.docx
 extracted: 2026-04-23T02:26:39.664Z
 sha: 334804a28854
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to view counting item status_

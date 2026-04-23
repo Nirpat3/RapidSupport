@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Work KITCHEN PRINTER Functionality.docx
 extracted: 2026-04-23T02:26:55.140Z
 sha: 24629e06093a
+category: Hardware
+tags: pos,howto,inventory
 ---
 
 # How to Work KITCHEN PRINTER Functionality

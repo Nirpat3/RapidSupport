@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: RapidRMS Support Documents/Signs/Cash Discount.pdf
 extracted: 2026-04-23T02:25:36.177Z
 sha: 0ff16d5a0f0e
+category: Promotions & Pricing
+tags: payment,gift-card
 ---
 
 # Cash Discount

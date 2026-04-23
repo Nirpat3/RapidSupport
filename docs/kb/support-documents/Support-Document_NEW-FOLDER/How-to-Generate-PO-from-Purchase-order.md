@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Generate PO from Purchase order.docx
 extracted: 2026-04-23T02:29:56.498Z
 sha: 9668b0a1be65
+category: Inventory & Items
+tags: howto
 ---
 
 # How to Generate PO from Purchase order

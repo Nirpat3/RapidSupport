@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to edit an existing Fees and Deposits.docx
 extracted: 2026-04-23T02:33:32.635Z
 sha: 4b598b009b97
+category: Payments
+tags: howto,inventory
 ---
 
 # How to edit an existing Fees and Deposits

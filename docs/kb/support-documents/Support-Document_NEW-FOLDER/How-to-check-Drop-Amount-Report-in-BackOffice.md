@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to check Drop Amount Report in BackOffice.docx
 extracted: 2026-04-23T02:29:33.137Z
 sha: 5edbca51f89c
+category: Reports
+tags: bof,howto,report
 ---
 
 # How to check Drop Amount Report in BackOffice

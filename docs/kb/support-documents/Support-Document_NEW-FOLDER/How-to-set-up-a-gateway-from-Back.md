@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set up a gateway from Back.docx
 extracted: 2026-04-23T02:30:57.864Z
 sha: 656ac634690c
+category: Payments
+tags: bof,pax,howto,payment
 ---
 
 # How to set up a gateway from Back

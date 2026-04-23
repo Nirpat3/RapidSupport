@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Edit an existing Tax for tax master.docx
 extracted: 2026-04-23T02:30:49.810Z
 sha: a911d35ae955
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to Edit an existing Tax for tax master

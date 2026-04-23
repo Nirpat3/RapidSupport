@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to view customer profile_.docx
 extracted: 2026-04-23T02:27:48.750Z
 sha: 74a08db0a166
+category: Customers & Loyalty
+tags: howto,loyalty
 ---
 
 # How to view customer profile_

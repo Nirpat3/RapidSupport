@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How payment type calculation define in report_.docx
 extracted: 2026-04-23T02:42:57.965Z
 sha: 64c33026c97f
+category: Payments
+tags: ebt,report,payment,gift-card
 ---
 
 # How payment type calculation define in report_

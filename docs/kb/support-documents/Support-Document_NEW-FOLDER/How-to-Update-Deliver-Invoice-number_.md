@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Update Deliver Invoice number_.docx
 extracted: 2026-04-23T02:27:34.159Z
 sha: 9ed8f9226b7b
+category: POS Operations
+tags: howto
 ---
 
 # How to Update Deliver Invoice number_

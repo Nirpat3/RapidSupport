@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set up Age verification.docx
 extracted: 2026-04-23T02:32:57.659Z
 sha: c499767011c5
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to set up Age verification

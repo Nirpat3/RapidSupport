@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create categories for Department from Back office.docx
 extracted: 2026-04-23T02:36:48.496Z
 sha: 492155d09c2c
+category: Inventory & Items
+tags: pos,bof,howto,inventory,report
 ---
 
 # How to create categories for Department from Back office

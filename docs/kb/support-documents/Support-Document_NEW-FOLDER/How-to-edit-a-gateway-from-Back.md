@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to edit a gateway from Back.docx
 extracted: 2026-04-23T02:37:48.923Z
 sha: e29020832932
+category: Payments
+tags: bof,howto
 ---
 
 # How to edit a gateway from Back

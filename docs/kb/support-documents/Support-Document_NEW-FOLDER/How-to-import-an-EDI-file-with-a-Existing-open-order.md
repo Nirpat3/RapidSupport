@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to import an EDI file with a Existing open order.docx
 extracted: 2026-04-23T02:31:45.154Z
 sha: ab247fc4911e
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to import an EDI file with a Existing open order

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How payout value calculated in reports_.docx
 extracted: 2026-04-23T02:40:54.718Z
 sha: 66d9379d915f
+category: Reports
+tags: pos,inventory,report
 ---
 
 # How payout value calculated in reports_

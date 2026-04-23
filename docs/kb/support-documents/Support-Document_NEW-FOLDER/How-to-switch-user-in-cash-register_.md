@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to switch user in cash register_.docx
 extracted: 2026-04-23T02:31:59.783Z
 sha: 8227d7c3f022
+category: Uncategorized
+tags: howto
 ---
 
 # How to switch user in cash register_

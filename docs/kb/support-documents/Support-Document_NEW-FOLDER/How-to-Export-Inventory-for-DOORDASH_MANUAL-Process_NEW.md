@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Export Inventory for DOORDASH_MANUAL Process_NEW.docx
 extracted: 2026-04-23T02:38:59.602Z
 sha: 1701727ba29b
+category: Inventory & Items
+tags: howto,inventory,doordash
 ---
 
 # How to Export Inventory for DOORDASH_MANUAL Process_NEW

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to approve Pump_.docx
 extracted: 2026-04-23T02:33:43.089Z
 sha: 1f660201c0c4
+category: Fuel & Pump
+tags: howto
 ---
 
 # How to approve Pump_

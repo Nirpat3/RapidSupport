@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I reactive or replace the register from POS.docx
 extracted: 2026-04-23T02:40:45.799Z
 sha: 95dbe0529cae
+category: POS Operations
+tags: pos
 ---
 
 # How can I reactive or replace the register from POS

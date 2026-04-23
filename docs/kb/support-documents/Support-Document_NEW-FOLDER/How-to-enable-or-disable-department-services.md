@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to enable or disable department services.docx
 extracted: 2026-04-23T02:37:42.860Z
 sha: b5afdd0d5b37
+category: Inventory & Items
+tags: setup,howto,inventory,gift-card
 ---
 
 # How to enable or disable department services

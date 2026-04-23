@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Add a Customer in RCR.docx
 extracted: 2026-04-23T02:42:03.114Z
 sha: 297f0ee848bc
+category: Customers & Loyalty
+tags: howto,loyalty
 ---
 
 # How to Add a Customer in RCR

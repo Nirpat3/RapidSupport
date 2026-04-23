@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How GIFT CARD Work.docx
 extracted: 2026-04-23T02:40:01.996Z
 sha: 81a478739c5a
+category: Payments
+tags: pos,bof,inventory,payment,gift-card
 ---
 
 # How GIFT CARD Work

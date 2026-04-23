@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Create third party promotions  RJR.docx
 extracted: 2026-04-23T02:43:48.586Z
 sha: a975cd591c12
+category: Promotions & Pricing
+tags: rjr
 ---
 
 # Create third party promotions  RJR

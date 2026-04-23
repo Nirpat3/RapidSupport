@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set memo for discount.docx
 extracted: 2026-04-23T02:32:49.338Z
 sha: 3a664e42d141
+category: Promotions & Pricing
+tags: pos,bof,howto
 ---
 
 # How to set memo for discount

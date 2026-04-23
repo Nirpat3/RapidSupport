@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to connect customer display_.docx
 extracted: 2026-04-23T02:28:03.321Z
 sha: 148f1d5c5c1d
+category: Inventory & Items
+tags: ipad,howto
 ---
 
 # How to connect customer display_

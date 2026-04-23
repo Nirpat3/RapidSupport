@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How NON-CASH ADJUSTMENT work in POS.docx
 extracted: 2026-04-23T02:41:32.895Z
 sha: e2c0cf3a9318
+category: POS Operations
+tags: pos,inventory
 ---
 
 # How NON-CASH ADJUSTMENT work in POS

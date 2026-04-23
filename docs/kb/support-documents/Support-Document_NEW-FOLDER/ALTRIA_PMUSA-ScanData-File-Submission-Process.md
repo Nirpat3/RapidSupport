@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/ALTRIA_PMUSA ScanData File Submission Process.docx
 extracted: 2026-04-23T02:39:46.263Z
 sha: 0b5526dbf433
+category: Promotions & Pricing
+tags: bof,altria
 ---
 
 # ALTRIA_PMUSA ScanData File Submission Process

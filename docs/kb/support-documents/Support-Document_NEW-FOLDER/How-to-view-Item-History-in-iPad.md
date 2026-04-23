@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to view Item History in iPad.docx
 extracted: 2026-04-23T02:27:25.536Z
 sha: cc838182d42d
+category: POS Operations
+tags: ipad,howto,inventory
 ---
 
 # How to view Item History in iPad

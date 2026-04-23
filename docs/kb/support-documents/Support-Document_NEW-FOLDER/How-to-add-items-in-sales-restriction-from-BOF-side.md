@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add items in sales restriction from BOF side.docx
 extracted: 2026-04-23T02:42:40.871Z
 sha: ee83309badab
+category: Promotions & Pricing
+tags: bof,howto
 ---
 
 # How to add items in sales restriction from BOF side

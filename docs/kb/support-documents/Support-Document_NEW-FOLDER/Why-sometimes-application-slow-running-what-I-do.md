@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Why sometimes application slow running what I do.docx
 extracted: 2026-04-23T02:26:38.378Z
 sha: 2581af8a8c27
+category: Troubleshooting
+tags: ipad
 ---
 
 # Why sometimes application slow running what I do

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to compare Deliver PO List with Validation ME or EDI.docx
 extracted: 2026-04-23T02:35:32.753Z
 sha: 693aaa1158b7
+category: Inventory & Items
+tags: howto
 ---
 
 # How to compare Deliver PO List with Validation ME or EDI

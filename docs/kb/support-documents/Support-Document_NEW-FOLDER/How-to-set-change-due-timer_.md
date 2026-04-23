@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set change due timer_.docx
 extracted: 2026-04-23T02:30:59.348Z
 sha: 5497dd3fd7b2
+category: Payments
+tags: howto
 ---
 
 # How to set change due timer_

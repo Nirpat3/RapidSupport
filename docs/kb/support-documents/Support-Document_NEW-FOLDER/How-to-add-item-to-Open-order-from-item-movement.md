@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add item to Open order from item movement.docx
 extracted: 2026-04-23T02:43:50.040Z
 sha: 94749a289fab
+category: Inventory & Items
+tags: howto
 ---
 
 # How to add item to Open order from item movement

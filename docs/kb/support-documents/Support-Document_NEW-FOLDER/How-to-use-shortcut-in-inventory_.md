@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to use shortcut in inventory_.docx
 extracted: 2026-04-23T02:26:35.537Z
 sha: 2445e60d6ecc
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to use shortcut in inventory_

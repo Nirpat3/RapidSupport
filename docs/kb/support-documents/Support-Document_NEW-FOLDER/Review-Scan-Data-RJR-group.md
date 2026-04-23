@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Review Scan Data RJR group.docx
 extracted: 2026-04-23T02:26:56.528Z
 sha: 4f1f7de3c124
+category: Promotions & Pricing
+tags: rjr
 ---
 
 # Review Scan Data RJR group

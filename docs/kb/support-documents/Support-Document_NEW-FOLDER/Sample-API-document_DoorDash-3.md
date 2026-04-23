@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Sample API document_DoorDash 3.pdf
 extracted: 2026-04-23T02:25:51.579Z
 sha: 49eb02344114
+category: Integrations
+tags: doordash
 ---
 
 # Sample API document_DoorDash 3

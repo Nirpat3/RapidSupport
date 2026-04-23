@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add a item to the favorite list.docx
 extracted: 2026-04-23T02:42:44.292Z
 sha: b6c136c925bd
+category: Inventory & Items
+tags: howto
 ---
 
 # How to add a item to the favorite list

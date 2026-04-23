@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How gas pump detail display in dispenser setting_.docx
 extracted: 2026-04-23T02:41:38.934Z
 sha: 94f60d4d3c65
+category: Fuel & Pump
+tags: 
 ---
 
 # How gas pump detail display in dispenser setting_

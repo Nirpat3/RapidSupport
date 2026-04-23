@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I change date time in the Pax.docx
 extracted: 2026-04-23T02:40:35.398Z
 sha: 4b342ddbdb8f
+category: Payments
+tags: pax
 ---
 
 # How do I change date time in the Pax

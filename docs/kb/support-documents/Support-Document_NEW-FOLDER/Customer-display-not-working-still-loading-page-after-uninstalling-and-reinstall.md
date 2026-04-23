@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Customer display not working still loading page after uninstalling and reinstall.docx
 extracted: 2026-04-23T02:43:58.472Z
 sha: fc176bb437df
+category: Inventory & Items
+tags: pos,ipad,troubleshoot
 ---
 
 # Customer display not working still loading page after uninstalling and reinstall

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to manage discount in item.docx
 extracted: 2026-04-23T02:29:42.709Z
 sha: d86da287c327
+category: Promotions & Pricing
+tags: pos,ipad,howto,inventory
 ---
 
 # How to manage discount in item

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to undo restocked history_.docx
 extracted: 2026-04-23T02:26:57.968Z
 sha: 310e281d3460
+category: Uncategorized
+tags: howto
 ---
 
 # How to undo restocked history_

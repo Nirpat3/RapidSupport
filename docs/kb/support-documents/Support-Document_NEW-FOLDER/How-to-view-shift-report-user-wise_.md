@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to view shift report user wise_.docx
 extracted: 2026-04-23T02:27:31.173Z
 sha: 6aef4d4a2491
+category: Reports
+tags: howto,report
 ---
 
 # How to view shift report user wise_

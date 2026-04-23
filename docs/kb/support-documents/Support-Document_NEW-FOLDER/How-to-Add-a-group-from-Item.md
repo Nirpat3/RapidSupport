@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Add a group from Item.docx
 extracted: 2026-04-23T02:39:54.014Z
 sha: a5dc9b959c38
+category: Inventory & Items
+tags: ipad,howto,inventory
 ---
 
 # How to Add a group from Item

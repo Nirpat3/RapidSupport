@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How sales restriction will apply at POS side.docx
 extracted: 2026-04-23T02:43:37.896Z
 sha: 84744fe29c4f
+category: POS Operations
+tags: pos,bof
 ---
 
 # How sales restriction will apply at POS side

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Generate Shipping Order.docx
 extracted: 2026-04-23T02:32:47.430Z
 sha: 9ac7d3730b31
+category: Inventory & Items
+tags: bof,howto,inventory
 ---
 
 # How to Generate Shipping Order

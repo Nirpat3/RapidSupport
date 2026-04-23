@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to increase quantity for ring up items.docx
 extracted: 2026-04-23T02:36:25.958Z
 sha: 075c3abd331f
+category: POS Operations
+tags: howto
 ---
 
 # How to increase quantity for ring up items

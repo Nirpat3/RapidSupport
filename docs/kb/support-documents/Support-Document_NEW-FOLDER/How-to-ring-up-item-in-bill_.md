@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to ring up item in bill_.docx
 extracted: 2026-04-23T02:35:46.432Z
 sha: 471c37dfa9e9
+category: POS Operations
+tags: pos,howto
 ---
 
 # How to ring up item in bill_

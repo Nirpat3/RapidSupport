@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Copy Item in iPad.docx
 extracted: 2026-04-23T02:34:56.175Z
 sha: ce9adafa1dfe
+category: POS Operations
+tags: ipad,howto,inventory
 ---
 
 # How to Copy Item in iPad

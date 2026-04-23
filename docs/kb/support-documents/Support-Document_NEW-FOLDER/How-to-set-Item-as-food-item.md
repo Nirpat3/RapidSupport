@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set Item as food item.docx
 extracted: 2026-04-23T02:31:40.079Z
 sha: 1d26812b2117
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to set Item as food item

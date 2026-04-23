@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Payment Processing/Payment terminal Configuration.pdf
 extracted: 2026-04-23T02:25:27.568Z
 sha: 95f44734dda5
+category: Payments
+tags: ipad,pax,troubleshoot,payment
 ---
 
 # Payment terminal Configuration

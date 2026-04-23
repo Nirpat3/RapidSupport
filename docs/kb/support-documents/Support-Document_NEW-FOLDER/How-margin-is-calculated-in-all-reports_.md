@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How margin is calculated in all reports_.docx
 extracted: 2026-04-23T02:39:47.594Z
 sha: f7ddb397fefd
+category: Reports
+tags: report
 ---
 
 # How margin is calculated in all reports_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add QSR sub group.docx
 extracted: 2026-04-23T02:27:58.801Z
 sha: 4bf42a54e474
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to add QSR sub group

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/RJR ScanData File Submission Process.docx
 extracted: 2026-04-23T02:27:32.664Z
 sha: bbe3cb9c5864
+category: Promotions & Pricing
+tags: bof,rjr
 ---
 
 # RJR ScanData File Submission Process

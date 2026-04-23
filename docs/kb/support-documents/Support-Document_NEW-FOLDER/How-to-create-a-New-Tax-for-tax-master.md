@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create a New Tax for tax master.docx
 extracted: 2026-04-23T02:28:55.481Z
 sha: 5bc82ec08002
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to create a New Tax for tax master

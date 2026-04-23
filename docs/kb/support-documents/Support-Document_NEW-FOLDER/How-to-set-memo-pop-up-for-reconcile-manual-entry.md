@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set memo pop up for reconcile manual entry.docx
 extracted: 2026-04-23T02:38:57.587Z
 sha: dff0502d456c
+category: POS Operations
+tags: pos,bof,howto
 ---
 
 # How to set memo pop up for reconcile manual entry

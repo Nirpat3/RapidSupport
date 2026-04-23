@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: RapidRMS Support Documents/Signs/Surcharge-Notice.pdf
 extracted: 2026-04-23T02:25:39.462Z
 sha: c986a45d6306
+category: Payments
+tags: payment
 ---
 
 # Surcharge-Notice

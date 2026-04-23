@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Scan Driving License.docx
 extracted: 2026-04-23T02:38:37.848Z
 sha: 2beac6ce66a1
+category: POS Operations
+tags: howto
 ---
 
 # How to Scan Driving License

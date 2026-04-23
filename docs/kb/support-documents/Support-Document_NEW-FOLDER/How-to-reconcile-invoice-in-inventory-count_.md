@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to reconcile invoice in inventory count_.docx
 extracted: 2026-04-23T02:33:37.140Z
 sha: 33592ed3f3a6
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to reconcile invoice in inventory count_

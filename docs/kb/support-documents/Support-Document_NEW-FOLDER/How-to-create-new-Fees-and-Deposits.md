@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create new Fees and Deposits.docx
 extracted: 2026-04-23T02:37:52.012Z
 sha: c5a3adaed345
+category: Payments
+tags: howto,inventory
 ---
 
 # How to create new Fees and Deposits

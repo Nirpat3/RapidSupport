@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/RapidRms Notification setting.docx
 extracted: 2026-04-23T02:26:53.624Z
 sha: a707d46f6ab8
+category: Mobile & Setup
+tags: ipad,inventory
 ---
 
 # RapidRms Notification setting

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Cost of Goods field define in reports_.docx
 extracted: 2026-04-23T02:41:37.341Z
 sha: 5ce77e8f2a93
+category: Reports
+tags: report
 ---
 
 # How Cost of Goods field define in reports_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to view restocking history_.docx
 extracted: 2026-04-23T02:26:45.099Z
 sha: a27f89de7acd
+category: Reports
+tags: howto,report
 ---
 
 # How to view restocking history_

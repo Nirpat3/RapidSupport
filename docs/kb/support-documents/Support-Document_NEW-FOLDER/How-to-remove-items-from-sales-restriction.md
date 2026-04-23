@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to remove items from sales restriction.docx
 extracted: 2026-04-23T02:31:38.788Z
 sha: 62a2fb4740cd
+category: Promotions & Pricing
+tags: bof,howto
 ---
 
 # How to remove items from sales restriction

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How ticket validation work_.docx
 extracted: 2026-04-23T02:40:40.053Z
 sha: 93c3276a8233
+category: Inventory & Items
+tags: 
 ---
 
 # How ticket validation work_

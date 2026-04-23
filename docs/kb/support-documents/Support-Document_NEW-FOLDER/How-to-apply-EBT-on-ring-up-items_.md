@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to apply EBT on ring up items_.docx
 extracted: 2026-04-23T02:34:41.878Z
 sha: 6d419e8b6bcc
+category: Payments
+tags: pos,bof,ebt,howto,payment
 ---
 
 # How to apply EBT on ring up items_

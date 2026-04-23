@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to search item from item master_.docx
 extracted: 2026-04-23T02:32:39.661Z
 sha: 72e43fbf915a
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to search item from item master_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add taxes to Item and Department.docx
 extracted: 2026-04-23T02:37:39.994Z
 sha: 092d3df21ca6
+category: Inventory & Items
+tags: howto
 ---
 
 # How to add taxes to Item and Department

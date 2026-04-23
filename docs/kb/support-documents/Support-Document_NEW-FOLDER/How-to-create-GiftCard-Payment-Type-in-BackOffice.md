@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create GiftCard Payment Type in BackOffice.docx
 extracted: 2026-04-23T02:28:51.632Z
 sha: e14177838a15
+category: Payments
+tags: bof,howto,payment,gift-card
 ---
 
 # How to create GiftCard Payment Type in BackOffice

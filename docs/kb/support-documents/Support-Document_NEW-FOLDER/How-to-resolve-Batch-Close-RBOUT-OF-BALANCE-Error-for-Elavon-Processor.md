@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to resolve Batch Close RBOUT OF BALANCE Error for Elavon Processor.docx
 extracted: 2026-04-23T02:27:53.877Z
 sha: 955f9bd7ca60
+category: Troubleshooting
+tags: pax,troubleshoot,howto,payment
 ---
 
 # How to resolve Batch Close RBOUT OF BALANCE Error for Elavon Processor

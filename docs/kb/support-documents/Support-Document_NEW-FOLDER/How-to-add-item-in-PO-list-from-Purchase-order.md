@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add item in PO list from Purchase order.docx
 extracted: 2026-04-23T02:43:53.133Z
 sha: cca887ffb048
+category: Inventory & Items
+tags: troubleshoot,howto,inventory
 ---
 
 # How to add item in PO list from Purchase order

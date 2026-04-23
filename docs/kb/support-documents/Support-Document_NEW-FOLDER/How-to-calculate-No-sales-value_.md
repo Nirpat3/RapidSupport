@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to calculate No sales value_.docx
 extracted: 2026-04-23T02:33:50.593Z
 sha: b7a12529d370
+category: Reports
+tags: howto,report
 ---
 
 # How to calculate No sales value_

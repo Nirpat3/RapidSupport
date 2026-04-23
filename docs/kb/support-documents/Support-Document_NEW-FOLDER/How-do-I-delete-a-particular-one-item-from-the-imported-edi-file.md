@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I delete a particular one item from the imported edi file.docx
 extracted: 2026-04-23T02:41:47.377Z
 sha: dfe1bc978bf2
+category: Integrations
+tags: inventory
 ---
 
 # How do I delete a particular one item from the imported edi file

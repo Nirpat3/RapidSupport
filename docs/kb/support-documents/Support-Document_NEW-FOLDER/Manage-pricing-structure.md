@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Manage pricing structure.docx
 extracted: 2026-04-23T02:27:35.560Z
 sha: 544469069b4b
+category: Inventory & Items
+tags: ipad,inventory
 ---
 
 # Manage pricing structure

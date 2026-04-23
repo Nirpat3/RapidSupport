@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How lottery  department is separately bifergurated in report_.docx
 extracted: 2026-04-23T02:44:02.703Z
 sha: f5df7a31aa1f
+category: Reports
+tags: report
 ---
 
 # How lottery  department is separately bifergurated in report_

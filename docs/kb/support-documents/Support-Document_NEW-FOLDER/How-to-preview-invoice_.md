@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to preview invoice_.docx
 extracted: 2026-04-23T02:34:51.731Z
 sha: fece8b4027b1
+category: POS Operations
+tags: howto
 ---
 
 # How to preview invoice_

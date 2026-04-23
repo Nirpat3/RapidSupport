@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete an existing tender from BOS.docx
 extracted: 2026-04-23T02:36:32.210Z
 sha: 73e8739ea6db
+category: Payments
+tags: bof,howto,payment
 ---
 
 # How to delete an existing tender from BOS

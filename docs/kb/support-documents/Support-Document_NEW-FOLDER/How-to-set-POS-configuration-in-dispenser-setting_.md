@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set POS configuration  in dispenser setting_.docx
 extracted: 2026-04-23T02:36:54.574Z
 sha: 6827cebd9496
+category: Fuel & Pump
+tags: pos,howto,payment
 ---
 
 # How to set POS configuration  in dispenser setting_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add department subdepartment in item.docx
 extracted: 2026-04-23T02:43:46.780Z
 sha: 947181a62dba
+category: Inventory & Items
+tags: ipad,howto,inventory
 ---
 
 # How to add department subdepartment in item

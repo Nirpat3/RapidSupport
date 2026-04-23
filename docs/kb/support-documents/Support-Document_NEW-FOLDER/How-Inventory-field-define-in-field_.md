@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Inventory field define in field_.docx
 extracted: 2026-04-23T02:41:44.320Z
 sha: 2437848eb707
+category: Inventory & Items
+tags: inventory,report
 ---
 
 # How Inventory field define in field_

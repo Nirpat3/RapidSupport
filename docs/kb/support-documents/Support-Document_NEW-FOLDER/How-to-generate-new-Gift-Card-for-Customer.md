@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to generate new Gift Card for Customer.docx
 extracted: 2026-04-23T02:32:31.971Z
 sha: 254351ec8552
+category: Payments
+tags: howto,payment,gift-card
 ---
 
 # How to generate new Gift Card for Customer

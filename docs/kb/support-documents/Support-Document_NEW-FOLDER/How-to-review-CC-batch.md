@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to review CC batch.docx
 extracted: 2026-04-23T02:34:59.124Z
 sha: 09ed0325f527
+category: Payments
+tags: ebt,howto,report
 ---
 
 # How to review CC batch

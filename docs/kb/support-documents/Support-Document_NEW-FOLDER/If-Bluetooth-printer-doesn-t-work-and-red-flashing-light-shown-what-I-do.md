@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/If Bluetooth printer doesn’t work and red flashing light shown what I do.docx
 extracted: 2026-04-23T02:27:38.197Z
 sha: f449e9735b47
+category: Hardware
+tags: ipad,setup,payment,gift-card
 ---
 
 # If Bluetooth printer doesn’t work and red flashing light shown what I do

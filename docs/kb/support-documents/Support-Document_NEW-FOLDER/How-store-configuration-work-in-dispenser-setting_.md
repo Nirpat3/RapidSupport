@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How store configuration work in dispenser setting_.docx
 extracted: 2026-04-23T02:42:04.548Z
 sha: 17385709aadb
+category: Fuel & Pump
+tags: 
 ---
 
 # How store configuration work in dispenser setting_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to assign categories for multiple items together.docx
 extracted: 2026-04-23T02:29:44.119Z
 sha: bf81906493dc
+category: Inventory & Items
+tags: ebt,howto
 ---
 
 # How to assign categories for multiple items together

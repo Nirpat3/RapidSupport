@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Setup PAX for BOFA.docx
 extracted: 2026-04-23T02:31:50.199Z
 sha: 147f26b78e4d
+category: Payments
+tags: ipad,pax,troubleshoot,setup,howto,payment
 ---
 
 # How to Setup PAX for BOFA

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to upload EDI File_EBYBROWN.docx
 extracted: 2026-04-23T02:25:56.072Z
 sha: a57a625d99d5
+category: Integrations
+tags: bof,howto,inventory
 ---
 
 # How to upload EDI File_EBYBROWN

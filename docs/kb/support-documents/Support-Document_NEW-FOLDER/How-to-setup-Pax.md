@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to setup Pax.docx
 extracted: 2026-04-23T02:32:04.096Z
 sha: ebf3e3d87ca7
+category: Payments
+tags: pos,ipad,pax,troubleshoot,setup,howto,payment
 ---
 
 # How to setup Pax

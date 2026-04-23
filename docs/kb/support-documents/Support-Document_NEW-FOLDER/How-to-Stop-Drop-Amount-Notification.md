@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Stop Drop Amount Notification.docx
 extracted: 2026-04-23T02:35:51.464Z
 sha: 19f502674307
+category: Reports
+tags: bof,howto,payment
 ---
 
 # How to Stop Drop Amount Notification

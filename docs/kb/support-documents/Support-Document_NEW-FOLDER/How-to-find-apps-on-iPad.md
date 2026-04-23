@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to find apps on iPad.docx
 extracted: 2026-04-23T02:37:41.324Z
 sha: d296a6c19ed4
+category: POS Operations
+tags: ipad,howto
 ---
 
 # How to find apps on iPad

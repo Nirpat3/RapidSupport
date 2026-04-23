@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to edit an existing tender from BOS.docx
 extracted: 2026-04-23T02:29:34.485Z
 sha: 5db2ac63c1c0
+category: Payments
+tags: bof,howto,payment
 ---
 
 # How to edit an existing tender from BOS

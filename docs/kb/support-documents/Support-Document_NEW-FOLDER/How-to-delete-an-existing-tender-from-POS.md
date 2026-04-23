@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete an existing tender from POS.docx
 extracted: 2026-04-23T02:36:57.253Z
 sha: 45aac266bf2b
+category: Payments
+tags: pos,howto,payment
 ---
 
 # How to delete an existing tender from POS

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to check if your online or not.docx
 extracted: 2026-04-23T02:35:49.901Z
 sha: aa8e14c4891f
+category: Troubleshooting
+tags: ipad,howto
 ---
 
 # How to check if your online or not

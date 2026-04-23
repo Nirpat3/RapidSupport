@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to view Inverntory information in iPad.docx
 extracted: 2026-04-23T02:27:01.717Z
 sha: df063094d230
+category: POS Operations
+tags: ipad,howto,inventory
 ---
 
 # How to view Inverntory information in iPad

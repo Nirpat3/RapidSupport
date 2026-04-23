@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to verify PAX & iPAD connectivity.docx
 extracted: 2026-04-23T02:27:41.517Z
 sha: 99a4bec6f3c7
+category: Payments
+tags: ipad,pax,troubleshoot,howto,payment
 ---
 
 # How to verify PAX & iPAD connectivity

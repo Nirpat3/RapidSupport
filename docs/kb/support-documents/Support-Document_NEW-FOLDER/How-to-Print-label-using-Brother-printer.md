@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Print label using Brother printer.docx
 extracted: 2026-04-23T02:38:41.262Z
 sha: d6df5469f763
+category: Hardware
+tags: pos,howto,inventory
 ---
 
 # How to Print label using Brother printer

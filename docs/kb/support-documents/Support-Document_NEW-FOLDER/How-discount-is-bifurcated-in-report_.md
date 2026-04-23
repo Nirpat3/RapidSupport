@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How discount is bifurcated in report_.docx
 extracted: 2026-04-23T02:39:49.245Z
 sha: 22a458a57026
+category: Reports
+tags: pos,bof,inventory,report
 ---
 
 # How discount is bifurcated in report_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to link up modifier in item with category and sub category inclusion.docx
 extracted: 2026-04-23T02:33:39.925Z
 sha: 4318b1ae4906
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to link up modifier in item with category and sub category inclusion

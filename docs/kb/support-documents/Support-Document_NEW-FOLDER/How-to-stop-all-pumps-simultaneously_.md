@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to stop all pumps simultaneously_.docx
 extracted: 2026-04-23T02:33:52.206Z
 sha: a76443bd1339
+category: Fuel & Pump
+tags: pos,howto
 ---
 
 # How to stop all pumps simultaneously_

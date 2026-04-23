@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/If transaction doesn’t upload in the  cloud what I do.docx
 extracted: 2026-04-23T02:26:40.973Z
 sha: 2809b984b10e
+category: POS Operations
+tags: ipad
 ---
 
 # If transaction doesn’t upload in the  cloud what I do

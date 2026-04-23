@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to edit an existing Sub Department.docx
 extracted: 2026-04-23T02:36:52.936Z
 sha: abab1f9c347b
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to edit an existing Sub Department

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to generate Sales Invoices through Gift Card Payment.docx
 extracted: 2026-04-23T02:34:32.775Z
 sha: 8ec21ea8c4d7
+category: Payments
+tags: howto,payment,gift-card
 ---
 
 # How to generate Sales Invoices through Gift Card Payment

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can we set “Batch Close Timeout” for PAX in POS.docx
 extracted: 2026-04-23T02:39:51.007Z
 sha: 8ccdef807cae
+category: Payments
+tags: pos,pax,payment
 ---
 
 # How can we set “Batch Close Timeout” for PAX in POS

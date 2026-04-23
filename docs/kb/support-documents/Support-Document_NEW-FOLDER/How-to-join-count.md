@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to join count.docx
 extracted: 2026-04-23T02:29:41.401Z
 sha: 561b74d729f4
+category: Reports
+tags: howto,inventory
 ---
 
 # How to join count

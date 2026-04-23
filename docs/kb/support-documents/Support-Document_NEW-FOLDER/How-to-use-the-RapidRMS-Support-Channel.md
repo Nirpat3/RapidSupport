@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to use the RapidRMS Support Channel.docx
 extracted: 2026-04-23T02:27:24.194Z
 sha: e04bbd190f99
+category: Uncategorized
+tags: howto
 ---
 
 # How to use the RapidRMS Support Channel

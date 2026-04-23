@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How load and redeem calculated in report_.docx
 extracted: 2026-04-23T02:43:57.315Z
 sha: 03d28c859236
+category: Reports
+tags: report,payment,gift-card
 ---
 
 # How load and redeem calculated in report_

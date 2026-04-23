@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete sales restriction from BOF.docx
 extracted: 2026-04-23T02:34:50.374Z
 sha: 2fc84f32df62
+category: Promotions & Pricing
+tags: bof,howto
 ---
 
 # How to delete sales restriction from BOF

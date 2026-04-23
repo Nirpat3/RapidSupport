@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to manage Description for Item in iPad.docx
 extracted: 2026-04-23T02:30:46.794Z
 sha: 0e2a19f1964d
+category: POS Operations
+tags: ipad,howto,inventory
 ---
 
 # How to manage Description for Item in iPad

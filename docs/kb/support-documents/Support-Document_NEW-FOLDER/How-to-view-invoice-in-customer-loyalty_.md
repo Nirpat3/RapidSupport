@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to view invoice in customer loyalty_.docx
 extracted: 2026-04-23T02:27:44.524Z
 sha: b506a5374eab
+category: Customers & Loyalty
+tags: howto,payment,loyalty
 ---
 
 # How to view invoice in customer loyalty_

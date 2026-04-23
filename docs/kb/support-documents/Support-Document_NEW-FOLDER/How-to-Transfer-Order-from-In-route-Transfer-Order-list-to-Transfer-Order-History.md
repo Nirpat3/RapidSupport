@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Transfer Order from In route Transfer Order list to Transfer Order History.docx
 extracted: 2026-04-23T02:33:47.583Z
 sha: 5c0d06ec9a13
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to Transfer Order from In route Transfer Order list to Transfer Order History

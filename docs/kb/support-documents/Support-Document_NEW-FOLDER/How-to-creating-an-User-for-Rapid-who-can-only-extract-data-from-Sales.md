@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to creating an User for Rapid who can only extract data from Sales.docx
 extracted: 2026-04-23T02:29:47.404Z
 sha: 25607221bef7
+category: User & Role Management
+tags: howto
 ---
 
 # How to creating an User for Rapid who can only extract data from Sales

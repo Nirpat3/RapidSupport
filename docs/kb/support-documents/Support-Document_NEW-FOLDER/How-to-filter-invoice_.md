@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to filter invoice_.docx
 extracted: 2026-04-23T02:29:52.144Z
 sha: 999d5a640a04
+category: POS Operations
+tags: howto,payment
 ---
 
 # How to filter invoice_

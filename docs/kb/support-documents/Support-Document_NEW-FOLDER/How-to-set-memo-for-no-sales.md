@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set memo for no sales.docx
 extracted: 2026-04-23T02:36:24.437Z
 sha: 7732a859ca41
+category: Reports
+tags: bof,howto
 ---
 
 # How to set memo for no sales

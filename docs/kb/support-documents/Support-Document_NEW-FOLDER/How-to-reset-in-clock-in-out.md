@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to reset in clock in out.docx
 extracted: 2026-04-23T02:37:57.511Z
 sha: 171cea220d7c
+category: User & Role Management
+tags: howto
 ---
 
 # How to reset in clock in out

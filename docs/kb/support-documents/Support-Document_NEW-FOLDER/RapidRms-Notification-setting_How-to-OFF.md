@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/RapidRms Notification setting_How to OFF.docx
 extracted: 2026-04-23T02:25:57.537Z
 sha: 91bf7dd7e10e
+category: POS Operations
+tags: pos,ipad
 ---
 
 # RapidRms Notification setting_How to OFF

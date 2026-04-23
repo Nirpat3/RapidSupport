@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to collect payment in house charge_.docx
 extracted: 2026-04-23T02:29:50.717Z
 sha: c06be92e1501
+category: Payments
+tags: howto,payment,loyalty
 ---
 
 # How to collect payment in house charge_

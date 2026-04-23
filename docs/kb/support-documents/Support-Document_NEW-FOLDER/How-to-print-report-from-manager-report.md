@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to print report from manager report.docx
 extracted: 2026-04-23T02:32:51.945Z
 sha: 24192ae4e36f
+category: Reports
+tags: howto,report
 ---
 
 # How to print report from manager report

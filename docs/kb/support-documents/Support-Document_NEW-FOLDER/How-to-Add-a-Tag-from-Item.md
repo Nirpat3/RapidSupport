@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Add a Tag from Item.docx
 extracted: 2026-04-23T02:42:59.494Z
 sha: 6fa6058d2291
+category: Inventory & Items
+tags: ipad,howto,inventory
 ---
 
 # How to Add a Tag from Item

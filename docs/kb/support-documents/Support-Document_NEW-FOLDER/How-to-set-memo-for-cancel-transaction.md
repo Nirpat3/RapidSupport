@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set memo for cancel transaction.docx
 extracted: 2026-04-23T02:37:38.539Z
 sha: 706defd5d2ba
+category: POS Operations
+tags: pos,bof,howto
 ---
 
 # How to set memo for cancel transaction

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How merchandise  departments are separately bifurcated in report.docx
 extracted: 2026-04-23T02:40:41.379Z
 sha: 6ec79279c96c
+category: Inventory & Items
+tags: report
 ---
 
 # How merchandise  departments are separately bifurcated in report

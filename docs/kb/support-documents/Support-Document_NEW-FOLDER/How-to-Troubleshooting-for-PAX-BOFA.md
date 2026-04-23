@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Troubleshooting for PAX-BOFA.docx
 extracted: 2026-04-23T02:31:56.400Z
 sha: 09e07491c1cf
+category: Troubleshooting
+tags: pos,ipad,pax,troubleshoot,howto
 ---
 
 # How to Troubleshooting for PAX-BOFA

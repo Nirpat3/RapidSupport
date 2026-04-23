@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to turn on the Age restriction Scan from Settings.docx
 extracted: 2026-04-23T02:27:45.933Z
 sha: 2c6a70c49f26
+category: POS Operations
+tags: howto
 ---
 
 # How to turn on the Age restriction Scan from Settings

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can Admin or Store view accept or reject the user request from the Back office.docx
 extracted: 2026-04-23T02:40:27.024Z
 sha: 96c0156af265
+category: User & Role Management
+tags: bof
 ---
 
 # How can Admin or Store view accept or reject the user request from the Back office

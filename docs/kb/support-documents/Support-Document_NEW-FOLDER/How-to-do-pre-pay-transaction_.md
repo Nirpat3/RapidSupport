@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to do pre pay transaction_.docx
 extracted: 2026-04-23T02:29:30.473Z
 sha: 493b2190674b
+category: Fuel & Pump
+tags: howto,payment
 ---
 
 # How to do pre pay transaction_

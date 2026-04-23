@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to see history in clock in out_.docx
 extracted: 2026-04-23T02:31:02.079Z
 sha: d7668ebd7bd8
+category: User & Role Management
+tags: howto
 ---
 
 # How to see history in clock in out_

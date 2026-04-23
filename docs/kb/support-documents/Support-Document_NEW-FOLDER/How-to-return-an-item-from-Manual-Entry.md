@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to return an item from Manual Entry.docx
 extracted: 2026-04-23T02:29:53.486Z
 sha: 5a9c10b20d1f
+category: POS Operations
+tags: howto,inventory
 ---
 
 # How to return an item from Manual Entry

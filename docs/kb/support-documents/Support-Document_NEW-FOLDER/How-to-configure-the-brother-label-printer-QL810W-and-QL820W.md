@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to configure the brother label printer QL810W and QL820W.docx
 extracted: 2026-04-23T02:38:30.225Z
 sha: 5e2d5d29fc32
+category: Hardware
+tags: pos,setup,howto
 ---
 
 # How to configure the brother label printer QL810W and QL820W

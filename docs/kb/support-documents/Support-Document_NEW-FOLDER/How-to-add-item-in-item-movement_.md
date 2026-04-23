@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add item in item movement_.docx
 extracted: 2026-04-23T02:39:55.321Z
 sha: b646f3f5ac46
+category: Inventory & Items
+tags: ebt,howto
 ---
 
 # How to add item in item movement_

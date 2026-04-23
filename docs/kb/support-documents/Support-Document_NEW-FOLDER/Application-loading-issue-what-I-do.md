@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Application loading issue what I do.docx
 extracted: 2026-04-23T02:39:42.936Z
 sha: 0a1ef05153b3
+category: Troubleshooting
+tags: ipad
 ---
 
 # Application loading issue what I do

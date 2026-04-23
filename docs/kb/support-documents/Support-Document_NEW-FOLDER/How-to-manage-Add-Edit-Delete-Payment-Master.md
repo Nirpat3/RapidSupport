@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to manage Add Edit Delete Payment Master.docx
 extracted: 2026-04-23T02:30:48.287Z
 sha: b8f004e64f96
+category: Payments
+tags: howto,inventory,payment
 ---
 
 # How to manage Add Edit Delete Payment Master

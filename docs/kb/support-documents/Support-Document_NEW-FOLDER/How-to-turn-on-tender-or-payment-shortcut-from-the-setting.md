@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to turn on tender or payment shortcut from the setting.docx
 extracted: 2026-04-23T02:26:37.226Z
 sha: 8f8ceeeeaa88
+category: Payments
+tags: howto,payment
 ---
 
 # How to turn on tender or payment shortcut from the setting

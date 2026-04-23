@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete item from invoice_.docx
 extracted: 2026-04-23T02:36:33.708Z
 sha: 057586f7765f
+category: POS Operations
+tags: howto
 ---
 
 # How to delete item from invoice_

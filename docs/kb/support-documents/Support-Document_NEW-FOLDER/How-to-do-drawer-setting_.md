@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to do drawer setting_.docx
 extracted: 2026-04-23T02:30:39.730Z
 sha: b9e0159605ca
+category: POS Operations
+tags: howto,payment
 ---
 
 # How to do drawer setting_

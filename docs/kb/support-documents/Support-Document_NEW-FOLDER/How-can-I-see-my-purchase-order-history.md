@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I see my purchase order history.docx
 extracted: 2026-04-23T02:41:52.333Z
 sha: 975211fa3aaa
+category: Inventory & Items
+tags: report
 ---
 
 # How can I see my purchase order history

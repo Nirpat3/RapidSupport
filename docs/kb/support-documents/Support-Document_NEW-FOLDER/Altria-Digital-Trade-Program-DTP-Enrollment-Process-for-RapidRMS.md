@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Altria Digital Trade Program (DTP) Enrollment Process for RapidRMS.pdf
 extracted: 2026-04-23T02:25:49.995Z
 sha: 00b5f8188545
+category: Promotions & Pricing
+tags: altria
 ---
 
 # Altria Digital Trade Program (DTP) Enrollment Process for RapidRMS

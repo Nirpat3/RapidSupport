@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I email and preview any report from Manager Report.docx
 extracted: 2026-04-23T02:39:56.949Z
 sha: fd605750f4be
+category: Reports
+tags: report
 ---
 
 # How can I email and preview any report from Manager Report

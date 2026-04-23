@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Can I Create New Role from Role Management.docx
 extracted: 2026-04-23T02:41:56.350Z
 sha: 8cc2fa53d16f
+category: User & Role Management
+tags: bof,inventory
 ---
 
 # How Can I Create New Role from Role Management

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create a new tender from POS.docx
 extracted: 2026-04-23T02:33:55.110Z
 sha: af8e8044cbc8
+category: Payments
+tags: pos,howto,payment
 ---
 
 # How to create a new tender from POS

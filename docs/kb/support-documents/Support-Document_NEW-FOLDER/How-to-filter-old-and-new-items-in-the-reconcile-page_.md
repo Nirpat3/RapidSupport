@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to filter old and new items in the reconcile page_.docx
 extracted: 2026-04-23T02:29:59.371Z
 sha: e7aee62d9303
+category: Reports
+tags: howto,inventory
 ---
 
 # How to filter old and new items in the reconcile page_

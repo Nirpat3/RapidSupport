@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to restart iPad.docx
 extracted: 2026-04-23T02:34:57.637Z
 sha: 0e941fcc83c3
+category: POS Operations
+tags: ipad,howto
 ---
 
 # How to restart iPad

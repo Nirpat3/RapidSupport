@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How home option work in setting_.docx
 extracted: 2026-04-23T02:43:45.298Z
 sha: 0359048c5d7d
+category: POS Operations
+tags: 
 ---
 
 # How home option work in setting_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Cash Rounding 1.docx
 extracted: 2026-04-23T02:25:46.602Z
 sha: 22c6cab328e9
+category: POS Operations
+tags: pos,payment
 ---
 
 # Cash Rounding 1

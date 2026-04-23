@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to update department services.docx
 extracted: 2026-04-23T02:27:29.851Z
 sha: 87611d704a26
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to update department services

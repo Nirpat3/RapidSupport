@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to reconcile order from Receiving Pending.docx
 extracted: 2026-04-23T02:27:57.193Z
 sha: a62e9e1e6d61
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to reconcile order from Receiving Pending

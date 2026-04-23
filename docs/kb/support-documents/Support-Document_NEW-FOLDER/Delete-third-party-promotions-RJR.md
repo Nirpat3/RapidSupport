@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Delete third party promotions RJR.docx
 extracted: 2026-04-23T02:42:49.598Z
 sha: 951b57d85372
+category: Promotions & Pricing
+tags: rjr
 ---
 
 # Delete third party promotions RJR

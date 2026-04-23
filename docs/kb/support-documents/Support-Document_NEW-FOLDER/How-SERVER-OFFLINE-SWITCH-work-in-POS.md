@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How SERVER OFFLINE SWITCH work in POS.docx
 extracted: 2026-04-23T02:44:01.520Z
 sha: d1e693b9a3bc
+category: POS Operations
+tags: pos,troubleshoot
 ---
 
 # How SERVER OFFLINE SWITCH work in POS

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create a new tender from BOS.docx
 extracted: 2026-04-23T02:38:36.209Z
 sha: d3cffeb2b06e
+category: Payments
+tags: bof,howto,payment
 ---
 
 # How to create a new tender from BOS

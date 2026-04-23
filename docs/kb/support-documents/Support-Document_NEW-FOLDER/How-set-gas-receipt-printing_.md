@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How set gas receipt printing_.docx
 extracted: 2026-04-23T02:41:40.228Z
 sha: e040dae92878
+category: Fuel & Pump
+tags: payment
 ---
 
 # How set gas receipt printing_

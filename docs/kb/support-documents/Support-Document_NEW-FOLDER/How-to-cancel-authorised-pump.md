@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to cancel authorised pump.docx
 extracted: 2026-04-23T02:30:00.678Z
 sha: 8056d6bce4c9
+category: Fuel & Pump
+tags: howto
 ---
 
 # How to cancel authorised pump

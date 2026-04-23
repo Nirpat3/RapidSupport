@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can we activate GIFT CARD Service from POS.docx
 extracted: 2026-04-23T02:41:46.065Z
 sha: b5b79a5c1e76
+category: Payments
+tags: pos,inventory,gift-card
 ---
 
 # How can we activate GIFT CARD Service from POS

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to calculate line item void_.docx
 extracted: 2026-04-23T02:34:37.681Z
 sha: e5838a5f24ae
+category: Reports
+tags: howto,report
 ---
 
 # How to calculate line item void_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to review centralized ZZ from manager report.docx
 extracted: 2026-04-23T02:35:29.540Z
 sha: aacd532adeed
+category: Reports
+tags: howto,report
 ---
 
 # How to review centralized ZZ from manager report

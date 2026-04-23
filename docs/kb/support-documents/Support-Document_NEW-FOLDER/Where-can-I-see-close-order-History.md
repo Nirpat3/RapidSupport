@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Where can I see close order History.docx
 extracted: 2026-04-23T02:27:36.978Z
 sha: d8e07b9acc84
+category: POS Operations
+tags: inventory
 ---
 
 # Where can I see close order History

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Delete an existing Tax for tax master.docx
 extracted: 2026-04-23T02:28:43.205Z
 sha: aa342cee257d
+category: Inventory & Items
+tags: troubleshoot,howto,inventory
 ---
 
 # How to Delete an existing Tax for tax master

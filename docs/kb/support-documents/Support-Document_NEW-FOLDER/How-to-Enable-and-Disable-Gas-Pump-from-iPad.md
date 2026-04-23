@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Enable and Disable Gas Pump from iPad.docx
 extracted: 2026-04-23T02:39:41.365Z
 sha: 61f814d9e2b3
+category: Fuel & Pump
+tags: pos,ipad,setup,howto
 ---
 
 # How to Enable and Disable Gas Pump from iPad

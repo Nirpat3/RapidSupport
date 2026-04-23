@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to setup receipt print option.docx
 extracted: 2026-04-23T02:30:16.583Z
 sha: 62f85d281c49
+category: POS Operations
+tags: pos,setup,howto
 ---
 
 # How to setup receipt print option

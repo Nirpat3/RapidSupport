@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to load balance in gift card_.docx
 extracted: 2026-04-23T02:29:05.930Z
 sha: 189884740fab
+category: Payments
+tags: howto,payment,gift-card
 ---
 
 # How to load balance in gift card_

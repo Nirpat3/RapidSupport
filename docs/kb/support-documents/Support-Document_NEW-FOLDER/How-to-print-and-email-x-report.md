@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to print and email x report.docx
 extracted: 2026-04-23T02:29:36.115Z
 sha: 3e732f36d9af
+category: Reports
+tags: howto,report
 ---
 
 # How to print and email x report

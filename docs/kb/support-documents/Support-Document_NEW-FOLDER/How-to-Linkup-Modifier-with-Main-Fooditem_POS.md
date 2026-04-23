@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Linkup Modifier with Main Fooditem_POS.docx
 extracted: 2026-04-23T02:30:55.034Z
 sha: 3a18ea84aff7
+category: Inventory & Items
+tags: pos,howto,inventory,modifier
 ---
 
 # How to Linkup Modifier with Main Fooditem_POS

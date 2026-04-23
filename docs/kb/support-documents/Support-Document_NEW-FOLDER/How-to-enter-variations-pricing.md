@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to enter variations pricing.docx
 extracted: 2026-04-23T02:39:39.741Z
 sha: 4f5cc2bb6f1f
+category: Inventory & Items
+tags: howto
 ---
 
 # How to enter variations pricing

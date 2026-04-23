@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to download app from app store.docx
 extracted: 2026-04-23T02:31:43.272Z
 sha: 68bd902295b1
+category: Mobile & Setup
+tags: ipad,howto
 ---
 
 # How to download app from app store

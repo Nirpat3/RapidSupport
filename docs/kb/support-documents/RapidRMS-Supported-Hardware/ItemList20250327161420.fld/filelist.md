@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: RapidRMS Supported Hardware/ItemList20250327161420.fld/filelist.xml
 extracted: 2026-04-23T02:25:40.783Z
 sha: 703ce2117390
+category: Uncategorized
+tags: 
 ---
 
 # filelist

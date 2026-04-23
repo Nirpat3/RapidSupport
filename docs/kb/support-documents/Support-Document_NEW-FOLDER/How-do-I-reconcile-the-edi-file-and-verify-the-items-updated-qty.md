@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I reconcile the edi file and verify the items updated qty.docx
 extracted: 2026-04-23T02:41:41.462Z
 sha: 24490d6e59b1
+category: Reports
+tags: inventory
 ---
 
 # How do I reconcile the edi file and verify the items updated qty

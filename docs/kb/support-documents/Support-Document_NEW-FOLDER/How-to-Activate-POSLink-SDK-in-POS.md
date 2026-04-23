@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Activate POSLink SDK in POS.docx
 extracted: 2026-04-23T02:40:48.818Z
 sha: 0276e869ccac
+category: POS Operations
+tags: pos,pax,howto
 ---
 
 # How to Activate POSLink SDK in POS

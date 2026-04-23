@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to deliver order in PO.docx
 extracted: 2026-04-23T02:32:42.518Z
 sha: 553a98093a1d
+category: POS Operations
+tags: howto
 ---
 
 # How to deliver order in PO

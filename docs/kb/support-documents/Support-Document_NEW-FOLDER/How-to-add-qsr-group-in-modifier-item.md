@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add qsr group in modifier item.docx
 extracted: 2026-04-23T02:27:55.557Z
 sha: 4061a2a9d473
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to add qsr group in modifier item

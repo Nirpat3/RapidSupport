@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set up drawer setting from RapidRMS.docx
 extracted: 2026-04-23T02:38:56.271Z
 sha: beb6695fe5fc
+category: POS Operations
+tags: howto
 ---
 
 # How to set up drawer setting from RapidRMS

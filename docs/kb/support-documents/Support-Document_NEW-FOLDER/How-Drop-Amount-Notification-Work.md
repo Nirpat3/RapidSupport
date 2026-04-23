@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Drop Amount Notification Work.docx
 extracted: 2026-04-23T02:41:58.060Z
 sha: c8176ef76703
+category: Reports
+tags: pos,bof,ipad,payment
 ---
 
 # How Drop Amount Notification Work

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add credit for house charge_.docx
 extracted: 2026-04-23T02:43:40.847Z
 sha: 59494deac8b5
+category: Customers & Loyalty
+tags: howto,payment,loyalty
 ---
 
 # How to add credit for house charge_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Add or edit Price and price level from RapidRMS.docx
 extracted: 2026-04-23T02:44:29.177Z
 sha: 34ad89774525
+category: Inventory & Items
+tags: ipad,howto,inventory,modifier
 ---
 
 # How to Add or edit Price and price level from RapidRMS

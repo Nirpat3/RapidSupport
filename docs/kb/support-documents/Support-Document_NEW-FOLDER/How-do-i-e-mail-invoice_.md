@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do i e-mail invoice_.docx
 extracted: 2026-04-23T02:43:54.587Z
 sha: 2565b907e726
+category: POS Operations
+tags: payment
 ---
 
 # How do i e-mail invoice_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to edit an existing tender from POS.docx
 extracted: 2026-04-23T02:35:37.965Z
 sha: a6d91f65b103
+category: Payments
+tags: pos,howto,payment
 ---
 
 # How to edit an existing tender from POS

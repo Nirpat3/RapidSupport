@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do i void invoice_.docx
 extracted: 2026-04-23T02:42:42.393Z
 sha: 2340c4f0db7f
+category: POS Operations
+tags: 
 ---
 
 # How do i void invoice_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to edit delete item from item movement.docx
 extracted: 2026-04-23T02:33:30.650Z
 sha: c539a36cfcea
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to edit delete item from item movement

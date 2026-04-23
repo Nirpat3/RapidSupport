@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to change a new uploaded items package type single to case pack.docx
 extracted: 2026-04-23T02:38:42.713Z
 sha: 2a4cf669ff31
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to change a new uploaded items package type single to case pack

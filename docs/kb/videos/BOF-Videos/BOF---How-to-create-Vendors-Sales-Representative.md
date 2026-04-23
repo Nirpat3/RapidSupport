@@ -4,6 +4,8 @@ source_folder: videos
 source_path: BOF Videos/BOF - How to create Vendors-Sales Representative.webm
 extracted: 2026-04-23T02:38:02.492Z
 sha: aff9657ff15a
+category: Inventory & Items
+tags: bof,inventory
 ---
 
 # BOF - How to create Vendors-Sales Representative

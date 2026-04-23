@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to edit customer_.docx
 extracted: 2026-04-23T02:34:40.546Z
 sha: 42b03a1a2f09
+category: Customers & Loyalty
+tags: howto,loyalty
 ---
 
 # How to edit customer_

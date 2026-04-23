@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I verify status in the reconcile page.docx
 extracted: 2026-04-23T02:41:59.539Z
 sha: f6ad23963691
+category: Reports
+tags: inventory
 ---
 
 # How can I verify status in the reconcile page

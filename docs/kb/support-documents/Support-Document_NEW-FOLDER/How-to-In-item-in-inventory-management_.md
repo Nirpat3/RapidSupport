@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to In item in inventory management_.docx
 extracted: 2026-04-23T02:35:34.311Z
 sha: ece2f98a9a94
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to In item in inventory management_

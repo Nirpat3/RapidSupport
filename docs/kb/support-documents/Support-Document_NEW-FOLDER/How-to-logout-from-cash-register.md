@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to logout from cash register.docx
 extracted: 2026-04-23T02:38:50.036Z
 sha: 9a75e9ac0a3b
+category: POS Operations
+tags: howto
 ---
 
 # How to logout from cash register

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I release the register from POS.docx
 extracted: 2026-04-23T02:40:30.547Z
 sha: 96bf8047db34
+category: POS Operations
+tags: pos
 ---
 
 # How can I release the register from POS

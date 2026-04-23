@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Clear Pump Notifications.docx
 extracted: 2026-04-23T02:36:45.832Z
 sha: 3977434742af
+category: Fuel & Pump
+tags: pos,bof,troubleshoot,howto
 ---
 
 # How to Clear Pump Notifications

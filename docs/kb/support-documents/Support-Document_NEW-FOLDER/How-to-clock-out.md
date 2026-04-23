@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to clock out.docx
 extracted: 2026-04-23T02:32:44.351Z
 sha: 7e17b5facc20
+category: User & Role Management
+tags: howto
 ---
 
 # How to clock out

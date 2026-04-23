@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to recall hold invoice from Manual entry.docx
 extracted: 2026-04-23T02:35:02.466Z
 sha: fb32778f6426
+category: POS Operations
+tags: howto
 ---
 
 # How to recall hold invoice from Manual entry

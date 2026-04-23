@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to apply compulsory modifier in ring up item.docx
 extracted: 2026-04-23T02:36:38.826Z
 sha: 2b636235923f
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to apply compulsory modifier in ring up item

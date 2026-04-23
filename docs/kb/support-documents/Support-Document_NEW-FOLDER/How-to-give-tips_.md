@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to give tips_.docx
 extracted: 2026-04-23T02:30:43.864Z
 sha: b88fb5306ac0
+category: Payments
+tags: bof,setup,howto,payment
 ---
 
 # How to give tips_

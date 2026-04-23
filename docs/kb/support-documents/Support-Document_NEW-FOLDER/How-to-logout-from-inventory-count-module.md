@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to logout from inventory count module.docx
 extracted: 2026-04-23T02:38:34.734Z
 sha: e0bcd9a7f1db
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to logout from inventory count module

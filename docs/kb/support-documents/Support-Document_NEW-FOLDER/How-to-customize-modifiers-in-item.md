@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to customize modifiers in item.docx
 extracted: 2026-04-23T02:31:35.942Z
 sha: a93213ed8001
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to customize modifiers in item

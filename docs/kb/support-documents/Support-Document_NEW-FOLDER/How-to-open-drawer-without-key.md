@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to open drawer without key.docx
 extracted: 2026-04-23T02:30:52.972Z
 sha: 2a448a652e40
+category: Uncategorized
+tags: howto
 ---
 
 # How to open drawer without key

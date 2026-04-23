@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to filter clock in out entry user wise_.docx
 extracted: 2026-04-23T02:38:03.018Z
 sha: d5e1f14f76b8
+category: User & Role Management
+tags: howto
 ---
 
 # How to filter clock in out entry user wise_

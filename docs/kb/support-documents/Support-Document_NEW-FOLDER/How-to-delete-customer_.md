@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete customer_.docx
 extracted: 2026-04-23T02:38:39.509Z
 sha: 3629eb30456e
+category: Customers & Loyalty
+tags: howto,loyalty
 ---
 
 # How to delete customer_

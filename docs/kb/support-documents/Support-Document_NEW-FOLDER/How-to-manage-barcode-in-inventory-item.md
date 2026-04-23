@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to manage barcode in inventory item.docx
 extracted: 2026-04-23T02:38:44.214Z
 sha: 352cc1506f2c
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to manage barcode in inventory item

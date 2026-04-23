@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to create an item with single Case and Pack relation.docx
 extracted: 2026-04-23T02:37:45.938Z
 sha: 9fb82efaa152
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to create an item with single Case and Pack relation

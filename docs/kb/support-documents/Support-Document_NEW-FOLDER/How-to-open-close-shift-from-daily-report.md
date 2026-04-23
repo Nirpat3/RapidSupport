@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to open close shift from daily report.docx
 extracted: 2026-04-23T02:38:05.034Z
 sha: f9c896e19d2e
+category: Reports
+tags: howto,report
 ---
 
 # How to open close shift from daily report

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Sync Pay-at-Pump Outside Transcation.docx
 extracted: 2026-04-23T02:36:35.485Z
 sha: 668ea5c971b5
+category: Troubleshooting
+tags: howto
 ---
 
 # How to Sync Pay-at-Pump Outside Transcation

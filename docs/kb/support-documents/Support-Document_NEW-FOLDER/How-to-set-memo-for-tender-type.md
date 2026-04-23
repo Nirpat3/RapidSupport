@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set memo for tender type.docx
 extracted: 2026-04-23T02:37:50.675Z
 sha: 786a567d5df2
+category: Payments
+tags: bof,howto,inventory,payment
 ---
 
 # How to set memo for tender type

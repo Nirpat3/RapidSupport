@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to get invoice according to time duration.docx
 extracted: 2026-04-23T02:29:37.676Z
 sha: 4efbd0ce4529
+category: POS Operations
+tags: howto
 ---
 
 # How to get invoice according to time duration

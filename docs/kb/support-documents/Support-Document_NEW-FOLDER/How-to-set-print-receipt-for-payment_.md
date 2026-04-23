@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set print receipt for payment_.docx
 extracted: 2026-04-23T02:35:56.471Z
 sha: 98d98a25709a
+category: Payments
+tags: troubleshoot,howto,payment
 ---
 
 # How to set print receipt for payment_

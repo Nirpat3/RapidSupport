@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How sound ON OFF from setting in application.docx
 extracted: 2026-04-23T02:41:34.619Z
 sha: e55a30cb3fa8
+category: POS Operations
+tags: 
 ---
 
 # How sound ON OFF from setting in application

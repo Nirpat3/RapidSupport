@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Update third party promotions RJR.docx
 extracted: 2026-04-23T02:26:42.699Z
 sha: 68eadc1311f8
+category: Promotions & Pricing
+tags: rjr
 ---
 
 # Update third party promotions RJR

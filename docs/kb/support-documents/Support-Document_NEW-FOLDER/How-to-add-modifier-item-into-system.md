@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add modifier item into system.docx
 extracted: 2026-04-23T02:41:02.405Z
 sha: c5a044d53f01
+category: Inventory & Items
+tags: bof,ipad,howto,inventory,modifier
 ---
 
 # How to add modifier item into system

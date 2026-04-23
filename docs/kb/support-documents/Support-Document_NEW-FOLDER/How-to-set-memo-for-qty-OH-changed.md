@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set memo for qty OH changed.docx
 extracted: 2026-04-23T02:34:30.563Z
 sha: 8d60bff42a56
+category: Inventory & Items
+tags: bof,howto,inventory
 ---
 
 # How to set memo for qty OH changed

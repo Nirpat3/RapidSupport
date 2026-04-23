@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Can I remove or delete item from order.docx
 extracted: 2026-04-23T02:39:58.374Z
 sha: 41e8a247d4f5
+category: POS Operations
+tags: 
 ---
 
 # How Can I remove or delete item from order

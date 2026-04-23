@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Create third party promotions  Altria.docx
 extracted: 2026-04-23T02:40:56.751Z
 sha: fc6374366392
+category: Promotions & Pricing
+tags: rjr,altria
 ---
 
 # Create third party promotions  Altria

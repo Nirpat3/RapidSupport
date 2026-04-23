@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I logout from Manual entry.docx
 extracted: 2026-04-23T02:42:56.527Z
 sha: c4e4cf93eff5
+category: POS Operations
+tags: report
 ---
 
 # How can I logout from Manual entry

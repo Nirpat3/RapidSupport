@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How UPC scanner works.docx
 extracted: 2026-04-23T02:27:03.314Z
 sha: 91d30954749d
+category: POS Operations
+tags: 
 ---
 
 # How UPC scanner works

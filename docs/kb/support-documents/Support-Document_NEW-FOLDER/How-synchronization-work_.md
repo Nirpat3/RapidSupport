@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How synchronization work_.docx
 extracted: 2026-04-23T02:43:55.838Z
 sha: 13351ababf70
+category: Troubleshooting
+tags: 
 ---
 
 # How synchronization work_

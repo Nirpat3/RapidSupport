@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add item into PO from inventory management.docx
 extracted: 2026-04-23T02:40:32.246Z
 sha: 0ab4c508d93d
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to add item into PO from inventory management

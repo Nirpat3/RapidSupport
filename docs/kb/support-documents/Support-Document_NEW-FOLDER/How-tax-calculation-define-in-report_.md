@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How tax calculation define in report_.docx
 extracted: 2026-04-23T02:43:29.228Z
 sha: b0e0585980d1
+category: Reports
+tags: pos,ebt,report,gift-card
 ---
 
 # How tax calculation define in report_

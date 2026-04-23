@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How daily sales gross net sales and net sales calculated in all reports.docx
 extracted: 2026-04-23T02:44:27.676Z
 sha: d01ad61b52b8
+category: Reports
+tags: pos,report
 ---
 
 # How daily sales gross net sales and net sales calculated in all reports

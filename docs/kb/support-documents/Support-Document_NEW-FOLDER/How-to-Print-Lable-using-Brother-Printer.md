@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Print Lable using Brother Printer.docx
 extracted: 2026-04-23T02:29:49.361Z
 sha: 129e2232df98
+category: Hardware
+tags: troubleshoot,howto
 ---
 
 # How to Print Lable using Brother Printer

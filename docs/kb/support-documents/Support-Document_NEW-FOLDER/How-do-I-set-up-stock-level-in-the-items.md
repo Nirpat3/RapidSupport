@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How do I set up stock level in the items.docx
 extracted: 2026-04-23T02:40:03.768Z
 sha: d7d387d8c8f6
+category: Inventory & Items
+tags: inventory
 ---
 
 # How do I set up stock level in the items

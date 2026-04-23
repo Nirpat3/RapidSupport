@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to do group price change through IPAD_.docx
 extracted: 2026-04-23T02:38:31.851Z
 sha: 21661ad424b4
+category: Promotions & Pricing
+tags: ipad,howto,inventory
 ---
 
 # How to do group price change through IPAD_

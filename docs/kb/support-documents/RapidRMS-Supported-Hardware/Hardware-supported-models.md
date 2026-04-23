@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: RapidRMS Supported Hardware/Hardware supported models.xlsx
 extracted: 2026-04-23T02:25:32.071Z
 sha: fc7d7ebc4cfd
+category: Hardware
+tags: pax
 ---
 
 # Hardware supported models

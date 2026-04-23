@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to identify which email id associated with their app store.docx
 extracted: 2026-04-23T02:32:33.363Z
 sha: 22b2b7f0e54f
+category: Mobile & Setup
+tags: ipad,howto
 ---
 
 # How to identify which email id associated with their app store

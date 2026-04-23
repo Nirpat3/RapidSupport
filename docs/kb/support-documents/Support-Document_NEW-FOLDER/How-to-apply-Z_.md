@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to apply Z_.docx
 extracted: 2026-04-23T02:37:59.151Z
 sha: df023ed9ade8
+category: Reports
+tags: howto,report
 ---
 
 # How to apply Z_

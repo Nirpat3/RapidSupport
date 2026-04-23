@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to filter x report register wise.docx
 extracted: 2026-04-23T02:37:44.279Z
 sha: c4aa5bf8b51e
+category: Reports
+tags: howto,report
 ---
 
 # How to filter x report register wise

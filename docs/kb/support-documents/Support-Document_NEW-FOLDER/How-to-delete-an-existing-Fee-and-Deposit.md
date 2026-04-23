@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete an existing Fee and Deposit.docx
 extracted: 2026-04-23T02:33:35.703Z
 sha: 855c62e9d683
+category: Payments
+tags: howto,inventory
 ---
 
 # How to delete an existing Fee and Deposit

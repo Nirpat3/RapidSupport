@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to do payment in RCR.docx
 extracted: 2026-04-23T02:28:00.548Z
 sha: d6eaafe82fe9
+category: Payments
+tags: ebt,howto,payment,gift-card
 ---
 
 # How to do payment in RCR

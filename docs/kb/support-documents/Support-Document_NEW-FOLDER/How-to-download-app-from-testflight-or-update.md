@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to download app from testflight or update.docx
 extracted: 2026-04-23T02:34:48.930Z
 sha: 55c30368eb39
+category: Mobile & Setup
+tags: ipad,howto
 ---
 
 # How to download app from testflight or update

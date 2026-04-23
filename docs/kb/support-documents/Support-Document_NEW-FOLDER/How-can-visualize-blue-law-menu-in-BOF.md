@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can visualize blue law menu in BOF.docx
 extracted: 2026-04-23T02:40:47.166Z
 sha: 0d70888a3e13
+category: Promotions & Pricing
+tags: bof
 ---
 
 # How can visualize blue law menu in BOF

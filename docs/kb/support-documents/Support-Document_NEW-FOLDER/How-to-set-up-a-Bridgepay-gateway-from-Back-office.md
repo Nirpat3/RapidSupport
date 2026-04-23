@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set up a Bridgepay gateway from Back office.docx
 extracted: 2026-04-23T02:32:27.484Z
 sha: ce5ada284177
+category: Payments
+tags: pos,bof,howto,payment
 ---
 
 # How to set up a Bridgepay gateway from Back office

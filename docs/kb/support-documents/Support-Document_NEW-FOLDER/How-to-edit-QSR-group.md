@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to edit QSR group.docx
 extracted: 2026-04-23T02:33:45.807Z
 sha: 2b92f3911f38
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to edit QSR group

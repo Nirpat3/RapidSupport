@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Cash Register (RCR) work in OFFLINE mode.docx
 extracted: 2026-04-23T02:43:30.532Z
 sha: 9c704d831746
+category: Troubleshooting
+tags: troubleshoot
 ---
 
 # How Cash Register (RCR) work in OFFLINE mode

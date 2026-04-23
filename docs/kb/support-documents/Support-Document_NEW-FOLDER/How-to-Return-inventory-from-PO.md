@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Return inventory from  PO.docx
 extracted: 2026-04-23T02:30:37.796Z
 sha: 225b91213316
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to Return inventory from  PO

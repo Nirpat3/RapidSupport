@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to review centralized shift from manager report.docx
 extracted: 2026-04-23T02:33:56.592Z
 sha: efae9ea35aca
+category: Reports
+tags: howto,report
 ---
 
 # How to review centralized shift from manager report

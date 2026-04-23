@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to restock items from sales history_.docx
 extracted: 2026-04-23T02:38:28.587Z
 sha: c0485ce0b85a
+category: Reports
+tags: howto,report
 ---
 
 # How to restock items from sales history_

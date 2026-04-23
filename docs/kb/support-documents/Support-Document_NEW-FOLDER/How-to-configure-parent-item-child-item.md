@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to configure parent item child item.docx
 extracted: 2026-04-23T02:31:00.714Z
 sha: 9c996c096b33
+category: Inventory & Items
+tags: setup,howto,inventory
 ---
 
 # How to configure parent item child item

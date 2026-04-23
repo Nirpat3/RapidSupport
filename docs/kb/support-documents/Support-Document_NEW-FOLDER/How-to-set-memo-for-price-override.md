@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set memo for price override.docx
 extracted: 2026-04-23T02:34:05.462Z
 sha: 0126df907382
+category: POS Operations
+tags: bof,howto
 ---
 
 # How to set memo for price override

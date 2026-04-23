@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Create User for Third Party API 1.pdf
 extracted: 2026-04-23T02:25:54.197Z
 sha: 5970e4656b08
+category: User & Role Management
+tags: bof,howto
 ---
 
 # How to Create User for Third Party API 1

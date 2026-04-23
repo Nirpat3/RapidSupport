@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to inquiry in ticket validation_.docx
 extracted: 2026-04-23T02:27:52.286Z
 sha: b73e16f1370b
+category: Inventory & Items
+tags: howto
 ---
 
 # How to inquiry in ticket validation_

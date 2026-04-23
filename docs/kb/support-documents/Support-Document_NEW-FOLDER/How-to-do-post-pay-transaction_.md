@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to do post pay transaction_.docx
 extracted: 2026-04-23T02:34:45.288Z
 sha: 400ff6aa52b0
+category: Fuel & Pump
+tags: pos,howto,payment
 ---
 
 # How to do post pay transaction_

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to link up modifier from QSR group.docx
 extracted: 2026-04-23T02:34:53.305Z
 sha: 535378ef4d6b
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to link up modifier from QSR group

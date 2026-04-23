@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to do card swipe signature setting.docx
 extracted: 2026-04-23T02:37:00.657Z
 sha: 91dd9e5683c6
+category: Payments
+tags: pos,pax,ebt,howto,payment,gift-card
 ---
 
 # How to do card swipe signature setting

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add sales discount from BOF and apply it on bill_.docx
 extracted: 2026-04-23T02:33:01.346Z
 sha: 28d66bff705c
+category: Promotions & Pricing
+tags: pos,bof,ipad,howto,inventory
 ---
 
 # How to add sales discount from BOF and apply it on bill_

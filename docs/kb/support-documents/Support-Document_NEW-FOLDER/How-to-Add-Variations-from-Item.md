@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Add Variations from Item.docx
 extracted: 2026-04-23T02:32:02.914Z
 sha: 416eb0180dfc
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to Add Variations from Item

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to check detail in X report.docx
 extracted: 2026-04-23T02:32:35.201Z
 sha: f8c15c77136f
+category: Reports
+tags: howto,report,payment
 ---
 
 # How to check detail in X report

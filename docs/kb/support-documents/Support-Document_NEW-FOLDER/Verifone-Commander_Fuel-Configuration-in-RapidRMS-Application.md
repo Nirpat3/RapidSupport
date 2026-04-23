@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Verifone Commander_Fuel Configuration in RapidRMS Application.docx
 extracted: 2026-04-23T02:26:50.693Z
 sha: 3216eed5b541
+category: Fuel & Pump
+tags: verifone
 ---
 
 # Verifone Commander_Fuel Configuration in RapidRMS Application

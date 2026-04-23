@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Options work in setting_.docx
 extracted: 2026-04-23T02:44:04.010Z
 sha: ccd0df89bb84
+category: POS Operations
+tags: 
 ---
 
 # How Options work in setting_

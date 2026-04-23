@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to view customer profile from statics_.docx
 extracted: 2026-04-23T02:26:00.491Z
 sha: c1ec75efa52a
+category: Customers & Loyalty
+tags: howto,payment,loyalty
 ---
 
 # How to view customer profile from statics_

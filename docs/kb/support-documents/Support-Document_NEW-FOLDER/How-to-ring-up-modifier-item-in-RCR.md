@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to ring up modifier item in RCR.docx
 extracted: 2026-04-23T02:31:48.091Z
 sha: fd81f21faade
+category: Inventory & Items
+tags: howto,payment,modifier
 ---
 
 # How to ring up modifier item in RCR

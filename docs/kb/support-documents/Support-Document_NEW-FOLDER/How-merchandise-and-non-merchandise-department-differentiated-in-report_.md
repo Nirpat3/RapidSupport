@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How merchandise and non merchandise department differentiated in report_.docx
 extracted: 2026-04-23T02:43:00.929Z
 sha: a735919690b5
+category: Reports
+tags: report
 ---
 
 # How merchandise and non merchandise department differentiated in report_

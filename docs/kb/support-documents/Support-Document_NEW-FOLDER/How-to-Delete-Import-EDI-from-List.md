@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Delete Import EDI from List.docx
 extracted: 2026-04-23T02:38:45.451Z
 sha: f8d52a64b33f
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to Delete Import EDI from List

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to scan QR code in ticket validation_.docx
 extracted: 2026-04-23T02:35:39.682Z
 sha: 8d86fbfdb71a
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to scan QR code in ticket validation_

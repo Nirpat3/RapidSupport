@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set Dashboard shortcut in RCR.docx
 extracted: 2026-04-23T02:32:24.255Z
 sha: 2f9471656b5a
+category: Uncategorized
+tags: howto
 ---
 
 # How to set Dashboard shortcut in RCR

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set CC batch receipt printing_.docx
 extracted: 2026-04-23T02:29:27.241Z
 sha: 54acebbf7dbc
+category: Payments
+tags: howto
 ---
 
 # How to set CC batch receipt printing_

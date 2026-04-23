@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set memo for tax remove.docx
 extracted: 2026-04-23T02:35:55.015Z
 sha: 92ed7a143771
+category: POS Operations
+tags: bof,howto
 ---
 
 # How to set memo for tax remove

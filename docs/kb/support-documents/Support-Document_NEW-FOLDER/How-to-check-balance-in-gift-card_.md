@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to check balance in gift card_.docx
 extracted: 2026-04-23T02:31:41.536Z
 sha: 0d280ff33b35
+category: Payments
+tags: howto,gift-card
 ---
 
 # How to check balance in gift card_

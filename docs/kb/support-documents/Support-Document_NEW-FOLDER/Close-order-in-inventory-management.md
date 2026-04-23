@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/Close order in inventory management.docx
 extracted: 2026-04-23T02:43:34.916Z
 sha: 4c26c4b23d93
+category: POS Operations
+tags: inventory
 ---
 
 # Close order in inventory management

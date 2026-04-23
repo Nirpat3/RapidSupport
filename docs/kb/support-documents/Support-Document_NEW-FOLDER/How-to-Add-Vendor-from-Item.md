@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to Add Vendor from Item.docx
 extracted: 2026-04-23T02:35:03.972Z
 sha: 6be9c54f4732
+category: Inventory & Items
+tags: ipad,howto,inventory
 ---
 
 # How to Add Vendor from Item

@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to define drop amount in report_.docx
 extracted: 2026-04-23T02:28:56.914Z
 sha: 1707a803d6f5
+category: Reports
+tags: pos,howto,report
 ---
 
 # How to define drop amount in report_

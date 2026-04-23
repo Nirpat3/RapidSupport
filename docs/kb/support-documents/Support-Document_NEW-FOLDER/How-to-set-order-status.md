@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set order status.docx
 extracted: 2026-04-23T02:38:46.887Z
 sha: 3619b1e0a966
+category: Inventory & Items
+tags: howto
 ---
 
 # How to set order status

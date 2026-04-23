@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to inactive item_.docx
 extracted: 2026-04-23T02:36:41.692Z
 sha: 68c8006aea75
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to inactive item_

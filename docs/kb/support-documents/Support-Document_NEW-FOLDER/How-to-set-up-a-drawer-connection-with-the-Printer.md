@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set up a drawer connection with the Printer.docx
 extracted: 2026-04-23T02:35:44.807Z
 sha: 52575a5c5ace
+category: Hardware
+tags: howto
 ---
 
 # How to set up a drawer connection with the Printer

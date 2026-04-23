@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I hold invoice from Manual entry.docx
 extracted: 2026-04-23T02:44:05.661Z
 sha: 4cde39299bd7
+category: POS Operations
+tags: 
 ---
 
 # How can I hold invoice from Manual entry

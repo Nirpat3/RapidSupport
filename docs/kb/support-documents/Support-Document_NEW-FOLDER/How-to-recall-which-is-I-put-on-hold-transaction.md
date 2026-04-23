@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to recall which is I put on hold transaction.docx
 extracted: 2026-04-23T02:34:46.797Z
 sha: f7a975d79bc5
+category: POS Operations
+tags: howto
 ---
 
 # How to recall which is I put on hold transaction

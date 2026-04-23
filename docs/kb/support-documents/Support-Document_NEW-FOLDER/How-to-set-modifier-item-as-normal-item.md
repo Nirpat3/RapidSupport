@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to set modifier item as normal item.docx
 extracted: 2026-04-23T02:33:29.215Z
 sha: 9cc3335e8da9
+category: Inventory & Items
+tags: howto,modifier
 ---
 
 # How to set modifier item as normal item

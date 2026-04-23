@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/If I want to use iPad touch screen keypad In the Rapid RMS system what I do.docx
 extracted: 2026-04-23T02:26:49.058Z
 sha: 665208b2726a
+category: POS Operations
+tags: ipad
 ---
 
 # If I want to use iPad touch screen keypad In the Rapid RMS system what I do

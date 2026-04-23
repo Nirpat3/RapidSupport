@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to apply ZZ_.docx
 extracted: 2026-04-23T02:30:56.376Z
 sha: 1e3000f9d4af
+category: Promotions & Pricing
+tags: howto,report
 ---
 
 # How to apply ZZ_

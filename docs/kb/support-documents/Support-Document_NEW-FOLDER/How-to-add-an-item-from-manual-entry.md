@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to add an item from manual entry.docx
 extracted: 2026-04-23T02:39:59.928Z
 sha: deea9ff75948
+category: POS Operations
+tags: pos,howto
 ---
 
 # How to add an item from manual entry

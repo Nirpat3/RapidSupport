@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How Customer can get hose report from ipad_.docx
 extracted: 2026-04-23T02:40:28.932Z
 sha: a2c67f11913d
+category: Reports
+tags: ipad,report
 ---
 
 # How Customer can get hose report from ipad_

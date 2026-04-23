@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to turn on display age verification data in receipt option from settings.docx
 extracted: 2026-04-23T02:27:47.355Z
 sha: c19b858f2e38
+category: Customers & Loyalty
+tags: howto
 ---
 
 # How to turn on display age verification data in receipt option from settings

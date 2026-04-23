@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to check detail in shift report_.docx
 extracted: 2026-04-23T02:36:37.009Z
 sha: 0a58d4324e44
+category: Reports
+tags: howto,report
 ---
 
 # How to check detail in shift report_

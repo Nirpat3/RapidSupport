@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to drop amount.docx
 extracted: 2026-04-23T02:32:56.213Z
 sha: 82d6266514ab
+category: Reports
+tags: howto,report
 ---
 
 # How to drop amount

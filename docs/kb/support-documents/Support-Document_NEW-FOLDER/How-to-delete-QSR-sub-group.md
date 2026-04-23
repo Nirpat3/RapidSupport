@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to delete QSR sub group.docx
 extracted: 2026-04-23T02:38:01.824Z
 sha: d1fe402c3fa2
+category: Inventory & Items
+tags: howto,inventory,modifier
 ---
 
 # How to delete QSR sub group

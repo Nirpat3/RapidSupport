@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to upload EDI File_UNFI.docx
 extracted: 2026-04-23T02:27:50.548Z
 sha: 9c3467bd3ba3
+category: Integrations
+tags: bof,howto,inventory
 ---
 
 # How to upload EDI File_UNFI

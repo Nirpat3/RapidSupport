@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I add the item to the back-order from receiving pending.docx
 extracted: 2026-04-23T02:44:24.611Z
 sha: 032323ef2f9e
+category: Inventory & Items
+tags: bof
 ---
 
 # How can I add the item to the back-order from receiving pending

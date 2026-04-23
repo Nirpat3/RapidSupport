@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How to view Transfer order history from Inventory Transfer module.docx
 extracted: 2026-04-23T02:27:28.432Z
 sha: 36983d9b3b2e
+category: Inventory & Items
+tags: howto,inventory
 ---
 
 # How to view Transfer order history from Inventory Transfer module

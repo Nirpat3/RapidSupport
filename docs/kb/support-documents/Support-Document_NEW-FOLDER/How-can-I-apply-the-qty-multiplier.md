@@ -4,6 +4,8 @@ source_folder: support-documents
 source_path: Support Document_NEW FOLDER/How can I apply the qty multiplier.docx
 extracted: 2026-04-23T02:40:52.053Z
 sha: f2e6c92740ec
+category: Inventory & Items
+tags: 
 ---
 
 # How can I apply the qty multiplier
