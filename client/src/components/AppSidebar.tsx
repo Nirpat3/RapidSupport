@@ -61,7 +61,9 @@ import {
   Globe,
   Download,
   BellRing,
-  Handshake
+  Handshake,
+  Plug,
+  Store
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -189,6 +191,18 @@ const settingsSubItems: NavigationItem[] = [
     title: "API Integration",
     url: "/api-integration",
     icon: Code2,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Partner Integrations",
+    url: "/partner-integrations",
+    icon: Plug,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Stores",
+    url: "/stores",
+    icon: Store,
     allowedRoles: ['admin']
   },
   {
