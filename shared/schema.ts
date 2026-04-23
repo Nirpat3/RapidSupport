@@ -5605,3 +5605,23 @@ export const slaPolicies = pgTable("sla_policies", {
 export const insertSlaPolicySchema = createInsertSchema(slaPolicies).omit({ id: true, createdAt: true, updatedAt: true, organizationId: true });
 export type InsertSlaPolicy = z.infer<typeof insertSlaPolicySchema>;
 export type SlaPolicy = typeof slaPolicies.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────
+// Shre Outbox — async event queue to shre-api (CortexService / training)
+// ─────────────────────────────────────────────────────────────────────
+// Every high-signal event (AI completion, KB correction, conversation close)
+// writes a row here. A background drain worker (server/shre-outbox.ts) ships
+// batches to shre-api over Tailscale with exp-backoff. Survives Brain downtime.
+export const shreOutbox = pgTable("shre_outbox", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  syncedAt: timestamp("synced_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  unsyncedIdx: index("shre_outbox_unsynced_idx").on(table.syncedAt, table.createdAt),
+}));
+
+export type ShreOutboxEvent = typeof shreOutbox.$inferSelect;

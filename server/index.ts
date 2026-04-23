@@ -170,7 +170,16 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
+
+    // Start async Shre outbox drain — ships AI completions + KB events to
+    // shre-api over Tailscale for training/evolution. Survives Brain downtime.
+    try {
+      const { startOutboxDrain } = await import('./shre-outbox');
+      startOutboxDrain();
+    } catch (error) {
+      console.error('Failed to start shre-outbox drain worker:', error);
+    }
   });
 })();

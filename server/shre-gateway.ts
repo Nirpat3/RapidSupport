@@ -11,6 +11,7 @@ import OpenAI from 'openai';
 
 // @ts-ignore — JS module without types
 import { ShreClient } from './shre-client.js';
+import { enqueueShreEvent } from './shre-outbox';
 
 // ── Configuration ──
 
@@ -87,7 +88,9 @@ interface ChatCompletionResult {
  */
 export async function chatCompletion(opts: ChatCompletionOptions): Promise<ChatCompletionResult> {
   if (!isShreEnabled) {
-    return openaiChatCompletion(opts);
+    const result = await openaiChatCompletion(opts);
+    void emitCompletionEvent(opts, result, 'cloud-openai');
+    return result;
   }
 
   // Route through Shre — including tool-calling requests
@@ -108,15 +111,19 @@ export async function chatCompletion(opts: ChatCompletionOptions): Promise<ChatC
       ...(opts.response_format ? { response_format: opts.response_format } : {}),
     });
 
-    return {
+    const mapped: ChatCompletionResult = {
       content: result.content,
       usage: result.usage,
       model: result.model || 'shre-auto',
       tool_calls: result.tool_calls,
     };
+    void emitCompletionEvent(opts, mapped, 'shre-local');
+    return mapped;
   } catch (err: any) {
     console.warn(`[ShreGateway] Shre call failed, falling back to OpenAI: ${err.message}`);
-    return openaiChatCompletion(opts);
+    const fallback = await openaiChatCompletion(opts);
+    void emitCompletionEvent(opts, fallback, 'cloud-openai-fallback');
+    return fallback;
   }
 }
 
@@ -146,6 +153,40 @@ async function openaiChatCompletion(opts: ChatCompletionOptions): Promise<ChatCo
     tool_calls: choice.message.tool_calls,
     _raw: completion,
   };
+}
+
+/**
+ * Emit an ai.completion event to the Shre outbox for training/evolution.
+ * Provenance tag lets the training corpus filter out proprietary-cloud
+ * outputs (per the Training Provenance Firewall).
+ */
+type Provenance = 'shre-local' | 'cloud-openai' | 'cloud-openai-fallback';
+
+function emitCompletionEvent(
+  opts: ChatCompletionOptions,
+  result: ChatCompletionResult,
+  provenance: Provenance,
+): void {
+  const truncate = (s: string | undefined, n: number) => (s ? s.slice(0, n) : '');
+  // Keep first system + last user + assistant reply — enough signal for
+  // training without blasting full history (token cost + privacy).
+  const systemMsg = opts.messages.find((m) => m.role === 'system');
+  const userMsgs = opts.messages.filter((m) => m.role === 'user');
+  const lastUser = userMsgs[userMsgs.length - 1];
+
+  void enqueueShreEvent('ai.completion', {
+    provenance,
+    model: result.model,
+    agentId: SHRE_AGENT_ID,
+    usage: result.usage,
+    hasTools: Boolean(opts.tools?.length),
+    messages: {
+      system: truncate(systemMsg?.content, 1000),
+      lastUser: truncate(lastUser?.content, 2000),
+      assistant: truncate(result.content, 4000),
+    },
+    timestamp: new Date().toISOString(),
+  });
 }
 
 // ── Streaming Gateway ──
