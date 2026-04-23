@@ -19,22 +19,39 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
   // STAFF / ADMIN ROUTES
   // ============================================
 
-  // POSTS (Announcements + Feed)
+  // POSTS (Announcements + Feed + Community)
   app.get('/api/comm/posts', requireAuth, async (req, res) => {
     try {
       const type = req.query.type as string;
-      const organizationId = (req.user as any).organizationId;
-      const posts = await storage.getCommPosts({ type, organizationId });
+      const audience = req.query.audience as string;
+      const visibility = req.query.visibility as string;
+      const user = req.user as any;
+      const organizationId = user.organizationId;
+      // Staff can also see platform-wide announcements from superadmin
+      const posts = await storage.getCommPosts({ type, organizationId, audience, visibility, includePlatform: true });
       res.json(posts);
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch posts' });
     }
   });
 
+  // Platform-wide announcements - superadmin only
+  app.get('/api/comm/platform-posts', requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user.isPlatformAdmin) return res.status(403).json({ error: 'Platform admins only' });
+      const type = req.query.type as string;
+      const posts = await storage.getPlatformAnnouncements(type);
+      res.json(posts);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to fetch platform posts' });
+    }
+  });
+
   app.get('/api/comm/announcements/stats', requireAuth, async (req, res) => {
     try {
       const organizationId = (req.user as any).organizationId;
-      const posts = await storage.getCommPosts({ type: 'announcement', organizationId });
+      const posts = await storage.getCommPosts({ type: 'announcement', organizationId, includePlatform: true });
       const stats: Record<string, { read: number, total: number }> = {};
       
       for (const post of posts) {
@@ -51,11 +68,19 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.post('/api/comm/posts', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
     try {
+      const user = req.user as any;
+      const isPlatformAdmin = user.isPlatformAdmin;
+      // Platform admins posting with audience='platform' can use any orgId (use first org or a sentinel)
+      let organizationId = user.organizationId;
+      if (isPlatformAdmin && req.body.audience === 'platform' && !organizationId) {
+        const orgs = await storage.getAllOrganizations();
+        organizationId = orgs[0]?.id || 'platform';
+      }
       const data = insertCommPostSchema.parse({
         ...req.body,
-        authorId: (req.user as any).id,
-        authorType: (req.user as any).isPlatformAdmin ? 'superadmin' : 'staff',
-        organizationId: (req.user as any).organizationId,
+        authorId: user.id,
+        authorType: isPlatformAdmin ? 'superadmin' : 'staff',
+        organizationId,
       });
       const post = await storage.createCommPost(data);
       res.status(201).json(post);
@@ -67,8 +92,7 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.patch('/api/comm/posts/:id', requireAuth, async (req, res) => {
     try {
-      const posts = await storage.getCommPosts({ type: undefined, authorId: undefined, organizationId: undefined, workspaceId: undefined, status: undefined, limit: undefined });
-      const existingPost = posts.find(p => p.id === req.params.id);
+      const existingPost = await storage.getCommPost(req.params.id);
       if (!existingPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
@@ -87,8 +111,7 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.delete('/api/comm/posts/:id', requireAuth, async (req, res) => {
     try {
-      const posts = await storage.getCommPosts({ type: undefined, authorId: undefined, organizationId: undefined, workspaceId: undefined, status: undefined, limit: undefined });
-      const existingPost = posts.find(p => p.id === req.params.id);
+      const existingPost = await storage.getCommPost(req.params.id);
       if (!existingPost) {
         return res.status(404).json({ error: 'Post not found' });
       }
@@ -283,7 +306,8 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
     try {
       const customerOrgId = (req.session as any).customerOrganizationId;
       const organizationId = (req.session as any).organizationId;
-      const posts = await storage.getCommPostsForCustomer(customerOrgId, organizationId);
+      const type = req.query.type as string | undefined;
+      const posts = await storage.getCommPostsForCustomer(customerOrgId, organizationId, type);
       res.json(posts);
     } catch (error) {
       res.status(500).json({ error: 'Failed to fetch posts' });
@@ -292,12 +316,16 @@ export function registerCommunicationRoutes({ app }: RouteContext) {
 
   app.post('/api/customer-portal/comm/posts', async (req, res) => {
     try {
+      const session = req.session as any;
+      // Customers can post community posts with public or private visibility
       const data = insertCommPostSchema.parse({
         ...req.body,
-        authorId: (req.session as any).customerId,
+        authorId: session.customerId,
         authorType: 'customer',
-        type: 'retail_feed',
-        organizationId: (req.session as any).organizationId,
+        type: req.body.type || 'community',
+        audience: 'org_customers',
+        visibility: req.body.visibility || 'public',
+        organizationId: session.organizationId,
       });
       const post = await storage.createCommPost(data);
       res.status(201).json(post);

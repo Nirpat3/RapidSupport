@@ -60,6 +60,7 @@ const HumanOversightPage = lazy(() => import("@/pages/HumanOversightPage"));
 const KnowledgeManagementPage = lazy(() => import("@/pages/KnowledgeManagementPage"));
 const FileManagementPage = lazy(() => import("@/pages/FileManagementPage"));
 const AgentAnalyticsPage = lazy(() => import("@/pages/AgentAnalyticsPage"));
+const AgentAnalyticsCSAT = lazy(() => import("@/pages/AgentAnalyticsCSAT"));
 const FeedPage = lazy(() => import("@/pages/FeedPage"));
 const ActivityPage = lazy(() => import("@/pages/ActivityPage"));
 const FeedbackEvaluationPage = lazy(() => import("@/pages/FeedbackEvaluationPage"));
@@ -101,6 +102,9 @@ const CustomDomainsPage = lazy(() => import("@/pages/CustomDomainsPage"));
 const DataExportPage = lazy(() => import("@/pages/DataExportPage"));
 const AuditLogPage = lazy(() => import("@/pages/AuditLogPage"));
 const SecuritySettingsPage = lazy(() => import("@/pages/SecuritySettingsPage"));
+const ShreAIPage = lazy(() => import("@/pages/ShreAIPage"));
+const ResellerManagementPage = lazy(() => import("@/pages/ResellerManagementPage"));
+const NotificationSettingsPage = lazy(() => import("@/pages/NotificationSettingsPage"));
 
 // Staff Communication
 const StaffCommLayout = lazy(() => import("@/pages/staff-communication/StaffCommLayout"));
@@ -214,6 +218,19 @@ function Router() {
             <SLAManagementPage />
           </PermissionGuard>
         </Route>
+        <Route path="/shre-ai">
+          <PermissionGuard feature="settings">
+            <ShreAIPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/resellers">
+          <PermissionGuard feature="settings">
+            <ResellerManagementPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/settings/notifications">
+          <NotificationSettingsPage />
+        </Route>
         <Route path="/administration">
           <PermissionGuard feature="platform-admin">
             <AdministrationHubPage />
@@ -262,6 +279,11 @@ function Router() {
         <Route path="/analytics">
           <PermissionGuard feature="analytics">
             <AgentAnalyticsPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/analytics/csat">
+          <PermissionGuard feature="analytics">
+            <AgentAnalyticsCSAT />
           </PermissionGuard>
         </Route>
         <Route path="/feedback">

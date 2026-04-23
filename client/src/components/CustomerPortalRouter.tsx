@@ -8,6 +8,10 @@ import CustomerPortalFeedback from "@/pages/CustomerPortalFeedback";
 import CustomerPortalKnowledgeBase from "@/pages/CustomerPortalKnowledgeBase";
 import CustomerPortalArticlePage from "@/pages/CustomerPortalArticlePage";
 import CustomerPortalChat from "@/pages/CustomerPortalChat";
+import CustomerPortalTickets from "@/pages/CustomerPortalTickets";
+import CustomerPortalTicketDetail from "@/pages/CustomerPortalTicketDetail";
+import CustomerPortalOrgHub from "@/pages/CustomerPortalOrgHub";
+import CustomerPortalAcceptTransfer from "@/pages/CustomerPortalAcceptTransfer";
 import CommAnnouncements from "@/pages/portal-communication/CommAnnouncements";
 import CommFeed from "@/pages/portal-communication/CommFeed";
 import CommCommunity from "@/pages/portal-communication/CommCommunity";
@@ -21,11 +25,17 @@ export function CustomerPortalRouter() {
       <Route path="/portal/conversations" component={CustomerPortalConversations} />
       <Route path="/portal/chat/:conversationId" component={CustomerPortalChat} />
       <Route path="/portal/chat" component={CustomerPortalChat} />
+      <Route path="/portal/tickets/:id" component={CustomerPortalTicketDetail} />
+      <Route path="/portal/tickets" component={CustomerPortalTickets} />
       <Route path="/portal/feedback" component={CustomerPortalFeedback} />
       <Route path="/portal/feeds" component={CustomerPortalFeed} />
       <Route path="/portal/articles/:id" component={CustomerPortalArticlePage} />
       <Route path="/portal/knowledge-base" component={CustomerPortalKnowledgeBase} />
-      
+
+      {/* Organization Hub */}
+      <Route path="/portal/org" component={CustomerPortalOrgHub} />
+      <Route path="/portal/accept-transfer/:token" component={CustomerPortalAcceptTransfer} />
+
       {/* Communication Routes */}
       <Route path="/portal/communication/announcements" component={CommAnnouncements} />
       <Route path="/portal/communication/feed" component={CommFeed} />

@@ -33,12 +33,20 @@ import { registerStationRoutes } from './routes/station.routes';
 import { registerAgenticRoutes } from './routes/agentic.routes';
 import { registerPartnerRoutes } from './routes/partner.routes';
 import { registerTwoFactorRoutes } from './routes/two-factor.routes';
+import { shreAiRouter } from './routes/shre-ai.routes';
+import { runCloudStorageSync } from './services/cloud-storage-sync.service';
 import { registerResolutionMemoryRoutes } from './routes/resolution-memory.routes';
 import { registerCommunicationRoutes } from './routes/communication.routes';
 import { registerSavedRepliesRoutes } from './routes/saved-replies.routes';
 import { registerCsatRoutes } from './routes/csat.routes';
 import { registerAdminAuditRoutes } from './routes/admin-audit.routes';
 import { registerSearchRoutes } from './routes/search.routes';
+import { registerTicketCommentRoutes } from './routes/ticket-comments.routes';
+import { resellerRouter } from './routes/reseller.routes';
+import { agentNotificationsRouter } from './routes/agent-notifications.routes';
+import { businessTransferRouter } from './routes/business-transfer.routes';
+import { externalAppLinksRouter } from './routes/external-app-links.routes';
+import { customerOrgSocialRouter } from './routes/customer-org-social.routes';
 import portalManifestRoutes from './routes/portal-manifest.routes';
 import adminMonitoringRoutes from './routes/admin-monitoring.routes';
 import type { RouteContext } from './routes/types';
@@ -68,7 +76,9 @@ import {
   insertResolutionRecordSchema,
   customers,
   conversations,
-  channelContacts
+  channelContacts,
+  knowledgeCollections,
+  knowledgeCollectionArticles
 } from '@shared/schema';
 import { WebScraper } from './web-scraper';
 
@@ -931,6 +941,14 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   
   // Register admin monitoring routes
   app.use('/api/admin', adminMonitoringRoutes);
+
+  // Shre AI routes
+  app.use('/api/shre-ai', shreAiRouter);
+  app.use('/api/resellers', resellerRouter);
+  app.use('/api/agent-notifications', agentNotificationsRouter);
+  app.use('/api/business-transfer', businessTransferRouter);
+  app.use('/api/external-links', externalAppLinksRouter);
+  app.use('/api/org-social', customerOrgSocialRouter);
 
   // Notification API routes
   app.get('/api/notifications', requireAuth, async (req, res) => {
@@ -3054,6 +3072,50 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     }
   });
 
+  // POST /api/conversations/:id/merge — merge source into target conversation
+  app.post('/api/conversations/:id/merge', requireAuth, async (req, res) => {
+    try {
+      const { id: sourceId } = req.params;
+      const { targetConversationId } = z.object({
+        targetConversationId: z.string().min(1)
+      }).parse(req.body);
+
+      if (sourceId === targetConversationId) {
+        return res.status(400).json({ error: 'Cannot merge a conversation into itself' });
+      }
+
+      const source = await storage.getConversation(sourceId);
+      const target = await storage.getConversation(targetConversationId);
+
+      if (!source || !target) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      if (source.organizationId !== target.organizationId) {
+        return res.status(400).json({ error: 'Conversations must belong to the same organization' });
+      }
+
+      const result = await storage.mergeConversations(sourceId, targetConversationId);
+
+      await storage.createActivityLog({
+        entityType: 'conversation',
+        entityId: targetConversationId,
+        action: 'merge',
+        performedById: (req.user as any).id,
+        organizationId: source.organizationId || '',
+        details: { mergedFromId: sourceId, mergedFromTitle: source.title }
+      });
+
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json(zodErrorResponse(error));
+      }
+      console.error('[Merge] Error:', error);
+      res.status(500).json({ error: 'Failed to merge conversations' });
+    }
+  });
+
   app.patch('/api/users/me/status', requireAuth, async (req, res) => {
     try {
       const user = req.user as any;
@@ -4273,6 +4335,48 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
         });
       }
       res.status(500).json({ error: 'Failed to create customer' });
+    }
+  });
+
+  // PATCH /api/customers/:id/notes — update agent notes for a customer
+  app.patch('/api/customers/:id/notes', requireAuth, requireRole(['admin', 'agent']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { notes } = z.object({ notes: z.string().max(5000) }).parse(req.body);
+      const customer = await storage.getCustomer(id);
+      if (!customer) return res.status(404).json({ error: 'Customer not found' });
+      await storage.updateCustomerNotes(id, notes);
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) return res.status(400).json(zodErrorResponse(error));
+      res.status(500).json({ error: 'Failed to update notes' });
+    }
+  });
+
+  // GET /api/customers/:customerId/kb-suggestions — top KB articles relevant to this customer
+  app.get('/api/customers/:customerId/kb-suggestions', requireAuth, async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      const { conversationId } = req.query;
+      const user = req.user as any;
+      const organizationId = user.organizationId;
+
+      // Get recent messages from this conversation to derive context
+      let contextQuery = '';
+      if (conversationId) {
+        const msgs = await storage.getMessagesByConversation(conversationId as string);
+        // Use last 3 customer messages as context
+        const customerMsgs = msgs.filter(m => m.senderType === 'customer').slice(-3);
+        contextQuery = customerMsgs.map(m => m.content).join(' ');
+      }
+
+      // Search KB for relevant articles
+      const articles = await storage.searchKnowledgeBase(contextQuery || 'frequently asked questions', 6);
+      const filtered = articles.filter(a => !a.organizationId || a.organizationId === organizationId);
+      res.json(filtered.slice(0, 5).map(a => ({ id: a.id, title: a.title, categoryId: a.categoryId })));
+    } catch (error) {
+      console.error('KB suggestions error:', error);
+      res.json([]);
     }
   });
 
@@ -8762,6 +8866,73 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Failed to start bulk reindexing:', error);
       res.status(500).json({ error: 'Failed to start bulk reindexing' });
+    }
+  });
+
+  // Sync all existing articles into the org's shared knowledge collection
+  app.post('/api/knowledge-base/sync-shared', requireAuth, requireRole(['admin']), async (req, res) => {
+    try {
+      const orgId = resolveOrgId(req);
+      if (!orgId) return res.status(400).json({ error: 'Organization context required' });
+
+      // Get all active articles for this org
+      const allArticles = await storage.getAllKnowledgeBase();
+      const orgArticles = allArticles.filter(a => a.organizationId === orgId && a.isActive);
+
+      // Find or create the org-level shared collection
+      const existing = await db
+        .select()
+        .from(knowledgeCollections)
+        .where(and(
+          eq(knowledgeCollections.ownerOrganizationId, orgId),
+          eq(knowledgeCollections.visibility, 'shared')
+        ))
+        .limit(1);
+
+      let collectionId: string;
+      if (existing.length > 0) {
+        collectionId = existing[0].id;
+      } else {
+        const slug = `org-shared-${orgId.slice(0, 8)}`;
+        const [created] = await db
+          .insert(knowledgeCollections)
+          .values({
+            name: 'Shared Knowledge Base',
+            description: 'All articles shared across workspaces',
+            slug,
+            ownerOrganizationId: orgId,
+            visibility: 'shared',
+            isActive: true,
+          })
+          .returning();
+        collectionId = created.id;
+      }
+
+      // Insert all articles into the collection (skip duplicates)
+      let synced = 0;
+      for (const article of orgArticles) {
+        try {
+          await db
+            .insert(knowledgeCollectionArticles)
+            .values({ collectionId, articleId: article.id, sortOrder: synced })
+            .onConflictDoNothing();
+          synced++;
+        } catch (_) {
+          // already linked — skip
+        }
+      }
+
+      console.log(`sync-shared: synced ${synced}/${orgArticles.length} articles into collection ${collectionId}`);
+      res.json({
+        success: true,
+        collectionId,
+        totalArticles: orgArticles.length,
+        syncedArticles: synced,
+        message: `Successfully synced ${synced} articles into the shared knowledge collection`,
+      });
+    } catch (error) {
+      console.error('sync-shared error:', error);
+      res.status(500).json({ error: 'Failed to sync shared articles' });
     }
   });
 
@@ -14187,141 +14358,40 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       const syncRun = await storage.createCloudStorageSyncRun({
         connectionId: connection.id,
         status: 'running',
-        syncType: 'manual',
+        triggerType: 'manual',
       });
 
-      // Kick off async sync — fetch files from Google Drive, import as KB articles
+      // Respond immediately so UI doesn't wait, then run real sync async
       res.json({ message: 'Sync initiated', syncRunId: syncRun.id });
 
-      setImmediate(async () => {
-        let filesDiscovered = 0;
-        let filesProcessed = 0;
-        let filesImported = 0;
-        const errors: string[] = [];
-
-        try {
-          const folders = await storage.getCloudStorageFoldersByConnection(connection.id);
-          if (!folders || folders.length === 0) {
-            await storage.updateCloudStorageSyncRun(syncRun.id, {
-              status: 'completed', completedAt: new Date(), filesImported: 0,
-            });
-            return;
-          }
-
-          const accessToken = connection.accessToken;
-          if (!accessToken) {
-            await storage.updateCloudStorageSyncRun(syncRun.id, {
-              status: 'failed', completedAt: new Date(),
-              errorMessage: 'No access token available', filesImported: 0,
-            });
-            return;
-          }
-
-          for (const folder of folders) {
-            try {
-              // List files in the Google Drive folder
-              const listUrl = `https://www.googleapis.com/drive/v3/files?q='${folder.providerFolderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,modifiedTime)&pageSize=100`;
-              const listResp = await fetch(listUrl, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-              });
-
-              if (!listResp.ok) {
-                errors.push(`Failed to list folder ${folder.folderName}: ${listResp.status}`);
-                continue;
-              }
-
-              const listData = await listResp.json() as { files: Array<{ id: string; name: string; mimeType: string; modifiedTime: string }> };
-              const files = listData.files || [];
-              filesDiscovered += files.length;
-
-              for (const file of files) {
-                try {
-                  // Only process text-based files (docs, txt, pdf, html, etc.)
-                  const supportedTypes = [
-                    'application/vnd.google-apps.document',
-                    'text/plain', 'text/html', 'text/markdown',
-                    'application/pdf',
-                  ];
-                  const isGoogleDoc = file.mimeType.startsWith('application/vnd.google-apps.');
-                  const isSupported = supportedTypes.includes(file.mimeType) || isGoogleDoc;
-
-                  if (!isSupported) {
-                    filesProcessed++;
-                    continue;
-                  }
-
-                  // Export Google Docs as plain text, download others directly
-                  let content = '';
-                  if (isGoogleDoc) {
-                    const exportUrl = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=text/plain`;
-                    const exportResp = await fetch(exportUrl, {
-                      headers: { Authorization: `Bearer ${accessToken}` },
-                    });
-                    if (exportResp.ok) content = await exportResp.text();
-                  } else {
-                    const downloadUrl = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
-                    const downloadResp = await fetch(downloadUrl, {
-                      headers: { Authorization: `Bearer ${accessToken}` },
-                    });
-                    if (downloadResp.ok) content = await downloadResp.text();
-                  }
-
-                  if (!content || content.length < 10) {
-                    filesProcessed++;
-                    continue;
-                  }
-
-                  // Create or update KB article from the file
-                  const newArticle = await storage.createKnowledgeBase({
-                    title: file.name.replace(/\.[^/.]+$/, ''), // strip extension
-                    content,
-                    category: 'imported',
-                    tags: ['google-drive', folder.folderName || 'imported'],
-                  });
-
-                  filesImported++;
-                  filesProcessed++;
-
-                  // Auto-sync imported article to Shre (best-effort)
-                  syncArticleToShre({
-                    id: String(newArticle.id),
-                    title: newArticle.title,
-                    content: content,
-                    category: 'imported',
-                    tags: ['google-drive'],
-                  }).catch(() => {});
-
-                } catch (fileErr) {
-                  filesProcessed++;
-                  errors.push(`Failed to process ${file.name}: ${fileErr instanceof Error ? fileErr.message : String(fileErr)}`);
-                }
-              }
-            } catch (folderErr) {
-              errors.push(`Folder sync error: ${folderErr instanceof Error ? folderErr.message : String(folderErr)}`);
-            }
-          }
-
+      // Run real sync in background (non-blocking)
+      runCloudStorageSync(connection.id)
+        .then(async (result) => {
           await storage.updateCloudStorageSyncRun(syncRun.id, {
-            status: errors.length > 0 ? 'completed_with_errors' : 'completed',
+            status: 'completed',
             completedAt: new Date(),
-            filesImported,
-            errorMessage: errors.length > 0 ? errors.join('; ') : null,
+            filesDiscovered: result.filesDiscovered,
+            filesProcessed: result.filesProcessed,
+            filesImported: result.filesImported,
+            errorMessage: result.errors.length > 0 ? result.errors.slice(0, 3).join('; ') : undefined,
           });
-
           await storage.updateCloudStorageConnection(connection.id, {
             lastSyncAt: new Date(),
           });
-
-          console.log(`[CloudSync] Sync complete: ${filesImported} imported, ${filesDiscovered} discovered, ${errors.length} errors`);
-        } catch (err) {
+          console.log(`[CloudSync] Connection ${connection.id}: ${result.filesImported} imported, ${result.filesSkipped} skipped`);
+        })
+        .catch(async (err) => {
+          console.error('[CloudSync] Sync error:', err);
           await storage.updateCloudStorageSyncRun(syncRun.id, {
-            status: 'failed', completedAt: new Date(),
-            filesImported,
-            errorMessage: err instanceof Error ? err.message : String(err),
-          });
-          console.error('[CloudSync] Sync failed:', err);
-        }
-      });
+            status: 'failed',
+            completedAt: new Date(),
+            errorMessage: err.message,
+          }).catch(() => {});
+          await storage.updateCloudStorageConnection(connection.id, {
+            status: 'error',
+            errorMessage: err.message,
+          }).catch(() => {});
+        });
     } catch (error) {
       console.error('Failed to trigger sync:', error);
       res.status(500).json({ error: 'Failed to trigger sync' });
@@ -15116,6 +15186,7 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
   registerCsatRoutes(routeContext);
   registerAdminAuditRoutes(routeContext);
   registerSearchRoutes(routeContext);
+  registerTicketCommentRoutes(routeContext);
 
   // Global error handler — must be last middleware registered
   app.use(globalErrorHandler);

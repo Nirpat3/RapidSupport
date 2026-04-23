@@ -11,6 +11,7 @@ import { registerCsatRoutes } from './csat.routes';
 import { registerSearchRoutes } from './search.routes';
 import { registerSavedRepliesRoutes } from './saved-replies.routes';
 import { registerSlaRoutes } from './sla.routes';
+import { registerTwoFactorRoutes } from './two-factor.routes';
 
 export { globalApiLimiter } from './shared';
 
@@ -27,6 +28,7 @@ const routeRegistrars: RouteRegistrar[] = [
   registerSearchRoutes,
   registerSavedRepliesRoutes,
   registerSlaRoutes,
+  registerTwoFactorRoutes,
 ];
 
 export function registerAllRoutes(context: RouteContext) {

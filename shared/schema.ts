@@ -87,6 +87,10 @@ export const organizations = pgTable("organizations", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   // Sub-organization hierarchy
   parentOrganizationId: varchar("parent_organization_id"), // Self-referential FK for org hierarchy (parent org → child orgs)
+  // Reseller configuration
+  isReseller: boolean("is_reseller").notNull().default(false), // Is this org a reseller (first-line support tier)
+  resellerTier: integer("reseller_tier").default(1), // 1 = primary reseller, 2+ = sub-reseller
+  resellerSupportEmail: text("reseller_support_email"), // Reseller's dedicated support email
   // Soft delete
   deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
   deletedBy: varchar("deleted_by"), // User ID who deleted this record
@@ -455,6 +459,12 @@ export const customers = pgTable("customers", {
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  // Notification preferences
+  smsOptIn: boolean("sms_opt_in").notNull().default(false), // Customer opted in for SMS notifications
+  emailOptIn: boolean("email_opt_in").notNull().default(true), // Customer opted in for email notifications
+  // Reseller assignment — which reseller org provides first-line support for this customer
+  resellerId: varchar("reseller_id").references(() => organizations.id),
+  resellerAssignedAt: timestamp("reseller_assigned_at"),
   // Soft delete
   deletedAt: timestamp("deleted_at"), // When set, record is considered deleted (soft delete)
   deletedBy: varchar("deleted_by"), // User ID who deleted this record
@@ -567,6 +577,13 @@ export const conversations = pgTable("conversations", {
   slaResolutionAt: timestamp("sla_resolution_at"), // Deadline for resolution
   slaFirstResponseBreached: boolean("sla_first_response_breached").notNull().default(false),
   slaResolutionBreached: boolean("sla_resolution_breached").notNull().default(false),
+  // Reseller routing — tracks which reseller org is handling this conversation
+  resellerId: varchar("reseller_id").references(() => organizations.id),
+  // Escalation — when reseller escalates to parent org
+  isEscalated: boolean("is_escalated").notNull().default(false),
+  escalatedAt: timestamp("escalated_at"),
+  escalatedBy: varchar("escalated_by").references(() => users.id),
+  escalationNote: text("escalation_note"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
@@ -5400,13 +5417,19 @@ export const commPosts = pgTable("comm_posts", {
   workspaceId: varchar("workspace_id"),
   authorId: varchar("author_id").notNull(),
   authorType: varchar("author_type").notNull(), // 'superadmin' | 'staff' | 'customer'
-  type: varchar("type").notNull(), // 'announcement' | 'workspace_feed' | 'retail_feed'
+  type: varchar("type").notNull(), // 'announcement' | 'workspace_feed' | 'retail_feed' | 'community'
   title: varchar("title"),
   content: text("content").notNull(),
   tags: text("tags").array().default([]),
   isPinned: boolean("is_pinned").default(false),
   status: varchar("status").default("active"), // 'active' | 'archived'
   stationId: varchar("station_id"),
+  // Audience: who receives this post
+  audience: varchar("audience").default("org_staff"), // 'platform' | 'org_staff' | 'org_customers' | 'org_all' | 'workspace_staff' | 'workspace_customers' | 'workspace_all'
+  // Visibility: for community/feed posts
+  visibility: varchar("visibility").default("public"), // 'public' | 'private'
+  // Selected org IDs when audience = 'selected_orgs'
+  targetOrgIds: text("target_org_ids").array().default([]),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -5625,3 +5648,91 @@ export const shreOutbox = pgTable("shre_outbox", {
 }));
 
 export type ShreOutboxEvent = typeof shreOutbox.$inferSelect;
+
+// ─────────────────────────────────────────────
+// Shre AI configuration (per organization)
+// ─────────────────────────────────────────────
+export const shreAiConfigs = pgTable("shre_ai_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  organizationId: varchar("organization_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }).unique(),
+  endpoint: text("endpoint").notNull().default(""),
+  apiKey: text("api_key").notNull().default(""),
+  systemPrompt: text("system_prompt"),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  autoReplyOnNew: boolean("auto_reply_on_new").notNull().default(false),
+  handoffKeywords: text("handoff_keywords").notNull().default("human,agent,speak to someone,real person"),
+  totalReplies: integer("total_replies").notNull().default(0),
+  totalHandoffs: integer("total_handoffs").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertShreAiConfigSchema = createInsertSchema(shreAiConfigs).omit({ id: true, createdAt: true, updatedAt: true, organizationId: true, totalReplies: true, totalHandoffs: true });
+export type InsertShreAiConfig = z.infer<typeof insertShreAiConfigSchema>;
+export type ShreAiConfig = typeof shreAiConfigs.$inferSelect;
+
+// ============================================================
+// TICKET COMMENTS — per-ticket comment thread (agents + customers)
+// ============================================================
+export const ticketComments = pgTable("ticket_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ticketId: varchar("ticket_id").notNull().references(() => tickets.id, { onDelete: 'cascade' }),
+  authorId: varchar("author_id"), // userId or customerId — nullable for system messages
+  authorType: text("author_type").notNull().default("agent"), // 'agent' | 'customer' | 'system'
+  authorName: text("author_name"), // Denormalized display name
+  content: text("content").notNull(),
+  isInternal: boolean("is_internal").notNull().default(false), // true = agent-only note, not visible to customer
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertTicketCommentSchema = createInsertSchema(ticketComments).omit({ id: true, createdAt: true });
+export type InsertTicketComment = z.infer<typeof insertTicketCommentSchema>;
+export type TicketComment = typeof ticketComments.$inferSelect;
+
+// ============================================================
+// AGENT NOTIFICATION PREFERENCES — per-agent push notification control
+// ============================================================
+export const agentNotificationPreferences = pgTable("agent_notification_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  // Global toggle
+  pushEnabled: boolean("push_enabled").notNull().default(true),
+  soundEnabled: boolean("sound_enabled").notNull().default(true),
+  // Event-specific toggles
+  newConversationAssigned: boolean("new_conversation_assigned").notNull().default(true),
+  newMessageInAssigned: boolean("new_message_in_assigned").notNull().default(true),
+  newMessageMention: boolean("new_message_mention").notNull().default(true),
+  slaBreach: boolean("sla_breach").notNull().default(true),
+  slaWarning: boolean("sla_warning").notNull().default(true),
+  ticketUpdate: boolean("ticket_update").notNull().default(true),
+  customerReply: boolean("customer_reply").notNull().default(true),
+  conversationEscalated: boolean("conversation_escalated").notNull().default(true),
+  newConversationInOrg: boolean("new_conversation_in_org").notNull().default(false), // All new convos (noisy)
+  // Quiet hours
+  quietHoursEnabled: boolean("quiet_hours_enabled").notNull().default(false),
+  quietHoursStart: integer("quiet_hours_start").default(22), // Hour 0-23 (e.g. 22 = 10pm)
+  quietHoursEnd: integer("quiet_hours_end").default(8),     // Hour 0-23 (e.g. 8 = 8am)
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertAgentNotificationPreferencesSchema = createInsertSchema(agentNotificationPreferences).omit({ id: true, createdAt: true, updatedAt: true, userId: true });
+export type InsertAgentNotificationPreferences = z.infer<typeof insertAgentNotificationPreferencesSchema>;
+export type AgentNotificationPreferences = typeof agentNotificationPreferences.$inferSelect;
+
+// ============================================================
+// RESELLER CUSTOMER ASSIGNMENTS — explicit log of when customers were assigned
+// ============================================================
+export const resellerAssignments = pgTable("reseller_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  resellerId: varchar("reseller_id").notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  assignedBy: varchar("assigned_by").references(() => users.id),
+  assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+  notes: text("notes"),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
+export const insertResellerAssignmentSchema = createInsertSchema(resellerAssignments).omit({ id: true, assignedAt: true });
+export type InsertResellerAssignment = z.infer<typeof insertResellerAssignmentSchema>;
+export type ResellerAssignment = typeof resellerAssignments.$inferSelect;

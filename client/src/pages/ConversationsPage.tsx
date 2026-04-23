@@ -48,6 +48,8 @@ import { formatDistanceToNow } from "date-fns";
 import ChatInterface from "@/components/ChatInterface";
 import { type Message } from "@/components/ChatMessage";
 import { MergeConversationDialog } from "@/components/MergeConversationDialog";
+import { EscalateConversationDialog } from "@/components/EscalateConversationDialog";
+import CustomerContactPanel from "@/components/CustomerContactPanel";
 
 interface Conversation {
   id: string;
@@ -136,6 +138,7 @@ export default function ConversationsPage() {
   // Knowledge search dialog state
   const [isKnowledgeSearchOpen, setIsKnowledgeSearchOpen] = useState(false);
   const [showWorkflowSidebar, setShowWorkflowSidebar] = useState(false);
+  const [showContactPanel, setShowContactPanel] = useState(false);
   const [messageToInsert, setMessageToInsert] = useState<string | null>(null);
 
   // WebSocket setup
@@ -931,6 +934,38 @@ export default function ConversationsPage() {
                             <span>
                               {formatDistanceToNow(new Date(conversation.lastMessage?.timestamp || conversation.updatedAt), { addSuffix: true })}
                             </span>
+                            {(conversation.slaFirstResponseAt || conversation.slaResolutionAt) && conversation.status !== 'resolved' && conversation.status !== 'closed' && (() => {
+                              const deadline = conversation.slaFirstResponseAt && !conversation.slaFirstResponseBreached
+                                ? new Date(conversation.slaFirstResponseAt)
+                                : conversation.slaResolutionAt
+                                  ? new Date(conversation.slaResolutionAt)
+                                  : null;
+                              if (!deadline) return null;
+                              const now = Date.now();
+                              const msLeft = deadline.getTime() - now;
+                              const breached = msLeft <= 0;
+                              const hoursLeft = Math.floor(Math.abs(msLeft) / 3600000);
+                              const minsLeft = Math.floor((Math.abs(msLeft) % 3600000) / 60000);
+                              const label = breached
+                                ? 'Breached'
+                                : hoursLeft > 0
+                                  ? `${hoursLeft}h ${minsLeft}m`
+                                  : `${minsLeft}m`;
+                              const colorClass = breached || conversation.slaResolutionBreached || conversation.slaFirstResponseBreached
+                                ? 'text-red-500 dark:text-red-400'
+                                : msLeft < 1800000
+                                  ? 'text-amber-500 dark:text-amber-400'
+                                  : 'text-emerald-600 dark:text-emerald-400';
+                              return (
+                                <>
+                                  <span>•</span>
+                                  <span className={`flex items-center gap-0.5 ${colorClass}`}>
+                                    <Clock className="w-3 h-3" />
+                                    {label}
+                                  </span>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1015,6 +1050,18 @@ export default function ConversationsPage() {
                   <TooltipContent>Merge with another conversation</TooltipContent>
                 </Tooltip>
 
+                {/* Escalate to Parent Org Button */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <EscalateConversationDialog
+                      conversationId={activeConversationId!}
+                      isEscalated={conversations?.find((c: any) => c.id === activeConversationId)?.isEscalated}
+                      onSuccess={() => queryClient.invalidateQueries({ queryKey: ["/api/conversations"] })}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>Escalate to parent support team</TooltipContent>
+                </Tooltip>
+
                 {/* Workflow Guide Toggle */}
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1031,6 +1078,25 @@ export default function ConversationsPage() {
                     {showWorkflowSidebar ? "Hide Workflow Guide" : "Show Workflow Guide"}
                   </TooltipContent>
                 </Tooltip>
+
+                {/* Contact Panel Toggle */}
+                {(activeConversation.customerId || activeConversation.customer?.id) && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={showContactPanel ? "default" : "outline"}
+                        size="icon"
+                        onClick={() => setShowContactPanel(!showContactPanel)}
+                        data-testid="button-contact-panel-toggle"
+                      >
+                        <User className="w-4 h-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {showContactPanel ? "Hide Contact" : "Show Contact"}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
 
                 {/* Human Takeover Toggle */}
                 <Tooltip>
@@ -1183,6 +1249,15 @@ export default function ConversationsPage() {
                     onClose={() => setShowWorkflowSidebar(false)}
                   />
                 </div>
+              )}
+
+              {/* Customer Contact Panel */}
+              {showContactPanel && (activeConversation.customerId || activeConversation.customer?.id) && (
+                <CustomerContactPanel
+                  customerId={(activeConversation.customerId || activeConversation.customer?.id)!}
+                  conversationId={activeConversationId || undefined}
+                  onClose={() => setShowContactPanel(false)}
+                />
               )}
             </div>
           </>

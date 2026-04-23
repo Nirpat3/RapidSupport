@@ -439,6 +439,7 @@ export default function LandingPage() {
                   "Email support",
                   "Knowledge base (100 articles)"
                 ]}
+                onAction={() => setOrgSignupOpen(true)}
               />
               <PricingCard
                 name="Professional"
@@ -455,6 +456,7 @@ export default function LandingPage() {
                   "API access"
                 ]}
                 popular
+                onAction={() => setOrgSignupOpen(true)}
               />
               <PricingCard
                 name="Enterprise"
@@ -470,6 +472,7 @@ export default function LandingPage() {
                   "White-label solution",
                   "On-premise deployment option"
                 ]}
+                onAction={() => setOrgSignupOpen(true)}
               />
             </div>
           </div>
@@ -661,12 +664,13 @@ function TestimonialCard({ quote, author, role, company }: {
   );
 }
 
-function PricingCard({ name, price, description, features, popular = false }: {
+function PricingCard({ name, price, description, features, popular = false, onAction }: {
   name: string;
   price: string;
   description: string;
   features: string[];
   popular?: boolean;
+  onAction?: () => void;
 }) {
   return (
     <Card className={`h-full relative ${popular ? 'border-primary shadow-lg' : ''}`}>
@@ -692,7 +696,7 @@ function PricingCard({ name, price, description, features, popular = false }: {
             </li>
           ))}
         </ul>
-        <Button className="w-full" variant={popular ? 'default' : 'outline'}>
+        <Button className="w-full" variant={popular ? 'default' : 'outline'} onClick={onAction}>
           {price === 'Custom' ? 'Contact Sales' : 'Start Free Trial'}
         </Button>
       </CardContent>

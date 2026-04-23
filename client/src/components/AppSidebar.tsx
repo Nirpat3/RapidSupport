@@ -59,7 +59,9 @@ import {
   Gauge,
   Webhook,
   Globe,
-  Download
+  Download,
+  BellRing,
+  Handshake
 } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/contexts/NotificationContext";
@@ -233,6 +235,18 @@ const settingsSubItems: NavigationItem[] = [
     allowedRoles: ['admin']
   },
   {
+    title: "Shre AI Agent",
+    url: "/shre-ai",
+    icon: Bot,
+    allowedRoles: ['admin']
+  },
+  {
+    title: "Resellers",
+    url: "/resellers",
+    icon: Handshake,
+    allowedRoles: ['admin']
+  },
+  {
     title: "Webhooks",
     url: "/webhooks",
     icon: Webhook,
@@ -266,6 +280,12 @@ const settingsSubItems: NavigationItem[] = [
     title: "Security Settings",
     url: "/settings/security",
     icon: Shield,
+    allowedRoles: 'all'
+  },
+  {
+    title: "Notification Settings",
+    url: "/settings/notifications",
+    icon: BellRing,
     allowedRoles: 'all'
   },
   {

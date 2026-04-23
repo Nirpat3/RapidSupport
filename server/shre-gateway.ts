@@ -8,8 +8,6 @@
  * All other files import from here instead of 'openai' directly.
  */
 import OpenAI from 'openai';
-
-// @ts-ignore — JS module without types
 import { ShreClient } from './shre-client.js';
 import { enqueueShreEvent } from './shre-outbox';
 
