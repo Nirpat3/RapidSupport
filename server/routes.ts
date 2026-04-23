@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { randomUUID } from "crypto";
 import crypto from "crypto";
 import rateLimit from 'express-rate-limit';
-import OpenAI from 'openai';
+import { chatCompletion, syncArticleToShre, bulkSyncKBToShre, deleteArticleFromShre, isShreEnabled } from './shre-gateway';
 import { DocumentProcessor } from './document-processor';
 import { AIDocumentAnalyzer } from './ai-document-analyzer';
 import { z } from 'zod';
@@ -426,6 +426,15 @@ async function processFileForAITraining(
           indexedAt: new Date()
         });
         console.log(`✅ Successfully indexed article ${knowledgeArticle.id} for AI search`);
+
+        // Sync to Shre platform (non-blocking, no-op if not configured)
+        syncArticleToShre({
+          id: String(knowledgeArticle.id),
+          title: knowledgeArticle.title,
+          content: knowledgeArticle.content || '',
+          category: knowledgeArticle.category || 'general',
+          tags: knowledgeArticle.tags || [],
+        }).catch(() => {}); // silent fail — Shre sync is best-effort
       } catch (indexError) {
         // Mark as failed with error message
         await storage.updateKnowledgeBase(knowledgeArticle.id, { 
@@ -528,9 +537,7 @@ async function processDocumentImport(
     console.log(`[DocImport] Extracted ${documentContent.metadata?.wordCount || 0} words from ${uploadedFile.originalName}`);
 
     // Phase 1: AI analyzes content and identifies atomic document boundaries
-    const openai = new OpenAI();
-    const analysisResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const analysisResponse = await chatCompletion({
       messages: [
         {
           role: 'system',
@@ -575,7 +582,7 @@ Guidelines:
 
     // Parse section analysis
     let sections: Array<{ title: string; domain: string; intent: string; startText?: string; endText?: string }> = [];
-    const analysisContent = analysisResponse.choices[0]?.message?.content || '';
+    const analysisContent = analysisResponse.content || '';
     const jsonMatch = analysisContent.match(/```json\s*([\s\S]*?)\s*```/);
     
     if (jsonMatch) {
@@ -670,8 +677,7 @@ Guidelines:
       // Limit section content to reasonable size
       sectionContent = sectionContent.substring(0, 6000);
       
-      const docResponse = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+      const docResponse = await chatCompletion({
         messages: [
           {
             role: 'system',
@@ -707,7 +713,7 @@ Guidelines:
         max_tokens: 2000,
       });
 
-      const docContent = docResponse.choices[0]?.message?.content || '';
+      const docContent = docResponse.content || '';
       const parsed = parseAtomicDocument(docContent);
       
       if (parsed) {
@@ -8604,16 +8610,28 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
             indexedAt: new Date()
           });
           console.log(`✅ Successfully re-indexed updated article ${id} for AI search`);
+
+          // Sync updated article to Shre platform (non-blocking, best-effort)
+          const updated = await storage.getKnowledgeBase(id);
+          if (updated) {
+            syncArticleToShre({
+              id: String(updated.id),
+              title: updated.title,
+              content: updated.content || '',
+              category: updated.category || 'general',
+              tags: updated.tags || [],
+            }).catch(() => {}); // silent fail — Shre sync is best-effort
+          }
         } catch (indexError) {
           // Mark as failed with error message
-          await storage.updateKnowledgeBase(id, { 
+          await storage.updateKnowledgeBase(id, {
             indexingStatus: 'failed',
             indexingError: indexError instanceof Error ? indexError.message : String(indexError)
           });
           console.error(`⚠️ Warning: Failed to re-index article ${id}:`, indexError);
         }
       });
-      
+
       // Sync agent assignments if they changed
       if (validationResult.data.assignedAgentIds !== undefined) {
         await syncAgentKnowledgeAssignments(id, validationResult.data.assignedAgentIds || []);
@@ -8684,7 +8702,12 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
       
       // Finally, delete the article itself
       await storage.deleteKnowledgeBase(id);
-      
+
+      // Remove from Shre's Qdrant vector store (best-effort)
+      deleteArticleFromShre(id).catch(err =>
+        console.warn(`[ShreGateway] KB delete sync failed: ${err instanceof Error ? err.message : err}`)
+      );
+
       const deletedImageCount = associatedImages.length;
       const message = deletedImageCount > 0 
         ? `Knowledge base article and ${deletedImageCount} associated image(s) deleted successfully`
@@ -8816,6 +8839,42 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('sync-shared error:', error);
       res.status(500).json({ error: 'Failed to sync shared articles' });
+    }
+  });
+
+  // Sync all KB articles to Shre AI platform (Qdrant vector store)
+  app.post('/api/knowledge-base/sync-shre', requireAuth, requireRole(['admin']), async (req, res) => {
+    if (!isShreEnabled) {
+      return res.status(400).json({ error: 'Shre AI not configured. Set SHRE_API_KEY environment variable.' });
+    }
+
+    try {
+      const articles = await storage.getAllKnowledgeBase();
+      const activeArticles = articles.filter(a => a.isActive && a.content);
+
+      console.log(`[Shre Sync] Starting bulk sync of ${activeArticles.length} articles to Shre AI...`);
+
+      const mapped = activeArticles.map(a => ({
+        id: String(a.id),
+        title: a.title,
+        content: a.content || '',
+        category: a.category || 'general',
+        tags: a.tags || [],
+      }));
+
+      const result = await bulkSyncKBToShre(mapped);
+
+      console.log(`[Shre Sync] Complete: ${result.synced} synced, ${result.errors} errors`);
+      res.json({
+        success: true,
+        message: `Synced ${result.synced} articles to Shre AI platform`,
+        synced: result.synced,
+        errors: result.errors,
+        total: activeArticles.length,
+      });
+    } catch (error) {
+      console.error('[Shre Sync] Failed:', error);
+      res.status(500).json({ error: 'Failed to sync KB to Shre AI' });
     }
   });
 
@@ -11774,6 +11833,97 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
     } catch (error) {
       console.error('Webhook error:', error);
       res.status(500).json({ error: 'Webhook processing failed' });
+    }
+  });
+
+  // ========================================
+  // SHRE PLATFORM PROVISIONING WEBHOOK
+  // ========================================
+  // Called by MIB007 marketplace when "Support" app is activated for a customer.
+  // Receives: orgSlug, embedSecret, apiKey, companyId
+  // Verifies HMAC-SHA256 signature via X-Webhook-Signature header.
+  app.post('/api/support/webhook/provision', webhookRateLimiter, async (req, res) => {
+    try {
+      const webhookSecret = process.env.SHRE_WEBHOOK_SECRET;
+      if (!webhookSecret) {
+        console.warn('[Shre Provision] SHRE_WEBHOOK_SECRET not configured — webhook disabled');
+        return res.status(503).json({ error: 'Provisioning webhook not configured' });
+      }
+
+      // Verify HMAC-SHA256 signature
+      const signature = req.headers['x-webhook-signature'] as string;
+      if (!signature) {
+        return res.status(401).json({ error: 'Missing X-Webhook-Signature header' });
+      }
+
+      const payload = JSON.stringify(req.body);
+      const expected = crypto.createHmac('sha256', webhookSecret).update(payload).digest('hex');
+      const sigBuffer = Buffer.from(signature, 'hex');
+      const expectedBuffer = Buffer.from(expected, 'hex');
+
+      if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+        console.warn('[Shre Provision] Invalid webhook signature');
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+
+      const { orgSlug, embedSecret, apiKey, companyId } = req.body;
+
+      if (!orgSlug || !companyId) {
+        return res.status(400).json({ error: 'orgSlug and companyId are required' });
+      }
+
+      console.log(`[Shre Provision] Received provisioning for org=${orgSlug} company=${companyId}`);
+
+      // Store the Shre API key and embed secret for this workspace
+      // These enable the ShreGateway to route AI calls through the Shre platform
+      const provisionRecord = {
+        orgSlug,
+        companyId,
+        apiKey: apiKey || null,
+        embedSecret: embedSecret || null,
+        provisionedAt: new Date().toISOString(),
+      };
+
+      // Store in DB for multi-tenant key lookup
+      // For now, log it — the primary key is set via SHRE_API_KEY env var
+      console.log(`[Shre Provision] Provisioned successfully:`, {
+        orgSlug,
+        companyId,
+        hasApiKey: !!apiKey,
+        hasEmbedSecret: !!embedSecret,
+      });
+
+      // Auto-trigger bulk KB sync to Shre if API key was provided
+      if (apiKey && isShreEnabled) {
+        setImmediate(async () => {
+          try {
+            const articles = await storage.getAllKnowledgeBase();
+            const activeArticles = articles.filter(a => a.isActive && a.content);
+            if (activeArticles.length > 0) {
+              const mapped = activeArticles.map(a => ({
+                id: String(a.id),
+                title: a.title,
+                content: a.content || '',
+                category: a.category || 'general',
+                tags: a.tags || [],
+              }));
+              const result = await bulkSyncKBToShre(mapped);
+              console.log(`[Shre Provision] Auto-synced ${result.synced} KB articles to Shre`);
+            }
+          } catch (err) {
+            console.error('[Shre Provision] Auto-sync failed:', err);
+          }
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Provisioned for org ${orgSlug}`,
+        companyId,
+      });
+    } catch (error) {
+      console.error('[Shre Provision] Webhook error:', error);
+      res.status(500).json({ error: 'Provisioning failed' });
     }
   });
 

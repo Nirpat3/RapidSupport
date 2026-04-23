@@ -1,8 +1,6 @@
-import OpenAI from 'openai';
+import { chatCompletion } from './shre-gateway';
 import { storage } from './storage';
 import type { InsertKnowledgeBase, InsertKnowledgeBaseFaq } from '@shared/schema';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export interface DocumentationRequest {
   integrationName: string;
@@ -66,8 +64,7 @@ Return the response as JSON with this exact structure:
 }`;
 
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+      const response = await chatCompletion({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -76,7 +73,7 @@ Return the response as JSON with this exact structure:
         response_format: { type: 'json_object' }
       });
 
-      const content = response.choices[0]?.message?.content;
+      const content = response.content;
       if (!content) {
         throw new Error('No response from AI');
       }

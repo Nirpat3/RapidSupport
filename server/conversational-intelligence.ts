@@ -1,14 +1,12 @@
-import OpenAI from "openai";
+import { chatCompletion } from "./shre-gateway";
 import { storage } from "./storage";
-import type { 
-  CustomerMemory, 
-  SentimentTracking, 
+import type {
+  CustomerMemory,
+  SentimentTracking,
   ConversationIntelligence,
   InsertSentimentTracking,
   InsertConversationIntelligence
 } from "@shared/schema";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 interface SentimentAnalysisResult {
   overallSentiment: number;
@@ -92,8 +90,7 @@ Customer message:`;
     voiceToneIndicators?: string[]
   ): Promise<SentimentTracking> {
     try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: "You are a sentiment analysis expert. Always respond with valid JSON." },
           { role: "user", content: `${this.SENTIMENT_ANALYSIS_PROMPT}\n"${message}"` }
@@ -103,7 +100,7 @@ Customer message:`;
         response_format: { type: "json_object" }
       });
 
-      const result = JSON.parse(completion.choices[0].message.content || "{}") as SentimentAnalysisResult;
+      const result = JSON.parse(completion.content || "{}") as SentimentAnalysisResult;
 
       const adjustedFrustration = modality === 'voice' && voiceToneIndicators?.length
         ? Math.min(100, result.frustrationLevel + (voiceToneIndicators.includes('rushed') ? 10 : 0) + 
@@ -168,8 +165,7 @@ Customer message:`;
         ? `Customer: "${message}"\nAI Response: "${aiResponse}"`
         : `"${message}"`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await chatCompletion({
         messages: [
           { role: "system", content: "You are a customer context analyst. Extract memorable facts. Always respond with valid JSON." },
           { role: "user", content: `${this.MEMORY_EXTRACTION_PROMPT}\n${fullContext}` }
@@ -179,7 +175,7 @@ Customer message:`;
         response_format: { type: "json_object" }
       });
 
-      const result = JSON.parse(completion.choices[0].message.content || '{"memories":[]}') as MemoryExtractionResult;
+      const result = JSON.parse(completion.content || '{"memories":[]}') as MemoryExtractionResult;
       const savedMemories: CustomerMemory[] = [];
 
       for (const memory of result.memories || []) {

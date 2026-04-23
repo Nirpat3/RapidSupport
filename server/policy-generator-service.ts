@@ -1,7 +1,4 @@
-import OpenAI from "openai";
-
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { chatCompletion } from './shre-gateway';
 
 export type PolicyType = 'terms' | 'privacy' | 'cookies';
 export type RegionCode = 'us' | 'eu' | 'uk' | 'caribbean' | 'global' | 'ca' | 'au' | 'latam' | 'asia';
@@ -120,8 +117,7 @@ export async function generatePolicy(request: PolicyGenerationRequest): Promise<
   
   const prompt = buildPolicyPrompt(request, regionConfig, policyTemplate);
   
-  const response = await openai.chat.completions.create({
-    model: "gpt-5",
+  const response = await chatCompletion({
     messages: [
       {
         role: "system",
@@ -136,7 +132,7 @@ export async function generatePolicy(request: PolicyGenerationRequest): Promise<
     max_completion_tokens: 8192
   });
 
-  const result = JSON.parse(response.choices[0].message.content || '{}');
+  const result = JSON.parse(response.content || '{}');
   
   return {
     title: result.title || `${request.companyName} ${policyTemplate.description}`,

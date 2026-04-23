@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import { chatCompletion } from './shre-gateway';
 import { db } from './db';
 import { eq, desc, and, ilike, count, sql, or, ne } from 'drizzle-orm';
 import {
@@ -26,8 +26,6 @@ import {
   type ActionInfo
 } from '@shared/platform-documentation';
 import { storage } from './storage';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export interface AssistantResponse {
   content: string;
@@ -60,7 +58,7 @@ interface ConversationContext {
 
 // --- Tool definitions for OpenAI function calling ---
 
-const ASSISTANT_TOOLS: OpenAI.Chat.ChatCompletionTool[] = [
+const ASSISTANT_TOOLS: any[] = [
   {
     type: 'function',
     function: {
@@ -530,7 +528,7 @@ ${allPages}
     context: ConversationContext,
     maxIterations: number = 3
   ): Promise<AssistantResponse> {
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    const messages: Array<{ role: string; content: string; tool_calls?: any[]; tool_call_id?: string }> = [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ];
@@ -541,9 +539,8 @@ ${allPages}
     while (iterations < maxIterations) {
       iterations++;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages,
+      const completion = await chatCompletion({
+        messages: messages as any,
         tools: ASSISTANT_TOOLS,
         tool_choice: 'auto',
         temperature: 0.4,
@@ -551,12 +548,13 @@ ${allPages}
         response_format: { type: 'json_object' }
       });
 
-      const choice = completion.choices[0];
+      const rawChoice = (completion as any)._raw?.choices?.[0];
+      const hasToolCalls = completion.tool_calls && completion.tool_calls.length > 0;
 
-      if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls) {
-        messages.push(choice.message);
+      if (hasToolCalls && rawChoice) {
+        messages.push(rawChoice.message);
 
-        for (const toolCall of choice.message.tool_calls) {
+        for (const toolCall of completion.tool_calls!) {
           const toolName = toolCall.function.name;
           let toolArgs: any;
           try {
@@ -594,7 +592,7 @@ ${allPages}
         continue;
       }
 
-      const responseText = choice.message?.content || '{}';
+      const responseText = completion.content || '{}';
       let parsed: AssistantResponse;
       try {
         parsed = JSON.parse(responseText);

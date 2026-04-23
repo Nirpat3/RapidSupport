@@ -8,9 +8,7 @@ import type {
   Conversation 
 } from "@shared/schema";
 import { AIService } from "../ai-service";
-import OpenAI from "openai";
-
-const openai = new OpenAI();
+import { chatCompletion } from "../shre-gateway";
 
 interface ParsedEmail {
   messageId: string;
@@ -337,8 +335,7 @@ export class EmailService {
     try {
       const systemPrompt = `You are a helpful customer support assistant. Generate a professional, empathetic response to the following customer email inquiry. Keep the response concise and helpful.`;
       
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+      const response = await chatCompletion({
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Customer Email:\nSubject: ${email.subject || '(no subject)'}\n\n${email.bodyText || email.bodyHtml || ''}\n\nGenerate a helpful response:` }
@@ -346,8 +343,8 @@ export class EmailService {
         max_tokens: 500,
         temperature: 0.7,
       });
-      
-      return response.choices[0]?.message?.content || undefined;
+
+      return response.content || undefined;
     } catch (error) {
       console.error('[EmailService] Auto-response generation failed:', error);
     }
