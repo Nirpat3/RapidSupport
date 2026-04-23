@@ -39,6 +39,7 @@ import { registerPartnerRoutes } from "./routes/partner.routes";
 import { registerExternalSystemsRoutes } from "./routes/external-systems.routes";
 import { registerStoresRoutes } from "./routes/stores.routes";
 import { registerEmbedTokenRoutes } from "./routes/embed-tokens.routes";
+import { registerEmbedChatRoutes } from "./routes/embed-chat.routes";
 import { registerTwoFactorRoutes } from "./routes/two-factor.routes";
 import { shreAiRouter } from "./routes/shre-ai.routes";
 import { runCloudStorageSync } from "./services/cloud-storage-sync.service";
@@ -18877,6 +18878,7 @@ export async function registerRoutes(
   registerExternalSystemsRoutes(routeContext);
   registerStoresRoutes(routeContext);
   registerEmbedTokenRoutes(routeContext);
+  registerEmbedChatRoutes(routeContext);
   registerTwoFactorRoutes(routeContext);
   registerResolutionMemoryRoutes(routeContext);
   registerCommunicationRoutes(routeContext);
