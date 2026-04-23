@@ -1,0 +1,2466 @@
+{
+  "generated": "2026-04-23T02:44:31.211Z",
+  "stats": {
+    "ok": 409,
+    "skip": 0,
+    "err": 0,
+    "bytes_in": 282848144,
+    "bytes_out": 750212
+  },
+  "files": [
+    {
+      "folder": "support-documents",
+      "path": "Payment Processing/Payment terminal Configuration.pdf",
+      "bytes": 8950,
+      "sha": "95f44734dda5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "eCommerce/E-COMMERCE PORTAL_User Manual_V 1.pdf",
+      "bytes": 17721,
+      "sha": "939d51dbc1a2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Supported Hardware/RapidRMS Supported Hardware.xlsx",
+      "bytes": 24298,
+      "sha": "3c7c179fb37d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Supported Hardware/Hardware supported models.xlsx",
+      "bytes": 4925,
+      "sha": "fc7d7ebc4cfd"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Supported Hardware/StarPrinter_supportedModel.pdf",
+      "bytes": 1625,
+      "sha": "7dea7ad464c8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Support Documents/Signs/Cash Discount.png",
+      "bytes": 33,
+      "sha": "32848088ffca"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Support Documents/Signs/Cash Discount.pdf",
+      "bytes": 568,
+      "sha": "0ff16d5a0f0e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Support Documents/Signs/Penny Image.png",
+      "bytes": 31,
+      "sha": "36c2b4d9fed4"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Support Documents/Signs/Surcharge-Notice.pdf",
+      "bytes": 498,
+      "sha": "c986a45d6306"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Supported Hardware/ItemList20250327161420.fld/filelist.xml",
+      "bytes": 246,
+      "sha": "703ce2117390"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Supported Hardware/ItemList20250327161420.fld/stylesheet.css",
+      "bytes": 3502,
+      "sha": "666dfb8f35f2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Supported Hardware/ItemList20250327161420.fld/sheet001.htm",
+      "bytes": 19545,
+      "sha": "fcad620da8e3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "RapidRMS Supported Hardware/ItemList20250327161420.fld/tabstrip.htm",
+      "bytes": 259,
+      "sha": "715d86ba61b2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Cash Rounding 1.docx",
+      "bytes": 2155,
+      "sha": "22c6cab328e9"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Altria Digital Trade Program (DTP) Enrollment Process for RapidRMS.pdf",
+      "bytes": 7606,
+      "sha": "00b5f8188545"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Sample API document_DoorDash 3.pdf",
+      "bytes": 21147,
+      "sha": "49eb02344114"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Create User for Third Party API 1.pdf",
+      "bytes": 3917,
+      "sha": "5970e4656b08"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to upload EDI File_EBYBROWN.docx",
+      "bytes": 4828,
+      "sha": "a57a625d99d5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/RapidRms Notification setting_How to OFF.docx",
+      "bytes": 1080,
+      "sha": "91bf7dd7e10e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Troubleshooting for PAX Terminal.docx",
+      "bytes": 1803,
+      "sha": "1fbb19b6806b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view customer profile from statics_.docx",
+      "bytes": 1348,
+      "sha": "c1ec75efa52a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to upload EDI File_KeHe.docx",
+      "bytes": 4823,
+      "sha": "abf605ee9c7e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to use shortcut in inventory_.docx",
+      "bytes": 538,
+      "sha": "2445e60d6ecc"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to turn on tender or payment shortcut from the setting.docx",
+      "bytes": 1203,
+      "sha": "8f8ceeeeaa88"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Why sometimes application slow running what I do.docx",
+      "bytes": 310,
+      "sha": "2581af8a8c27"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view counting item status_.docx",
+      "bytes": 969,
+      "sha": "334804a28854"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/If transaction doesn’t upload in the  cloud what I do.docx",
+      "bytes": 802,
+      "sha": "2809b984b10e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Update third party promotions RJR.docx",
+      "bytes": 1100,
+      "sha": "68eadc1311f8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Sometimes rapid app doesn’t open or it says beta has expired what should I do.docx",
+      "bytes": 199,
+      "sha": "377325b9103b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view restocking history_.docx",
+      "bytes": 901,
+      "sha": "a27f89de7acd"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How void field defined in report_.docx",
+      "bytes": 646,
+      "sha": "af531d3959a0"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Pax Connections on Fiserv Network with Rapid Connect App.docx",
+      "bytes": 1584,
+      "sha": "868fc239db09"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/If I want to use iPad touch screen keypad In the Rapid RMS system what I do.docx",
+      "bytes": 430,
+      "sha": "665208b2726a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Verifone Commander_Fuel Configuration in RapidRMS Application.docx",
+      "bytes": 1399,
+      "sha": "3216eed5b541"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Open order in inventory management.docx",
+      "bytes": 1092,
+      "sha": "8f7b0957ba76"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/RapidRms Notification setting.docx",
+      "bytes": 1787,
+      "sha": "a707d46f6ab8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Work KITCHEN PRINTER Functionality.docx",
+      "bytes": 3523,
+      "sha": "24629e06093a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Review Scan Data RJR group.docx",
+      "bytes": 1258,
+      "sha": "4f1f7de3c124"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to undo restocked history_.docx",
+      "bytes": 681,
+      "sha": "310e281d3460"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/RapidPOS Apple iOS Application Release Note.docx",
+      "bytes": 1376,
+      "sha": "c04bebc1442e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to turn on Scan data module from Back office.docx",
+      "bytes": 619,
+      "sha": "4f2a5f112551"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view Inverntory information in iPad.docx",
+      "bytes": 742,
+      "sha": "df063094d230"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How UPC scanner works.docx",
+      "bytes": 2232,
+      "sha": "91d30954749d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view sales history in restock report_.docx",
+      "bytes": 1721,
+      "sha": "6f59421a6fb6"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to use the RapidRMS Support Channel.docx",
+      "bytes": 1469,
+      "sha": "e04bbd190f99"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view Item History in iPad.docx",
+      "bytes": 1232,
+      "sha": "cc838182d42d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to turn on the DOB required for an age verification option from settings.docx",
+      "bytes": 2700,
+      "sha": "49c254bd753d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view Transfer order history from Inventory Transfer module.docx",
+      "bytes": 813,
+      "sha": "36983d9b3b2e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to update department services.docx",
+      "bytes": 8251,
+      "sha": "87611d704a26"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view shift report user wise_.docx",
+      "bytes": 645,
+      "sha": "6aef4d4a2491"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/RJR ScanData File Submission Process.docx",
+      "bytes": 1214,
+      "sha": "bbe3cb9c5864"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Update Deliver Invoice number_.docx",
+      "bytes": 1070,
+      "sha": "9ed8f9226b7b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Manage pricing structure.docx",
+      "bytes": 3796,
+      "sha": "544469069b4b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Where can I see close order History.docx",
+      "bytes": 1379,
+      "sha": "d8e07b9acc84"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/If Bluetooth printer doesn’t work and red flashing light shown what I do.docx",
+      "bytes": 1460,
+      "sha": "f449e9735b47"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to turn on Scan data promotion from Back office.docx",
+      "bytes": 614,
+      "sha": "7428487a2fe4"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to verify PAX & iPAD connectivity.docx",
+      "bytes": 5277,
+      "sha": "99a4bec6f3c7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to void in clock in out.docx",
+      "bytes": 762,
+      "sha": "34d206a8898e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view invoice in customer loyalty_.docx",
+      "bytes": 1677,
+      "sha": "b506a5374eab"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to turn on the Age restriction Scan from Settings.docx",
+      "bytes": 1108,
+      "sha": "2c6a70c49f26"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to turn on display age verification data in receipt option from settings.docx",
+      "bytes": 1162,
+      "sha": "c19b858f2e38"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to view customer profile_.docx",
+      "bytes": 519,
+      "sha": "74a08db0a166"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to upload EDI File_UNFI.docx",
+      "bytes": 3691,
+      "sha": "9c3467bd3ba3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to inquiry in ticket validation_.docx",
+      "bytes": 690,
+      "sha": "b73e16f1370b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to resolve Batch Close RBOUT OF BALANCE Error for Elavon Processor.docx",
+      "bytes": 1169,
+      "sha": "955f9bd7ca60"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add qsr group in modifier item.docx",
+      "bytes": 1275,
+      "sha": "4061a2a9d473"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to reconcile order from Receiving Pending.docx",
+      "bytes": 1566,
+      "sha": "a62e9e1e6d61"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add QSR sub group.docx",
+      "bytes": 3782,
+      "sha": "4bf42a54e474"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to do payment in RCR.docx",
+      "bytes": 1106,
+      "sha": "d6eaafe82fe9"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to search item invoice from invoice page.docx",
+      "bytes": 485,
+      "sha": "195f1e7c48f0"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to connect customer display_.docx",
+      "bytes": 1140,
+      "sha": "148f1d5c5c1d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to export list in restock report_.docx",
+      "bytes": 761,
+      "sha": "0bdb4de77145"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Clock in_.docx",
+      "bytes": 901,
+      "sha": "89c7aa7e496e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Delete an existing Tax for tax master.docx",
+      "bytes": 1318,
+      "sha": "aa342cee257d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to define closing amount in report_.docx",
+      "bytes": 622,
+      "sha": "d5f51fa706e4"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete invoice from inventory count_.docx",
+      "bytes": 538,
+      "sha": "741d0e9f90e2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create a New item from manual entry.docx",
+      "bytes": 1923,
+      "sha": "612099c984f9"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create GiftCard Payment Type in BackOffice.docx",
+      "bytes": 1247,
+      "sha": "e14177838a15"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Synchronize Database.docx",
+      "bytes": 1717,
+      "sha": "0ca46302e24b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create a New Tax for tax master.docx",
+      "bytes": 4121,
+      "sha": "5bc82ec08002"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to define drop amount in report_.docx",
+      "bytes": 566,
+      "sha": "1707a803d6f5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to logout from inventory management_.docx",
+      "bytes": 369,
+      "sha": "349c364b36be"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to print invoice_.docx",
+      "bytes": 664,
+      "sha": "d1dd9b78ec7c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to see history in manual entry_.docx",
+      "bytes": 1492,
+      "sha": "b0f633c4cb70"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add QSR group.docx",
+      "bytes": 3704,
+      "sha": "82dfa90a521c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to load balance in gift card_.docx",
+      "bytes": 979,
+      "sha": "189884740fab"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set CC batch receipt printing_.docx",
+      "bytes": 1297,
+      "sha": "54acebbf7dbc"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to remove tax from specific items or bill.docx",
+      "bytes": 484,
+      "sha": "ec6d2eaf0c20"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to do pre pay transaction_.docx",
+      "bytes": 3425,
+      "sha": "493b2190674b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to check Drop Amount Report in BackOffice.docx",
+      "bytes": 756,
+      "sha": "5edbca51f89c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit an existing tender from BOS.docx",
+      "bytes": 596,
+      "sha": "5db2ac63c1c0"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to print and email x report.docx",
+      "bytes": 1006,
+      "sha": "3e732f36d9af"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to get invoice according to time duration.docx",
+      "bytes": 743,
+      "sha": "4efbd0ce4529"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up memo for hold invoice.docx",
+      "bytes": 1198,
+      "sha": "f877b4d5e20c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to join count.docx",
+      "bytes": 1104,
+      "sha": "561b74d729f4"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to manage discount in item.docx",
+      "bytes": 1373,
+      "sha": "d86da287c327"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to assign categories for multiple items together.docx",
+      "bytes": 1567,
+      "sha": "bf81906493dc"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete an item from a Manual entry.docx",
+      "bytes": 833,
+      "sha": "ab3fca17143c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to creating an User for Rapid who can only extract data from Sales.docx",
+      "bytes": 1255,
+      "sha": "25607221bef7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Print Lable using Brother Printer.docx",
+      "bytes": 1392,
+      "sha": "129e2232df98"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to collect payment in house charge_.docx",
+      "bytes": 1113,
+      "sha": "c06be92e1501"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to filter invoice_.docx",
+      "bytes": 744,
+      "sha": "999d5a640a04"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to return an item from Manual Entry.docx",
+      "bytes": 1310,
+      "sha": "5a9c10b20d1f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete pending delivery invoice.docx",
+      "bytes": 929,
+      "sha": "2aa397b16dce"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Generate PO from Purchase order.docx",
+      "bytes": 3198,
+      "sha": "9668b0a1be65"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to deposit.docx",
+      "bytes": 977,
+      "sha": "125f463d51a5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to filter old and new items in the reconcile page_.docx",
+      "bytes": 1431,
+      "sha": "e7aee62d9303"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to cancel authorised pump.docx",
+      "bytes": 473,
+      "sha": "8056d6bce4c9"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to refund invoice_.docx",
+      "bytes": 944,
+      "sha": "6a0b5e45b4f1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to setup receipt print option.docx",
+      "bytes": 1000,
+      "sha": "62f85d281c49"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Return inventory from  PO.docx",
+      "bytes": 1497,
+      "sha": "225b91213316"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to do drawer setting_.docx",
+      "bytes": 1397,
+      "sha": "b9e0159605ca"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to restock item from restocking history_.docx",
+      "bytes": 817,
+      "sha": "209486c443f3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to give tips_.docx",
+      "bytes": 4145,
+      "sha": "b88fb5306ac0"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to review centralized Z from manager report.docx",
+      "bytes": 1624,
+      "sha": "2b5a66e77559"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to manage Description for Item in iPad.docx",
+      "bytes": 1239,
+      "sha": "0e2a19f1964d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to manage Add Edit Delete Payment Master.docx",
+      "bytes": 2855,
+      "sha": "b8f004e64f96"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Edit an existing Tax for tax master.docx",
+      "bytes": 832,
+      "sha": "a911d35ae955"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to review shift history from manager report.docx",
+      "bytes": 1473,
+      "sha": "69ef1457f3e8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to open drawer without key.docx",
+      "bytes": 423,
+      "sha": "2a448a652e40"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Linkup Modifier with Main Fooditem_POS.docx",
+      "bytes": 2408,
+      "sha": "3a18ea84aff7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to apply ZZ_.docx",
+      "bytes": 928,
+      "sha": "1e3000f9d4af"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up a gateway from Back.docx",
+      "bytes": 1353,
+      "sha": "656ac634690c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set change due timer_.docx",
+      "bytes": 666,
+      "sha": "5497dd3fd7b2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to configure parent item child item.docx",
+      "bytes": 685,
+      "sha": "9c996c096b33"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to see history in clock in out_.docx",
+      "bytes": 581,
+      "sha": "d7668ebd7bd8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to refund in house charge_.docx",
+      "bytes": 735,
+      "sha": "f67c96b60bc4"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to customize modifiers in item.docx",
+      "bytes": 2183,
+      "sha": "a93213ed8001"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add qsr operation in modifier item.docx",
+      "bytes": 1134,
+      "sha": "6c52086f8d2e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to remove items from sales restriction.docx",
+      "bytes": 847,
+      "sha": "62a2fb4740cd"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set Item as food item.docx",
+      "bytes": 652,
+      "sha": "1d26812b2117"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to check balance in gift card_.docx",
+      "bytes": 1160,
+      "sha": "0d280ff33b35"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to download app from app store.docx",
+      "bytes": 739,
+      "sha": "68bd902295b1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to import an EDI file with a Existing open order.docx",
+      "bytes": 2298,
+      "sha": "ab247fc4911e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo for drop amount.docx",
+      "bytes": 1479,
+      "sha": "1653578adf4f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to ring up modifier item in RCR.docx",
+      "bytes": 766,
+      "sha": "fd81f21faade"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Setup PAX for BOFA.docx",
+      "bytes": 5265,
+      "sha": "147f26b78e4d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to restart the iPad_3 Ways.docx",
+      "bytes": 2333,
+      "sha": "2bb101bdaae2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to review ZZ history from manager report_.docx",
+      "bytes": 1441,
+      "sha": "bb07f01086f5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Troubleshooting for PAX-BOFA.docx",
+      "bytes": 2915,
+      "sha": "09e07491c1cf"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create a New Sub Department.docx",
+      "bytes": 7902,
+      "sha": "423930680161"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to switch user in cash register_.docx",
+      "bytes": 539,
+      "sha": "8227d7c3f022"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up a Bridgepay gaurdian gateway from Back office.docx",
+      "bytes": 2352,
+      "sha": "fdad3ca041f1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Add Variations from Item.docx",
+      "bytes": 2458,
+      "sha": "416eb0180dfc"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to setup Pax.docx",
+      "bytes": 5032,
+      "sha": "ebf3e3d87ca7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set Dashboard shortcut in RCR.docx",
+      "bytes": 686,
+      "sha": "2f9471656b5a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to manage item stock through manual entry.docx",
+      "bytes": 3282,
+      "sha": "a56f14cf0243"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up a Bridgepay gateway from Back office.docx",
+      "bytes": 2340,
+      "sha": "ce5ada284177"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to resume pump_.docx",
+      "bytes": 538,
+      "sha": "3dc12da04002"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set tax on price.docx",
+      "bytes": 1623,
+      "sha": "f6b707d086cd"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to generate new Gift Card for Customer.docx",
+      "bytes": 1744,
+      "sha": "254351ec8552"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to identify which email id associated with their app store.docx",
+      "bytes": 467,
+      "sha": "22b2b7f0e54f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to check detail in X report.docx",
+      "bytes": 1162,
+      "sha": "f8c15c77136f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to define Cancel transaction in report_.docx",
+      "bytes": 500,
+      "sha": "bff5dc9642fa"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Load Balance in Gift Card.docx",
+      "bytes": 1277,
+      "sha": "14f4d16bedcc"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to search item from item master_.docx",
+      "bytes": 848,
+      "sha": "72e43fbf915a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add QSR operations for modifier.docx",
+      "bytes": 1824,
+      "sha": "ce0227fd3b2f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to deliver order in PO.docx",
+      "bytes": 1645,
+      "sha": "553a98093a1d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to clock out.docx",
+      "bytes": 873,
+      "sha": "7e17b5facc20"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to define price change count_.docx",
+      "bytes": 459,
+      "sha": "231da16565c1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Generate Shipping Order.docx",
+      "bytes": 2533,
+      "sha": "9ac7d3730b31"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo for discount.docx",
+      "bytes": 1038,
+      "sha": "3a664e42d141"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to setup Epson TM T82 printer.docx",
+      "bytes": 2117,
+      "sha": "72c08713ab25"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to print report from manager report.docx",
+      "bytes": 406,
+      "sha": "24192ae4e36f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Delete a gateway from Back.docx",
+      "bytes": 900,
+      "sha": "c643d34812ff"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to reconcile invoice from Manual entry.docx",
+      "bytes": 1434,
+      "sha": "27501d2058d6"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to drop amount.docx",
+      "bytes": 747,
+      "sha": "82d6266514ab"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up Age verification.docx",
+      "bytes": 1137,
+      "sha": "c499767011c5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to do signature in RCR_.docx",
+      "bytes": 1023,
+      "sha": "f0999207c26d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add sales discount from BOF and apply it on bill_.docx",
+      "bytes": 1412,
+      "sha": "28d66bff705c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create Open order.docx",
+      "bytes": 1197,
+      "sha": "7b75e72080d2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set modifier item as normal item.docx",
+      "bytes": 570,
+      "sha": "9cc3335e8da9"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit delete item from item movement.docx",
+      "bytes": 777,
+      "sha": "c539a36cfcea"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit an existing Fees and Deposits.docx",
+      "bytes": 1047,
+      "sha": "4b598b009b97"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete an existing Fee and Deposit.docx",
+      "bytes": 1255,
+      "sha": "855c62e9d683"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to reconcile invoice in inventory count_.docx",
+      "bytes": 1548,
+      "sha": "33592ed3f3a6"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit category of the department from Back office.docx",
+      "bytes": 915,
+      "sha": "e58287f0b19f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to link up modifier in item with category and sub category inclusion.docx",
+      "bytes": 1459,
+      "sha": "4318b1ae4906"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to approve Pump_.docx",
+      "bytes": 563,
+      "sha": "1f660201c0c4"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Cancel transaction_.docx",
+      "bytes": 617,
+      "sha": "ef14ffb89d43"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit QSR group.docx",
+      "bytes": 561,
+      "sha": "2b92f3911f38"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Transfer Order from In route Transfer Order list to Transfer Order History.docx",
+      "bytes": 2009,
+      "sha": "5c0d06ec9a13"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to disable tender from setting_.docx",
+      "bytes": 1291,
+      "sha": "40031420725f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to calculate No sales value_.docx",
+      "bytes": 547,
+      "sha": "b7a12529d370"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to stop all pumps simultaneously_.docx",
+      "bytes": 1449,
+      "sha": "a76443bd1339"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set credit limit for house charge_.docx",
+      "bytes": 1246,
+      "sha": "6fb9e6497988"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create a new tender from POS.docx",
+      "bytes": 2804,
+      "sha": "af8e8044cbc8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to review centralized shift from manager report.docx",
+      "bytes": 1514,
+      "sha": "efae9ea35aca"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to transfer pump_.docx",
+      "bytes": 1828,
+      "sha": "ad96a6b56d05"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up a Ingenico gateway from Back office.docx",
+      "bytes": 2142,
+      "sha": "fe9ef16e5d98"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to discontinue items from item movement_.docx",
+      "bytes": 630,
+      "sha": "e8311959e0f6"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up Bluetooth printer.docx",
+      "bytes": 1624,
+      "sha": "84cc554c78c7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to import an EDI file with a new open order.docx",
+      "bytes": 1495,
+      "sha": "2e12a1ec664c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo for price override.docx",
+      "bytes": 1437,
+      "sha": "0126df907382"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo for qty OH changed.docx",
+      "bytes": 1504,
+      "sha": "8d60bff42a56"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to generate Sales Invoices through Gift Card Payment.docx",
+      "bytes": 1125,
+      "sha": "8ec21ea8c4d7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to link modifier with qsr sub group.docx",
+      "bytes": 1541,
+      "sha": "41df7bcbd64d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to remove customer_.docx",
+      "bytes": 674,
+      "sha": "f093e518ec7a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to calculate line item void_.docx",
+      "bytes": 532,
+      "sha": "e5838a5f24ae"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set quantity in reorder.docx",
+      "bytes": 1207,
+      "sha": "bce3e00562d5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit customer_.docx",
+      "bytes": 803,
+      "sha": "42b03a1a2f09"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to apply EBT on ring up items_.docx",
+      "bytes": 1223,
+      "sha": "6d419e8b6bcc"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo pop up for item ring up.docx",
+      "bytes": 2308,
+      "sha": "9ba865cf8735"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to do post pay transaction_.docx",
+      "bytes": 1580,
+      "sha": "400ff6aa52b0"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to recall which is I put on hold transaction.docx",
+      "bytes": 1816,
+      "sha": "f7a975d79bc5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to download app from testflight or update.docx",
+      "bytes": 1195,
+      "sha": "55c30368eb39"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete sales restriction from BOF.docx",
+      "bytes": 907,
+      "sha": "2fc84f32df62"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to preview invoice_.docx",
+      "bytes": 400,
+      "sha": "fece8b4027b1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to link up modifier from QSR group.docx",
+      "bytes": 1481,
+      "sha": "535378ef4d6b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to review Z history from manager report_.docx",
+      "bytes": 1362,
+      "sha": "c0b79aed6f5b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Copy Item in iPad.docx",
+      "bytes": 911,
+      "sha": "ce9adafa1dfe"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to restart iPad.docx",
+      "bytes": 617,
+      "sha": "0e941fcc83c3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to review CC batch.docx",
+      "bytes": 1476,
+      "sha": "09ed0325f527"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete QSR group.docx",
+      "bytes": 648,
+      "sha": "0cdbb6e26cc8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to recall hold invoice from Manual entry.docx",
+      "bytes": 1889,
+      "sha": "fb32778f6426"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Add Vendor from Item.docx",
+      "bytes": 2210,
+      "sha": "6be9c54f4732"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to review centralized ZZ from manager report.docx",
+      "bytes": 1567,
+      "sha": "aacd532adeed"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to change GROUP PRICE.docx",
+      "bytes": 4571,
+      "sha": "126224d3bf63"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to compare Deliver PO List with Validation ME or EDI.docx",
+      "bytes": 1135,
+      "sha": "693aaa1158b7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to In item in inventory management_.docx",
+      "bytes": 1300,
+      "sha": "ece2f98a9a94"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit an existing tender from POS.docx",
+      "bytes": 1272,
+      "sha": "a6d91f65b103"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to scan QR code in ticket validation_.docx",
+      "bytes": 1109,
+      "sha": "8d86fbfdb71a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete an existing department.docx",
+      "bytes": 1451,
+      "sha": "14c6ec509efb"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to suspend pump_.docx",
+      "bytes": 623,
+      "sha": "b3d822099df1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up a drawer connection with the Printer.docx",
+      "bytes": 919,
+      "sha": "52575a5c5ace"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to ring up item in bill_.docx",
+      "bytes": 966,
+      "sha": "471c37dfa9e9"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to archive item_.docx",
+      "bytes": 918,
+      "sha": "c7b0aec45e4a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to check if your online or not.docx",
+      "bytes": 986,
+      "sha": "aa8e14c4891f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Stop Drop Amount Notification.docx",
+      "bytes": 817,
+      "sha": "19f502674307"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create a new department.docx",
+      "bytes": 12674,
+      "sha": "cb3f9703543f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo for tax remove.docx",
+      "bytes": 1857,
+      "sha": "92ed7a143771"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set print receipt for payment_.docx",
+      "bytes": 1319,
+      "sha": "98d98a25709a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to do payment by house charge_.docx",
+      "bytes": 911,
+      "sha": "877175b69359"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create new invoice in inventory count_.docx",
+      "bytes": 1783,
+      "sha": "566d1254b653"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Logout from PO module.docx",
+      "bytes": 322,
+      "sha": "b06c9faad44d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add sales restriction in blue law at BOF side.docx",
+      "bytes": 3487,
+      "sha": "65a7cf352c65"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo for no sales.docx",
+      "bytes": 1150,
+      "sha": "7732a859ca41"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to increase quantity for ring up items.docx",
+      "bytes": 695,
+      "sha": "075c3abd331f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to manage Item option from iPad.docx",
+      "bytes": 2755,
+      "sha": "382b86ae58f1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Delete Item in iPad.docx",
+      "bytes": 1158,
+      "sha": "1b22e05bd32d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete an existing tender from BOS.docx",
+      "bytes": 542,
+      "sha": "73e8739ea6db"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete item from invoice_.docx",
+      "bytes": 396,
+      "sha": "057586f7765f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Sync Pay-at-Pump Outside Transcation.docx",
+      "bytes": 1375,
+      "sha": "668ea5c971b5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to check detail in shift report_.docx",
+      "bytes": 909,
+      "sha": "0a58d4324e44"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to apply compulsory modifier in ring up item.docx",
+      "bytes": 2859,
+      "sha": "2b636235923f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to review pump info_.docx",
+      "bytes": 474,
+      "sha": "5bc7ffa10a91"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to inactive item_.docx",
+      "bytes": 1158,
+      "sha": "68c8006aea75"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit an existing department.docx",
+      "bytes": 745,
+      "sha": "832f2d089728"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Clear Pump Notifications.docx",
+      "bytes": 1575,
+      "sha": "3977434742af"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set notification for local network connection in RapidRMS_.docx",
+      "bytes": 1332,
+      "sha": "48726d9c056b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create categories for Department from Back office.docx",
+      "bytes": 1701,
+      "sha": "492155d09c2c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to settle CC batch_.docx",
+      "bytes": 876,
+      "sha": "d66855c17618"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete an existing sub department.docx",
+      "bytes": 1334,
+      "sha": "66d8cfd00e18"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit an existing Sub Department.docx",
+      "bytes": 1480,
+      "sha": "abab1f9c347b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set POS configuration  in dispenser setting_.docx",
+      "bytes": 2116,
+      "sha": "6827cebd9496"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit QSR sub group.docx",
+      "bytes": 718,
+      "sha": "dffa9df1ea75"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete an existing tender from POS.docx",
+      "bytes": 1268,
+      "sha": "45aac266bf2b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to complete counting in inventory count_.docx",
+      "bytes": 1208,
+      "sha": "28bfb5cbad67"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to do card swipe signature setting.docx",
+      "bytes": 2488,
+      "sha": "91dd9e5683c6"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Hold transaction_.docx",
+      "bytes": 619,
+      "sha": "bbbaaefc9fe3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo for cancel transaction.docx",
+      "bytes": 1595,
+      "sha": "706defd5d2ba"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add taxes to Item and Department.docx",
+      "bytes": 1270,
+      "sha": "092d3df21ca6"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to find apps on iPad.docx",
+      "bytes": 364,
+      "sha": "d296a6c19ed4"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to enable or disable department services.docx",
+      "bytes": 9262,
+      "sha": "b5afdd0d5b37"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to filter x report register wise.docx",
+      "bytes": 861,
+      "sha": "c4aa5bf8b51e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create an item with single Case and Pack relation.docx",
+      "bytes": 3541,
+      "sha": "9fb82efaa152"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up a Pax gateway from Back office.docx",
+      "bytes": 1928,
+      "sha": "c8e854785ac8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to edit a gateway from Back.docx",
+      "bytes": 812,
+      "sha": "e29020832932"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo for tender type.docx",
+      "bytes": 1605,
+      "sha": "786a567d5df2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create new Fees and Deposits.docx",
+      "bytes": 7731,
+      "sha": "c5a3adaed345"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to calculate value in default section of department_.docx",
+      "bytes": 500,
+      "sha": "5effa811c19a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up a BOFA Gateway from Back office.docx",
+      "bytes": 2801,
+      "sha": "bbda5ab623d7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to search customer_.docx",
+      "bytes": 779,
+      "sha": "ded30e3afeef"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to reset in clock in out.docx",
+      "bytes": 517,
+      "sha": "171cea220d7c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to apply Z_.docx",
+      "bytes": 1234,
+      "sha": "df023ed9ade8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to out item in inventory management_.docx",
+      "bytes": 1185,
+      "sha": "319243260742"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete QSR sub group.docx",
+      "bytes": 692,
+      "sha": "d1fe402c3fa2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to filter clock in out entry user wise_.docx",
+      "bytes": 635,
+      "sha": "d5e1f14f76b8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to open close shift from daily report.docx",
+      "bytes": 1816,
+      "sha": "f9c896e19d2e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to restock items from sales history_.docx",
+      "bytes": 735,
+      "sha": "c0485ce0b85a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to configure the brother label printer QL810W and QL820W.docx",
+      "bytes": 9504,
+      "sha": "5e2d5d29fc32"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to do group price change through IPAD_.docx",
+      "bytes": 3415,
+      "sha": "21661ad424b4"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add qsr sub group in modifier item.docx",
+      "bytes": 1324,
+      "sha": "010a0ae345f1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to logout from inventory count module.docx",
+      "bytes": 216,
+      "sha": "e0bcd9a7f1db"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to create a new tender from BOS.docx",
+      "bytes": 2254,
+      "sha": "d3cffeb2b06e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Scan Driving License.docx",
+      "bytes": 711,
+      "sha": "2beac6ce66a1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to delete customer_.docx",
+      "bytes": 613,
+      "sha": "3629eb30456e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Print label using Brother printer.docx",
+      "bytes": 1834,
+      "sha": "d6df5469f763"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to change a new uploaded items package type single to case pack.docx",
+      "bytes": 2199,
+      "sha": "2a4cf669ff31"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to manage barcode in inventory item.docx",
+      "bytes": 3029,
+      "sha": "352cc1506f2c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Delete Import EDI from List.docx",
+      "bytes": 824,
+      "sha": "f8d52a64b33f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set order status.docx",
+      "bytes": 1102,
+      "sha": "3619b1e0a966"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Check Balance in Gift Card.docx",
+      "bytes": 1193,
+      "sha": "7c876de18dff"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to logout from cash register.docx",
+      "bytes": 348,
+      "sha": "9a75e9ac0a3b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Transfer Order from source to destination store.docx",
+      "bytes": 1352,
+      "sha": "f1fa54c5c81b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to restart the iPad.docx",
+      "bytes": 2325,
+      "sha": "74ce0096eecb"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to deliver an Open order from PO.docx",
+      "bytes": 3017,
+      "sha": "cabe0d15d608"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set up drawer setting from RapidRMS.docx",
+      "bytes": 1719,
+      "sha": "beb6695fe5fc"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to set memo pop up for reconcile manual entry.docx",
+      "bytes": 1376,
+      "sha": "dff0502d456c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Export Inventory for DOORDASH_MANUAL Process_NEW.docx",
+      "bytes": 6050,
+      "sha": "1701727ba29b"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Create New Vendor and New Sales Representative.docx",
+      "bytes": 2033,
+      "sha": "874137c1a0db"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to open close your keyboard when you Bluetooth scanner is connected to your iPad.docx",
+      "bytes": 459,
+      "sha": "64d29d3e6e90"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to enter variations pricing.docx",
+      "bytes": 1498,
+      "sha": "4f5cc2bb6f1f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Enable and Disable Gas Pump from iPad.docx",
+      "bytes": 1314,
+      "sha": "61f814d9e2b3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Application loading issue what I do.docx",
+      "bytes": 8295,
+      "sha": "0a1ef05153b3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/ALTRIA_PMUSA ScanData File Submission Process.docx",
+      "bytes": 1573,
+      "sha": "0b5526dbf433"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How margin is calculated in all reports_.docx",
+      "bytes": 591,
+      "sha": "f7ddb397fefd"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How discount is bifurcated in report_.docx",
+      "bytes": 2541,
+      "sha": "22a458a57026"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can we set “Batch Close Timeout” for PAX in POS.docx",
+      "bytes": 1294,
+      "sha": "8ccdef807cae"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Filter items list to select items from third party promotions for RJR scan Data.docx",
+      "bytes": 2065,
+      "sha": "b0cf9a33d96c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Add a group from Item.docx",
+      "bytes": 1490,
+      "sha": "a5dc9b959c38"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add item in item movement_.docx",
+      "bytes": 665,
+      "sha": "b646f3f5ac46"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I email and preview any report from Manager Report.docx",
+      "bytes": 749,
+      "sha": "fd605750f4be"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Can I remove or delete item from order.docx",
+      "bytes": 1312,
+      "sha": "41e8a247d4f5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add an item from manual entry.docx",
+      "bytes": 3610,
+      "sha": "deea9ff75948"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How GIFT CARD Work.docx",
+      "bytes": 6250,
+      "sha": "81a478739c5a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I set up stock level in the items.docx",
+      "bytes": 702,
+      "sha": "d7d387d8c8f6"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can Admin or Store view accept or reject the user request from the Back office.docx",
+      "bytes": 634,
+      "sha": "96c0156af265"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Customer can get hose report from ipad_.docx",
+      "bytes": 2322,
+      "sha": "a2c67f11913d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I release the register from POS.docx",
+      "bytes": 1600,
+      "sha": "96bf8047db34"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add item into PO from inventory management.docx",
+      "bytes": 1149,
+      "sha": "0ab4c508d93d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I change date time in the Pax.docx",
+      "bytes": 1677,
+      "sha": "4b342ddbdb8f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add item in PO list.docx",
+      "bytes": 1563,
+      "sha": "75803cdf3bac"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How ticket validation work_.docx",
+      "bytes": 448,
+      "sha": "93c3276a8233"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How merchandise  departments are separately bifurcated in report.docx",
+      "bytes": 1105,
+      "sha": "6ec79279c96c"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add modifier in item.docx",
+      "bytes": 1478,
+      "sha": "0711c1a41737"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add modules in BOS.docx",
+      "bytes": 516,
+      "sha": "5a611d9ff7f6"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I reactive or replace the register from POS.docx",
+      "bytes": 727,
+      "sha": "95dbe0529cae"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can visualize blue law menu in BOF.docx",
+      "bytes": 848,
+      "sha": "0d70888a3e13"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Activate POSLink SDK in POS.docx",
+      "bytes": 926,
+      "sha": "0276e869ccac"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I add users for RapidRMS.docx",
+      "bytes": 5853,
+      "sha": "bf2a81ad35a3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I apply the qty multiplier.docx",
+      "bytes": 2361,
+      "sha": "f2e6c92740ec"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How server type setting works in dispenser_.docx",
+      "bytes": 1105,
+      "sha": "965d0f74e700"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How payout value calculated in reports_.docx",
+      "bytes": 538,
+      "sha": "66d9379d915f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Create third party promotions  Altria.docx",
+      "bytes": 7791,
+      "sha": "fc6374366392"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add department to favorite list.docx",
+      "bytes": 1432,
+      "sha": "238a22451bdb"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How  to set Emergency stoping pump_.docx",
+      "bytes": 821,
+      "sha": "2756f26a6b34"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Can I delete Role from Role Management.docx",
+      "bytes": 435,
+      "sha": "7ab15c7966d7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add modifier item into system.docx",
+      "bytes": 1077,
+      "sha": "c5a044d53f01"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add Item image in iPad.docx",
+      "bytes": 1084,
+      "sha": "251be2fbaee6"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How OFFLINE Drop Amount Work.docx",
+      "bytes": 3002,
+      "sha": "919c7128f7a8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How NON-CASH ADJUSTMENT work in POS.docx",
+      "bytes": 3945,
+      "sha": "e2c0cf3a9318"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How sound ON OFF from setting in application.docx",
+      "bytes": 357,
+      "sha": "e55a30cb3fa8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Add edit item.docx",
+      "bytes": 1055,
+      "sha": "84cf09d7991a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Cost of Goods field define in reports_.docx",
+      "bytes": 573,
+      "sha": "5ce77e8f2a93"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How gas pump detail display in dispenser setting_.docx",
+      "bytes": 1008,
+      "sha": "94f60d4d3c65"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How set gas receipt printing_.docx",
+      "bytes": 564,
+      "sha": "e040dae92878"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I reconcile the edi file and verify the items updated qty.docx",
+      "bytes": 1888,
+      "sha": "24490d6e59b1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add new customer_.docx",
+      "bytes": 1059,
+      "sha": "e36d601841c5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Inventory field define in field_.docx",
+      "bytes": 359,
+      "sha": "2437848eb707"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can we activate GIFT CARD Service from POS.docx",
+      "bytes": 1020,
+      "sha": "b5b79a5c1e76"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I delete a particular one item from the imported edi file.docx",
+      "bytes": 953,
+      "sha": "dfe1bc978bf2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I download customer display and activate store.docx",
+      "bytes": 1077,
+      "sha": "659482b7b0e5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Can I create New invoice from manual entry.docx",
+      "bytes": 5581,
+      "sha": "38f048903a3e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I see my purchase order history.docx",
+      "bytes": 1883,
+      "sha": "975211fa3aaa"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How GC liability field define in report_.docx",
+      "bytes": 650,
+      "sha": "97bb998a272d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I delete multiple items at once from the imported edi file.docx",
+      "bytes": 947,
+      "sha": "2fbce40657c7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Can I Create New Role from Role Management.docx",
+      "bytes": 1728,
+      "sha": "8cc2fa53d16f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Drop Amount Notification Work.docx",
+      "bytes": 2694,
+      "sha": "c8176ef76703"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I verify status in the reconcile page.docx",
+      "bytes": 2203,
+      "sha": "f6ad23963691"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I release and reactive register.docx",
+      "bytes": 1368,
+      "sha": "c4f20c1c5df4"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Add a Customer in RCR.docx",
+      "bytes": 4962,
+      "sha": "297f0ee848bc"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How store configuration work in dispenser setting_.docx",
+      "bytes": 1566,
+      "sha": "17385709aadb"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add items in sales restriction from BOF side.docx",
+      "bytes": 1645,
+      "sha": "ee83309badab"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do i void invoice_.docx",
+      "bytes": 989,
+      "sha": "2340c4f0db7f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add a item to the favorite list.docx",
+      "bytes": 1071,
+      "sha": "b6c136c925bd"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Gross Profit field define in report_.docx",
+      "bytes": 310,
+      "sha": "949de479d988"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How does Vendor Inventory work.docx",
+      "bytes": 1228,
+      "sha": "4df284974a96"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Delete third party promotions RJR.docx",
+      "bytes": 1027,
+      "sha": "951b57d85372"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How initial fields of report define_.docx",
+      "bytes": 1009,
+      "sha": "d9c52d1ba6d3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I prevent the user to create new item, edit and delete an existing item from Inventory management.docx",
+      "bytes": 2239,
+      "sha": "5c14da650731"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Can I update or edit Role from Role Management.docx",
+      "bytes": 868,
+      "sha": "90181b90ff04"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I ring up a fuel Sale.docx",
+      "bytes": 1890,
+      "sha": "54091747dd0e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I logout from Manual entry.docx",
+      "bytes": 393,
+      "sha": "c4e4cf93eff5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How payment type calculation define in report_.docx",
+      "bytes": 1266,
+      "sha": "64c33026c97f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Add a Tag from Item.docx",
+      "bytes": 1709,
+      "sha": "6fa6058d2291"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How merchandise and non merchandise department differentiated in report_.docx",
+      "bytes": 1434,
+      "sha": "a735919690b5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I add user from Back office or How to add user.docx",
+      "bytes": 74,
+      "sha": "9dc5f1838575"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How tax calculation define in report_.docx",
+      "bytes": 3712,
+      "sha": "b0e0585980d1"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Cash Register (RCR) work in OFFLINE mode.docx",
+      "bytes": 2378,
+      "sha": "9c704d831746"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How hourly calculation define in report_.docx",
+      "bytes": 489,
+      "sha": "b3b54e2432c2"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can i give manual discount in POS.docx",
+      "bytes": 478,
+      "sha": "bfb976bf333e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Close order in inventory management.docx",
+      "bytes": 583,
+      "sha": "4c26c4b23d93"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can we activate GIFT CARD Service from BackOffice.docx",
+      "bytes": 735,
+      "sha": "60b8c9f60aa3"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How sales restriction will apply at POS side.docx",
+      "bytes": 1005,
+      "sha": "84744fe29c4f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I revert the reconciled EDI file.docx",
+      "bytes": 2240,
+      "sha": "16162bc76524"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add credit for house charge_.docx",
+      "bytes": 1150,
+      "sha": "59494deac8b5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I delete receiving pending invoices.docx",
+      "bytes": 836,
+      "sha": "24f2cf0c96f9"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do I open Imported EDI file in edit mode.docx",
+      "bytes": 1095,
+      "sha": "3c3fa6051c65"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How home option work in setting_.docx",
+      "bytes": 761,
+      "sha": "0359048c5d7d"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add department subdepartment in item.docx",
+      "bytes": 1844,
+      "sha": "947181a62dba"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Create third party promotions  RJR.docx",
+      "bytes": 8307,
+      "sha": "a975cd591c12"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add item to Open order from item movement.docx",
+      "bytes": 899,
+      "sha": "94749a289fab"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add customer_.docx",
+      "bytes": 1543,
+      "sha": "383b5c32d9a5"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add item in PO list from Purchase order.docx",
+      "bytes": 1893,
+      "sha": "cca887ffb048"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How do i e-mail invoice_.docx",
+      "bytes": 1111,
+      "sha": "2565b907e726"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How synchronization work_.docx",
+      "bytes": 728,
+      "sha": "13351ababf70"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How load and redeem calculated in report_.docx",
+      "bytes": 1062,
+      "sha": "03d28c859236"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Customer display not working still loading page after uninstalling and reinstall.docx",
+      "bytes": 326,
+      "sha": "fc176bb437df"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to add items in PO by restock report_.docx",
+      "bytes": 608,
+      "sha": "848e33aaf321"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How SERVER OFFLINE SWITCH work in POS.docx",
+      "bytes": 1611,
+      "sha": "d1e693b9a3bc"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How lottery  department is separately bifergurated in report_.docx",
+      "bytes": 387,
+      "sha": "f5df7a31aa1f"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How Options work in setting_.docx",
+      "bytes": 560,
+      "sha": "ccd0df89bb84"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I hold invoice from Manual entry.docx",
+      "bytes": 1327,
+      "sha": "4cde39299bd7"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can I add the item to the back-order from receiving pending.docx",
+      "bytes": 1166,
+      "sha": "032323ef2f9e"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How can delete item from order.docx",
+      "bytes": 797,
+      "sha": "df16f0a1871a"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How daily sales gross net sales and net sales calculated in all reports.docx",
+      "bytes": 1739,
+      "sha": "d01ad61b52b8"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/How to Add or edit Price and price level from RapidRMS.docx",
+      "bytes": 5446,
+      "sha": "34ad89774525"
+    },
+    {
+      "folder": "support-documents",
+      "path": "Support Document_NEW FOLDER/Create third party promotions - RJR.docx",
+      "bytes": 5441,
+      "sha": "4a0d5686a87b"
+    }
+  ]
+}
