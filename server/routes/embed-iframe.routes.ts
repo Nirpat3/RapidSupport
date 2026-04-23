@@ -59,9 +59,24 @@ const EMBED_HTML = `<!doctype html>
   footer { border-top: 1px solid var(--border); padding: 10px; display: flex; gap: 8px; align-items: flex-end; background: var(--bg); }
   #input { flex: 1; resize: none; max-height: 120px; min-height: 40px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 20px; background: var(--bg); color: var(--fg); font: inherit; outline: none; }
   #input:focus { border-color: var(--primary); }
-  #send { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--primary); color: var(--primary-fg); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: transform 0.1s; }
+  #send, #attach { width: 40px; height: 40px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: transform 0.1s; }
+  #attach { background: transparent; color: var(--muted); }
+  #attach:hover { background: var(--bubble-agent); }
+  #send { background: var(--primary); color: var(--primary-fg); }
   #send:disabled { opacity: 0.4; cursor: not-allowed; }
-  #send:active:not(:disabled) { transform: scale(0.92); }
+  #send:active:not(:disabled), #attach:active { transform: scale(0.92); }
+  #fileInput { display: none; }
+  .attachment { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(0,0,0,0.05); border-radius: 10px; text-decoration: none; color: inherit; margin-top: 4px; }
+  .attachment:hover { background: rgba(0,0,0,0.1); }
+  .attachment .icon { font-size: 20px; }
+  .attachment .info { flex: 1; min-width: 0; }
+  .attachment .aname { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+  .attachment .ameta { font-size: 11px; color: var(--muted); }
+  .attachment img { max-width: 100%; max-height: 220px; border-radius: 8px; display: block; }
+  @media (prefers-color-scheme: dark) {
+    .attachment { background: rgba(255,255,255,0.08); }
+    .attachment:hover { background: rgba(255,255,255,0.14); }
+  }
   #status { padding: 10px 16px; text-align: center; color: var(--muted); font-size: 13px; }
   #status.error { color: #dc2626; }
 </style>
@@ -77,6 +92,8 @@ const EMBED_HTML = `<!doctype html>
   </header>
   <div id="messages"></div>
   <footer>
+    <button id="attach" type="button" aria-label="Attach file" title="Attach">📎</button>
+    <input id="fileInput" type="file" />
     <textarea id="input" rows="1" placeholder="Type a message..." autocomplete="off"></textarea>
     <button id="send" type="button" aria-label="Send">➤</button>
   </footer>
@@ -93,6 +110,8 @@ const EMBED_HTML = `<!doctype html>
   var statusDot = document.getElementById('statusDot');
   var storeNameEl = document.getElementById('storeName');
   var usernameEl = document.getElementById('username');
+  var attachBtn = document.getElementById('attach');
+  var fileInput = document.getElementById('fileInput');
 
   if (!token) {
     statusEl.className = 'error';
@@ -125,6 +144,56 @@ const EMBED_HTML = `<!doctype html>
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
+  var shownFileIds = {};
+  function appendAttachment(file, side) {
+    if (!file || !file.id || shownFileIds[file.id]) return;
+    shownFileIds[file.id] = true;
+    var div = document.createElement('div');
+    div.className = 'msg ' + (side === 'customer' ? 'customer' : 'agent');
+    div.setAttribute('data-file-id', file.id);
+    var url = '/api/files/' + encodeURIComponent(file.id) + '/download';
+    var mime = file.mime || '';
+
+    if (mime.indexOf('image/') === 0) {
+      var a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener';
+      var img = document.createElement('img');
+      img.src = url;
+      img.alt = file.name || 'image';
+      a.appendChild(img);
+      div.appendChild(a);
+    } else {
+      var a2 = document.createElement('a');
+      a2.className = 'attachment';
+      a2.href = url; a2.target = '_blank'; a2.rel = 'noopener';
+      var icon = document.createElement('span');
+      icon.className = 'icon';
+      icon.textContent = mime.indexOf('video/') === 0 ? '🎬'
+        : mime.indexOf('audio/') === 0 ? '🎵'
+        : mime.indexOf('pdf') >= 0 ? '📄'
+        : '📎';
+      var info = document.createElement('div');
+      info.className = 'info';
+      var nameEl = document.createElement('div');
+      nameEl.className = 'aname';
+      nameEl.textContent = file.name || 'file';
+      var metaEl = document.createElement('div');
+      metaEl.className = 'ameta';
+      metaEl.textContent = (mime || 'file') + ' · ' + (file.size ? Math.round(file.size / 1024) + ' KB' : '');
+      info.appendChild(nameEl);
+      info.appendChild(metaEl);
+      a2.appendChild(icon);
+      a2.appendChild(info);
+      div.appendChild(a2);
+    }
+    var meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = 'attached';
+    div.appendChild(meta);
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
   function setConnected(on) {
     if (on) statusDot.classList.add('connected'); else statusDot.classList.remove('connected');
   }
@@ -147,6 +216,14 @@ const EMBED_HTML = `<!doctype html>
     ws.onmessage = function(ev){
       try {
         var payload = JSON.parse(ev.data);
+        // file_attached event from this server's push
+        if (payload && payload.type === 'file_attached') {
+          var f = payload.data || payload.file || payload;
+          if (f && (!f.entityId || f.entityId === session.conversationId)) {
+            appendAttachment(f, f.uploadedBy && String(f.uploadedBy).indexOf('embed:') === 0 ? 'customer' : 'agent');
+          }
+          return;
+        }
         // Accept a few common shapes from this codebase
         var msg = payload.message || payload.data || payload;
         if (msg && msg.conversationId && msg.conversationId !== session.conversationId) return;
@@ -176,6 +253,40 @@ const EMBED_HTML = `<!doctype html>
         });
       })
       .catch(function(){ /* ignore — start empty */ });
+  }
+
+  function loadAttachments() {
+    // Use the embed-token-authenticated listing endpoint if available,
+    // otherwise fall back to the shre-files proxy path. Current flow relies
+    // on future WS events for new uploads; this is mostly a render of
+    // existing attachments attached via partner or staff.
+    return Promise.resolve();
+  }
+
+  function uploadAttachment(file) {
+    if (!file || !session) return;
+    var info = document.createElement('div');
+    info.className = 'msg system';
+    info.textContent = 'uploading ' + file.name + '…';
+    messagesEl.appendChild(info);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    var form = new FormData();
+    form.append('file', file);
+    fetch('/api/embed/conversations/' + encodeURIComponent(session.conversationId) + '/files', {
+      method: 'POST',
+      headers: { 'X-Embed-Token': token },
+      body: form,
+    }).then(function(r){
+      if (!r.ok) return r.json().then(function(e){ throw new Error(e.error || 'upload failed'); });
+      return r.json();
+    }).then(function(meta){
+      info.remove();
+      appendAttachment(meta, 'customer');
+    }).catch(function(err){
+      info.className = 'msg system';
+      info.textContent = 'Upload failed: ' + (err && err.message ? err.message : 'unknown');
+    });
   }
 
   function sendMessage() {
@@ -218,6 +329,14 @@ const EMBED_HTML = `<!doctype html>
   });
   sendBtn.addEventListener('click', sendMessage);
   sendBtn.disabled = true;
+
+  attachBtn.addEventListener('click', function(){ fileInput.click(); });
+  fileInput.addEventListener('change', function(){
+    if (fileInput.files && fileInput.files[0]) {
+      uploadAttachment(fileInput.files[0]);
+      fileInput.value = '';
+    }
+  });
 
   // Bootstrap
   fetch('/api/embed/chat/session', {
