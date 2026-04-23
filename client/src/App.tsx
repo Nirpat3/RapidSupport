@@ -83,6 +83,7 @@ const SettingsHubPage = lazy(() => import("@/pages/SettingsHubPage"));
 const AdministrationHubPage = lazy(() => import("@/pages/AdministrationHubPage"));
 const ActivityHubPage = lazy(() => import("@/pages/ActivityHubPage"));
 const ApiIntegrationPage = lazy(() => import("@/pages/ApiIntegrationPage"));
+const PartnerIntegrationsPage = lazy(() => import("@/pages/PartnerIntegrationsPage"));
 const LegalPoliciesPage = lazy(() => import("@/pages/LegalPoliciesPage"));
 const PublicLegalPage = lazy(() => import("@/pages/PublicLegalPage"));
 const QuantumOptimizationPage = lazy(() => import("@/pages/QuantumOptimizationPage"));
@@ -352,6 +353,11 @@ function Router() {
         <Route path="/api-integration">
           <PermissionGuard feature="settings">
             <ApiIntegrationPage />
+          </PermissionGuard>
+        </Route>
+        <Route path="/partner-integrations">
+          <PermissionGuard feature="settings">
+            <PartnerIntegrationsPage />
           </PermissionGuard>
         </Route>
         <Route path="/legal-policies">
