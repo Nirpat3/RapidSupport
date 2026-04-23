@@ -10,6 +10,8 @@ import { AGENT_TOOLS, executeTool, getRecentActions, getAgentToolsAsOpenAI, exec
 import { ResolutionMemoryService } from './services/resolution-memory';
 import { ImageErrorDetectionService } from './services/image-error-detection';
 import { AIDataProtectionService } from './services/ai-data-protection';
+import { screenMessage } from './message-pre-filter';
+import { enqueueShreEvent } from './shre-outbox';
 
 // Model pricing (per 1M tokens) - updated for GPT-5
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
@@ -1455,7 +1457,29 @@ IMPORTANT: If no relevant knowledge base information is available, set requiresH
     try {
       // Log customer message
       conversationLogger.logCustomerMessage(conversationId, customerMessage);
-      
+
+      // Zero-API pre-filter — catch abuse/spam/prompt-injection before we burn
+      // tokens or feed adversarial inputs into the training corpus.
+      const screen = screenMessage(customerMessage);
+      if (screen.action === 'refuse') {
+        console.log(`[PreFilter] ${screen.verdict} (${screen.reason}) — refusing without AI call`);
+        void enqueueShreEvent('conversation.message', {
+          conversationId,
+          refusal: true,
+          verdict: screen.verdict,
+          reason: screen.reason,
+          messageSnippet: customerMessage.slice(0, 200),
+        });
+        return {
+          response: screen.refusalMessage || 'I can\'t help with that. Please rephrase your question.',
+          confidence: 100,
+          requiresHumanTakeover: screen.verdict === 'abuse',
+          suggestedActions: [],
+          knowledgeUsed: [],
+          format: 'regular',
+        };
+      }
+
       // Classify intent to determine appropriate response format and agent routing
       const intentClassification = await this.classifyIntent(customerMessage);
       console.log(`Intent classification: ${intentClassification.intent} (confidence: ${intentClassification.confidence}%)`);
@@ -3514,7 +3538,24 @@ For example: "According to [PAX Terminal Setup → Bluetooth Connection], you sh
     try {
       // Log customer message
       conversationLogger.logCustomerMessage(conversationId, customerMessage);
-      
+
+      // Zero-API pre-filter — catch abuse/spam/prompt-injection before we burn
+      // tokens or feed adversarial inputs into the training corpus.
+      const screen = screenMessage(customerMessage);
+      if (screen.action === 'refuse') {
+        console.log(`[Stream][PreFilter] ${screen.verdict} (${screen.reason}) — refusing without AI call`);
+        void enqueueShreEvent('conversation.message', {
+          conversationId,
+          refusal: true,
+          verdict: screen.verdict,
+          reason: screen.reason,
+          messageSnippet: customerMessage.slice(0, 200),
+        });
+        yield { type: 'token', data: screen.refusalMessage || 'I can\'t help with that. Please rephrase your question.' };
+        yield { type: 'metadata', data: { confidence: 100, requiresHumanTakeover: screen.verdict === 'abuse', suggestedActions: [], format: 'regular' } };
+        return;
+      }
+
       // Classify intent to determine appropriate response format and agent routing
       const intentClassification = await this.classifyIntent(customerMessage);
       console.log(`[Stream] Intent: ${intentClassification.intent} (${intentClassification.confidence}%)`);

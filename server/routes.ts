@@ -5,6 +5,7 @@ import crypto from "crypto";
 import rateLimit from 'express-rate-limit';
 import { chatCompletion, syncArticleToShre, bulkSyncKBToShre, deleteArticleFromShre, isShreEnabled } from './shre-gateway';
 import { enqueueShreEvent } from './shre-outbox';
+import { screenMessage } from './message-pre-filter';
 import { DocumentProcessor } from './document-processor';
 import { AIDocumentAnalyzer } from './ai-document-analyzer';
 import { z } from 'zod';
@@ -8272,6 +8273,25 @@ export async function registerRoutes(app: Express, sessionStore?: any): Promise<
 
       if (!question) {
         return res.status(400).json({ error: 'Question is required' });
+      }
+
+      // Anonymous/public endpoint — highest abuse risk. Run zero-API pre-filter
+      // before touching KB lookup + AI.
+      const screen = screenMessage(String(question));
+      if (screen.action === 'refuse') {
+        console.log(`[public-search][PreFilter] ${screen.verdict} (${screen.reason})`);
+        void enqueueShreEvent('conversation.message', {
+          endpoint: '/api/public/support/search',
+          refusal: true,
+          verdict: screen.verdict,
+          reason: screen.reason,
+          messageSnippet: String(question).slice(0, 200),
+        });
+        return res.status(200).json({
+          answer: screen.refusalMessage || 'I can\'t help with that. Please rephrase your question.',
+          sources: [],
+          refused: true,
+        });
       }
 
       // Resolve knowledge base IDs. Prefer a specific org's active articles;
