@@ -422,6 +422,10 @@ export const customerOrganizations = pgTable("customer_organizations", {
   // Multi-tenant scoping (links to staff organization)
   organizationId: varchar("organization_id").references(() => organizations.id), // Which staff org serves this customer org
 
+  // Optional workspace pin — when set, all new conversations from this store
+  // route to agents in this workspace (rather than any agent in the reseller).
+  workspaceId: varchar("workspace_id"), // FK → workspaces.id, resolved at query time
+
   // Partner integration link — populated when this store was imported from
   // an external system (e.g. RapidRMS). Null for manually-created stores.
   externalSystemId: varchar("external_system_id"), // FK → external_systems.id, resolved at query time

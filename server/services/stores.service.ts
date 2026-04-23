@@ -18,6 +18,7 @@ export interface StoreInput {
   slug?: string;
   supportId?: string;
   organizationId: string; // reseller staff org that owns this store
+  workspaceId?: string | null; // optional: pin conversations to a workspace
   externalSystemId?: string | null;
   externalId?: string | null;
   externalMetadata?: Record<string, any>;
@@ -78,6 +79,7 @@ export const storesService = {
       slug,
       supportId: input.supportId,
       organizationId: input.organizationId,
+      workspaceId: input.workspaceId ?? null,
       externalSystemId: input.externalSystemId ?? null,
       externalId: input.externalId ?? null,
       externalMetadata: input.externalMetadata || {},
@@ -120,6 +122,7 @@ export const storesService = {
     const updates: Record<string, any> = { updatedAt: new Date() };
     if (patch.name !== undefined) updates.name = patch.name;
     if (patch.supportId !== undefined) updates.supportId = patch.supportId;
+    if (patch.workspaceId !== undefined) updates.workspaceId = patch.workspaceId;
     if (patch.settings !== undefined) updates.settings = patch.settings;
     if (patch.externalMetadata !== undefined) updates.externalMetadata = patch.externalMetadata;
     if (patch.isActive !== undefined) updates.isActive = patch.isActive;

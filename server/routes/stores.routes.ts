@@ -39,6 +39,7 @@ const createSchema = z.object({
   name: z.string().min(1).max(200),
   slug: z.string().min(1).max(120).optional(),
   supportId: z.string().max(100).optional(),
+  workspaceId: z.string().nullable().optional(),
   externalSystemId: z.string().optional(),
   externalId: z.string().max(200).optional(),
   externalMetadata: z.record(z.any()).optional(),
@@ -49,6 +50,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   supportId: z.string().max(100).optional(),
+  workspaceId: z.string().nullable().optional(),
   settings: z.record(z.any()).optional(),
   externalMetadata: z.record(z.any()).optional(),
   isActive: z.boolean().optional(),

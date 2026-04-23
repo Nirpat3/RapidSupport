@@ -33,6 +33,7 @@ import {
 import { and, desc, eq, gte } from 'drizzle-orm';
 import { AIDataProtectionService } from '../services/ai-data-protection';
 import { verifyEmbedToken, type EmbedTokenPayload } from '../services/embed-tokens';
+import { pickAgentForConversation } from '../services/routing-service';
 import { randomUUID } from 'crypto';
 
 const sessionSchema = z.object({
@@ -109,6 +110,7 @@ async function findOrCreateConversation(
   customer: Customer,
   payload: EmbedTokenPayload,
   storeName: string,
+  workspaceId: string | null,
 ): Promise<Conversation> {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const [existing] = await db.select().from(conversations)
@@ -122,6 +124,11 @@ async function findOrCreateConversation(
   if (existing) return existing;
 
   const sessionId = randomUUID();
+  const assignedAgentId = await pickAgentForConversation({
+    organizationId: payload.organizationId,
+    workspaceId,
+  }).catch(() => null);
+
   const [created] = await db.insert(conversations).values({
     customerId: customer.id,
     status: 'open',
@@ -129,6 +136,8 @@ async function findOrCreateConversation(
     isAnonymous: false, // we know identity from the token
     sessionId,
     organizationId: payload.organizationId,
+    workspaceId,
+    assignedAgentId: assignedAgentId ?? null,
     contextData: JSON.stringify({
       source: 'embed-iframe',
       externalSystem: payload.iss,
@@ -181,7 +190,7 @@ export function registerEmbedChatRoutes({ app }: RouteContext) {
       const [org] = await db.select().from(organizations).where(eq(organizations.id, payload.organizationId));
 
       const customer = await upsertEmbedCustomer(payload, store);
-      const conversation = await findOrCreateConversation(customer, payload, store.name);
+      const conversation = await findOrCreateConversation(customer, payload, store.name, store.workspaceId ?? null);
 
       // Build a WebSocket URL the iframe can connect to
       const wsProto = req.secure ? 'wss' : 'ws';
