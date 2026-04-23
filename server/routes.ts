@@ -38,6 +38,7 @@ import { registerAgenticRoutes } from "./routes/agentic.routes";
 import { registerPartnerRoutes } from "./routes/partner.routes";
 import { registerExternalSystemsRoutes } from "./routes/external-systems.routes";
 import { registerStoresRoutes } from "./routes/stores.routes";
+import { registerEmbedTokenRoutes } from "./routes/embed-tokens.routes";
 import { registerTwoFactorRoutes } from "./routes/two-factor.routes";
 import { shreAiRouter } from "./routes/shre-ai.routes";
 import { runCloudStorageSync } from "./services/cloud-storage-sync.service";
@@ -18875,6 +18876,7 @@ export async function registerRoutes(
   registerPartnerRoutes(routeContext);
   registerExternalSystemsRoutes(routeContext);
   registerStoresRoutes(routeContext);
+  registerEmbedTokenRoutes(routeContext);
   registerTwoFactorRoutes(routeContext);
   registerResolutionMemoryRoutes(routeContext);
   registerCommunicationRoutes(routeContext);
