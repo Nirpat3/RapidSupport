@@ -9,8 +9,10 @@
  */
 import OpenAI from 'openai';
 
-// @ts-ignore — JS module without types
-import { ShreClient } from './shre-client.js';
+// CommonJS module — use createRequire for ESM interop
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
+const { ShreClient } = _require('./shre-client.js');
 
 // ── Configuration ──
 
